@@ -1733,7 +1733,7 @@ h3 {
   }
 
   body[data-page="settings"].settings-mobile-content-view .settings-category-header h2 {
-    font-size: clamp(1.65rem, 8vw, 2.25rem);
+    font-size: clamp(1.45rem, 7vw, 1.85rem);
   }
 
   .danger-zone-card {
