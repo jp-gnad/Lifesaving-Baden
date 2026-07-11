@@ -188,7 +188,7 @@
     initLoginPage(auth, googleProvider);
   }
 
-  if (page === "app") {
+  if (page === "app" || page === "settings") {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -331,8 +331,6 @@
     const accountOpenButton = document.querySelector("[data-account-open]");
     const accountOverlay = document.querySelector("[data-account-overlay]");
     const accountCloseButton = document.querySelector("[data-account-close]");
-    const settingsToggle = document.querySelector("[data-settings-toggle]");
-    const settingsPanel = document.querySelector("[data-account-settings]");
     const deleteAccountButton = document.querySelector("[data-delete-account]");
     let settingsLoadedForUser = null;
 
@@ -348,13 +346,6 @@
       if (event.key === "Escape") {
         closeAccountModal();
       }
-    });
-
-    settingsToggle?.addEventListener("click", () => {
-      const isOpening = settingsPanel.classList.contains("is-hidden");
-
-      settingsPanel.classList.toggle("is-hidden", !isOpening);
-      settingsToggle.setAttribute("aria-expanded", String(isOpening));
     });
 
     deleteAccountButton?.addEventListener("click", () => deleteCurrentAccount(auth, deleteAccountButton));

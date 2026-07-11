@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Geschuetzter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-menu-fix">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-settings-page">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-account-menu-fix"></script>
-    <script defer src="assets/js/auth.js?v=20260711-account-menu-fix"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-account-settings-page"></script>
+    <script defer src="assets/js/auth.js?v=20260711-account-settings-page"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -70,33 +70,9 @@
         <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
         <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
 
-        <button class="button button-secondary account-manage" type="button" data-settings-toggle aria-expanded="false">
+        <a class="button button-secondary account-manage" href="account-settings.html">
           Kontoeinstellungen verwalten
-        </button>
-
-        <div class="account-settings is-hidden" data-account-settings>
-          <h3>Kontoeinstellungen</h3>
-          <label class="setting-check">
-            <input type="checkbox" data-keep-data>
-            <span>Persoenliche Daten bis auf Widerruf speichern</span>
-          </label>
-          <label class="setting-check">
-            <input type="checkbox" data-private-profile>
-            <span>Privates Profil</span>
-          </label>
-          <p class="setting-help">
-            Wenn dieser Haken aus ist, kann dein Profil von anderen Accounts
-            oeffentlich gefunden und eingesehen werden.
-          </p>
-          <p class="form-message success" data-settings-message role="status"></p>
-
-          <div class="danger-zone">
-            <h3>Konto loeschen</h3>
-            <p>Das Konto und die gespeicherten Einstellungen werden entfernt.</p>
-            <button class="danger-button" type="button" data-delete-account>Konto loeschen</button>
-            <p class="form-message" data-delete-message role="status"></p>
-          </div>
-        </div>
+        </a>
 
         <div class="account-actions">
           <button class="account-action" type="button" data-logout>Abmelden</button>

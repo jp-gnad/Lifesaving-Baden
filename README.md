@@ -27,6 +27,7 @@ Das bedeutet:
 |-- index.html
 |-- login.html
 |-- app.html
+|-- account-settings.html
 |-- assets/
 |   |-- css/
 |   |   `-- styles.css
