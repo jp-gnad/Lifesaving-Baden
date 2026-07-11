@@ -705,6 +705,38 @@ h3 {
   font-size: clamp(2.05rem, 4vw, 3.8rem);
 }
 
+.link-indicator {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+  align-items: center;
+  width: fit-content;
+  margin-top: 16px;
+  padding: 7px 11px;
+  border: 1px solid rgba(28, 191, 105, 0.34);
+  border-radius: 999px;
+  background: rgba(28, 191, 105, 0.1);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.link-indicator span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--bg);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.link-indicator.is-hidden {
+  display: none;
+}
+
 .completion-notice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;

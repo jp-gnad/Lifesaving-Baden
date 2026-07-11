@@ -6,12 +6,12 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-login-copy">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-linked-indicator">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-login-copy"></script>
-    <script defer src="assets/js/auth.js?v=20260711-login-copy"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-linked-indicator"></script>
+    <script defer src="assets/js/auth.js?v=20260711-linked-indicator"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -42,6 +42,10 @@
           angezeigt. Wirklich vertrauliche Inhalte sollten weiterhin aus einer
           geschützten Datenquelle geladen werden.
         </p>
+        <div class="link-indicator is-hidden" data-link-indicator aria-live="polite">
+          <span aria-hidden="true">✓</span>
+          <strong>Konto verknüpft</strong>
+        </div>
       </section>
 
       <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite">
@@ -82,7 +86,7 @@
             </li>
           </ul>
         </article>
-        <article class="card dashboard-action-card" data-link-status-card>
+        <article class="card dashboard-action-card is-hidden" data-link-status-card>
           <h2 data-link-card-title>Person verknüpfen</h2>
           <p data-link-card-text>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
           <a class="button button-primary" href="link-request.html" data-link-card-action>Jetzt verknüpfen</a>

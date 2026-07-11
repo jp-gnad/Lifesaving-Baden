@@ -764,21 +764,26 @@
 
   function updateLinkStatusUi(data) {
     const copy = getLinkStatusCopy(data);
+    const hasLoadedData = Boolean(data);
     const isLinked = copy.state === "linked";
     const hasRequest = copy.state === "requested";
 
     document.querySelectorAll("[data-account-attention]").forEach((element) => {
-      element.classList.toggle("is-hidden", isLinked);
+      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
     });
 
     document.querySelectorAll("[data-link-status-shell]").forEach((element) => {
-      element.classList.toggle("is-hidden", isLinked);
+      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
+    });
+
+    document.querySelectorAll("[data-link-indicator]").forEach((element) => {
+      element.classList.toggle("is-hidden", !hasLoadedData || !isLinked);
     });
 
     document.querySelectorAll("[data-account-link-status]").forEach((element) => {
       const statusLabel = element.querySelector("strong");
 
-      element.classList.toggle("is-hidden", isLinked);
+      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
 
       if (statusLabel) {
         statusLabel.textContent = hasRequest ? "Antrag in Prüfung" : copy.title;
@@ -787,10 +792,11 @@
 
     document.querySelectorAll("[data-link-status-action], [data-link-card-action]").forEach((element) => {
       element.textContent = copy.action;
-      element.classList.toggle("is-hidden", isLinked);
+      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
     });
 
     document.querySelectorAll("[data-link-status-card]").forEach((element) => {
+      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
       element.classList.toggle("is-linked", isLinked);
     });
 
