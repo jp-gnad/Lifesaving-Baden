@@ -662,6 +662,12 @@ h3 {
   font-weight: 750;
 }
 
+.setting-form small {
+  color: var(--muted);
+  font-size: 0.82em;
+  font-weight: 700;
+}
+
 .setting-form input {
   width: 100%;
   min-height: 46px;

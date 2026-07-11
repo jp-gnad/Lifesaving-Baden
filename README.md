@@ -73,6 +73,8 @@ Gespeicherte Felder:
 - `privateProfile`: Standardwert ist `false`.
 - `publicProfile`: Gegenwert zu `privateProfile`, praktisch für spätere
   Profilsuche.
+- `dlrgBranch`: freiwillige DLRG-Gliederung aus den Kontoeinstellungen.
+- `birthDate`: freiwilliges Geburtsdatum aus den Kontoeinstellungen.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
   DLRG-Gliederung, erstem/letztem Wettkampf, Konto-E-Mail und Firebase UID.

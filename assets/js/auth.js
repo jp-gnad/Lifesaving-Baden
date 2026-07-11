@@ -666,6 +666,39 @@
       googleLinkButton.dataset.listenerAttached = "true";
       googleLinkButton.addEventListener("click", () => manageGoogleAccount(auth, googleLinkButton));
     }
+
+    await loadAccountProfileDetails(auth);
+  }
+
+  function getOptionalProfileDetails(form) {
+    return {
+      dlrgBranch: form.elements.dlrgBranch?.value.trim() || "",
+      birthDate: form.elements.birthDate?.value || ""
+    };
+  }
+
+  async function loadAccountProfileDetails(auth) {
+    const user = auth.currentUser;
+    const profileForm = document.querySelector("[data-profile-form]");
+
+    if (!user || !profileForm || !window.firebase.firestore) {
+      return;
+    }
+
+    try {
+      const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
+      const data = snapshot.exists ? snapshot.data() : {};
+
+      if (profileForm.elements.dlrgBranch) {
+        profileForm.elements.dlrgBranch.value = data.dlrgBranch || "";
+      }
+
+      if (profileForm.elements.birthDate) {
+        profileForm.elements.birthDate.value = data.birthDate || "";
+      }
+    } catch (error) {
+      setProfileMessage(translateFirestoreError(error), false);
+    }
   }
 
   async function saveProfileDetails(event, auth) {
@@ -676,6 +709,7 @@
     const button = form.querySelector('button[type="submit"]');
     const displayName = form.elements.displayName.value.trim();
     const email = form.elements.email.value.trim();
+    const optionalProfileDetails = getOptionalProfileDetails(form);
 
     if (!user) {
       setProfileMessage("Bitte logge dich erneut ein.", false);
@@ -703,7 +737,8 @@
       await user.reload();
       updateAccountProfile(auth.currentUser);
       fillAccountManagementForms(auth.currentUser);
-      await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null);
+      await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
+      await loadAccountProfileDetails(auth);
 
       setProfileMessage(
         emailChanged
@@ -732,7 +767,7 @@
     await user.sendEmailVerification(actionSettings);
   }
 
-  async function saveIdentitySnapshot(user, pendingEmail) {
+  async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails) {
     if (!window.firebase.firestore) {
       return;
     }
@@ -742,6 +777,12 @@
       displayName: user.displayName || "",
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
     };
+
+    if (optionalProfileDetails) {
+      payload.dlrgBranch = optionalProfileDetails.dlrgBranch;
+      payload.birthDate = optionalProfileDetails.birthDate;
+      payload.profileDetailsUpdatedAt = window.firebase.firestore.FieldValue.serverTimestamp();
+    }
 
     if (pendingEmail) {
       payload.pendingEmail = pendingEmail;
