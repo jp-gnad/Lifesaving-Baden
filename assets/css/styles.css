@@ -19,6 +19,7 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 15px;
 }
 
 body {
@@ -50,8 +51,8 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  min-height: 72px;
-  padding: 16px clamp(20px, 5vw, 72px);
+  min-height: 68px;
+  padding: 14px clamp(20px, 5vw, 64px);
   border-bottom: 1px solid var(--line);
   background: rgba(15, 15, 18, 0.92);
   backdrop-filter: blur(16px);
@@ -61,7 +62,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .brand-mark {
@@ -86,13 +87,13 @@ input {
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-weight: 650;
+  font-weight: 550;
 }
 
 .nav a,
 .nav-button {
-  min-height: 40px;
-  padding: 10px 14px;
+  min-height: 38px;
+  padding: 9px 13px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -135,8 +136,8 @@ input {
   border-radius: 50%;
   background: var(--accent);
   color: var(--text);
-  font-size: 0.72rem;
-  font-weight: 900;
+  font-size: 0.7rem;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -147,7 +148,7 @@ input {
   border-radius: 50%;
   background: var(--primary);
   color: var(--bg);
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .account-avatar img {
@@ -164,10 +165,10 @@ input {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 480px);
-  gap: clamp(28px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 430px);
+  gap: clamp(24px, 5vw, 60px);
   align-items: center;
-  padding: clamp(56px, 8vw, 104px) clamp(20px, 5vw, 72px) clamp(40px, 6vw, 80px);
+  padding: clamp(44px, 7vw, 84px) clamp(20px, 5vw, 64px) clamp(34px, 5vw, 64px);
 }
 
 .hero-copy {
@@ -177,8 +178,8 @@ input {
 .eyebrow {
   margin: 0 0 12px;
   color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.72rem;
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -193,28 +194,28 @@ p {
 h1 {
   max-width: 12ch;
   margin: 0;
-  font-size: clamp(3rem, 7vw, 6.7rem);
-  line-height: 0.95;
+  font-size: clamp(2.6rem, 6vw, 5.4rem);
+  line-height: 1;
   letter-spacing: 0;
 }
 
 h2 {
   margin: 0;
-  font-size: clamp(1.85rem, 4vw, 3rem);
-  line-height: 1.05;
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  line-height: 1.12;
 }
 
 h3 {
   margin: 0 0 10px;
-  font-size: 1.12rem;
+  font-size: 1.02rem;
 }
 
 .hero-copy p:not(.eyebrow),
 .dashboard-header p {
   max-width: 62ch;
   color: var(--muted);
-  font-size: 1.1rem;
-  line-height: 1.65;
+  font-size: 1rem;
+  line-height: 1.55;
 }
 
 .hero-actions {
@@ -228,11 +229,11 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  padding: 13px 18px;
+  min-height: 44px;
+  padding: 11px 16px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
 }
@@ -272,7 +273,7 @@ h3 {
   border-radius: 50%;
   background: var(--primary);
   color: var(--bg);
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .button:disabled,
@@ -288,20 +289,20 @@ h3 {
 
 .hero-visual {
   display: grid;
-  min-height: 430px;
+  min-height: 380px;
   place-items: center;
 }
 
 .logo-showcase {
   position: relative;
   display: grid;
-  width: min(100%, 430px);
+  width: min(100%, 390px);
   margin: 0;
   place-items: center;
 }
 
 .main-logo {
-  width: min(100%, 430px);
+  width: min(100%, 390px);
   height: auto;
   filter: drop-shadow(0 24px 42px rgba(0, 0, 0, 0.46));
 }
@@ -381,13 +382,13 @@ h3 {
 .section-grid,
 .info-band,
 .dashboard {
-  padding: clamp(42px, 6vw, 84px) clamp(20px, 5vw, 72px);
+  padding: clamp(34px, 5vw, 68px) clamp(20px, 5vw, 64px);
 }
 
 .section-grid {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
-  gap: clamp(24px, 4vw, 56px);
+  gap: clamp(22px, 4vw, 46px);
   border-top: 1px solid var(--line);
 }
 
@@ -399,8 +400,8 @@ h3 {
 }
 
 .card {
-  min-height: 156px;
-  padding: 22px;
+  min-height: 136px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -415,7 +416,7 @@ h3 {
 .info-band {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
-  gap: clamp(24px, 4vw, 56px);
+  gap: clamp(22px, 4vw, 46px);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
@@ -439,8 +440,8 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 64px;
-  padding: 16px 18px;
+  min-height: 56px;
+  padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.08);
@@ -454,7 +455,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px clamp(20px, 5vw, 72px);
+  padding: 22px clamp(20px, 5vw, 64px);
   color: var(--muted);
 }
 
@@ -471,10 +472,10 @@ h3 {
 .auth-layout {
   display: grid;
   grid-template-columns: minmax(320px, 520px) minmax(240px, 1fr);
-  gap: clamp(24px, 5vw, 72px);
+  gap: clamp(22px, 5vw, 56px);
   align-items: stretch;
   min-height: calc(100vh - 73px);
-  padding: clamp(32px, 6vw, 72px) clamp(20px, 5vw, 72px);
+  padding: clamp(28px, 5vw, 58px) clamp(20px, 5vw, 64px);
 }
 
 .auth-panel,
@@ -486,12 +487,12 @@ h3 {
 }
 
 .auth-panel {
-  padding: clamp(24px, 5vw, 40px);
+  padding: clamp(22px, 4vw, 34px);
 }
 
 .auth-panel h1 {
   max-width: 11ch;
-  font-size: clamp(2.2rem, 5vw, 4.2rem);
+  font-size: clamp(1.95rem, 4vw, 3.4rem);
 }
 
 .auth-note {
@@ -510,12 +511,12 @@ h3 {
 }
 
 .tab {
-  min-height: 42px;
+  min-height: 40px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -535,15 +536,15 @@ h3 {
   display: grid;
   gap: 8px;
   color: var(--text);
-  font-weight: 750;
+  font-weight: 650;
 }
 
 .auth-form input {
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: var(--bg);
   color: var(--text);
 }
@@ -557,7 +558,7 @@ h3 {
   min-height: 22px;
   margin: 0;
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .form-message.success {
@@ -572,7 +573,7 @@ h3 {
   margin-top: 22px;
   color: var(--muted);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .auth-divider span {
@@ -588,7 +589,7 @@ h3 {
   border: 0;
   background: transparent;
   color: var(--primary);
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -625,7 +626,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px;
+  padding: 16px;
   border-radius: 8px;
   background: rgba(24, 24, 29, 0.88);
   color: var(--muted);
@@ -634,7 +635,7 @@ h3 {
 
 .status-moose {
   flex: 0 0 auto;
-  width: 54px;
+  width: 48px;
 }
 
 .status-panel p {
@@ -651,29 +652,29 @@ h3 {
 
 .dashboard-header {
   max-width: 820px;
-  margin-bottom: 34px;
+  margin-bottom: 28px;
 }
 
 .dashboard-header h1 {
   max-width: 16ch;
-  font-size: clamp(2.4rem, 5vw, 4.8rem);
+  font-size: clamp(2.05rem, 4vw, 3.8rem);
 }
 
 .completion-notice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 16px;
+  gap: 14px;
   align-items: center;
   max-width: 980px;
-  margin: -12px 0 28px;
-  padding: 16px;
+  margin: -8px 0 24px;
+  padding: 14px;
   border: 1px solid rgba(255, 237, 0, 0.34);
   border-radius: 8px;
   background: rgba(255, 237, 0, 0.08);
 }
 
 .completion-moose {
-  width: 54px;
+  width: 46px;
 }
 
 .completion-notice.is-hidden {
@@ -693,18 +694,18 @@ h3 {
 
 .completion-mark {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   border-radius: 50%;
   background: var(--primary);
   color: var(--bg);
-  font-weight: 950;
+  font-weight: 800;
 }
 
 .dashboard-grid .card h2 {
   margin: 0 0 12px;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
 }
 
 .dashboard-action-card {
@@ -736,14 +737,14 @@ h3 {
 .checklist-heading h2,
 .checklist-heading h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
 }
 
 .checklist-heading span {
   flex: 0 0 auto;
   color: var(--primary);
-  font-size: 0.86rem;
-  font-weight: 900;
+  font-size: 0.8rem;
+  font-weight: 750;
 }
 
 .checklist-progress {
@@ -764,7 +765,7 @@ h3 {
 
 .checklist-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
@@ -776,7 +777,7 @@ h3 {
   gap: 10px;
   align-items: center;
   color: var(--muted);
-  font-weight: 750;
+  font-weight: 650;
 }
 
 .checklist-dot {
@@ -824,7 +825,7 @@ h3 {
 .setting-card h2,
 .link-request-form-card h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
 }
 
 .setting-check {
@@ -833,7 +834,7 @@ h3 {
   gap: 12px;
   align-items: start;
   color: var(--text);
-  font-weight: 750;
+  font-weight: 650;
   line-height: 1.45;
 }
 
@@ -851,7 +852,7 @@ h3 {
 .setting-help {
   margin: -2px 0 0 34px;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   line-height: 1.5;
 }
 
@@ -868,21 +869,21 @@ h3 {
   display: grid;
   gap: 8px;
   color: var(--text);
-  font-weight: 750;
+  font-weight: 650;
 }
 
 .setting-form small {
   color: var(--muted);
   font-size: 0.82em;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .setting-form input {
   width: 100%;
-  min-height: 46px;
+  min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 11px 13px;
+  padding: 10px 12px;
   background: var(--bg);
   color: var(--text);
 }
@@ -927,11 +928,11 @@ h3 {
 .account-modal {
   position: relative;
   display: grid;
-  width: min(100%, 560px);
+  width: min(100%, 520px);
   max-height: calc(100vh - 112px);
   overflow: auto;
-  gap: 18px;
-  padding: 28px;
+  gap: 16px;
+  padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: var(--surface);
@@ -951,7 +952,7 @@ h3 {
   border-radius: 50%;
   background: transparent;
   color: var(--muted);
-  font-size: 2rem;
+  font-size: 1.8rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -969,24 +970,24 @@ h3 {
 
 .account-email {
   padding: 0 48px;
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .account-avatar-large {
   justify-self: center;
-  width: 128px;
-  height: 128px;
+  width: 112px;
+  height: 112px;
   border: 4px solid var(--text);
   background: var(--primary);
-  font-size: 2.5rem;
+  font-size: 2.1rem;
 }
 
 .account-modal h2 {
   margin: 0;
   color: var(--text);
-  font-size: clamp(2rem, 5vw, 3rem);
-  line-height: 1.05;
+  font-size: clamp(1.6rem, 4vw, 2.35rem);
+  line-height: 1.12;
   text-align: center;
 }
 
@@ -1025,7 +1026,7 @@ h3 {
   background: var(--primary);
   color: var(--bg);
   font-size: 0.82rem;
-  font-weight: 950;
+  font-weight: 800;
 }
 
 .admin-badge {
@@ -1041,7 +1042,7 @@ h3 {
   background: rgba(255, 237, 0, 0.1);
   color: var(--primary);
   font-size: 0.84rem;
-  font-weight: 900;
+  font-weight: 750;
 }
 
 .admin-badge.is-hidden {
@@ -1091,12 +1092,12 @@ h3 {
 }
 
 .danger-button {
-  min-height: 46px;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   background: var(--accent);
   color: var(--text);
-  font-weight: 850;
+  font-weight: 750;
   cursor: pointer;
 }
 
@@ -1115,12 +1116,12 @@ h3 {
 }
 
 .account-action {
-  min-height: 56px;
+  min-height: 50px;
   border: 0;
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
-  font-weight: 850;
+  font-weight: 750;
   cursor: pointer;
 }
 
@@ -1134,8 +1135,8 @@ h3 {
 
 .settings-shell {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 760px);
-  gap: clamp(24px, 4vw, 56px);
+  grid-template-columns: minmax(210px, 260px) minmax(0, 720px);
+  gap: clamp(22px, 4vw, 46px);
   align-items: start;
   max-width: 1180px;
 }
@@ -1152,15 +1153,15 @@ h3 {
 
 .settings-menu-item {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
-  min-height: 58px;
+  min-height: 52px;
   padding: 8px 12px 8px 8px;
   border: 1px solid transparent;
   border-radius: 8px;
   color: var(--muted);
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .settings-menu-item:hover,
@@ -1172,13 +1173,13 @@ h3 {
 
 .settings-menu-icon {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   place-items: center;
   border-radius: 50%;
   background: var(--primary);
   color: var(--bg);
-  font-weight: 950;
+  font-weight: 800;
 }
 
 .settings-menu-item:nth-child(2) .settings-menu-icon {
@@ -1205,7 +1206,7 @@ h3 {
 
 .settings-content {
   display: grid;
-  gap: 34px;
+  gap: 28px;
   min-width: 0;
 }
 
@@ -1222,7 +1223,7 @@ h3 {
 
 .settings-category-header h2 {
   margin: 0;
-  font-size: clamp(1.45rem, 3vw, 2.1rem);
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
   line-height: 1.15;
 }
 
@@ -1244,7 +1245,7 @@ h3 {
 .settings-profile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 18px;
+  gap: 16px;
   align-items: center;
   justify-items: start;
 }
@@ -1258,7 +1259,7 @@ h3 {
 .settings-profile h2,
 .settings-profile h3 {
   margin: 0 0 8px;
-  font-size: 1.4rem;
+  font-size: 1.18rem;
 }
 
 .settings-profile p {
@@ -1282,7 +1283,7 @@ h3 {
 
 .danger-zone-card h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
 }
 
 .danger-zone-card p {
@@ -1309,11 +1310,11 @@ h3 {
   }
 
   .hero {
-    padding-top: 40px;
+    padding-top: 34px;
   }
 
   .hero-visual {
-    min-height: 260px;
+    min-height: 230px;
   }
 
   .signal-board {
@@ -1339,13 +1340,13 @@ h3 {
   }
 
   .auth-aside {
-    min-height: 260px;
+    min-height: 230px;
   }
 
   .account-overlay {
     align-items: start;
     justify-items: center;
-    padding-top: 88px;
+    padding-top: 80px;
   }
 
   .settings-layout {
@@ -1397,11 +1398,11 @@ h3 {
   }
 
   h1 {
-    font-size: clamp(2.7rem, 16vw, 4.8rem);
+    font-size: clamp(2.2rem, 13vw, 3.6rem);
   }
 
   .account-modal {
-    padding: 24px 18px;
+    padding: 20px 16px;
   }
 
   .account-email {
@@ -1410,8 +1411,8 @@ h3 {
   }
 
   .account-avatar-large {
-    width: 108px;
-    height: 108px;
+    width: 96px;
+    height: 96px;
   }
 
   .settings-menu {
