@@ -1171,6 +1171,7 @@ span.admin-role-control {
 }
 
 .admin-link-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1181,6 +1182,12 @@ span.admin-role-control {
 
 .admin-link-switch input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
   opacity: 0;
   pointer-events: none;
 }
