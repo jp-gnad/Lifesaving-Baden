@@ -998,6 +998,18 @@ h3 {
   border-color: var(--primary);
 }
 
+.setting-form input.is-empty-highlight {
+  border-color: rgba(227, 6, 19, 0.62);
+  background:
+    linear-gradient(0deg, rgba(227, 6, 19, 0.08), rgba(227, 6, 19, 0.08)),
+    var(--bg);
+}
+
+.setting-form input.is-empty-highlight:focus {
+  outline-color: rgba(227, 6, 19, 0.24);
+  border-color: var(--accent);
+}
+
 .setting-value {
   display: grid;
   gap: 6px;

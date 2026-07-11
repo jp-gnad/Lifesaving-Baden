@@ -974,6 +974,17 @@
 
     profileForm.elements.displayName.value = getAccountName(user);
     profileForm.elements.email.value = user.email || "";
+    updateEmptyProfileFieldHighlights(profileForm);
+  }
+
+  function updateEmptyProfileFieldHighlights(form = document.querySelector("[data-profile-form]")) {
+    if (!form) {
+      return;
+    }
+
+    form.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
+      input.classList.toggle("is-empty-highlight", !input.value.trim());
+    });
   }
 
   function updateGoogleProviderStatus(user) {
@@ -1011,6 +1022,10 @@
     if (profileForm && !profileForm.dataset.listenerAttached) {
       profileForm.dataset.listenerAttached = "true";
       profileForm.addEventListener("submit", (event) => saveProfileDetails(event, auth));
+      profileForm.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
+        input.addEventListener("input", () => updateEmptyProfileFieldHighlights(profileForm));
+        input.addEventListener("change", () => updateEmptyProfileFieldHighlights(profileForm));
+      });
     }
 
     if (passwordForm && !passwordForm.dataset.listenerAttached) {
@@ -1053,6 +1068,8 @@
       if (profileForm.elements.birthDate) {
         profileForm.elements.birthDate.value = details.birthDate;
       }
+
+      updateEmptyProfileFieldHighlights(profileForm);
     } catch (error) {
       setProfileMessage(translateFirestoreError(error), false);
     }
@@ -1139,6 +1156,7 @@
       await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
       await loadAccountProfileDetails(auth);
       await initLinkStatus(auth);
+      updateEmptyProfileFieldHighlights(form);
 
       setProfileMessage(
         emailChanged
