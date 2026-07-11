@@ -1359,7 +1359,7 @@ h3 {
 
 .settings-category {
   display: grid;
-  gap: 14px;
+  gap: 24px;
   scroll-margin-top: 96px;
 }
 
