@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Geschuetzter Demo-Bereich von Lifesaving Baden.">
+    <title>Mitgliederbereich - Lifesaving Baden</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="assets/js/firebase-config.js"></script>
+    <script defer src="assets/js/auth.js"></script>
+  </head>
+  <body data-page="app">
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
+        <span class="brand-mark" aria-hidden="true">LB</span>
+        <span>Lifesaving Baden</span>
+      </a>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <a href="index.html">Start</a>
+        <button class="nav-button" type="button" data-logout>Abmelden</button>
+      </nav>
+    </header>
+
+    <main class="dashboard">
+      <section class="dashboard-header">
+        <p class="eyebrow">Mitgliederbereich</p>
+        <h1>Willkommen, <span data-user-name>Mitglied</span></h1>
+        <p>
+          Dieser Bereich wird erst nach einem bestaetigten Firebase-Login
+          angezeigt. Wirklich vertrauliche Inhalte sollten weiterhin aus einer
+          geschuetzten Datenquelle geladen werden.
+        </p>
+      </section>
+
+      <section class="dashboard-grid" aria-label="Mitgliederuebersicht">
+        <article class="card">
+          <h2>Naechstes Training</h2>
+          <p>Montag, 18:00 Uhr</p>
+        </article>
+        <article class="card">
+          <h2>Dokumente</h2>
+          <p>Platzhalter fuer freigegebene Dateien und Hinweise.</p>
+        </article>
+        <article class="card">
+          <h2>Profil</h2>
+          <p data-user-email>Keine E-Mail geladen.</p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
