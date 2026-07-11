@@ -1,3 +1,35 @@
+@font-face {
+  font-display: swap;
+  font-family: "Lifesaving Baden";
+  font-style: normal;
+  font-weight: 400;
+  src: url("../fonts/LT_50141_regular.woff") format("woff");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Lifesaving Baden";
+  font-style: italic;
+  font-weight: 400;
+  src: url("../fonts/LT_50139_italien.woff") format("woff");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Lifesaving Baden";
+  font-style: normal;
+  font-weight: 700;
+  src: url("../fonts/LT_50140_heavy.woff") format("woff");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Lifesaving Baden";
+  font-style: normal;
+  font-weight: 800;
+  src: url("../fonts/LT_50140_heavy.woff") format("woff");
+}
+
 :root {
   --bg: rgb(15, 15, 18);
   --surface: rgb(24, 24, 29);
@@ -12,7 +44,7 @@
   --success: rgb(28, 191, 105);
   --line: rgba(255, 255, 255, 0.14);
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Lifesaving Baden", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -64,6 +96,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  font-size: clamp(1.08rem, 1.4vw, 1.28rem);
   font-weight: 700;
 }
 

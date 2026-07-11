@@ -39,6 +39,10 @@ Das bedeutet:
 |   |   `-- training-rescue.jpg
 |   |-- css/
 |   |   `-- styles.css
+|   |-- fonts/
+|   |   |-- LT_50139_italien.woff
+|   |   |-- LT_50140_heavy.woff
+|   |   `-- LT_50141_regular.woff
 |   `-- js/
 |       |-- auth.js
 |       `-- firebase-config.js
