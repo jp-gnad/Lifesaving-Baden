@@ -1265,11 +1265,13 @@
     const editorControl = document.querySelector("[data-profile-editor-control]");
     const editorHelp = document.querySelector("[data-profile-editor-help]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
+    const activeRow = document.querySelector(`[data-profile-edit="${fieldName}"]`);
 
-    if (!config || !editor || !editorLabel || !editorControl || !editorHelp || !deleteButton) {
+    if (!config || !editor || !editorLabel || !editorControl || !editorHelp || !deleteButton || !activeRow) {
       return;
     }
 
+    activeRow.insertAdjacentElement("afterend", editor);
     editor.dataset.activeField = fieldName;
     editorLabel.textContent = config.label;
     editorHelp.textContent = config.help || "";
