@@ -731,7 +731,7 @@
     const user = auth.currentUser;
 
     if (!user) {
-      updateAdminUi(false);
+      updateRoleUi(getDefaultAccountRole());
       return;
     }
 
@@ -745,31 +745,80 @@
         data = snapshot.exists ? snapshot.data() : {};
       }
 
-      updateAdminUi(isAdminAccount(data, claims));
+      updateRoleUi(getAccountRole(data, claims));
     } catch (error) {
-      updateAdminUi(false);
+      updateRoleUi(getDefaultAccountRole());
     }
+  }
+
+  function getDefaultAccountRole() {
+    return {
+      isAdmin: false,
+      isOrganizer: false,
+      label: "Sportler"
+    };
+  }
+
+  function getAccountRole(data, claims) {
+    const isAdmin = isAdminAccount(data, claims);
+    const isOrganizer = isAdmin || isOrganizerAccount(data, claims);
+
+    return {
+      isAdmin,
+      isOrganizer,
+      label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : "Sportler"
+    };
+  }
+
+  function normalizeRole(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function hasRole(value, acceptedRoles) {
+    return acceptedRoles.includes(normalizeRole(value));
   }
 
   function isAdminAccount(data, claims) {
     return Boolean(
       claims?.admin === true
-      || claims?.role === "admin"
-      || data?.role === "admin"
+      || claims?.isAdmin === true
+      || hasRole(claims?.role, ["admin"])
+      || hasRole(data?.role, ["admin"])
       || data?.isAdmin === true
+      || data?.admin === true
     );
   }
 
-  function updateAdminUi(isAdmin) {
+  function isOrganizerAccount(data, claims) {
+    return Boolean(
+      claims?.organizer === true
+      || claims?.isOrganizer === true
+      || hasRole(claims?.role, ["organizer", "organisator"])
+      || hasRole(data?.role, ["organizer", "organisator"])
+    );
+  }
+
+  function updateRoleUi(role) {
+    const isAdmin = Boolean(role?.isAdmin);
+    const isOrganizer = Boolean(role?.isOrganizer);
+
     document.querySelectorAll("[data-admin-only]").forEach((element) => {
       element.classList.toggle("is-hidden", !isAdmin);
+    });
+
+    document.querySelectorAll("[data-organizer-only]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isOrganizer);
     });
 
     document.querySelectorAll("[data-admin-badge]").forEach((element) => {
       element.classList.toggle("is-hidden", !isAdmin);
     });
 
-    updateText("[data-account-role]", isAdmin ? "Admin" : "Mitglied");
+    document.querySelectorAll("[data-organizer-badge]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isOrganizer || isAdmin);
+    });
+
+    updateText("[data-account-role]", role?.label || "Sportler");
   }
 
   function hasFreshLogin(user) {

@@ -86,8 +86,9 @@ Gespeicherte Felder:
   Profilsuche.
 - `dlrgBranch`: freiwillige DLRG-Gliederung aus den Kontoeinstellungen.
 - `birthDate`: freiwilliges Geburtsdatum aus den Kontoeinstellungen.
-- `role`: optionale Rolle, z. B. `admin`.
-- `isAdmin`: optionale Admin-Markierung als Boolean.
+- `role`: optionale Rolle, z. B. `sportler`, `organizer`,
+  `organisator` oder `admin`.
+- `isAdmin` / `admin`: optionale Admin-Markierung als Boolean.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
   DLRG-Gliederung, erstem/letztem Wettkampf, Konto-E-Mail und Firebase UID.
@@ -107,52 +108,71 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function adminFields() {
-      return ['role', 'isAdmin', 'admin', 'adminSince', 'adminGrantedBy'];
+    function protectedRoleFields() {
+      return [
+        'role',
+        'isOrganizer',
+        'organizer',
+        'organizerSince',
+        'organizerGrantedBy',
+        'isAdmin',
+        'admin',
+        'adminSince',
+        'adminGrantedBy'
+      ];
     }
 
-    function noAdminFieldsInNewDoc() {
-      return !request.resource.data.keys().hasAny(adminFields());
+    function noProtectedRoleFieldsInNewDoc() {
+      return !request.resource.data.keys().hasAny(protectedRoleFields());
     }
 
-    function adminFieldsUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(adminFields());
+    function protectedRoleFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedRoleFields());
     }
 
     match /users/{userId} {
       allow read, delete: if isOwner(userId);
-      allow create: if isOwner(userId) && noAdminFieldsInNewDoc();
-      allow update: if isOwner(userId) && adminFieldsUnchanged();
+      allow create: if isOwner(userId) && noProtectedRoleFieldsInNewDoc();
+      allow update: if isOwner(userId) && protectedRoleFieldsUnchanged();
     }
   }
 }
 ```
 
 Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
-lesen und ändern. Admin-Felder dürfen Nutzer dabei nicht selbst setzen oder
+lesen und ändern. Rollen-Felder dürfen Nutzer dabei nicht selbst setzen oder
 ändern.
 
-## Admin-Konten
+## Rollen: Sportler, Organisator, Admin
 
-Die Website erkennt aktuell Admin-Konten, hat aber noch keine Admin-Funktionen.
-Ein Admin-Konto bekommt nur einen sichtbaren Admin-Status und einen vorbereiteten
-Adminbereich.
+Die Website kennt aktuell drei Rollen. Neue Konten sind automatisch `Sportler`,
+solange in Firestore kein Rollenfeld gesetzt ist. `Organisator` wird manuell
+vergeben. `Admin` ist die höchste Rolle und zählt automatisch auch als
+Organisator.
+
+Aktuell erkennt die Website Organisatorrechte über eines dieser Merkmale:
+
+- Firestore-Feld `role: "organizer"` oder `role: "organisator"` im Dokument
+  `users/{uid}`
+- später optional Firebase Auth Custom Claim `organizer: true` oder
+  `isOrganizer: true`
 
 Aktuell erkennt die Website Adminrechte über eines dieser Merkmale:
 
 - Firestore-Feld `role: "admin"` im Dokument `users/{uid}`
-- Firestore-Feld `isAdmin: true` im Dokument `users/{uid}`
-- später optional Firebase Auth Custom Claim `admin: true`
+- Firestore-Feld `isAdmin: true` oder `admin: true` im Dokument `users/{uid}`
+- später optional Firebase Auth Custom Claim `admin: true` oder `isAdmin: true`
 
-So verleihst du dir aktuell Adminrechte:
+So vergibst du aktuell eine Rolle:
 
 1. In Firebase `Authentication` öffnen.
-2. Dein Konto in der Nutzerliste anklicken.
+2. Das gewünschte Konto in der Nutzerliste anklicken.
 3. Die `User UID` kopieren.
 4. In `Firestore Database` zur Collection `users` gehen.
 5. Das Dokument mit genau dieser UID öffnen oder erstellen.
-6. Feld `role` als String mit Wert `admin` hinzufügen.
-7. Website neu laden oder neu einloggen.
+6. Für Organisator: Feld `role` als String mit Wert `organizer` hinzufügen.
+7. Für Admin: Feld `role` als String mit Wert `admin` hinzufügen.
+8. Website neu laden oder neu einloggen.
 
 Für echte spätere Admin-Funktionen sind Firebase Auth Custom Claims sicherer.
 Diese können nicht direkt von GitHub Pages gesetzt werden, sondern brauchen

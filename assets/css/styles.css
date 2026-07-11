@@ -1072,7 +1072,8 @@ h3 {
   font-weight: 800;
 }
 
-.admin-badge {
+.admin-badge,
+.organizer-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1088,11 +1089,19 @@ h3 {
   font-weight: 750;
 }
 
-.admin-badge.is-hidden {
+.organizer-badge {
+  border-color: rgba(28, 191, 105, 0.38);
+  background: rgba(28, 191, 105, 0.12);
+  color: var(--success);
+}
+
+.admin-badge.is-hidden,
+.organizer-badge.is-hidden {
   display: none;
 }
 
-[data-admin-only].is-hidden {
+[data-admin-only].is-hidden,
+[data-organizer-only].is-hidden {
   display: none;
 }
 
@@ -1243,6 +1252,11 @@ h3 {
 }
 
 .settings-menu-item:nth-child(6) .settings-menu-icon {
+  background: var(--success);
+  color: var(--bg);
+}
+
+.settings-menu-item:nth-child(7) .settings-menu-icon {
   background: var(--primary);
   color: var(--bg);
 }
