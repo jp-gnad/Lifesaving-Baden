@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-security-fields">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-password-toggle">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-security-fields"></script>
+    <script defer src="assets/js/auth.js?v=20260711-password-toggle"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -240,15 +240,48 @@
                     <form class="setting-form" data-password-form>
                       <label>
                         <span>Altes Passwort</span>
-                        <input type="password" name="currentPassword" autocomplete="current-password" required>
+                        <span class="password-field">
+                          <input type="password" name="currentPassword" autocomplete="current-password" required>
+                          <button class="password-toggle" type="button" data-password-toggle aria-label="Passwort anzeigen" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path class="password-eye-open" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                              <circle class="password-eye-open" cx="12" cy="12" r="2.5"></circle>
+                              <path class="password-eye-off" d="M3 3l18 18"></path>
+                              <path class="password-eye-off" d="M6.2 6.8C3.8 8.4 2.5 12 2.5 12s3.5 6 9.5 6c1.8 0 3.4-.5 4.7-1.2"></path>
+                              <path class="password-eye-off" d="M10.6 6.1c.5-.1.9-.1 1.4-.1 6 0 9.5 6 9.5 6s-.7 1.2-2 2.5"></path>
+                            </svg>
+                          </button>
+                        </span>
                       </label>
                       <label>
                         <span>Neues Passwort</span>
-                        <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
+                        <span class="password-field">
+                          <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
+                          <button class="password-toggle" type="button" data-password-toggle aria-label="Passwort anzeigen" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path class="password-eye-open" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                              <circle class="password-eye-open" cx="12" cy="12" r="2.5"></circle>
+                              <path class="password-eye-off" d="M3 3l18 18"></path>
+                              <path class="password-eye-off" d="M6.2 6.8C3.8 8.4 2.5 12 2.5 12s3.5 6 9.5 6c1.8 0 3.4-.5 4.7-1.2"></path>
+                              <path class="password-eye-off" d="M10.6 6.1c.5-.1.9-.1 1.4-.1 6 0 9.5 6 9.5 6s-.7 1.2-2 2.5"></path>
+                            </svg>
+                          </button>
+                        </span>
                       </label>
                       <label>
                         <span>Neues Passwort wiederholen</span>
-                        <input type="password" name="repeatPassword" autocomplete="new-password" minlength="8" required>
+                        <span class="password-field">
+                          <input type="password" name="repeatPassword" autocomplete="new-password" minlength="8" required>
+                          <button class="password-toggle" type="button" data-password-toggle aria-label="Passwort anzeigen" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path class="password-eye-open" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                              <circle class="password-eye-open" cx="12" cy="12" r="2.5"></circle>
+                              <path class="password-eye-off" d="M3 3l18 18"></path>
+                              <path class="password-eye-off" d="M6.2 6.8C3.8 8.4 2.5 12 2.5 12s3.5 6 9.5 6c1.8 0 3.4-.5 4.7-1.2"></path>
+                              <path class="password-eye-off" d="M10.6 6.1c.5-.1.9-.1 1.4-.1 6 0 9.5 6 9.5 6s-.7 1.2-2 2.5"></path>
+                            </svg>
+                          </button>
+                        </span>
                       </label>
                       <button class="button button-primary full-width" type="submit">
                         Passwort speichern

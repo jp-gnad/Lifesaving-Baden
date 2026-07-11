@@ -224,6 +224,40 @@
     return window.firebase.auth();
   }
 
+  function initPasswordVisibilityToggles() {
+    document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+      if (button.dataset.listenerAttached) {
+        return;
+      }
+
+      const field = button.closest(".password-field");
+      const input = field?.querySelector('input[type="password"], input[type="text"]');
+
+      if (!input) {
+        return;
+      }
+
+      button.dataset.listenerAttached = "true";
+
+      function setVisible(isVisible) {
+        input.type = isVisible ? "text" : "password";
+        button.setAttribute("aria-pressed", String(isVisible));
+        button.setAttribute("aria-label", isVisible ? "Passwort ausblenden" : "Passwort anzeigen");
+        button.title = isVisible ? "Passwort ausblenden" : "Passwort anzeigen";
+      }
+
+      button.addEventListener("click", () => {
+        const isVisible = input.type === "password";
+        setVisible(isVisible);
+        input.focus({ preventScroll: true });
+      });
+
+      setVisible(false);
+    });
+  }
+
+  initPasswordVisibilityToggles();
+
   if (page === "login") {
     initTabs();
 

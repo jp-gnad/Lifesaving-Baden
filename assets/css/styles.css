@@ -612,6 +612,67 @@ h3 {
   border-color: var(--primary);
 }
 
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.auth-form .password-field input,
+.setting-form .password-field input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(255, 237, 0, 0.72);
+  outline-offset: 2px;
+}
+
+.password-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.password-toggle .password-eye-off {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .password-eye-open {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .password-eye-off {
+  display: inline;
+}
+
 .form-message {
   min-height: 18px;
   margin: 0;
