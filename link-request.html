@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-request">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-request-details">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-link-request"></script>
-    <script defer src="assets/js/auth.js?v=20260711-link-request"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-link-request-details"></script>
+    <script defer src="assets/js/auth.js?v=20260711-link-request-details"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -65,6 +65,18 @@
             <label>
               <span>Geburtsdatum</span>
               <input type="date" name="birthDate" required>
+            </label>
+            <label>
+              <span>Mitglied in DLRG-Gliederung</span>
+              <input type="text" name="dlrgBranch" autocomplete="organization" required>
+            </label>
+            <label>
+              <span>Erster Wettkampf</span>
+              <input type="text" name="firstCompetition" placeholder="z. B. noch keiner oder Wettkampf/Jahr">
+            </label>
+            <label>
+              <span>Letzter Wettkampf</span>
+              <input type="text" name="lastCompetition" placeholder="z. B. noch keiner oder Wettkampf/Jahr">
             </label>
             <div class="setting-value">
               <strong>E-Mail des Kontos</strong>

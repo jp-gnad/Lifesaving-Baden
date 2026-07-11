@@ -75,7 +75,7 @@ Gespeicherte Felder:
   Profilsuche.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
-  Konto-E-Mail und Firebase UID.
+  DLRG-Gliederung, erstem/letztem Wettkampf, Konto-E-Mail und Firebase UID.
 
 1. In Firebase `Firestore Database` öffnen.
 2. `Create database` wählen.

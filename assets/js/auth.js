@@ -715,6 +715,9 @@
       firstName: form?.querySelector('[name="firstName"]'),
       lastName: form?.querySelector('[name="lastName"]'),
       birthDate: form?.querySelector('[name="birthDate"]'),
+      dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
+      firstCompetition: form?.querySelector('[name="firstCompetition"]'),
+      lastCompetition: form?.querySelector('[name="lastCompetition"]'),
       submitButton: form?.querySelector('button[type="submit"]')
     };
   }
@@ -750,6 +753,9 @@
         controls.firstName.value = request.firstName || "";
         controls.lastName.value = request.lastName || "";
         controls.birthDate.value = request.birthDate || "";
+        controls.dlrgBranch.value = request.dlrgBranch || "";
+        controls.firstCompetition.value = request.firstCompetition || "";
+        controls.lastCompetition.value = request.lastCompetition || "";
         setLinkRequestMessage("Letzter Antrag ist gespeichert.", true);
       }
     } catch (error) {
@@ -774,13 +780,16 @@
       firstName: controls.firstName.value.trim(),
       lastName: controls.lastName.value.trim(),
       birthDate: controls.birthDate.value,
+      dlrgBranch: controls.dlrgBranch.value.trim(),
+      firstCompetition: controls.firstCompetition.value.trim(),
+      lastCompetition: controls.lastCompetition.value.trim(),
       accountEmail: user.email || "",
       accountName: getAccountName(user),
       accountUid: user.uid
     };
 
-    if (!details.firstName || !details.lastName || !details.birthDate) {
-      setLinkRequestMessage("Bitte fülle Vorname, Nachname und Geburtsdatum aus.", false);
+    if (!details.firstName || !details.lastName || !details.birthDate || !details.dlrgBranch) {
+      setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geburtsdatum und DLRG-Gliederung aus.", false);
       return;
     }
 
@@ -822,6 +831,9 @@
       `Vorname: ${details.firstName}`,
       `Nachname: ${details.lastName}`,
       `Geburtsdatum: ${details.birthDate}`,
+      `Mitglied in DLRG-Gliederung: ${details.dlrgBranch}`,
+      `Erster Wettkampf: ${details.firstCompetition || "Nicht angegeben"}`,
+      `Letzter Wettkampf: ${details.lastCompetition || "Nicht angegeben"}`,
       `E-Mail des Kontos: ${details.accountEmail}`,
       `Kontoname: ${details.accountName}`,
       `Firebase UID: ${details.accountUid}`,
