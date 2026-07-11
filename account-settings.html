@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-menu-divider">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-provider-statuses">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-menu-divider"></script>
+    <script defer src="assets/js/auth.js?v=20260711-provider-statuses"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -255,21 +255,25 @@
                     <button class="button button-secondary full-width" type="button" data-google-link>
                       Google-Konto verbinden
                     </button>
+                    <button class="button button-danger full-width is-hidden" type="button" data-google-unlink>
+                      Google-Konto entfernen
+                    </button>
                     <p class="form-message" data-google-account-message role="status"></p>
                   </div>
                 </details>
 
-                <details class="security-field-item">
+                <details class="security-field-item" data-password-provider-item>
                   <summary class="profile-field-row security-field-row">
                     <span class="profile-field-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24" focusable="false">
-                        <rect x="5" y="10" width="14" height="10" rx="2"></rect>
-                        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
-                        <path d="M12 14v2.5"></path>
+                        <rect x="4" y="6" width="16" height="12" rx="2"></rect>
+                        <path d="m5 7 7 6 7-6"></path>
+                        <path d="m8.5 11.5-3.5 4"></path>
+                        <path d="m15.5 11.5 3.5 4"></path>
                       </svg>
                     </span>
                     <span class="profile-field-copy">
-                      <strong>Passwort</strong>
+                      <strong>E-Mail-Konto</strong>
                       <span data-password-provider-summary>Status wird geladen</span>
                     </span>
                     <span class="profile-field-chevron" aria-hidden="true"></span>
@@ -326,6 +330,12 @@
                       </label>
                       <button class="button button-primary full-width" type="submit">Passwort speichern</button>
                     </form>
+                    <button class="button button-secondary full-width is-hidden" type="button" data-password-verification>
+                      Bestätigungsmail senden
+                    </button>
+                    <button class="button button-danger full-width is-hidden" type="button" data-password-unlink>
+                      E-Mail-Konto entfernen
+                    </button>
                     <p class="form-message" data-password-message role="status"></p>
                   </div>
                 </details>

@@ -312,7 +312,7 @@
 
       await user.reload();
 
-      if (auth.currentUser?.emailVerified) {
+      if (hasVerifiedAccess(auth.currentUser)) {
         redirectToApp();
         return;
       }
@@ -335,7 +335,7 @@
 
         await user.reload();
 
-        if (!auth.currentUser?.emailVerified) {
+        if (!hasVerifiedAccess(auth.currentUser)) {
           showResendButton(true);
           setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
           return;
@@ -581,7 +581,7 @@
 
       await user.reload();
 
-      if (!auth.currentUser?.emailVerified) {
+      if (!hasVerifiedAccess(auth.currentUser)) {
         redirectToLogin("needsVerification");
         return;
       }
@@ -1091,6 +1091,10 @@
     return getProviderIds(user).includes(providerId);
   }
 
+  function hasVerifiedAccess(user) {
+    return Boolean(user?.emailVerified || (user && hasProvider(user, "google.com")));
+  }
+
   const profileFieldConfig = {
     displayName: {
       label: "Name",
@@ -1409,43 +1413,61 @@
   function updateGoogleProviderStatus(user) {
     const status = document.querySelector("[data-google-provider-status]");
     const button = document.querySelector("[data-google-link]");
+    const unlinkButton = document.querySelector("[data-google-unlink]");
     const googleProviderItem = document.querySelector("[data-google-provider-item]");
 
-    if (!status || !button) {
+    if (!status || !button || !user) {
       return;
     }
 
     const googleLinked = hasProvider(user, "google.com");
-    const passwordLinked = user ? hasProvider(user, "password") : false;
+    const passwordLinked = hasProvider(user, "password");
+    const canSwitchGoogle = googleLinked && passwordLinked && Boolean(user.emailVerified);
 
-    googleProviderItem?.classList.toggle("is-provider-active", googleLinked);
+    setProviderStatusClass(googleProviderItem, googleLinked ? "active" : "inactive");
     updatePasswordProviderStatus(user);
+    unlinkButton?.classList.toggle("is-hidden", !canSwitchGoogle);
 
-    if (googleLinked && passwordLinked) {
-      updateText("[data-google-provider-summary]", "Mit Google verbunden");
-      status.textContent = "Dieses Konto ist mit Google und E-Mail/Passwort verbunden. Du kannst das Google-Konto wechseln, ohne das Konto zu verlieren.";
+    if (canSwitchGoogle) {
+      updateText("[data-google-provider-summary]", "Google-Konto aktiv");
+      status.textContent = "Google ist verbunden. Du kannst das Google-Konto wechseln oder entfernen, weil ein bestätigtes E-Mail-Konto vorhanden ist.";
       button.textContent = "Google-Konto wechseln";
       return;
     }
 
     if (googleLinked) {
-      updateText("[data-google-provider-summary]", "Google-Login aktiv");
-      status.textContent = "Dieses Konto nutzt Google als Login. Ein Wechsel wird erst angeboten, wenn zusätzlich ein Passwort-Login vorhanden ist.";
+      updateText("[data-google-provider-summary]", "Google-Konto aktiv");
+      status.textContent = passwordLinked
+        ? "Google ist verbunden. Wechseln oder Entfernen wird erst angeboten, wenn das E-Mail-Konto bestätigt ist."
+        : "Google ist verbunden. Lege zusätzlich ein E-Mail-Konto an, bevor du Google wechseln oder entfernen kannst.";
       button.textContent = "Google-Konto bestätigen";
       return;
     }
 
     updateText("[data-google-provider-summary]", "Nicht verbunden");
     status.textContent = "Dieses Konto ist noch nicht mit Google verbunden.";
-    button.textContent = "Google-Konto verbinden";
+    button.textContent = "Google-Konto hinzufügen";
+  }
+
+  function setProviderStatusClass(element, status) {
+    if (!element) {
+      return;
+    }
+
+    element.classList.toggle("is-provider-active", status === "active");
+    element.classList.toggle("is-provider-warning", status === "warning");
+    element.classList.toggle("is-provider-inactive", status === "inactive");
   }
 
   function updatePasswordProviderStatus(user) {
     const form = document.querySelector("[data-password-form]");
     const help = document.querySelector("[data-password-provider-help]");
+    const passwordProviderItem = document.querySelector("[data-password-provider-item]");
     const currentPasswordRow = document.querySelector("[data-current-password-row]");
     const submitButton = form?.querySelector('button[type="submit"]');
     const currentPasswordInput = form?.elements.currentPassword;
+    const verificationButton = document.querySelector("[data-password-verification]");
+    const unlinkButton = document.querySelector("[data-password-unlink]");
 
     if (!user) {
       return;
@@ -1453,17 +1475,26 @@
 
     const passwordLinked = hasProvider(user, "password");
     const googleLinked = hasProvider(user, "google.com");
-    const submitLabel = passwordLinked ? "Passwort speichern" : "Passwort-Login aktivieren";
+    const emailLabel = user.email || "keine E-Mail-Adresse";
+    const passwordVerified = passwordLinked && Boolean(user.emailVerified);
+    const submitLabel = passwordLinked ? "Passwort ändern" : "E-Mail-Konto hinzufügen";
+    const passwordStatus = !passwordLinked ? "inactive" : (passwordVerified ? "active" : "warning");
 
-    updateText("[data-password-provider-summary]", passwordLinked ? "Passwort-Login aktiv" : "Kein Passwort-Login eingerichtet");
+    setProviderStatusClass(passwordProviderItem, passwordStatus);
+    updateText(
+      "[data-password-provider-summary]",
+      !passwordLinked
+        ? "Nicht eingerichtet"
+        : (passwordVerified ? "Bestätigt" : "E-Mail nicht bestätigt")
+    );
 
     if (help) {
-      help.textContent = passwordLinked
-        ? "Du kannst dein Passwort mit deinem alten und einem neuen Passwort ändern."
-        : "Lege ein Passwort für deine Konto-E-Mail an. Danach führen Google und E-Mail/Passwort zum selben Konto.";
-
-      if (!passwordLinked && !googleLinked) {
-        help.textContent = "Lege ein Passwort für deine Konto-E-Mail an, um E-Mail/Passwort als Login zu aktivieren.";
+      if (!passwordLinked) {
+        help.textContent = `E-Mail-Konto: ${emailLabel}. Lege ein Passwort für diese E-Mail-Adresse an. Danach führen Google und E-Mail/Passwort zum selben Konto.`;
+      } else if (passwordVerified) {
+        help.textContent = `E-Mail-Konto: ${emailLabel}. Dieses E-Mail-Konto ist bestätigt.`;
+      } else {
+        help.textContent = `E-Mail-Konto: ${emailLabel}. Dieses E-Mail-Konto ist eingerichtet, aber noch nicht per Mail bestätigt.`;
       }
     }
 
@@ -1483,12 +1514,18 @@
       submitButton.textContent = submitLabel;
       submitButton.dataset.defaultHtml = submitLabel;
     }
+
+    verificationButton?.classList.toggle("is-hidden", !passwordLinked || passwordVerified);
+    unlinkButton?.classList.toggle("is-hidden", !passwordLinked || !googleLinked);
   }
 
   async function initAccountManagement(auth) {
     const profileForm = document.querySelector("[data-profile-form]");
     const passwordForm = document.querySelector("[data-password-form]");
     const googleLinkButton = document.querySelector("[data-google-link]");
+    const googleUnlinkButton = document.querySelector("[data-google-unlink]");
+    const passwordVerificationButton = document.querySelector("[data-password-verification]");
+    const passwordUnlinkButton = document.querySelector("[data-password-unlink]");
 
     if (profileForm && !profileForm.dataset.listenerAttached) {
       profileForm.dataset.listenerAttached = "true";
@@ -1516,6 +1553,21 @@
     if (googleLinkButton && !googleLinkButton.dataset.listenerAttached) {
       googleLinkButton.dataset.listenerAttached = "true";
       googleLinkButton.addEventListener("click", () => manageGoogleAccount(auth, googleLinkButton));
+    }
+
+    if (googleUnlinkButton && !googleUnlinkButton.dataset.listenerAttached) {
+      googleUnlinkButton.dataset.listenerAttached = "true";
+      googleUnlinkButton.addEventListener("click", () => unlinkGoogleAccount(auth, googleUnlinkButton));
+    }
+
+    if (passwordVerificationButton && !passwordVerificationButton.dataset.listenerAttached) {
+      passwordVerificationButton.dataset.listenerAttached = "true";
+      passwordVerificationButton.addEventListener("click", () => sendPasswordVerification(auth, passwordVerificationButton));
+    }
+
+    if (passwordUnlinkButton && !passwordUnlinkButton.dataset.listenerAttached) {
+      passwordUnlinkButton.dataset.listenerAttached = "true";
+      passwordUnlinkButton.addEventListener("click", () => unlinkPasswordAccount(auth, passwordUnlinkButton));
     }
 
     await loadAccountProfileDetails(auth);
@@ -1745,6 +1797,8 @@
       return;
     }
 
+    let verificationSent = false;
+
     try {
       setLoading(button, true, passwordLinked ? "Speichern..." : "Aktiviere...");
 
@@ -1756,6 +1810,14 @@
         const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, newPassword);
         await user.linkWithCredential(credential);
         await user.reload();
+
+        if (auth.currentUser && !auth.currentUser.emailVerified) {
+          await auth.currentUser.sendEmailVerification({
+            url: getLoginRedirectUrl()
+          });
+          verificationSent = true;
+        }
+
         updateAccountProfile(auth.currentUser);
         updateGoogleProviderStatus(auth.currentUser);
         await saveIdentitySnapshot(auth.currentUser, null);
@@ -1765,7 +1827,9 @@
       setPasswordMessage(
         passwordLinked
           ? "Passwort wurde geändert."
-          : "Passwort-Login wurde aktiviert. Du kannst dich jetzt auch mit E-Mail und Passwort anmelden.",
+          : (verificationSent
+            ? `E-Mail-Konto wurde angelegt. Die Bestätigungsmail wurde an ${user.email} gesendet. Google bleibt aktiv.`
+            : "E-Mail-Konto wurde angelegt und ist bestätigt. Du kannst dich jetzt auch mit E-Mail und Passwort anmelden."),
         true
       );
     } catch (error) {
@@ -1799,9 +1863,14 @@
     try {
       setLoading(button, true, "Google öffnet...");
 
-      if (googleLinked && !passwordLinked) {
+      if (googleLinked && (!passwordLinked || !user.emailVerified)) {
         await user.reauthenticateWithPopup(provider);
-        setGoogleAccountMessage("Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst sicher möglich, wenn zusätzlich ein Passwort-Login existiert.", true);
+        setGoogleAccountMessage(
+          passwordLinked
+            ? "Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst möglich, wenn das E-Mail-Konto bestätigt ist."
+            : "Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst sicher möglich, wenn zusätzlich ein bestätigtes E-Mail-Konto existiert.",
+          true
+        );
         return;
       }
 
@@ -1835,6 +1904,125 @@
       setLoading(button, false);
       if (auth.currentUser) {
         updateGoogleProviderStatus(auth.currentUser);
+      }
+    }
+  }
+
+  async function unlinkGoogleAccount(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setGoogleAccountMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "google.com")) {
+      setGoogleAccountMessage("Dieses Konto ist nicht mit Google verbunden.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "password") || !user.emailVerified) {
+      setGoogleAccountMessage("Google kann erst entfernt werden, wenn ein bestätigtes E-Mail-Konto vorhanden ist.", false);
+      return;
+    }
+
+    const confirmed = window.confirm("Google-Konto entfernen? Dein Login über E-Mail und Passwort bleibt erhalten.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setLoading(button, true, "Entferne...");
+      await user.unlink("google.com");
+      await user.reload();
+      updateAccountProfile(auth.currentUser);
+      updateGoogleProviderStatus(auth.currentUser);
+      await saveIdentitySnapshot(auth.currentUser, null);
+      setGoogleAccountMessage("Google-Konto wurde entfernt.", true);
+    } catch (error) {
+      setGoogleAccountMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(button, false);
+      if (auth.currentUser) {
+        updateGoogleProviderStatus(auth.currentUser);
+      }
+    }
+  }
+
+  async function sendPasswordVerification(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setPasswordMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "password")) {
+      setPasswordMessage("Es ist noch kein E-Mail-Konto eingerichtet.", false);
+      return;
+    }
+
+    if (user.emailVerified) {
+      setPasswordMessage("Dieses E-Mail-Konto ist bereits bestätigt.", true);
+      updatePasswordProviderStatus(user);
+      return;
+    }
+
+    try {
+      setLoading(button, true, "Sende...");
+      await user.sendEmailVerification({
+        url: getLoginRedirectUrl()
+      });
+      setPasswordMessage(`Bestätigungsmail wurde an ${user.email} gesendet.`, true);
+    } catch (error) {
+      setPasswordMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(button, false);
+      if (auth.currentUser) {
+        updatePasswordProviderStatus(auth.currentUser);
+      }
+    }
+  }
+
+  async function unlinkPasswordAccount(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setPasswordMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "password")) {
+      setPasswordMessage("Es ist kein E-Mail-Konto eingerichtet.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "google.com")) {
+      setPasswordMessage("Das E-Mail-Konto kann nicht entfernt werden, solange kein Google-Konto verbunden ist.", false);
+      return;
+    }
+
+    const confirmed = window.confirm("E-Mail-Konto entfernen? Dein Google-Login bleibt erhalten.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setLoading(button, true, "Entferne...");
+      await user.unlink("password");
+      await user.reload();
+      updateAccountProfile(auth.currentUser);
+      updateGoogleProviderStatus(auth.currentUser);
+      await saveIdentitySnapshot(auth.currentUser, null);
+      setPasswordMessage("E-Mail-Konto wurde entfernt. Google bleibt aktiv.", true);
+    } catch (error) {
+      setPasswordMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(button, false);
+      if (auth.currentUser) {
+        updatePasswordProviderStatus(auth.currentUser);
       }
     }
   }

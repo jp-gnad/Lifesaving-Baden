@@ -304,6 +304,17 @@ h3 {
   color: var(--text);
 }
 
+.button-danger {
+  border-color: rgba(227, 6, 19, 0.42);
+  background: rgba(227, 6, 19, 0.12);
+  color: var(--accent-light);
+}
+
+.button-danger:hover {
+  border-color: rgba(227, 6, 19, 0.62);
+  background: rgba(227, 6, 19, 0.18);
+}
+
 .button-ghost {
   border-color: transparent;
   background: transparent;
@@ -1620,6 +1631,36 @@ h3 {
   border-radius: 50%;
   background: rgba(28, 191, 105, 0.16);
   color: var(--success);
+}
+
+.security-field-item.is-provider-warning .profile-field-icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 184, 77, 0.44);
+  border-radius: 50%;
+  background: rgba(255, 184, 77, 0.16);
+  color: rgb(255, 196, 92);
+}
+
+.security-field-item.is-provider-inactive .profile-field-icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(227, 6, 19, 0.44);
+  border-radius: 50%;
+  background: rgba(227, 6, 19, 0.14);
+  color: var(--accent-light);
+}
+
+.security-field-item.is-provider-active > .profile-field-row {
+  border-color: rgba(28, 191, 105, 0.28);
+}
+
+.security-field-item.is-provider-warning > .profile-field-row {
+  border-color: rgba(255, 184, 77, 0.34);
+}
+
+.security-field-item.is-provider-inactive > .profile-field-row {
+  border-color: rgba(227, 6, 19, 0.24);
 }
 
 .profile-field-icon svg {
