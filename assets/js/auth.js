@@ -1463,11 +1463,23 @@
     element.classList.toggle("is-provider-inactive", status === "inactive");
   }
 
+  function setPasswordFormOpen(form, isOpen) {
+    if (!form) {
+      return;
+    }
+
+    form.dataset.editing = String(isOpen);
+    form.classList.toggle("is-hidden", !isOpen);
+    form.hidden = !isOpen;
+    form.setAttribute("aria-hidden", String(!isOpen));
+  }
+
   function updatePasswordProviderStatus(user) {
     const form = document.querySelector("[data-password-form]");
     const help = document.querySelector("[data-password-provider-help]");
     const passwordProviderItem = document.querySelector("[data-password-provider-item]");
     const currentPasswordRow = document.querySelector("[data-current-password-row]");
+    const editButton = document.querySelector("[data-password-edit]");
     const submitButton = form?.querySelector('button[type="submit"]');
     const currentPasswordInput = form?.elements.currentPassword;
     const verificationButton = document.querySelector("[data-password-verification]");
@@ -1481,8 +1493,10 @@
     const googleLinked = hasProvider(user, "google.com");
     const emailLabel = user.email || "keine E-Mail-Adresse";
     const passwordVerified = passwordLinked && Boolean(user.emailVerified);
-    const submitLabel = passwordLinked ? "Passwort ändern" : "E-Mail-Konto hinzufügen";
+    const editLabel = passwordLinked ? "Passwort ändern" : "E-Mail-Konto hinzufügen";
+    const submitLabel = passwordLinked ? "Passwort speichern" : "E-Mail-Konto hinzufügen";
     const passwordStatus = !passwordLinked ? "inactive" : (passwordVerified ? "active" : "warning");
+    const formIsOpen = form?.dataset.editing === "true";
 
     setProviderStatusClass(passwordProviderItem, passwordStatus);
     updateText(
@@ -1519,8 +1533,35 @@
       submitButton.dataset.defaultHtml = submitLabel;
     }
 
-    verificationButton?.classList.toggle("is-hidden", !passwordLinked || passwordVerified);
-    unlinkButton?.classList.toggle("is-hidden", !passwordLinked || !googleLinked);
+    if (editButton) {
+      editButton.textContent = editLabel;
+      editButton.dataset.defaultHtml = editLabel;
+      editButton.classList.toggle("is-hidden", formIsOpen);
+    }
+
+    setPasswordFormOpen(form, formIsOpen);
+    verificationButton?.classList.toggle("is-hidden", formIsOpen || !passwordLinked || passwordVerified);
+    unlinkButton?.classList.toggle("is-hidden", formIsOpen || !passwordLinked || !googleLinked);
+  }
+
+  function openPasswordForm(auth) {
+    const form = document.querySelector("[data-password-form]");
+
+    setPasswordFormOpen(form, true);
+    updatePasswordProviderStatus(auth.currentUser);
+
+    const firstVisibleInput = Array.from(form?.querySelectorAll("input") || [])
+      .find((input) => !input.closest("[hidden]"));
+
+    firstVisibleInput?.focus({ preventScroll: true });
+  }
+
+  function closePasswordForm(auth) {
+    const form = document.querySelector("[data-password-form]");
+
+    form?.reset();
+    setPasswordFormOpen(form, false);
+    updatePasswordProviderStatus(auth.currentUser);
   }
 
   async function initAccountManagement(auth) {
@@ -1528,6 +1569,8 @@
     const passwordForm = document.querySelector("[data-password-form]");
     const googleLinkButton = document.querySelector("[data-google-link]");
     const googleUnlinkButton = document.querySelector("[data-google-unlink]");
+    const passwordEditButton = document.querySelector("[data-password-edit]");
+    const passwordCancelButton = document.querySelector("[data-password-cancel]");
     const passwordVerificationButton = document.querySelector("[data-password-verification]");
     const passwordUnlinkButton = document.querySelector("[data-password-unlink]");
 
@@ -1552,6 +1595,16 @@
     if (passwordForm && !passwordForm.dataset.listenerAttached) {
       passwordForm.dataset.listenerAttached = "true";
       passwordForm.addEventListener("submit", (event) => changeAccountPassword(event, auth));
+    }
+
+    if (passwordEditButton && !passwordEditButton.dataset.listenerAttached) {
+      passwordEditButton.dataset.listenerAttached = "true";
+      passwordEditButton.addEventListener("click", () => openPasswordForm(auth));
+    }
+
+    if (passwordCancelButton && !passwordCancelButton.dataset.listenerAttached) {
+      passwordCancelButton.dataset.listenerAttached = "true";
+      passwordCancelButton.addEventListener("click", () => closePasswordForm(auth));
     }
 
     if (googleLinkButton && !googleLinkButton.dataset.listenerAttached) {
@@ -1828,6 +1881,7 @@
       }
 
       form.reset();
+      setPasswordFormOpen(form, false);
       setPasswordMessage(
         passwordLinked
           ? "Passwort wurde geändert."

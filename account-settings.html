@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-provider-statuses">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-email-actions">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-google-actions"></script>
+    <script defer src="assets/js/auth.js?v=20260711-email-actions"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -282,7 +282,10 @@
                     <p class="setting-help no-indent" data-password-provider-help>
                       Passwort-Status wird geladen.
                     </p>
-                    <form class="setting-form" data-password-form>
+                    <button class="button button-secondary full-width" type="button" data-password-edit>
+                      E-Mail-Konto hinzufügen
+                    </button>
+                    <form class="setting-form security-password-form is-hidden" data-password-form hidden aria-hidden="true">
                       <label data-current-password-row>
                         <span>Altes Passwort</span>
                         <span class="password-field">
@@ -329,6 +332,7 @@
                         </span>
                       </label>
                       <button class="button button-primary full-width" type="submit">Passwort speichern</button>
+                      <button class="button button-ghost full-width" type="button" data-password-cancel>Abbrechen</button>
                     </form>
                     <button class="button button-secondary full-width is-hidden" type="button" data-password-verification>
                       Bestätigungsmail senden
