@@ -862,7 +862,7 @@ h3 {
 
 .checklist-heading span {
   flex: 0 0 auto;
-  color: var(--success);
+  color: var(--accent-light);
   font-size: 0.8rem;
   font-weight: 750;
 }
