@@ -173,6 +173,9 @@ Im Mitgliederbereich erscheint eine Karte `Person verknüpfen`. Der Button
 Verknüpfung seines Kontos mit einer Person aus der späteren Datenbank
 beantragen. Der Antrag wird im eigenen Firestore-Dokument unter
 `users/{uid}.personLinkRequest` gespeichert.
+Geburtsdatum und DLRG-Gliederung aus dem Antrag werden zusätzlich als
+`users/{uid}.birthDate` und `users/{uid}.dlrgBranch` in die Profil- und
+Mitgliedsdaten übernommen.
 
 Solange ein Konto noch nicht verknüpft ist, zeigt der Mitgliederbereich eine
 dezente Erinnerung `Kontokonfiguration offen` und ein Ausrufezeichen am

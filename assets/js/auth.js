@@ -906,17 +906,60 @@
     try {
       const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
       const data = snapshot.exists ? snapshot.data() : {};
+      const details = await syncProfileDetailsFromLinkRequest(user, data);
 
       if (profileForm.elements.dlrgBranch) {
-        profileForm.elements.dlrgBranch.value = data.dlrgBranch || "";
+        profileForm.elements.dlrgBranch.value = details.dlrgBranch;
       }
 
       if (profileForm.elements.birthDate) {
-        profileForm.elements.birthDate.value = data.birthDate || "";
+        profileForm.elements.birthDate.value = details.birthDate;
       }
     } catch (error) {
       setProfileMessage(translateFirestoreError(error), false);
     }
+  }
+
+  function hasStoredProfileField(data, fieldName) {
+    return Object.prototype.hasOwnProperty.call(data, fieldName);
+  }
+
+  function getProfileDetailsFromData(data) {
+    const request = data.personLinkRequest || {};
+
+    return {
+      dlrgBranch: hasStoredProfileField(data, "dlrgBranch")
+        ? data.dlrgBranch || ""
+        : request.dlrgBranch || "",
+      birthDate: hasStoredProfileField(data, "birthDate")
+        ? data.birthDate || ""
+        : request.birthDate || ""
+    };
+  }
+
+  async function syncProfileDetailsFromLinkRequest(user, data) {
+    const request = data.personLinkRequest || {};
+    const payload = {};
+
+    if (!hasStoredProfileField(data, "dlrgBranch") && request.dlrgBranch) {
+      payload.dlrgBranch = request.dlrgBranch;
+    }
+
+    if (!hasStoredProfileField(data, "birthDate") && request.birthDate) {
+      payload.birthDate = request.birthDate;
+    }
+
+    if (Object.keys(payload).length) {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      payload.profileDetailsUpdatedAt = fieldValue.serverTimestamp();
+      payload.updatedAt = fieldValue.serverTimestamp();
+
+      await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
+      Object.assign(data, payload);
+    }
+
+    return getProfileDetailsFromData(data);
   }
 
   async function saveProfileDetails(event, auth) {
@@ -1332,6 +1375,7 @@
       const request = data.personLinkRequest || null;
 
       if (request) {
+        await syncProfileDetailsFromLinkRequest(user, data);
         controls.firstName.value = request.firstName || "";
         controls.lastName.value = request.lastName || "";
         controls.birthDate.value = request.birthDate || "";
@@ -1382,6 +1426,9 @@
       setLoading(controls.submitButton, true, "Antrag speichern...");
 
       await db.collection("users").doc(user.uid).set({
+        dlrgBranch: details.dlrgBranch,
+        birthDate: details.birthDate,
+        profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
         personLinkStatus: "requested",
         personLinkRequest: {
           ...details,
@@ -1395,7 +1442,9 @@
 
       updateLinkStatusUi({
         personLinkStatus: "requested",
-        personLinkRequest: details
+        personLinkRequest: details,
+        dlrgBranch: details.dlrgBranch,
+        birthDate: details.birthDate
       });
       setLinkRequestMessage("Antrag gespeichert. Dein E-Mail-Programm wird geöffnet.", true);
       window.location.href = buildLinkRequestMailto(details);
