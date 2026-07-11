@@ -30,6 +30,9 @@ Das bedeutet:
 |-- account-settings.html
 |-- link-request.html
 |-- assets/
+|   |-- img/
+|   |   |-- elch-gelb.png
+|   |   `-- lifesaving-baden-logo.png
 |   |-- css/
 |   |   `-- styles.css
 |   `-- js/

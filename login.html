@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Login und Registrierung für Lifesaving Baden.">
     <title>Login - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-dashboard-cleanup">
+    <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-brand-assets">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-dashboard-cleanup"></script>
-    <script defer src="assets/js/auth.js?v=20260711-dashboard-cleanup"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-brand-assets"></script>
+    <script defer src="assets/js/auth.js?v=20260711-brand-assets"></script>
   </head>
   <body data-page="login">
     <header class="site-header">
       <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
-        <span class="brand-mark" aria-hidden="true">LB</span>
+        <span class="brand-mark" aria-hidden="true">
+          <img src="assets/img/lifesaving-baden-logo.png" alt="">
+        </span>
         <span>Lifesaving Baden</span>
       </a>
       <nav class="nav" aria-label="Hauptnavigation">
@@ -88,7 +91,7 @@
 
       <aside class="auth-aside" aria-label="Hinweis">
         <div class="status-panel">
-          <span class="status-dot" aria-hidden="true"></span>
+          <img class="moose-icon status-moose" src="assets/img/elch-gelb.png" alt="" aria-hidden="true">
           <p>Firebase muss einmalig in der Konsole eingerichtet und hier eingetragen werden.</p>
         </div>
       </aside>
