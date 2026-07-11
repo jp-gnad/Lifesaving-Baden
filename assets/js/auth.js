@@ -709,12 +709,14 @@
     const requestSubmitted = linked || hasPendingLinkRequest(data);
     const dlrgBranchAdded = hasChecklistValue(data?.dlrgBranch) || hasChecklistValue(request.dlrgBranch);
     const birthDateAdded = hasChecklistValue(data?.birthDate) || hasChecklistValue(request.birthDate);
+    const genderAdded = hasChecklistValue(data?.gender);
 
     return [
       { key: "linkRequest", complete: requestSubmitted },
       { key: "linked", complete: linked },
       { key: "dlrgBranch", complete: dlrgBranchAdded },
-      { key: "birthDate", complete: birthDateAdded }
+      { key: "birthDate", complete: birthDateAdded },
+      { key: "gender", complete: genderAdded }
     ];
   }
 
