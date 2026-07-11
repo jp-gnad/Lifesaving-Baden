@@ -6,12 +6,12 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-checklist">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-checklist-autohide">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-account-checklist"></script>
-    <script defer src="assets/js/auth.js?v=20260711-account-checklist"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-checklist-autohide"></script>
+    <script defer src="assets/js/auth.js?v=20260711-checklist-autohide"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -55,7 +55,7 @@
       </section>
 
       <section class="dashboard-grid" aria-label="Mitgliederübersicht">
-        <article class="card setting-card account-checklist-card" data-account-checklist>
+        <article class="card setting-card account-checklist-card is-hidden" data-account-checklist data-hide-when-complete>
           <div class="checklist-heading">
             <h2>Kontokonfiguration</h2>
             <span data-checklist-count>0 von 4 abgeschlossen</span>

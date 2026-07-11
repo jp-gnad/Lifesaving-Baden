@@ -635,6 +635,7 @@
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
       const count = checklist.querySelector("[data-checklist-count]");
       const progress = checklist.querySelector("[data-checklist-progress]");
+      const shouldHideWhenComplete = checklist.hasAttribute("data-hide-when-complete");
 
       if (count) {
         count.textContent = `${completed} von ${total} abgeschlossen`;
@@ -643,6 +644,8 @@
       if (progress) {
         progress.style.width = `${percentage}%`;
       }
+
+      checklist.classList.toggle("is-hidden", shouldHideWhenComplete && completed === total);
 
       items.forEach((item) => {
         const element = checklist.querySelector(`[data-check-item="${item.key}"]`);
