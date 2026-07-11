@@ -417,7 +417,7 @@
   function initSettingsMenu() {
     const menuItems = Array.from(document.querySelectorAll(".settings-menu-item"));
     const categories = Array.from(document.querySelectorAll(".settings-category"));
-    const mobileBackButton = document.querySelector("[data-settings-mobile-back]");
+    const mobileBackButtons = document.querySelectorAll("[data-settings-mobile-back]");
     const mobileSettingsQuery = window.matchMedia("(max-width: 860px)");
 
     if (!menuItems.length || !categories.length) {
@@ -497,7 +497,9 @@
       });
     });
 
-    mobileBackButton?.addEventListener("click", () => showMobileSettingsMenu());
+    mobileBackButtons.forEach((button) => {
+      button.addEventListener("click", () => showMobileSettingsMenu());
+    });
 
     window.refreshSettingsMenu = (options = {}) => setActiveItem(window.location.hash, options);
 
