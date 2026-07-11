@@ -417,6 +417,7 @@
   function initSettingsMenu() {
     const menuItems = Array.from(document.querySelectorAll(".settings-menu-item"));
     const categories = Array.from(document.querySelectorAll(".settings-category"));
+    const mobileBackButton = document.querySelector("[data-settings-mobile-back]");
     const mobileSettingsQuery = window.matchMedia("(max-width: 860px)");
 
     if (!menuItems.length || !categories.length) {
@@ -470,6 +471,18 @@
       }
     }
 
+    function showMobileSettingsMenu() {
+      if (!isMobileSettingsView()) {
+        return;
+      }
+
+      if (window.location.hash) {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      }
+
+      setActiveItem("", { keepHash: true });
+    }
+
     menuItems.forEach((item) => {
       item.addEventListener("click", (event) => {
         event.preventDefault();
@@ -483,6 +496,8 @@
         setActiveItem(targetHash);
       });
     });
+
+    mobileBackButton?.addEventListener("click", () => showMobileSettingsMenu());
 
     window.refreshSettingsMenu = (options = {}) => setActiveItem(window.location.hash, options);
 

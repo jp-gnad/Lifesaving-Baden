@@ -1368,6 +1368,10 @@ h3 {
   min-width: 0;
 }
 
+.settings-mobile-back {
+  display: none;
+}
+
 .settings-category {
   display: grid;
   gap: 24px;
@@ -1696,6 +1700,35 @@ h3 {
 
   body[data-page="settings"].settings-mobile-content-view .settings-sidebar {
     display: none;
+  }
+
+  body[data-page="settings"].settings-mobile-content-view .settings-mobile-back {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: 8px;
+    min-height: 38px;
+    border: 0;
+    border-radius: 8px;
+    padding: 6px 10px 6px 0;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  body[data-page="settings"].settings-mobile-content-view .settings-mobile-back span:first-child {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--text);
+  }
+
+  body[data-page="settings"].settings-mobile-content-view .settings-mobile-back:hover {
+    color: var(--text);
   }
 
   .danger-zone-card {

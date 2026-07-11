@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-mobile-settings-nav">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-mobile-settings-back">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-mobile-settings-nav"></script>
+    <script defer src="assets/js/auth.js?v=20260711-mobile-settings-back"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -60,6 +60,11 @@
         </aside>
 
         <div class="settings-content">
+          <button class="settings-mobile-back" type="button" data-settings-mobile-back aria-label="Zurück zum Einstellungsmenü">
+            <span aria-hidden="true">←</span>
+            <span>Kontoeinstellungen</span>
+          </button>
+
           <section class="settings-category" id="persoenliche-daten" aria-labelledby="settings-personal-title">
             <div class="settings-category-header">
               <h2 id="settings-personal-title">Persönliche Daten</h2>
