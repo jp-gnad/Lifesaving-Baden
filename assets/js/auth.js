@@ -456,7 +456,7 @@
       });
     });
 
-    window.refreshSettingsMenu = () => setActiveItem(window.location.hash, { keepHash: true });
+    window.refreshSettingsMenu = (options = {}) => setActiveItem(window.location.hash, options);
 
     setActiveItem(window.location.hash, { keepHash: true });
     window.addEventListener("hashchange", () => setActiveItem(window.location.hash, { keepHash: true }));
