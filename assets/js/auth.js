@@ -694,15 +694,20 @@
   }
 
   function updateAccountChecklist(data) {
+    const hasLoadedData = Boolean(data);
     const items = getAccountChecklistItems(data || {});
     const completed = items.filter((item) => item.complete).length;
     const total = items.length;
     const percentage = total ? Math.round((completed / total) * 100) : 0;
 
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
+      if (!hasLoadedData) {
+        checklist.classList.add("is-hidden");
+        return;
+      }
+
       const count = checklist.querySelector("[data-checklist-count]");
       const progress = checklist.querySelector("[data-checklist-progress]");
-      const shouldHideWhenComplete = checklist.hasAttribute("data-hide-when-complete");
 
       if (count) {
         count.textContent = `${completed} von ${total} abgeschlossen`;
@@ -712,7 +717,7 @@
         progress.style.width = `${percentage}%`;
       }
 
-      checklist.classList.toggle("is-hidden", shouldHideWhenComplete && completed === total);
+      checklist.classList.toggle("is-hidden", completed === total);
 
       items.forEach((item) => {
         const element = checklist.querySelector(`[data-check-item="${item.key}"]`);
