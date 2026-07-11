@@ -2,7 +2,6 @@
   const page = document.body.dataset.page;
   const appUrl = "app.html";
   const loginUrl = "login.html";
-  const accountLinkRecipient = "jpg.gnad@web.de";
 
   function getVerificationRedirectUrl() {
     return new URL("login.html?verified=1", window.location.href).href;
@@ -144,6 +143,17 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
+  function setAdminRequestMessage(text, isSuccess) {
+    const message = document.querySelector("[data-admin-request-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function setProfileMessage(text, isSuccess) {
     const message = document.querySelector("[data-profile-message]");
 
@@ -226,6 +236,7 @@
 
   const userDocCachePrefix = "lifesaving-baden:user-doc:";
   const userDocCacheTtlMs = 5 * 60 * 1000;
+  const pendingUserDocCacheTtlMs = 30 * 1000;
   let activeUserDocCache = null;
 
   function getUserDocCacheKey(uid) {
@@ -233,11 +244,13 @@
   }
 
   function isFreshUserDocCache(entry) {
+    const ttl = hasPendingLinkRequest(entry?.data) ? pendingUserDocCacheTtlMs : userDocCacheTtlMs;
+
     return Boolean(
       entry
       && entry.uid
       && entry.data
-      && Date.now() - Number(entry.cachedAt || 0) < userDocCacheTtlMs
+      && Date.now() - Number(entry.cachedAt || 0) < ttl
     );
   }
 
@@ -989,7 +1002,15 @@
   }
 
   function hasPendingLinkRequest(data) {
-    return Boolean(data?.personLinkStatus === "requested" || data?.personLinkRequest);
+    const requestStatus = data?.personLinkRequest?.status;
+
+    return Boolean(data?.personLinkStatus === "requested" || requestStatus === "requested");
+  }
+
+  function hasRejectedLinkRequest(data) {
+    const requestStatus = data?.personLinkRequest?.status;
+
+    return Boolean(data?.personLinkStatus === "rejected" || requestStatus === "rejected");
   }
 
   function hasChecklistValue(value) {
@@ -1073,6 +1094,15 @@
       };
     }
 
+    if (hasRejectedLinkRequest(data)) {
+      return {
+        state: "rejected",
+        title: "Antrag abgelehnt",
+        text: "Prüfe deine Angaben und sende den Antrag erneut.",
+        action: "Erneut beantragen"
+      };
+    }
+
     return {
       state: "open",
       title: "Kontokonfiguration offen",
@@ -1148,8 +1178,10 @@
       const tokenResult = await user.getIdTokenResult();
       const claims = tokenResult.claims || {};
       const data = userData || await loadCurrentUserData(user) || {};
+      const role = getAccountRole(data, claims);
 
-      updateRoleUi(getAccountRole(data, claims));
+      updateRoleUi(role);
+      await initAdminLinkRequests(auth, role);
     } catch (error) {
       updateRoleUi(getDefaultAccountRole());
     }
@@ -1236,6 +1268,274 @@
     if (typeof window.refreshSettingsMenu === "function") {
       window.refreshSettingsMenu();
     }
+  }
+
+  function getAdminLinkRequestControls() {
+    return {
+      panel: document.querySelector("[data-admin-link-requests]"),
+      list: document.querySelector("[data-admin-request-list]"),
+      summary: document.querySelector("[data-admin-request-summary]"),
+      refreshButton: document.querySelector("[data-admin-requests-refresh]")
+    };
+  }
+
+  function setAdminRequestSummary(text) {
+    const { summary } = getAdminLinkRequestControls();
+
+    if (summary) {
+      summary.textContent = text;
+    }
+  }
+
+  function getTimestampMillis(value) {
+    if (!value) {
+      return 0;
+    }
+
+    if (typeof value.toMillis === "function") {
+      return value.toMillis();
+    }
+
+    if (typeof value.toDate === "function") {
+      return value.toDate().getTime();
+    }
+
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  function getAdminRequestTimestamp(data) {
+    return getTimestampMillis(data?.personLinkRequest?.requestedAt);
+  }
+
+  function getAdminRequestName(data) {
+    const request = data?.personLinkRequest || {};
+    const requestName = `${request.firstName || ""} ${request.lastName || ""}`.trim();
+
+    return requestName || data?.displayName || request.accountName || "Unbenanntes Konto";
+  }
+
+  function appendAdminRequestDetail(list, label, value) {
+    if (!value) {
+      return;
+    }
+
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+
+    term.textContent = label;
+    description.textContent = value;
+    list.append(term, description);
+  }
+
+  function createAdminRequestCard(item) {
+    const data = item.data || {};
+    const request = data.personLinkRequest || {};
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("h3");
+    const email = document.createElement("p");
+    const details = document.createElement("dl");
+    const personIdLabel = document.createElement("label");
+    const personIdText = document.createElement("span");
+    const personIdInput = document.createElement("input");
+    const actions = document.createElement("div");
+    const approveButton = document.createElement("button");
+    const rejectButton = document.createElement("button");
+
+    card.className = "admin-request-card";
+    card.dataset.adminRequestCard = "";
+    card.dataset.targetUid = item.uid;
+
+    header.className = "admin-request-card-header";
+    title.textContent = getAdminRequestName(data);
+    email.textContent = request.accountEmail || data.email || "Keine E-Mail gespeichert";
+    header.append(title, email);
+
+    details.className = "admin-request-details";
+    appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
+    appendAdminRequestDetail(details, "DLRG-Gliederung", request.dlrgBranch || data.dlrgBranch);
+    appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
+    appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
+    appendAdminRequestDetail(details, "Konto-Name", request.accountName || data.displayName);
+    appendAdminRequestDetail(details, "Firebase UID", item.uid);
+
+    personIdLabel.className = "admin-decision-field";
+    personIdText.textContent = "Personen-ID oder Notiz";
+    personIdInput.type = "text";
+    personIdInput.placeholder = "Optional";
+    personIdInput.dataset.adminPersonId = "";
+    personIdLabel.append(personIdText, personIdInput);
+
+    actions.className = "admin-request-actions";
+    approveButton.className = "button button-primary";
+    approveButton.type = "button";
+    approveButton.textContent = "Verknüpfen";
+    approveButton.dataset.adminRequestAction = "approve";
+    rejectButton.className = "button button-danger";
+    rejectButton.type = "button";
+    rejectButton.textContent = "Ablehnen";
+    rejectButton.dataset.adminRequestAction = "reject";
+    actions.append(approveButton, rejectButton);
+
+    card.append(header, details, personIdLabel, actions);
+    return card;
+  }
+
+  function renderAdminLinkRequests(requests) {
+    const { list } = getAdminLinkRequestControls();
+
+    if (!list) {
+      return;
+    }
+
+    list.replaceChildren();
+
+    if (!requests.length) {
+      const emptyState = document.createElement("p");
+
+      emptyState.className = "admin-request-empty";
+      emptyState.textContent = "Keine offenen Verknüpfungsanträge.";
+      list.append(emptyState);
+      setAdminRequestSummary("Keine offenen Anträge.");
+      return;
+    }
+
+    requests.forEach((request) => {
+      list.append(createAdminRequestCard(request));
+    });
+
+    setAdminRequestSummary(`${requests.length} offene Anträge.`);
+  }
+
+  async function loadAdminLinkRequests(auth) {
+    const { list, refreshButton } = getAdminLinkRequestControls();
+
+    if (!list || !window.firebase.firestore) {
+      return;
+    }
+
+    try {
+      setLoading(refreshButton, true, "Lade...");
+      setAdminRequestSummary("Offene Anträge werden geladen.");
+      setAdminRequestMessage("", true);
+
+      const snapshot = await window.firebase.firestore()
+        .collection("users")
+        .where("personLinkStatus", "==", "requested")
+        .limit(50)
+        .get();
+      const requests = snapshot.docs
+        .map((doc) => ({ uid: doc.id, data: doc.data() || {} }))
+        .filter((item) => hasPendingLinkRequest(item.data))
+        .sort((first, second) => getAdminRequestTimestamp(second.data) - getAdminRequestTimestamp(first.data));
+
+      renderAdminLinkRequests(requests);
+    } catch (error) {
+      setAdminRequestSummary("Anträge konnten nicht geladen werden.");
+      setAdminRequestMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(refreshButton, false);
+    }
+  }
+
+  async function decideAdminLinkRequest(auth, button) {
+    const user = auth.currentUser;
+    const card = button.closest("[data-admin-request-card]");
+    const targetUid = card?.dataset.targetUid;
+    const action = button.dataset.adminRequestAction;
+    const approve = action === "approve";
+    const personId = card?.querySelector("[data-admin-person-id]")?.value.trim() || "";
+
+    if (!user || !targetUid || !window.firebase.firestore) {
+      setAdminRequestMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const status = approve ? "linked" : "rejected";
+    const updatePayload = {
+      personLinkStatus: status,
+      personLinked: approve,
+      updatedAt: fieldValue.serverTimestamp(),
+      personLinkDecision: {
+        status,
+        personId,
+        decidedByUid: user.uid,
+        decidedByEmail: user.email || "",
+        decidedAt: fieldValue.serverTimestamp()
+      },
+      "personLinkRequest.status": status,
+      "personLinkRequest.decidedByUid": user.uid,
+      "personLinkRequest.decidedByEmail": user.email || "",
+      "personLinkRequest.decidedAt": fieldValue.serverTimestamp()
+    };
+
+    if (approve && personId) {
+      updatePayload.linkedPersonId = personId;
+    }
+
+    if (!approve) {
+      updatePayload.linkedPersonId = fieldValue.delete();
+    }
+
+    try {
+      card.querySelectorAll("button, input").forEach((control) => {
+        control.disabled = true;
+      });
+      setAdminRequestMessage(approve ? "Antrag wird verknüpft..." : "Antrag wird abgelehnt...", true);
+
+      await window.firebase.firestore().collection("users").doc(targetUid).update(updatePayload);
+
+      if (targetUid === user.uid) {
+        clearUserDocCache(user.uid);
+      }
+
+      card.remove();
+
+      const remaining = document.querySelectorAll("[data-admin-request-card]").length;
+      setAdminRequestSummary(remaining ? `${remaining} offene Anträge.` : "Keine offenen Anträge.");
+      setAdminRequestMessage(approve ? "Antrag verknüpft." : "Antrag abgelehnt.", true);
+
+      if (!remaining) {
+        renderAdminLinkRequests([]);
+      }
+    } catch (error) {
+      card.querySelectorAll("button, input").forEach((control) => {
+        control.disabled = false;
+      });
+      setAdminRequestMessage(translateFirestoreError(error), false);
+    }
+  }
+
+  async function initAdminLinkRequests(auth, role) {
+    const { panel, list, refreshButton } = getAdminLinkRequestControls();
+
+    if (!panel || !list || !role?.isAdmin) {
+      return;
+    }
+
+    if (!list.dataset.listenerAttached) {
+      list.dataset.listenerAttached = "true";
+      list.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-admin-request-action]");
+
+        if (button) {
+          decideAdminLinkRequest(auth, button);
+        }
+      });
+    }
+
+    if (refreshButton && !refreshButton.dataset.listenerAttached) {
+      refreshButton.dataset.listenerAttached = "true";
+      refreshButton.addEventListener("click", () => loadAdminLinkRequests(auth));
+    }
+
+    await loadAdminLinkRequests(auth);
   }
 
   function hasFreshLogin(user) {
@@ -2570,7 +2870,12 @@
         controls.dlrgBranch.value = request.dlrgBranch || "";
         controls.firstCompetition.value = request.firstCompetition || "";
         controls.lastCompetition.value = request.lastCompetition || "";
-        setLinkRequestMessage("Letzter Antrag ist gespeichert.", true);
+        setLinkRequestMessage(
+          request.status === "rejected"
+            ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
+            : "Letzter Antrag ist gespeichert.",
+          true
+        );
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
@@ -2615,7 +2920,6 @@
 
       const requestCacheData = {
         ...details,
-        recipientEmail: accountLinkRecipient,
         status: "requested"
       };
       const userCacheData = {
@@ -2639,36 +2943,12 @@
       }, { merge: true });
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
-      setLinkRequestMessage("Antrag gespeichert. Dein E-Mail-Programm wird geöffnet.", true);
-      window.location.href = buildLinkRequestMailto(details);
+      setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
     } finally {
       setLoading(controls.submitButton, false);
       setLinkRequestControlsDisabled(false);
     }
-  }
-
-  function buildLinkRequestMailto(details) {
-    const subject = "Konto-Verknüpfung beantragt";
-    const body = [
-      "Hallo Jan-Philipp,",
-      "",
-      "ich möchte mein Lifesaving-Baden-Konto mit meiner Person in der Datenbank verknüpfen.",
-      "",
-      `Vorname: ${details.firstName}`,
-      `Nachname: ${details.lastName}`,
-      `Geburtsdatum: ${details.birthDate}`,
-      `Mitglied in DLRG-Gliederung: ${details.dlrgBranch}`,
-      `Erster Wettkampf: ${details.firstCompetition || "Nicht angegeben"}`,
-      `Letzter Wettkampf: ${details.lastCompetition || "Nicht angegeben"}`,
-      `E-Mail des Kontos: ${details.accountEmail}`,
-      `Kontoname: ${details.accountName}`,
-      `Firebase UID: ${details.accountUid}`,
-      "",
-      "Bitte prüfe meine Identität und ordne die passende Person zu."
-    ].join("\n");
-
-    return `mailto:${accountLinkRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 })();

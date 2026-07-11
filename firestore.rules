@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && (
+          adminData().role == "admin"
+          || adminData().role == "Admin"
+          || adminData().admin == true
+          || adminData().isAdmin == true
+        );
+    }
+
+    function ownerKeepsProtectedFieldsSafe() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "role",
+        "admin",
+        "isAdmin",
+        "personLinked",
+        "personId",
+        "linkedPersonId",
+        "personLinkDecision"
+      ])
+      && (!("personLinkStatus" in request.resource.data)
+        || request.resource.data.personLinkStatus != "linked")
+      && (!("personLinkRequest" in request.resource.data)
+        || !("status" in request.resource.data.personLinkRequest)
+        || request.resource.data.personLinkRequest.status != "linked");
+    }
+
+    function ownerCreatesOnlySportlerAccount() {
+      return (!("role" in request.resource.data) || request.resource.data.role == "sportler")
+        && !request.resource.data.keys().hasAny(["admin", "isAdmin"]);
+    }
+
+    match /users/{uid} {
+      allow create: if isOwner(uid) && ownerCreatesOnlySportlerAccount();
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && ownerKeepsProtectedFieldsSafe());
+      allow delete: if isAdmin() || isOwner(uid);
+    }
+  }
+}

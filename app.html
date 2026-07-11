@@ -6,12 +6,12 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-checklist-gender">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-admin-requests">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-userdoc-cache"></script>
+    <script defer src="assets/js/auth.js?v=20260711-admin-requests"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -99,9 +99,18 @@
           <h2>Organisatorbereich</h2>
           <p>Organisator-Konto erkannt. Funktionen werden später ergänzt.</p>
         </article>
-        <article class="card dashboard-action-card is-hidden" data-admin-only>
-          <h2>Adminbereich</h2>
-          <p>Admin-Konto erkannt. Admins sehen den Organisatorbereich automatisch mit.</p>
+        <article class="card dashboard-action-card admin-request-panel is-hidden" data-admin-only data-admin-link-requests>
+          <div class="admin-panel-heading">
+            <div>
+              <h2>Adminbereich</h2>
+              <p data-admin-request-summary>Offene Verknüpfungsanträge werden geladen.</p>
+            </div>
+            <button class="button button-secondary" type="button" data-admin-requests-refresh>
+              Aktualisieren
+            </button>
+          </div>
+          <div class="admin-request-list" data-admin-request-list aria-live="polite"></div>
+          <p class="form-message" data-admin-request-message role="status"></p>
         </article>
       </section>
     </main>

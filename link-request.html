@@ -6,12 +6,12 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-checklist-gender">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-admin-requests">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-userdoc-cache"></script>
+    <script defer src="assets/js/auth.js?v=20260711-admin-requests"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -53,8 +53,8 @@
         <article class="card setting-card link-request-form-card">
           <h2>Verknüpfungsantrag</h2>
           <p>
-            Deine Angaben werden gespeichert und zusätzlich als vorbereitete
-            E-Mail an jpg.gnad@web.de geöffnet.
+            Deine Angaben werden gespeichert und im Adminbereich zur Prüfung
+            angezeigt.
           </p>
           <form class="setting-form" data-link-request-form>
             <label>
@@ -90,8 +90,8 @@
             </button>
           </form>
           <p class="setting-help">
-            GitHub Pages kann keine E-Mail im Hintergrund versenden. Bitte sende
-            den geöffneten E-Mail-Entwurf anschließend ab.
+            Nach dem Absenden bleibt dein Antrag gespeichert, bis ein Admin ihn
+            annimmt oder ablehnt.
           </p>
           <p class="form-message" data-link-request-message role="status"></p>
         </article>

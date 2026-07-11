@@ -904,6 +904,113 @@ h3 {
   color: var(--accent-light);
 }
 
+.admin-request-panel {
+  grid-column: 1 / -1;
+}
+
+.admin-panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-panel-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.admin-panel-heading .button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.admin-request-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-request-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  background: rgba(15, 15, 18, 0.58);
+}
+
+.admin-request-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-request-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-request-card-header p,
+.admin-request-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.admin-request-details {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.42fr) minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.admin-request-details dt {
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 650;
+}
+
+.admin-request-details dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.admin-decision-field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+
+.admin-decision-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.admin-decision-field input:focus {
+  outline: 3px solid rgba(255, 237, 0, 0.22);
+  border-color: var(--primary);
+}
+
+.admin-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-request-actions .button {
+  min-height: 38px;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+}
+
 .dashboard-action-card .button {
   justify-self: start;
   margin-top: 6px;
@@ -1858,6 +1965,15 @@ h3 {
   .completion-notice .button {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .admin-panel-heading,
+  .admin-request-card-header {
+    flex-direction: column;
+  }
+
+  .admin-request-details {
+    grid-template-columns: 1fr;
   }
 
   .auth-aside {
