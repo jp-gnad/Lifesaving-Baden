@@ -932,28 +932,77 @@ h3 {
 
 .admin-request-card {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 9px;
+  padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 7px;
   background: rgba(15, 15, 18, 0.58);
 }
 
-.admin-request-card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.admin-request-compact {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 300px) auto;
+  gap: 14px;
+  align-items: center;
 }
 
-.admin-request-card h3 {
-  margin: 0;
-  font-size: 1rem;
+.admin-request-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
-.admin-request-card-header p,
+.admin-request-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-request-toggle::before {
+  content: "+";
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--primary);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.admin-request-toggle[aria-expanded="true"]::before {
+  content: "-";
+}
+
+.admin-request-toggle:hover,
+.admin-request-toggle:focus-visible {
+  color: var(--primary);
+}
+
+.admin-request-toggle:focus-visible {
+  outline: 2px solid rgba(255, 237, 0, 0.72);
+  outline-offset: 3px;
+}
+
+.admin-request-branch,
 .admin-request-empty {
   margin: 0;
   color: var(--muted);
+}
+
+.admin-request-branch {
+  padding-left: 25px;
+  font-size: 0.9rem;
 }
 
 .admin-request-details {
@@ -978,7 +1027,9 @@ h3 {
 
 .admin-decision-field {
   display: grid;
-  gap: 5px;
+  grid-template-columns: auto minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 550;
@@ -1002,6 +1053,7 @@ h3 {
 .admin-request-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -1967,9 +2019,20 @@ h3 {
     width: 100%;
   }
 
-  .admin-panel-heading,
-  .admin-request-card-header {
+  .admin-panel-heading {
     flex-direction: column;
+  }
+
+  .admin-request-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-decision-field {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-request-actions {
+    justify-content: flex-start;
   }
 
   .admin-request-details {

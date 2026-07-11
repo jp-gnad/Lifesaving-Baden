@@ -1319,6 +1319,24 @@
     return requestName || data?.displayName || request.accountName || "Unbenanntes Konto";
   }
 
+  function getInitialsFromName(name) {
+    const parts = String(name || "")
+      .replace(/[^a-z0-9äöüß]+/gi, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (!parts.length) {
+      return "?";
+    }
+
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
   function appendAdminRequestDetail(list, label, value) {
     if (!value) {
       return;
@@ -1335,10 +1353,13 @@
   function createAdminRequestCard(item) {
     const data = item.data || {};
     const request = data.personLinkRequest || {};
+    const requestName = getAdminRequestName(data);
+    const detailsId = `admin-request-details-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
     const card = document.createElement("article");
-    const header = document.createElement("div");
-    const title = document.createElement("h3");
-    const email = document.createElement("p");
+    const compactRow = document.createElement("div");
+    const identity = document.createElement("div");
+    const title = document.createElement("button");
+    const branch = document.createElement("p");
     const details = document.createElement("dl");
     const personIdLabel = document.createElement("label");
     const personIdText = document.createElement("span");
@@ -1351,21 +1372,29 @@
     card.dataset.adminRequestCard = "";
     card.dataset.targetUid = item.uid;
 
-    header.className = "admin-request-card-header";
-    title.textContent = getAdminRequestName(data);
-    email.textContent = request.accountEmail || data.email || "Keine E-Mail gespeichert";
-    header.append(title, email);
+    compactRow.className = "admin-request-compact";
+    identity.className = "admin-request-identity";
+    title.className = "admin-request-toggle";
+    title.type = "button";
+    title.textContent = `${requestName} (${getInitialsFromName(requestName)})`;
+    title.dataset.adminRequestToggle = "";
+    title.setAttribute("aria-expanded", "false");
+    title.setAttribute("aria-controls", detailsId);
+    branch.className = "admin-request-branch";
+    branch.textContent = `DLRG ${request.dlrgBranch || data.dlrgBranch || "Nicht angegeben"}`;
+    identity.append(title, branch);
 
     details.className = "admin-request-details";
+    details.id = detailsId;
+    details.hidden = true;
+    details.setAttribute("aria-hidden", "true");
     appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-    appendAdminRequestDetail(details, "DLRG-Gliederung", request.dlrgBranch || data.dlrgBranch);
     appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
     appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
-    appendAdminRequestDetail(details, "Konto-Name", request.accountName || data.displayName);
-    appendAdminRequestDetail(details, "Firebase UID", item.uid);
+    appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
 
     personIdLabel.className = "admin-decision-field";
-    personIdText.textContent = "Personen-ID oder Notiz";
+    personIdText.textContent = "Personen-ID";
     personIdInput.type = "text";
     personIdInput.placeholder = "Optional";
     personIdInput.dataset.adminPersonId = "";
@@ -1382,8 +1411,23 @@
     rejectButton.dataset.adminRequestAction = "reject";
     actions.append(approveButton, rejectButton);
 
-    card.append(header, details, personIdLabel, actions);
+    compactRow.append(identity, personIdLabel, actions);
+    card.append(compactRow, details);
     return card;
+  }
+
+  function toggleAdminRequestDetails(button) {
+    const details = document.getElementById(button.getAttribute("aria-controls"));
+
+    if (!details) {
+      return;
+    }
+
+    const shouldOpen = button.getAttribute("aria-expanded") !== "true";
+
+    button.setAttribute("aria-expanded", String(shouldOpen));
+    details.hidden = !shouldOpen;
+    details.setAttribute("aria-hidden", String(!shouldOpen));
   }
 
   function renderAdminLinkRequests(requests) {
@@ -1522,7 +1566,13 @@
     if (!list.dataset.listenerAttached) {
       list.dataset.listenerAttached = "true";
       list.addEventListener("click", (event) => {
+        const toggleButton = event.target.closest("[data-admin-request-toggle]");
         const button = event.target.closest("[data-admin-request-action]");
+
+        if (toggleButton) {
+          toggleAdminRequestDetails(toggleButton);
+          return;
+        }
 
         if (button) {
           decideAdminLinkRequest(auth, button);
