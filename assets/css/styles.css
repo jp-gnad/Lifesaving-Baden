@@ -552,6 +552,32 @@ h3 {
   font-size: 1.2rem;
 }
 
+.setting-card {
+  display: grid;
+  gap: 14px;
+}
+
+.setting-check {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  color: var(--text);
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.setting-check input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+}
+
+.setting-check input:disabled {
+  cursor: not-allowed;
+}
+
 @media (max-width: 860px) {
   .site-header,
   .site-footer {

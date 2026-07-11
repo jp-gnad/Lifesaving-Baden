@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="assets/css/styles.css">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js"></script>
     <script defer src="assets/js/auth.js"></script>
   </head>
@@ -46,6 +47,14 @@
         <article class="card">
           <h2>Profil</h2>
           <p data-user-email>Keine E-Mail geladen.</p>
+        </article>
+        <article class="card setting-card">
+          <h2>Datenschutz</h2>
+          <label class="setting-check">
+            <input type="checkbox" data-keep-data>
+            <span>Persoenliche Daten bis auf Widerruf speichern</span>
+          </label>
+          <p class="form-message success" data-settings-message role="status"></p>
         </article>
       </section>
     </main>

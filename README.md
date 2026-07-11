@@ -60,6 +60,33 @@ Die Firebase-Web-Konfiguration enthaelt keine geheimen Admin-Schluessel. Sie
 darf in einer statischen Website stehen. Trotzdem sollten in Firebase nur die
 Domains freigegeben werden, auf denen die Website wirklich laufen soll.
 
+## Firestore fuer Nutzereinstellungen
+
+Der Mitgliederbereich speichert die Datenschutz-Einstellung pro Nutzer in
+Firestore unter `users/{uid}`.
+
+1. In Firebase `Firestore Database` oeffnen.
+2. `Create database` waehlen.
+3. `Production mode` nutzen.
+4. Eine Region auswaehlen, idealerweise eine EU-Region, falls verfuegbar.
+5. Unter `Rules` diese Regeln veroeffentlichen:
+
+```js
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, create, update, delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
+lesen und aendern.
+
 ## Lokal testen
 
 Firebase Auth sollte ueber einen lokalen Server oder GitHub Pages getestet

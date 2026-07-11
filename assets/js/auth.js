@@ -91,6 +91,27 @@
     return messages[error.code] || "Der Login ist fehlgeschlagen. Bitte pruefe die Eingaben.";
   }
 
+  function translateFirestoreError(error) {
+    const messages = {
+      "permission-denied": "Firestore-Regeln erlauben diese Aktion noch nicht.",
+      "unavailable": "Firestore ist gerade nicht erreichbar.",
+      "unauthenticated": "Bitte logge dich erneut ein."
+    };
+
+    return messages[error.code] || "Die Einstellung konnte nicht gespeichert werden.";
+  }
+
+  function setSettingsMessage(text, isSuccess) {
+    const message = document.querySelector("[data-settings-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function disableAuthControls() {
     document
       .querySelectorAll('[data-auth-form] button, [data-google-login], [data-resend-verification]')
@@ -295,6 +316,7 @@
     const userName = document.querySelector("[data-user-name]");
     const userEmail = document.querySelector("[data-user-email]");
     const logoutButton = document.querySelector("[data-logout]");
+    let settingsLoadedForUser = null;
 
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -316,11 +338,106 @@
       if (userEmail) {
         userEmail.textContent = auth.currentUser.email || "Keine E-Mail geladen.";
       }
+
+      if (settingsLoadedForUser !== auth.currentUser.uid) {
+        settingsLoadedForUser = auth.currentUser.uid;
+        await initUserSettings(auth);
+      }
     });
 
     logoutButton.addEventListener("click", async () => {
       await auth.signOut();
       redirectToLogin();
     });
+  }
+
+  async function initUserSettings(auth) {
+    const checkbox = document.querySelector("[data-keep-data]");
+
+    if (!checkbox) {
+      return;
+    }
+
+    if (!window.firebase.firestore) {
+      checkbox.disabled = true;
+      setSettingsMessage("Firestore ist noch nicht geladen.", false);
+      return;
+    }
+
+    const db = window.firebase.firestore();
+
+    if (!checkbox.dataset.listenerAttached) {
+      checkbox.dataset.listenerAttached = "true";
+      checkbox.addEventListener("change", () => saveUserSettings(auth, db));
+    }
+
+    await loadUserSettings(auth, db);
+  }
+
+  async function loadUserSettings(auth, db) {
+    const checkbox = document.querySelector("[data-keep-data]");
+    const user = auth.currentUser;
+
+    if (!checkbox || !user) {
+      return;
+    }
+
+    checkbox.disabled = true;
+    setSettingsMessage("Einstellung wird geladen...", true);
+
+    try {
+      const snapshot = await db.collection("users").doc(user.uid).get();
+      const data = snapshot.exists ? snapshot.data() : {};
+
+      checkbox.checked = Boolean(data.keepPersonalDataUntilRevoked);
+      setSettingsMessage(
+        snapshot.exists ? "Einstellung geladen." : "Noch keine Einstellung gespeichert.",
+        true
+      );
+    } catch (error) {
+      setSettingsMessage(translateFirestoreError(error), false);
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  async function saveUserSettings(auth, db) {
+    const checkbox = document.querySelector("[data-keep-data]");
+    const user = auth.currentUser;
+
+    if (!checkbox || !user) {
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const shouldKeepData = checkbox.checked;
+    const userDoc = db.collection("users").doc(user.uid);
+    const payload = {
+      email: user.email || "",
+      displayName: user.displayName || "",
+      keepPersonalDataUntilRevoked: shouldKeepData,
+      consentTextVersion: "2026-07-11-v1",
+      updatedAt: fieldValue.serverTimestamp()
+    };
+
+    if (shouldKeepData) {
+      payload.keepPersonalDataConsentAt = fieldValue.serverTimestamp();
+      payload.keepPersonalDataRevokedAt = null;
+    } else {
+      payload.keepPersonalDataRevokedAt = fieldValue.serverTimestamp();
+    }
+
+    checkbox.disabled = true;
+    setSettingsMessage("Einstellung wird gespeichert...", true);
+
+    try {
+      await userDoc.set(payload, { merge: true });
+      setSettingsMessage("Einstellung gespeichert.", true);
+    } catch (error) {
+      checkbox.checked = !shouldKeepData;
+      setSettingsMessage(translateFirestoreError(error), false);
+    } finally {
+      checkbox.disabled = false;
+    }
   }
 })();
