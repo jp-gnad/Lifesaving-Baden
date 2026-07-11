@@ -80,6 +80,7 @@
       "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
       "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
       "auth/popup-closed-by-user": "Google-Login wurde abgebrochen.",
+      "auth/requires-recent-login": "Bitte melde dich neu an und versuche es direkt danach erneut.",
       "auth/too-many-requests": "Zu viele Versuche. Bitte spaeter erneut probieren.",
       "auth/unauthorized-domain": "Diese Domain ist in Firebase noch nicht freigegeben.",
       "auth/user-disabled": "Dieses Konto wurde deaktiviert.",
@@ -103,6 +104,17 @@
 
   function setSettingsMessage(text, isSuccess) {
     const message = document.querySelector("[data-settings-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
+  function setDeleteMessage(text, isSuccess) {
+    const message = document.querySelector("[data-delete-message]");
 
     if (!message) {
       return;
@@ -315,8 +327,37 @@
   function initAppPage(auth) {
     const userName = document.querySelector("[data-user-name]");
     const userEmail = document.querySelector("[data-user-email]");
-    const logoutButton = document.querySelector("[data-logout]");
+    const logoutButtons = document.querySelectorAll("[data-logout]");
+    const accountOpenButton = document.querySelector("[data-account-open]");
+    const accountOverlay = document.querySelector("[data-account-overlay]");
+    const accountCloseButton = document.querySelector("[data-account-close]");
+    const settingsToggle = document.querySelector("[data-settings-toggle]");
+    const settingsPanel = document.querySelector("[data-account-settings]");
+    const deleteAccountButton = document.querySelector("[data-delete-account]");
     let settingsLoadedForUser = null;
+
+    accountOpenButton?.addEventListener("click", () => openAccountModal());
+    accountCloseButton?.addEventListener("click", () => closeAccountModal());
+    accountOverlay?.addEventListener("click", (event) => {
+      if (event.target === accountOverlay) {
+        closeAccountModal();
+      }
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeAccountModal();
+      }
+    });
+
+    settingsToggle?.addEventListener("click", () => {
+      const isOpening = settingsPanel.classList.contains("is-hidden");
+
+      settingsPanel.classList.toggle("is-hidden", !isOpening);
+      settingsToggle.setAttribute("aria-expanded", String(isOpening));
+    });
+
+    deleteAccountButton?.addEventListener("click", () => deleteCurrentAccount(auth, deleteAccountButton));
 
     auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -332,12 +373,14 @@
       }
 
       if (userName) {
-        userName.textContent = auth.currentUser.displayName || "Mitglied";
+        userName.textContent = getAccountName(auth.currentUser);
       }
 
       if (userEmail) {
         userEmail.textContent = auth.currentUser.email || "Keine E-Mail geladen.";
       }
+
+      updateAccountProfile(auth.currentUser);
 
       if (settingsLoadedForUser !== auth.currentUser.uid) {
         settingsLoadedForUser = auth.currentUser.uid;
@@ -345,10 +388,146 @@
       }
     });
 
-    logoutButton.addEventListener("click", async () => {
+    logoutButtons.forEach((button) => button.addEventListener("click", async () => {
       await auth.signOut();
       redirectToLogin();
+    }));
+  }
+
+  function openAccountModal() {
+    const accountOverlay = document.querySelector("[data-account-overlay]");
+
+    if (!accountOverlay) {
+      return;
+    }
+
+    accountOverlay.classList.remove("is-hidden");
+    accountOverlay.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+  }
+
+  function closeAccountModal() {
+    const accountOverlay = document.querySelector("[data-account-overlay]");
+
+    if (!accountOverlay) {
+      return;
+    }
+
+    accountOverlay.classList.add("is-hidden");
+    accountOverlay.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+  }
+
+  function setTextForAll(selector, text) {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.textContent = text;
     });
+  }
+
+  function getAccountName(user) {
+    if (user.displayName) {
+      return user.displayName;
+    }
+
+    if (user.email) {
+      return user.email.split("@")[0];
+    }
+
+    return "Mitglied";
+  }
+
+  function getInitials(user) {
+    const source = getAccountName(user);
+    const parts = source.replace(/[^a-z0-9]+/gi, " ").trim().split(/\s+/).filter(Boolean);
+
+    if (!parts.length) {
+      return "?";
+    }
+
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
+  function updateAvatar(photoSelector, initialsSelector, user) {
+    const photo = document.querySelector(photoSelector);
+    const initials = document.querySelector(initialsSelector);
+
+    if (!photo || !initials) {
+      return;
+    }
+
+    if (user.photoURL) {
+      photo.src = user.photoURL;
+      photo.classList.remove("is-hidden");
+      initials.classList.add("is-hidden");
+      return;
+    }
+
+    photo.removeAttribute("src");
+    photo.classList.add("is-hidden");
+    initials.textContent = getInitials(user);
+    initials.classList.remove("is-hidden");
+  }
+
+  function updateAccountProfile(user) {
+    const accountName = getAccountName(user);
+    const accountEmail = user.email || "Keine E-Mail geladen.";
+
+    setTextForAll("[data-account-email]", accountEmail);
+    setTextForAll("[data-account-name]", accountName);
+    setTextForAll("[data-account-greeting-name]", accountName);
+    updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
+    updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
+  }
+
+  function hasFreshLogin(user) {
+    const lastSignIn = Date.parse(user.metadata?.lastSignInTime || "");
+
+    if (Number.isNaN(lastSignIn)) {
+      return true;
+    }
+
+    return Date.now() - lastSignIn < 5 * 60 * 1000;
+  }
+
+  async function deleteCurrentAccount(auth, deleteButton) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setDeleteMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!hasFreshLogin(user)) {
+      setDeleteMessage("Bitte melde dich neu an und loesche das Konto direkt danach.", false);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Konto wirklich loeschen? Diese Aktion entfernt dein Konto und deine gespeicherten Einstellungen."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setLoading(deleteButton, true, "Loeschen...");
+
+      if (window.firebase.firestore) {
+        await window.firebase.firestore().collection("users").doc(user.uid).delete();
+      }
+
+      await user.delete();
+      redirectToLogin();
+    } catch (error) {
+      setDeleteMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(deleteButton, false);
+    }
   }
 
   async function initUserSettings(auth) {

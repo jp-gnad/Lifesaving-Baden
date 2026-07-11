@@ -20,7 +20,12 @@
       </a>
       <nav class="nav" aria-label="Hauptnavigation">
         <a href="index.html">Start</a>
-        <button class="nav-button" type="button" data-logout>Abmelden</button>
+        <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil oeffnen">
+          <span class="account-avatar account-avatar-small">
+            <img class="is-hidden" src="" alt="" data-account-photo-small>
+            <span data-account-initials-small>?</span>
+          </span>
+        </button>
       </nav>
     </header>
 
@@ -48,8 +53,29 @@
           <h2>Profil</h2>
           <p data-user-email>Keine E-Mail geladen.</p>
         </article>
-        <article class="card setting-card">
-          <h2>Datenschutz</h2>
+      </section>
+    </main>
+
+    <div class="account-overlay is-hidden" data-account-overlay aria-hidden="true">
+      <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+        <button class="account-close" type="button" data-account-close aria-label="Kontofenster schliessen">×</button>
+
+        <p class="account-email" data-account-email>Keine E-Mail geladen.</p>
+
+        <div class="account-avatar account-avatar-large">
+          <img class="is-hidden" src="" alt="" data-account-photo-large>
+          <span data-account-initials-large>?</span>
+        </div>
+
+        <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
+        <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
+
+        <button class="button button-secondary account-manage" type="button" data-settings-toggle aria-expanded="false">
+          Kontoeinstellungen verwalten
+        </button>
+
+        <div class="account-settings is-hidden" data-account-settings>
+          <h3>Kontoeinstellungen</h3>
           <label class="setting-check">
             <input type="checkbox" data-keep-data>
             <span>Persoenliche Daten bis auf Widerruf speichern</span>
@@ -63,8 +89,19 @@
             oeffentlich gefunden und eingesehen werden.
           </p>
           <p class="form-message success" data-settings-message role="status"></p>
-        </article>
+
+          <div class="danger-zone">
+            <h3>Konto loeschen</h3>
+            <p>Das Konto und die gespeicherten Einstellungen werden entfernt.</p>
+            <button class="danger-button" type="button" data-delete-account>Konto loeschen</button>
+            <p class="form-message" data-delete-message role="status"></p>
+          </div>
+        </div>
+
+        <div class="account-actions">
+          <button class="account-action" type="button" data-logout>Abmelden</button>
+        </div>
       </section>
-    </main>
+    </div>
   </body>
 </html>
