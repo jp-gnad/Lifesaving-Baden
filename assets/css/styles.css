@@ -1130,10 +1130,103 @@ h3 {
   opacity: 1;
 }
 
+.admin-role-control {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+span.admin-role-control {
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-role-control.is-role-admin {
+  border-color: rgba(227, 6, 19, 0.46);
+  background: rgba(227, 6, 19, 0.14);
+  color: var(--accent-light);
+}
+
+.admin-role-control.is-role-organisator {
+  border-color: rgba(60, 156, 255, 0.46);
+  background: rgba(60, 156, 255, 0.14);
+  color: var(--organizer-accent);
+}
+
+.admin-role-control.is-role-sportler {
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--text);
+}
+
 .admin-account-link-controls {
   display: grid;
-  grid-template-columns: 82px minmax(120px, 1fr);
+  grid-template-columns: 86px minmax(120px, 1fr);
   gap: 8px;
+}
+
+.admin-link-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-link-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-link-switch-track {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border: 1px solid rgba(227, 6, 19, 0.52);
+  border-radius: 999px;
+  background: rgba(227, 6, 19, 0.16);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.admin-link-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.admin-link-switch input:checked + .admin-link-switch-track {
+  border-color: rgba(28, 191, 105, 0.68);
+  background: rgba(28, 191, 105, 0.18);
+}
+
+.admin-link-switch input:checked + .admin-link-switch-track::after {
+  background: var(--success);
+  transform: translateX(20px);
+}
+
+.admin-link-switch input:focus-visible + .admin-link-switch-track {
+  outline: 3px solid rgba(255, 237, 0, 0.28);
+  outline-offset: 2px;
+}
+
+.admin-link-switch-text {
+  min-width: 32px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .dashboard-action-card .button {

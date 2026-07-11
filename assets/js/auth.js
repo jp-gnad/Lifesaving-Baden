@@ -1686,24 +1686,33 @@
     return labels[value] || "Sportler";
   }
 
+  function setAdminAccountRoleAppearance(element, value) {
+    if (!element) {
+      return;
+    }
+
+    element.classList.toggle("is-role-admin", value === "admin");
+    element.classList.toggle("is-role-organisator", value === "organisator");
+    element.classList.toggle("is-role-sportler", value === "sportler");
+  }
+
   function createAdminAccountRoleSelect(item) {
     const data = item.data || {};
     const roleValue = getAdminAccountRoleValue(data);
-    const select = document.createElement("select");
+    const control = roleValue === "admin"
+      ? document.createElement("span")
+      : document.createElement("select");
 
-    select.dataset.adminAccountRole = "";
-    select.dataset.previousValue = roleValue;
-    select.disabled = roleValue === "admin";
+    control.className = "admin-role-control";
+    setAdminAccountRoleAppearance(control, roleValue);
 
     if (roleValue === "admin") {
-      const option = document.createElement("option");
-
-      option.value = "admin";
-      option.textContent = "Admin";
-      select.append(option);
-      select.value = "admin";
-      return select;
+      control.textContent = "Admin";
+      return control;
     }
+
+    control.dataset.adminAccountRole = "";
+    control.dataset.previousValue = roleValue;
 
     [
       { value: "sportler", label: "Sportler" },
@@ -1713,11 +1722,11 @@
 
       option.value = role.value;
       option.textContent = role.label;
-      select.append(option);
+      control.append(option);
     });
 
-    select.value = roleValue;
-    return select;
+    control.value = roleValue;
+    return control;
   }
 
   function createAdminAccountCard(item) {
@@ -1735,7 +1744,10 @@
     const linkField = document.createElement("div");
     const linkTitle = document.createElement("span");
     const linkControls = document.createElement("div");
-    const linkedSelect = document.createElement("select");
+    const linkedToggleLabel = document.createElement("label");
+    const linkedToggleInput = document.createElement("input");
+    const linkedToggleTrack = document.createElement("span");
+    const linkedToggleText = document.createElement("span");
     const linkedIdInput = document.createElement("input");
 
     card.className = "admin-account-card";
@@ -1755,20 +1767,16 @@
     linkTitle.textContent = "Verknüpfung";
     linkControls.className = "admin-account-link-controls";
 
-    [
-      { value: "linked", label: "Ja" },
-      { value: "open", label: "Nein" }
-    ].forEach((status) => {
-      const option = document.createElement("option");
-
-      option.value = status.value;
-      option.textContent = status.label;
-      linkedSelect.append(option);
-    });
-
-    linkedSelect.dataset.adminAccountLinkStatus = "";
-    linkedSelect.dataset.previousValue = linked ? "linked" : "open";
-    linkedSelect.value = linked ? "linked" : "open";
+    linkedToggleLabel.className = "admin-link-switch";
+    linkedToggleInput.type = "checkbox";
+    linkedToggleInput.checked = linked;
+    linkedToggleInput.dataset.adminAccountLinkToggle = "";
+    linkedToggleInput.dataset.previousValue = linked ? "linked" : "open";
+    linkedToggleTrack.className = "admin-link-switch-track";
+    linkedToggleTrack.setAttribute("aria-hidden", "true");
+    linkedToggleText.className = "admin-link-switch-text";
+    linkedToggleText.textContent = linked ? "Ja" : "Nein";
+    linkedToggleLabel.append(linkedToggleInput, linkedToggleTrack, linkedToggleText);
 
     linkedIdInput.type = "text";
     linkedIdInput.value = linkedId;
@@ -1776,7 +1784,7 @@
     linkedIdInput.dataset.adminAccountLinkId = "";
     linkedIdInput.dataset.previousValue = linkedId;
 
-    linkControls.append(linkedSelect, linkedIdInput);
+    linkControls.append(linkedToggleLabel, linkedIdInput);
     linkField.append(linkTitle, linkControls);
     card.append(identity, roleLabel, linkField);
     return card;
@@ -1858,13 +1866,14 @@
     }
 
     try {
-      select.disabled = true;
+      toggle.disabled = true;
       setAdminAccountMessage("Rolle wird gespeichert...", true);
       await window.firebase.firestore().collection("users").doc(targetUid).update({
         role: nextRole,
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
       });
       select.dataset.previousValue = nextRole;
+      setAdminAccountRoleAppearance(select, nextRole);
 
       if (targetUid === auth.currentUser?.uid) {
         clearUserDocCache(targetUid);
@@ -1873,21 +1882,23 @@
       setAdminAccountMessage(`Rolle gespeichert: ${getAdminAccountRoleLabel(nextRole)}.`, true);
     } catch (error) {
       select.value = previousRole;
+      setAdminAccountRoleAppearance(select, previousRole);
       setAdminAccountMessage(translateFirestoreError(error), false);
     } finally {
       select.disabled = false;
     }
   }
 
-  async function updateAdminAccountLinkStatus(auth, select) {
-    const card = select.closest("[data-admin-account-card]");
+  async function updateAdminAccountLinkStatus(auth, toggle) {
+    const card = toggle.closest("[data-admin-account-card]");
     const targetUid = card?.dataset.targetUid;
-    const nextStatus = select.value;
-    const previousStatus = select.dataset.previousValue || "open";
+    const nextStatus = toggle.checked ? "linked" : "open";
+    const previousStatus = toggle.dataset.previousValue || "open";
     const idInput = card?.querySelector("[data-admin-account-link-id]");
+    const switchText = card?.querySelector(".admin-link-switch-text");
 
     if (!targetUid || !["linked", "open"].includes(nextStatus)) {
-      select.value = previousStatus;
+      toggle.checked = previousStatus === "linked";
       setAdminAccountMessage("Dieser Verknüpfungsstatus ist ungültig.", false);
       return;
     }
@@ -1916,7 +1927,11 @@
       select.disabled = true;
       setAdminAccountMessage("Verknüpfung wird gespeichert...", true);
       await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
-      select.dataset.previousValue = nextStatus;
+      toggle.dataset.previousValue = nextStatus;
+
+      if (switchText) {
+        switchText.textContent = nextStatus === "linked" ? "Ja" : "Nein";
+      }
 
       if (idInput && nextStatus === "open") {
         idInput.value = "";
@@ -1932,10 +1947,13 @@
         true
       );
     } catch (error) {
-      select.value = previousStatus;
+      toggle.checked = previousStatus === "linked";
+      if (switchText) {
+        switchText.textContent = previousStatus === "linked" ? "Ja" : "Nein";
+      }
       setAdminAccountMessage(translateFirestoreError(error), false);
     } finally {
-      select.disabled = false;
+      toggle.disabled = false;
     }
   }
 
@@ -1968,11 +1986,16 @@
       await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
       input.dataset.previousValue = nextId;
 
-      const statusSelect = card.querySelector("[data-admin-account-link-status]");
+      const statusToggle = card.querySelector("[data-admin-account-link-toggle]");
+      const switchText = card.querySelector(".admin-link-switch-text");
 
-      if (nextId && statusSelect) {
-        statusSelect.value = "linked";
-        statusSelect.dataset.previousValue = "linked";
+      if (nextId && statusToggle) {
+        statusToggle.checked = true;
+        statusToggle.dataset.previousValue = "linked";
+      }
+
+      if (nextId && switchText) {
+        switchText.textContent = "Ja";
       }
 
       if (targetUid === auth.currentUser?.uid) {
@@ -2003,7 +2026,7 @@
           return;
         }
 
-        if (event.target.matches("[data-admin-account-link-status]")) {
+        if (event.target.matches("[data-admin-account-link-toggle]")) {
           updateAdminAccountLinkStatus(auth, event.target);
           return;
         }
