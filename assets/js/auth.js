@@ -1412,10 +1412,10 @@
     }
 
     const googleLinked = hasProvider(user, "google.com");
-    const passwordLinked = hasProvider(user, "password");
+    const passwordLinked = user ? hasProvider(user, "password") : false;
 
     googleProviderItem?.classList.toggle("is-provider-active", googleLinked);
-    updateText("[data-password-provider-summary]", passwordLinked ? "Passwort-Login aktiv" : "Kein Passwort-Login eingerichtet");
+    updatePasswordProviderStatus(user);
 
     if (googleLinked && passwordLinked) {
       updateText("[data-google-provider-summary]", "Mit Google verbunden");
@@ -1434,6 +1434,51 @@
     updateText("[data-google-provider-summary]", "Nicht verbunden");
     status.textContent = "Dieses Konto ist noch nicht mit Google verbunden.";
     button.textContent = "Google-Konto verbinden";
+  }
+
+  function updatePasswordProviderStatus(user) {
+    const form = document.querySelector("[data-password-form]");
+    const help = document.querySelector("[data-password-provider-help]");
+    const currentPasswordRow = document.querySelector("[data-current-password-row]");
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const currentPasswordInput = form?.elements.currentPassword;
+
+    if (!user) {
+      return;
+    }
+
+    const passwordLinked = hasProvider(user, "password");
+    const googleLinked = hasProvider(user, "google.com");
+    const submitLabel = passwordLinked ? "Passwort speichern" : "Passwort-Login aktivieren";
+
+    updateText("[data-password-provider-summary]", passwordLinked ? "Passwort-Login aktiv" : "Kein Passwort-Login eingerichtet");
+
+    if (help) {
+      help.textContent = passwordLinked
+        ? "Du kannst dein Passwort mit deinem alten und einem neuen Passwort ändern."
+        : "Lege ein Passwort für deine Konto-E-Mail an. Danach führen Google und E-Mail/Passwort zum selben Konto.";
+
+      if (!passwordLinked && !googleLinked) {
+        help.textContent = "Lege ein Passwort für deine Konto-E-Mail an, um E-Mail/Passwort als Login zu aktivieren.";
+      }
+    }
+
+    if (currentPasswordRow) {
+      currentPasswordRow.hidden = !passwordLinked;
+    }
+
+    if (currentPasswordInput) {
+      currentPasswordInput.required = passwordLinked;
+
+      if (!passwordLinked) {
+        currentPasswordInput.value = "";
+      }
+    }
+
+    if (submitButton) {
+      submitButton.textContent = submitLabel;
+      submitButton.dataset.defaultHtml = submitLabel;
+    }
   }
 
   async function initAccountManagement(auth) {
@@ -1666,17 +1711,13 @@
     const user = auth.currentUser;
     const form = event.currentTarget;
     const button = form.querySelector('button[type="submit"]');
-    const currentPassword = form.elements.currentPassword.value;
+    const currentPassword = form.elements.currentPassword?.value || "";
     const newPassword = form.elements.newPassword.value;
     const repeatPassword = form.elements.repeatPassword.value;
+    const passwordLinked = user ? hasProvider(user, "password") : false;
 
     if (!user) {
       setPasswordMessage("Bitte logge dich erneut ein.", false);
-      return;
-    }
-
-    if (!hasProvider(user, "password")) {
-      setPasswordMessage("Dieses Konto hat noch keinen Passwort-Login. Nutze zuerst die Passwort-vergessen-Funktion mit deiner Konto-E-Mail.", false);
       return;
     }
 
@@ -1690,19 +1731,46 @@
       return;
     }
 
-    try {
-      setLoading(button, true, "Speichern...");
+    if (!passwordLinked && !user.email) {
+      setPasswordMessage("Dieses Konto hat keine E-Mail-Adresse, für die ein Passwort-Login aktiviert werden kann.", false);
+      return;
+    }
 
-      const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
-      await user.reauthenticateWithCredential(credential);
-      await user.updatePassword(newPassword);
+    if (passwordLinked && !currentPassword) {
+      setPasswordMessage("Bitte gib dein altes Passwort ein.", false);
+      return;
+    }
+
+    try {
+      setLoading(button, true, passwordLinked ? "Speichern..." : "Aktiviere...");
+
+      if (passwordLinked) {
+        const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+        await user.reauthenticateWithCredential(credential);
+        await user.updatePassword(newPassword);
+      } else {
+        const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, newPassword);
+        await user.linkWithCredential(credential);
+        await user.reload();
+        updateAccountProfile(auth.currentUser);
+        updateGoogleProviderStatus(auth.currentUser);
+        await saveIdentitySnapshot(auth.currentUser, null);
+      }
 
       form.reset();
-      setPasswordMessage("Passwort wurde geändert.", true);
+      setPasswordMessage(
+        passwordLinked
+          ? "Passwort wurde geändert."
+          : "Passwort-Login wurde aktiviert. Du kannst dich jetzt auch mit E-Mail und Passwort anmelden.",
+        true
+      );
     } catch (error) {
       setPasswordMessage(translateAuthError(error), false);
     } finally {
       setLoading(button, false);
+      if (auth.currentUser) {
+        updatePasswordProviderStatus(auth.currentUser);
+      }
     }
   }
 

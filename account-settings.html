@@ -11,7 +11,7 @@
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-google-status-icon"></script>
+    <script defer src="assets/js/auth.js?v=20260711-password-provider-link"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -274,8 +274,11 @@
                     <span class="profile-field-chevron" aria-hidden="true"></span>
                   </summary>
                   <div class="profile-field-editor security-field-panel">
+                    <p class="setting-help no-indent" data-password-provider-help>
+                      Passwort-Status wird geladen.
+                    </p>
                     <form class="setting-form" data-password-form>
-                      <label>
+                      <label data-current-password-row>
                         <span>Altes Passwort</span>
                         <span class="password-field">
                           <input type="password" name="currentPassword" autocomplete="current-password" required>
@@ -320,9 +323,7 @@
                           </button>
                         </span>
                       </label>
-                      <button class="button button-primary full-width" type="submit">
-                        Passwort speichern
-                      </button>
+                      <button class="button button-primary full-width" type="submit">Passwort speichern</button>
                     </form>
                     <p class="form-message" data-password-message role="status"></p>
                   </div>
