@@ -75,19 +75,28 @@ Domains freigegeben werden, auf denen die Website wirklich laufen soll.
 
 ## Firestore für Nutzereinstellungen
 
-Der Mitgliederbereich speichert die Datenschutz-Einstellung pro Nutzer in
-Firestore unter `users/{uid}`.
+Der Mitgliederbereich legt direkt nach der Kontoerstellung oder beim ersten
+Google-Login ein Nutzerdokument in Firestore unter `users/{uid}` an. Dadurch
+tauchen neue Konten sofort in Firestore auf, auch wenn noch keine Einstellung
+geändert wurde.
 
 Gespeicherte Felder:
 
+- `uid`: Firebase UID des Kontos.
+- `email`: aktuelle Konto-E-Mail.
+- `displayName`: aktueller Anzeigename.
+- `emailVerified`: Status der E-Mail-Bestätigung.
+- `providerIds`: verwendete Login-Anbieter, z. B. `password` oder
+  `google.com`.
 - `keepPersonalDataUntilRevoked`: Standardwert in der Website ist `true`.
 - `privateProfile`: Standardwert ist `false`.
 - `publicProfile`: Gegenwert zu `privateProfile`, praktisch für spätere
   Profilsuche.
+- `createdAt`, `updatedAt`, `lastSignInAt`: technische Zeitstempel.
 - `dlrgBranch`: freiwillige DLRG-Gliederung aus den Kontoeinstellungen.
 - `birthDate`: freiwilliges Geburtsdatum aus den Kontoeinstellungen.
-- `role`: optionale Rolle, z. B. `sportler`, `organizer`,
-  `organisator` oder `admin`.
+- `role`: Rolle des Kontos. Neue Konten erhalten automatisch `sportler`.
+  Manuell vergebene Werte sind z. B. `organizer`, `organisator` oder `admin`.
 - `isAdmin` / `admin`: optionale Admin-Markierung als Boolean.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
@@ -108,9 +117,8 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function protectedRoleFields() {
+    function elevatedRoleFields() {
       return [
-        'role',
         'isOrganizer',
         'organizer',
         'organizerSince',
@@ -122,26 +130,44 @@ service cloud.firestore {
       ];
     }
 
-    function noProtectedRoleFieldsInNewDoc() {
-      return !request.resource.data.keys().hasAny(protectedRoleFields());
+    function isSportlerRole() {
+      return request.resource.data.keys().hasAll(['role'])
+        && request.resource.data.role == 'sportler';
     }
 
-    function protectedRoleFieldsUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedRoleFields());
+    function roleIsSafeOnCreate() {
+      return !request.resource.data.keys().hasAny(['role']) || isSportlerRole();
+    }
+
+    function roleUnchangedOrDefaulted() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        || (!resource.data.keys().hasAny(['role']) && isSportlerRole());
+    }
+
+    function noElevatedRoleFieldsInNewDoc() {
+      return !request.resource.data.keys().hasAny(elevatedRoleFields());
+    }
+
+    function elevatedRoleFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(elevatedRoleFields());
     }
 
     match /users/{userId} {
       allow read, delete: if isOwner(userId);
-      allow create: if isOwner(userId) && noProtectedRoleFieldsInNewDoc();
-      allow update: if isOwner(userId) && protectedRoleFieldsUnchanged();
+      allow create: if isOwner(userId)
+        && noElevatedRoleFieldsInNewDoc()
+        && roleIsSafeOnCreate();
+      allow update: if isOwner(userId)
+        && elevatedRoleFieldsUnchanged()
+        && roleUnchangedOrDefaulted();
     }
   }
 }
 ```
 
 Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
-lesen und ändern. Rollen-Felder dürfen Nutzer dabei nicht selbst setzen oder
-ändern.
+lesen und ändern. Nutzer dürfen `role: "sportler"` automatisch anlegen, aber
+keine höheren Rollen wie `organizer` oder `admin` selbst setzen oder ändern.
 
 ## Rollen: Sportler, Organisator, Admin
 

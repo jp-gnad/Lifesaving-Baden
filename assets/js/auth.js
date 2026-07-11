@@ -327,8 +327,16 @@
       try {
         setLoading(button, true, "Konto erstellen...");
         const { user } = await auth.createUserWithEmailAndPassword(email, password);
+        let firestoreError = null;
 
         await user.updateProfile({ displayName: name });
+
+        try {
+          await ensureUserDocument(auth.currentUser || user, { throwOnError: true });
+        } catch (error) {
+          firestoreError = error;
+        }
+
         await user.sendEmailVerification({
           url: getVerificationRedirectUrl()
         });
@@ -337,8 +345,10 @@
         showResendButton(true);
         setMessage(
           "login",
-          "Konto erstellt. Bitte bestätige deine E-Mail-Adresse. Danach schließen wir die Kontokonfiguration ab.",
-          true
+          firestoreError
+            ? `Konto erstellt, aber der Firestore-Eintrag fehlt noch: ${translateFirestoreError(firestoreError)}`
+            : "Konto erstellt. Bitte bestätige deine E-Mail-Adresse. Danach schließen wir die Kontokonfiguration ab.",
+          !firestoreError
         );
         registerForm.reset();
       } catch (error) {
@@ -351,7 +361,8 @@
     googleButton.addEventListener("click", async () => {
       try {
         setLoading(googleButton, true, "Google öffnet...");
-        await auth.signInWithPopup(googleProvider);
+        const { user } = await auth.signInWithPopup(googleProvider);
+        await ensureUserDocument(user);
         redirectToApp();
       } catch (error) {
         setMessage("login", translateAuthError(error));
@@ -473,6 +484,7 @@
       updateGoogleProviderStatus(auth.currentUser);
 
       if (settingsLoadedForUser !== auth.currentUser.uid) {
+        await ensureUserDocument(auth.currentUser);
         settingsLoadedForUser = auth.currentUser.uid;
         await initAccountManagement(auth);
         await initUserSettings(auth);
@@ -576,6 +588,61 @@
     setTextForAll("[data-link-account-email]", accountEmail);
     updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
+  }
+
+  async function ensureUserDocument(user, options = {}) {
+    if (!user || !window.firebase.firestore) {
+      return false;
+    }
+
+    const db = window.firebase.firestore();
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const userDoc = db.collection("users").doc(user.uid);
+
+    try {
+      const snapshot = await userDoc.get();
+      const basePayload = {
+        uid: user.uid,
+        email: user.email || "",
+        displayName: user.displayName || "",
+        emailVerified: Boolean(user.emailVerified),
+        providerIds: getProviderIds(user),
+        updatedAt: fieldValue.serverTimestamp()
+      };
+
+      if (!snapshot.exists) {
+        await userDoc.set({
+          ...basePayload,
+          role: "sportler",
+          keepPersonalDataUntilRevoked: true,
+          privateProfile: false,
+          publicProfile: true,
+          createdAt: fieldValue.serverTimestamp(),
+          lastSignInAt: fieldValue.serverTimestamp()
+        });
+        return true;
+      }
+
+      const updatePayload = {
+        ...basePayload,
+        lastSignInAt: fieldValue.serverTimestamp()
+      };
+      const data = snapshot.data() || {};
+
+      if (!Object.prototype.hasOwnProperty.call(data, "role")) {
+        updatePayload.role = "sportler";
+      }
+
+      await userDoc.set(updatePayload, { merge: true });
+      return true;
+    } catch (error) {
+      if (options.throwOnError) {
+        throw error;
+      }
+
+      console.warn("Firestore-Nutzerdokument konnte nicht angelegt oder aktualisiert werden.", error);
+      return false;
+    }
   }
 
   async function initLinkStatus(auth) {
