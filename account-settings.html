@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-centered-role-badge">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-type-label">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-centered-role-badge"></script>
-    <script defer src="assets/js/auth.js?v=20260711-centered-role-badge"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-account-type-label"></script>
+    <script defer src="assets/js/auth.js?v=20260711-account-type-label"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -84,9 +84,7 @@
               <div>
                 <h3 data-account-name>Mitglied</h3>
                 <p data-account-email>Keine E-Mail geladen.</p>
-                <p>Rolle: <strong data-account-role>Sportler</strong></p>
-                <p class="admin-badge is-hidden" data-admin-badge>Admin-Konto</p>
-                <p class="organizer-badge is-hidden" data-organizer-badge>Organisator-Konto</p>
+                <p>Konto-Typ: <strong data-account-role>Sportler</strong></p>
               </div>
             </article>
             <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
