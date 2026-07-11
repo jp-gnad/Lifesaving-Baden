@@ -1306,7 +1306,17 @@
     profileForm.dataset.fieldEditorAttached = "true";
 
     document.querySelectorAll("[data-profile-edit]").forEach((row) => {
-      row.addEventListener("click", () => openProfileFieldEditor(row.dataset.profileEdit, profileForm));
+      row.addEventListener("click", () => {
+        const editor = document.querySelector("[data-profile-editor]");
+        const isSameOpenField = editor?.dataset.activeField === row.dataset.profileEdit && !editor.hidden;
+
+        if (isSameOpenField) {
+          closeProfileFieldEditor();
+          return;
+        }
+
+        openProfileFieldEditor(row.dataset.profileEdit, profileForm);
+      });
     });
 
     editorForm.addEventListener("submit", (event) => saveProfileField(event, auth, profileForm));
