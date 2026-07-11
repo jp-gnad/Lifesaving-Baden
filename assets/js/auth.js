@@ -333,7 +333,7 @@
         showResendButton(true);
         setMessage(
           "login",
-          "Konto erstellt. Bitte bestätige deine E-Mail-Adresse und logge dich danach ein.",
+          "Konto erstellt. Bitte bestätige deine E-Mail-Adresse. Danach schließen wir die Kontokonfiguration ab.",
           true
         );
         registerForm.reset();
@@ -454,6 +454,7 @@
         settingsLoadedForUser = auth.currentUser.uid;
         await initAccountManagement(auth);
         await initUserSettings(auth);
+        await initLinkStatus(auth);
         await initLinkRequest(auth);
       }
     });
@@ -552,6 +553,104 @@
     setTextForAll("[data-link-account-email]", accountEmail);
     updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
+  }
+
+  async function initLinkStatus(auth) {
+    const user = auth.currentUser;
+
+    if (!user || !window.firebase.firestore) {
+      updateLinkStatusUi(null);
+      return;
+    }
+
+    try {
+      const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
+      updateLinkStatusUi(snapshot.exists ? snapshot.data() : null);
+    } catch (error) {
+      updateLinkStatusUi(null);
+    }
+  }
+
+  function isPersonLinked(data) {
+    return Boolean(
+      data?.personLinkStatus === "linked"
+      || data?.personLinked === true
+      || data?.linkedPersonId
+      || data?.personId
+    );
+  }
+
+  function hasPendingLinkRequest(data) {
+    return Boolean(data?.personLinkStatus === "requested" || data?.personLinkRequest);
+  }
+
+  function getLinkStatusCopy(data) {
+    if (isPersonLinked(data)) {
+      return {
+        state: "linked",
+        title: "Konto verknüpft",
+        text: "Deine Kontokonfiguration ist abgeschlossen.",
+        action: ""
+      };
+    }
+
+    if (hasPendingLinkRequest(data)) {
+      return {
+        state: "requested",
+        title: "Antrag in Prüfung",
+        text: "Deine Kontokonfiguration ist fast abgeschlossen.",
+        action: "Antrag ansehen"
+      };
+    }
+
+    return {
+      state: "open",
+      title: "Kontokonfiguration offen",
+      text: "Verknüpfe dein Konto, damit der Mitgliederbereich vollständig nutzbar wird.",
+      action: "Jetzt abschließen"
+    };
+  }
+
+  function updateText(selector, text) {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.textContent = text;
+    });
+  }
+
+  function updateLinkStatusUi(data) {
+    const copy = getLinkStatusCopy(data);
+    const isLinked = copy.state === "linked";
+    const hasRequest = copy.state === "requested";
+
+    document.querySelectorAll("[data-account-attention]").forEach((element) => {
+      element.classList.toggle("is-hidden", isLinked);
+    });
+
+    document.querySelectorAll("[data-link-status-shell]").forEach((element) => {
+      element.classList.toggle("is-hidden", isLinked);
+    });
+
+    document.querySelectorAll("[data-account-link-status]").forEach((element) => {
+      const statusLabel = element.querySelector("strong");
+
+      element.classList.toggle("is-hidden", isLinked);
+
+      if (statusLabel) {
+        statusLabel.textContent = hasRequest ? "Antrag in Prüfung" : copy.title;
+      }
+    });
+
+    document.querySelectorAll("[data-link-status-action], [data-link-card-action]").forEach((element) => {
+      element.textContent = copy.action;
+      element.classList.toggle("is-hidden", isLinked);
+    });
+
+    document.querySelectorAll("[data-link-status-card]").forEach((element) => {
+      element.classList.toggle("is-linked", isLinked);
+    });
+
+    updateText("[data-link-status-title], [data-link-card-title]", copy.title);
+    updateText("[data-link-status-text], [data-link-card-text]", copy.text);
   }
 
   function hasFreshLogin(user) {
@@ -1174,6 +1273,10 @@
         updatedAt: fieldValue.serverTimestamp()
       }, { merge: true });
 
+      updateLinkStatusUi({
+        personLinkStatus: "requested",
+        personLinkRequest: details
+      });
       setLinkRequestMessage("Antrag gespeichert. Dein E-Mail-Programm wird geöffnet.", true);
       window.location.href = buildLinkRequestMailto(details);
     } catch (error) {

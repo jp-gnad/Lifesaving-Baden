@@ -124,6 +124,16 @@ Verknüpfung seines Kontos mit einer Person aus der späteren Datenbank
 beantragen. Der Antrag wird im eigenen Firestore-Dokument unter
 `users/{uid}.personLinkRequest` gespeichert.
 
+Solange ein Konto noch nicht verknüpft ist, zeigt der Mitgliederbereich eine
+dezente Erinnerung `Kontokonfiguration offen` und ein Ausrufezeichen am
+Profilkreis. Nach einem Antrag wechselt der Hinweis zu `Antrag in Prüfung`.
+Als verknüpft gilt ein Konto, wenn adminseitig eines dieser Felder gesetzt ist:
+
+- `personLinkStatus: "linked"`
+- `personLinked: true`
+- `linkedPersonId`
+- `personId`
+
 Zusätzlich öffnet die Website eine vorbereitete E-Mail an `jpg.gnad@web.de`.
 Da GitHub Pages nur statische Dateien ausliefert, kann die Website diese E-Mail
 nicht im Hintergrund selbst versenden. Der Nutzer muss den geöffneten

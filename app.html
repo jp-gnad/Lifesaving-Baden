@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-profile-details">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-nudge">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-profile-details"></script>
-    <script defer src="assets/js/auth.js?v=20260711-profile-details"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-link-nudge"></script>
+    <script defer src="assets/js/auth.js?v=20260711-link-nudge"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -25,6 +25,7 @@
             <img class="is-hidden" src="" alt="" data-account-photo-small>
             <span data-account-initials-small>?</span>
           </span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
         </button>
       </nav>
     </header>
@@ -40,6 +41,15 @@
         </p>
       </section>
 
+      <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite">
+        <span class="completion-mark" aria-hidden="true">!</span>
+        <div>
+          <h2 data-link-status-title>Kontokonfiguration offen</h2>
+          <p data-link-status-text>Verknüpfe dein Konto, damit der Mitgliederbereich vollständig nutzbar wird.</p>
+        </div>
+        <a class="button button-primary" href="link-request.html" data-link-status-action>Jetzt abschließen</a>
+      </section>
+
       <section class="dashboard-grid" aria-label="Mitgliederübersicht">
         <article class="card">
           <h2>Nächstes Training</h2>
@@ -53,10 +63,10 @@
           <h2>Profil</h2>
           <p data-user-email>Keine E-Mail geladen.</p>
         </article>
-        <article class="card dashboard-action-card">
-          <h2>Person verknüpfen</h2>
-          <p>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
-          <a class="button button-primary" href="link-request.html">Jetzt verknüpfen</a>
+        <article class="card dashboard-action-card" data-link-status-card>
+          <h2 data-link-card-title>Person verknüpfen</h2>
+          <p data-link-card-text>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
+          <a class="button button-primary" href="link-request.html" data-link-card-action>Jetzt verknüpfen</a>
         </article>
       </section>
     </main>
@@ -74,6 +84,11 @@
 
         <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
         <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
+
+        <a class="account-status-link is-hidden" href="link-request.html" data-account-link-status>
+          <span aria-hidden="true">!</span>
+          <strong>Kontokonfiguration offen</strong>
+        </a>
 
         <a class="button button-secondary account-manage" href="account-settings.html">
           Kontoeinstellungen verwalten
