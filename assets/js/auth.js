@@ -974,16 +974,25 @@
 
     profileForm.elements.displayName.value = getAccountName(user);
     profileForm.elements.email.value = user.email || "";
-    updateEmptyProfileFieldHighlights(profileForm);
   }
 
   function updateEmptyProfileFieldHighlights(form = document.querySelector("[data-profile-form]")) {
-    if (!form) {
+    if (!form || form.dataset.profileDetailsLoaded !== "true") {
       return;
     }
 
     form.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
       input.classList.toggle("is-empty-highlight", !input.value.trim());
+    });
+  }
+
+  function clearEmptyProfileFieldHighlights(form = document.querySelector("[data-profile-form]")) {
+    if (!form) {
+      return;
+    }
+
+    form.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
+      input.classList.remove("is-empty-highlight");
     });
   }
 
@@ -1023,8 +1032,16 @@
       profileForm.dataset.listenerAttached = "true";
       profileForm.addEventListener("submit", (event) => saveProfileDetails(event, auth));
       profileForm.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
-        input.addEventListener("input", () => updateEmptyProfileFieldHighlights(profileForm));
-        input.addEventListener("change", () => updateEmptyProfileFieldHighlights(profileForm));
+        input.addEventListener("input", () => {
+          if (profileForm.dataset.profileDetailsLoaded === "true") {
+            updateEmptyProfileFieldHighlights(profileForm);
+          }
+        });
+        input.addEventListener("change", () => {
+          if (profileForm.dataset.profileDetailsLoaded === "true") {
+            updateEmptyProfileFieldHighlights(profileForm);
+          }
+        });
       });
     }
 
@@ -1057,6 +1074,9 @@
     }
 
     try {
+      profileForm.dataset.profileDetailsLoaded = "false";
+      clearEmptyProfileFieldHighlights(profileForm);
+
       const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
       const data = snapshot.exists ? snapshot.data() : {};
       const details = await syncProfileDetailsFromLinkRequest(user, data);
@@ -1069,8 +1089,10 @@
         profileForm.elements.birthDate.value = details.birthDate;
       }
 
+      profileForm.dataset.profileDetailsLoaded = "true";
       updateEmptyProfileFieldHighlights(profileForm);
     } catch (error) {
+      profileForm.dataset.profileDetailsLoaded = "false";
       setProfileMessage(translateFirestoreError(error), false);
     }
   }
