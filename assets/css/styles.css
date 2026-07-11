@@ -646,6 +646,10 @@ h3 {
   line-height: 1.5;
 }
 
+.setting-help.no-indent {
+  margin-left: 0;
+}
+
 .setting-form {
   display: grid;
   gap: 14px;
@@ -893,6 +897,12 @@ h3 {
   grid-column: 2;
 }
 
+.account-form-card,
+.google-account-card,
+.password-card {
+  grid-column: 2;
+}
+
 .danger-zone-card {
   grid-column: 2;
 }
@@ -961,6 +971,12 @@ h3 {
   }
 
   .link-request-form-card {
+    grid-column: auto;
+  }
+
+  .account-form-card,
+  .google-account-card,
+  .password-card {
     grid-column: auto;
   }
 }

@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-request-details">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-management">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-link-request-details"></script>
-    <script defer src="assets/js/auth.js?v=20260711-link-request-details"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-account-management"></script>
+    <script defer src="assets/js/auth.js?v=20260711-account-management"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -43,6 +43,61 @@
             <h2 data-account-name>Mitglied</h2>
             <p data-account-email>Keine E-Mail geladen.</p>
           </div>
+        </article>
+
+        <article class="card setting-card account-form-card">
+          <h2>Kontodaten</h2>
+          <form class="setting-form" data-profile-form>
+            <label>
+              <span>Name</span>
+              <input type="text" name="displayName" autocomplete="name" minlength="2" required>
+            </label>
+            <label>
+              <span>E-Mail</span>
+              <input type="email" name="email" autocomplete="email" required>
+            </label>
+            <button class="button button-primary full-width" type="submit">
+              Kontodaten speichern
+            </button>
+          </form>
+          <p class="setting-help">
+            Bei einer neuen E-Mail-Adresse wird eine Bestätigungs-Mail an die
+            neue Adresse gesendet. Dein Konto bleibt dabei erhalten.
+          </p>
+          <p class="form-message" data-profile-message role="status"></p>
+        </article>
+
+        <article class="card setting-card google-account-card">
+          <h2>Google-Konto</h2>
+          <p class="setting-help no-indent" data-google-provider-status>
+            Google-Status wird geladen.
+          </p>
+          <button class="button button-secondary full-width" type="button" data-google-link>
+            Google-Konto verbinden
+          </button>
+          <p class="form-message" data-google-account-message role="status"></p>
+        </article>
+
+        <article class="card setting-card password-card">
+          <h2>Passwort ändern</h2>
+          <form class="setting-form" data-password-form>
+            <label>
+              <span>Altes Passwort</span>
+              <input type="password" name="currentPassword" autocomplete="current-password" required>
+            </label>
+            <label>
+              <span>Neues Passwort</span>
+              <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
+            </label>
+            <label>
+              <span>Neues Passwort wiederholen</span>
+              <input type="password" name="repeatPassword" autocomplete="new-password" minlength="8" required>
+            </label>
+            <button class="button button-primary full-width" type="submit">
+              Passwort speichern
+            </button>
+          </form>
+          <p class="form-message" data-password-message role="status"></p>
         </article>
 
         <article class="card setting-card">

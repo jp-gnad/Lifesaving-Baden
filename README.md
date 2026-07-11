@@ -99,6 +99,21 @@ service cloud.firestore {
 Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
 lesen und ändern.
 
+## Kontoverwaltung
+
+In den Kontoeinstellungen kann ein eingeloggter Nutzer Name und E-Mail-Adresse
+ändern. Die Firebase UID bleibt dabei gleich, das Konto geht also nicht
+verloren. Bei einer neuen E-Mail-Adresse sendet Firebase eine
+Bestätigungs-Mail an die neue Adresse.
+
+Passwörter können mit altem Passwort und zweimal neuem Passwort geändert
+werden. Im Login gibt es zusätzlich `Passwort vergessen?`, das eine
+Firebase-Mail zum Zurücksetzen des Passworts auslöst.
+
+Ein Google-Konto kann mit dem bestehenden Firebase-Konto verbunden werden. Ein
+bereits verbundenes Google-Konto wird nur dann gewechselt, wenn zusätzlich ein
+Passwort-Login vorhanden ist, damit der Zugang zum Konto erhalten bleibt.
+
 ## Personenverknüpfung beantragen
 
 Im Mitgliederbereich erscheint eine Karte `Person verknüpfen`. Der Button

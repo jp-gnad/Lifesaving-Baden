@@ -8,6 +8,10 @@
     return new URL("login.html?verified=1", window.location.href).href;
   }
 
+  function getLoginRedirectUrl() {
+    return new URL("login.html", window.location.href).href;
+  }
+
   function redirectToApp() {
     window.location.href = appUrl;
   }
@@ -75,16 +79,20 @@
   function translateAuthError(error) {
     const messages = {
       "auth/email-already-in-use": "Diese E-Mail ist bereits registriert.",
+      "auth/account-exists-with-different-credential": "Diese E-Mail ist bereits mit einer anderen Login-Methode registriert.",
+      "auth/credential-already-in-use": "Dieses Google-Konto ist bereits mit einem anderen Konto verbunden.",
       "auth/invalid-credential": "E-Mail oder Passwort stimmt nicht.",
       "auth/invalid-email": "Bitte gib eine gültige E-Mail-Adresse ein.",
       "auth/network-request-failed": "Firebase ist gerade nicht erreichbar.",
       "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
       "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
       "auth/popup-closed-by-user": "Google-Login wurde abgebrochen.",
+      "auth/provider-already-linked": "Dieses Konto ist bereits mit diesem Anbieter verbunden.",
       "auth/requires-recent-login": "Bitte melde dich neu an und versuche es direkt danach erneut.",
       "auth/too-many-requests": "Zu viele Versuche. Bitte später erneut probieren.",
       "auth/unauthorized-domain": "Diese Domain ist in Firebase noch nicht freigegeben.",
       "auth/user-disabled": "Dieses Konto wurde deaktiviert.",
+      "auth/user-mismatch": "Die erneute Anmeldung gehört nicht zu diesem Konto.",
       "auth/user-not-found": "E-Mail oder Passwort stimmt nicht.",
       "auth/weak-password": "Das Passwort muss mindestens 6 Zeichen haben.",
       "auth/wrong-password": "E-Mail oder Passwort stimmt nicht."
@@ -136,9 +144,42 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
+  function setProfileMessage(text, isSuccess) {
+    const message = document.querySelector("[data-profile-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
+  function setPasswordMessage(text, isSuccess) {
+    const message = document.querySelector("[data-password-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
+  function setGoogleAccountMessage(text, isSuccess) {
+    const message = document.querySelector("[data-google-account-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function disableAuthControls() {
     document
-      .querySelectorAll('[data-auth-form] button, [data-google-login], [data-resend-verification]')
+      .querySelectorAll('[data-auth-form] button, [data-google-login], [data-resend-verification], [data-reset-password]')
       .forEach((button) => {
         button.disabled = true;
       });
@@ -215,6 +256,7 @@
     const registerForm = document.querySelector('[data-auth-form="register"]');
     const googleButton = document.querySelector("[data-google-login]");
     const resendButton = document.querySelector("[data-resend-verification]");
+    const resetPasswordButton = document.querySelector("[data-reset-password]");
 
     if (params.has("verified")) {
       setMessage("login", "E-Mail bestätigt. Du kannst dich jetzt einloggen.", true);
@@ -314,6 +356,27 @@
       }
     });
 
+    resetPasswordButton.addEventListener("click", async () => {
+      const email = String(new FormData(loginForm).get("email") || "").trim();
+
+      if (!email) {
+        setMessage("login", "Bitte gib zuerst deine E-Mail-Adresse ein.");
+        return;
+      }
+
+      try {
+        setLoading(resetPasswordButton, true, "Sende...");
+        await auth.sendPasswordResetEmail(email, {
+          url: getLoginRedirectUrl()
+        });
+        setMessage("login", "Passwort-E-Mail wurde gesendet. Bitte prüfe dein Postfach.", true);
+      } catch (error) {
+        setMessage("login", translateAuthError(error));
+      } finally {
+        setLoading(resetPasswordButton, false);
+      }
+    });
+
     resendButton.addEventListener("click", async () => {
       const user = auth.currentUser;
 
@@ -384,9 +447,12 @@
       }
 
       updateAccountProfile(auth.currentUser);
+      fillAccountManagementForms(auth.currentUser);
+      updateGoogleProviderStatus(auth.currentUser);
 
       if (settingsLoadedForUser !== auth.currentUser.uid) {
         settingsLoadedForUser = auth.currentUser.uid;
+        await initAccountManagement(auth);
         await initUserSettings(auth);
         await initLinkRequest(auth);
       }
@@ -532,6 +598,262 @@
       setDeleteMessage(translateAuthError(error), false);
     } finally {
       setLoading(deleteButton, false);
+    }
+  }
+
+  function getProviderIds(user) {
+    return user.providerData.map((provider) => provider.providerId);
+  }
+
+  function hasProvider(user, providerId) {
+    return getProviderIds(user).includes(providerId);
+  }
+
+  function fillAccountManagementForms(user) {
+    const profileForm = document.querySelector("[data-profile-form]");
+
+    if (!profileForm) {
+      return;
+    }
+
+    profileForm.elements.displayName.value = getAccountName(user);
+    profileForm.elements.email.value = user.email || "";
+  }
+
+  function updateGoogleProviderStatus(user) {
+    const status = document.querySelector("[data-google-provider-status]");
+    const button = document.querySelector("[data-google-link]");
+
+    if (!status || !button) {
+      return;
+    }
+
+    const googleLinked = hasProvider(user, "google.com");
+    const passwordLinked = hasProvider(user, "password");
+
+    if (googleLinked && passwordLinked) {
+      status.textContent = "Dieses Konto ist mit Google und E-Mail/Passwort verbunden. Du kannst das Google-Konto wechseln, ohne das Konto zu verlieren.";
+      button.textContent = "Google-Konto wechseln";
+      return;
+    }
+
+    if (googleLinked) {
+      status.textContent = "Dieses Konto nutzt Google als Login. Ein Wechsel wird erst angeboten, wenn zusätzlich ein Passwort-Login vorhanden ist.";
+      button.textContent = "Google-Konto bestätigen";
+      return;
+    }
+
+    status.textContent = "Dieses Konto ist noch nicht mit Google verbunden.";
+    button.textContent = "Google-Konto verbinden";
+  }
+
+  async function initAccountManagement(auth) {
+    const profileForm = document.querySelector("[data-profile-form]");
+    const passwordForm = document.querySelector("[data-password-form]");
+    const googleLinkButton = document.querySelector("[data-google-link]");
+
+    if (profileForm && !profileForm.dataset.listenerAttached) {
+      profileForm.dataset.listenerAttached = "true";
+      profileForm.addEventListener("submit", (event) => saveProfileDetails(event, auth));
+    }
+
+    if (passwordForm && !passwordForm.dataset.listenerAttached) {
+      passwordForm.dataset.listenerAttached = "true";
+      passwordForm.addEventListener("submit", (event) => changeAccountPassword(event, auth));
+    }
+
+    if (googleLinkButton && !googleLinkButton.dataset.listenerAttached) {
+      googleLinkButton.dataset.listenerAttached = "true";
+      googleLinkButton.addEventListener("click", () => manageGoogleAccount(auth, googleLinkButton));
+    }
+  }
+
+  async function saveProfileDetails(event, auth) {
+    event.preventDefault();
+
+    const user = auth.currentUser;
+    const form = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+    const displayName = form.elements.displayName.value.trim();
+    const email = form.elements.email.value.trim();
+
+    if (!user) {
+      setProfileMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!displayName || !email) {
+      setProfileMessage("Bitte fülle Name und E-Mail aus.", false);
+      return;
+    }
+
+    const emailChanged = email.toLowerCase() !== String(user.email || "").toLowerCase();
+
+    try {
+      setLoading(button, true, "Speichern...");
+
+      if (displayName !== (user.displayName || "")) {
+        await user.updateProfile({ displayName });
+      }
+
+      if (emailChanged) {
+        await requestEmailChange(user, email);
+      }
+
+      await user.reload();
+      updateAccountProfile(auth.currentUser);
+      fillAccountManagementForms(auth.currentUser);
+      await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null);
+
+      setProfileMessage(
+        emailChanged
+          ? "Name gespeichert. Bitte bestätige die neue E-Mail-Adresse über die gesendete Mail."
+          : "Kontodaten gespeichert.",
+        true
+      );
+    } catch (error) {
+      setProfileMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function requestEmailChange(user, email) {
+    const actionSettings = {
+      url: getVerificationRedirectUrl()
+    };
+
+    if (typeof user.verifyBeforeUpdateEmail === "function") {
+      await user.verifyBeforeUpdateEmail(email, actionSettings);
+      return;
+    }
+
+    await user.updateEmail(email);
+    await user.sendEmailVerification(actionSettings);
+  }
+
+  async function saveIdentitySnapshot(user, pendingEmail) {
+    if (!window.firebase.firestore) {
+      return;
+    }
+
+    const payload = {
+      email: user.email || "",
+      displayName: user.displayName || "",
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (pendingEmail) {
+      payload.pendingEmail = pendingEmail;
+    }
+
+    await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
+  }
+
+  async function changeAccountPassword(event, auth) {
+    event.preventDefault();
+
+    const user = auth.currentUser;
+    const form = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+    const currentPassword = form.elements.currentPassword.value;
+    const newPassword = form.elements.newPassword.value;
+    const repeatPassword = form.elements.repeatPassword.value;
+
+    if (!user) {
+      setPasswordMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!hasProvider(user, "password")) {
+      setPasswordMessage("Dieses Konto hat noch keinen Passwort-Login. Nutze zuerst die Passwort-vergessen-Funktion mit deiner Konto-E-Mail.", false);
+      return;
+    }
+
+    if (newPassword !== repeatPassword) {
+      setPasswordMessage("Die neuen Passwörter stimmen nicht überein.", false);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordMessage("Das neue Passwort muss mindestens 8 Zeichen haben.", false);
+      return;
+    }
+
+    try {
+      setLoading(button, true, "Speichern...");
+
+      const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+
+      form.reset();
+      setPasswordMessage("Passwort wurde geändert.", true);
+    } catch (error) {
+      setPasswordMessage(translateAuthError(error), false);
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function manageGoogleAccount(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setGoogleAccountMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    const provider = new window.firebase.auth.GoogleAuthProvider();
+
+    provider.setCustomParameters({
+      prompt: "select_account"
+    });
+
+    const googleLinked = hasProvider(user, "google.com");
+    const passwordLinked = hasProvider(user, "password");
+    let googleWasUnlinked = false;
+
+    try {
+      setLoading(button, true, "Google öffnet...");
+
+      if (googleLinked && !passwordLinked) {
+        await user.reauthenticateWithPopup(provider);
+        setGoogleAccountMessage("Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst sicher möglich, wenn zusätzlich ein Passwort-Login existiert.", true);
+        return;
+      }
+
+      if (googleLinked && passwordLinked) {
+        const confirmed = window.confirm(
+          "Google-Konto wechseln? Dein Konto bleibt erhalten, weil E-Mail/Passwort weiterhin als Login vorhanden ist."
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        await user.unlink("google.com");
+        googleWasUnlinked = true;
+      }
+
+      await user.linkWithPopup(provider);
+      await user.reload();
+      updateAccountProfile(auth.currentUser);
+      updateGoogleProviderStatus(auth.currentUser);
+      await saveIdentitySnapshot(auth.currentUser, null);
+      setGoogleAccountMessage(googleWasUnlinked ? "Google-Konto wurde gewechselt." : "Google-Konto wurde verbunden.", true);
+    } catch (error) {
+      setGoogleAccountMessage(
+        googleWasUnlinked
+          ? `${translateAuthError(error)} Du kannst dich weiterhin mit E-Mail und Passwort anmelden.`
+          : translateAuthError(error),
+        false
+      );
+    } finally {
+      setLoading(button, false);
+      if (auth.currentUser) {
+        updateGoogleProviderStatus(auth.currentUser);
+      }
     }
   }
 
