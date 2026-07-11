@@ -41,6 +41,8 @@
   --accent: rgb(227, 6, 19);
   --accent-light: rgb(255, 150, 156);
   --accent-soft: rgba(227, 6, 19, 0.18);
+  --organizer-accent: rgb(60, 156, 255);
+  --organizer-accent-soft: rgba(60, 156, 255, 0.14);
   --success: rgb(28, 191, 105);
   --line: rgba(255, 255, 255, 0.14);
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
@@ -1081,18 +1083,18 @@ h3 {
   min-height: 28px;
   margin: 4px 0 0;
   padding: 5px 10px;
-  border: 1px solid rgba(255, 237, 0, 0.34);
+  border: 1px solid rgba(227, 6, 19, 0.42);
   border-radius: 999px;
-  background: rgba(255, 237, 0, 0.1);
-  color: var(--primary);
+  background: var(--accent-soft);
+  color: var(--accent-light);
   font-size: 0.84rem;
   font-weight: 750;
 }
 
 .organizer-badge {
-  border-color: rgba(28, 191, 105, 0.38);
-  background: rgba(28, 191, 105, 0.12);
-  color: var(--success);
+  border-color: rgba(60, 156, 255, 0.42);
+  background: var(--organizer-accent-soft);
+  color: var(--organizer-accent);
 }
 
 .admin-badge.is-hidden,
@@ -1252,13 +1254,13 @@ h3 {
 }
 
 .settings-menu-item:nth-child(6) .settings-menu-icon {
-  background: var(--success);
+  background: var(--organizer-accent);
   color: var(--bg);
 }
 
 .settings-menu-item:nth-child(7) .settings-menu-icon {
-  background: var(--primary);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--text);
 }
 
 .settings-content {
