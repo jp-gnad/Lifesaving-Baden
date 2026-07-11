@@ -763,6 +763,28 @@ h3 {
   border-color: rgba(255, 237, 0, 0.34);
 }
 
+.dashboard-action-card[data-organizer-only] {
+  border-color: rgba(60, 156, 255, 0.34);
+  background:
+    linear-gradient(135deg, var(--organizer-accent-soft), rgba(24, 24, 29, 0.94) 44%),
+    var(--surface);
+}
+
+.dashboard-action-card[data-organizer-only] h2 {
+  color: var(--organizer-accent);
+}
+
+.dashboard-action-card[data-admin-only] {
+  border-color: rgba(227, 6, 19, 0.42);
+  background:
+    linear-gradient(135deg, var(--accent-soft), rgba(24, 24, 29, 0.94) 44%),
+    var(--surface);
+}
+
+.dashboard-action-card[data-admin-only] h2 {
+  color: var(--accent-light);
+}
+
 .dashboard-action-card .button {
   justify-self: start;
   margin-top: 6px;
