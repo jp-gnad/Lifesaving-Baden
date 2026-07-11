@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-brand-assets">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-checklist">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-brand-assets"></script>
-    <script defer src="assets/js/auth.js?v=20260711-brand-assets"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-account-checklist"></script>
+    <script defer src="assets/js/auth.js?v=20260711-account-checklist"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -83,6 +83,33 @@
                 <p>Rolle: <strong data-account-role>Mitglied</strong></p>
                 <p class="admin-badge is-hidden" data-admin-badge>Admin-Konto</p>
               </div>
+            </article>
+            <article class="card setting-card account-checklist-card" data-account-checklist>
+              <div class="checklist-heading">
+                <h3>Kontokonfiguration</h3>
+                <span data-checklist-count>0 von 4 abgeschlossen</span>
+              </div>
+              <div class="checklist-progress" aria-hidden="true">
+                <span data-checklist-progress></span>
+              </div>
+              <ul class="checklist-list" aria-label="Fortschritt der Kontokonfiguration">
+                <li class="checklist-item" data-check-item="linkRequest">
+                  <span class="checklist-dot" aria-hidden="true"></span>
+                  <span>Antrag stellen</span>
+                </li>
+                <li class="checklist-item" data-check-item="linked">
+                  <span class="checklist-dot" aria-hidden="true"></span>
+                  <span>Konto verknüpft</span>
+                </li>
+                <li class="checklist-item" data-check-item="dlrgBranch">
+                  <span class="checklist-dot" aria-hidden="true"></span>
+                  <span>DLRG-Gliederung hinzufügen</span>
+                </li>
+                <li class="checklist-item" data-check-item="birthDate">
+                  <span class="checklist-dot" aria-hidden="true"></span>
+                  <span>Geburtstag hinzufügen</span>
+                </li>
+              </ul>
             </article>
           </section>
 

@@ -607,6 +607,53 @@
     return Boolean(data?.personLinkStatus === "requested" || data?.personLinkRequest);
   }
 
+  function hasChecklistValue(value) {
+    return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
+  }
+
+  function getAccountChecklistItems(data) {
+    const request = data?.personLinkRequest || {};
+    const linked = isPersonLinked(data);
+    const requestSubmitted = linked || hasPendingLinkRequest(data);
+    const dlrgBranchAdded = hasChecklistValue(data?.dlrgBranch) || hasChecklistValue(request.dlrgBranch);
+    const birthDateAdded = hasChecklistValue(data?.birthDate) || hasChecklistValue(request.birthDate);
+
+    return [
+      { key: "linkRequest", complete: requestSubmitted },
+      { key: "linked", complete: linked },
+      { key: "dlrgBranch", complete: dlrgBranchAdded },
+      { key: "birthDate", complete: birthDateAdded }
+    ];
+  }
+
+  function updateAccountChecklist(data) {
+    const items = getAccountChecklistItems(data || {});
+    const completed = items.filter((item) => item.complete).length;
+    const total = items.length;
+    const percentage = total ? Math.round((completed / total) * 100) : 0;
+
+    document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
+      const count = checklist.querySelector("[data-checklist-count]");
+      const progress = checklist.querySelector("[data-checklist-progress]");
+
+      if (count) {
+        count.textContent = `${completed} von ${total} abgeschlossen`;
+      }
+
+      if (progress) {
+        progress.style.width = `${percentage}%`;
+      }
+
+      items.forEach((item) => {
+        const element = checklist.querySelector(`[data-check-item="${item.key}"]`);
+
+        if (element) {
+          element.classList.toggle("is-complete", item.complete);
+        }
+      });
+    });
+  }
+
   function getLinkStatusCopy(data) {
     if (isPersonLinked(data)) {
       return {
@@ -674,6 +721,7 @@
 
     updateText("[data-link-status-title], [data-link-card-title]", copy.title);
     updateText("[data-link-status-text], [data-link-card-text]", copy.text);
+    updateAccountChecklist(data);
   }
 
   async function initAdminStatus(auth) {
@@ -906,6 +954,7 @@
       fillAccountManagementForms(auth.currentUser);
       await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
       await loadAccountProfileDetails(auth);
+      await initLinkStatus(auth);
 
       setProfileMessage(
         emailChanged

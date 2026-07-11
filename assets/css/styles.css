@@ -722,6 +722,100 @@ h3 {
   margin-top: 6px;
 }
 
+.account-checklist-card {
+  align-content: start;
+}
+
+.checklist-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.checklist-heading h2,
+.checklist-heading h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.checklist-heading span {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.checklist-progress {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.checklist-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 180ms ease;
+}
+
+.checklist-list {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.checklist-dot {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.checklist-dot::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.checklist-item.is-complete {
+  color: var(--text);
+}
+
+.checklist-item.is-complete .checklist-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.checklist-item.is-complete .checklist-dot::after {
+  width: 9px;
+  height: 5px;
+  border-bottom: 2px solid var(--bg);
+  border-left: 2px solid var(--bg);
+  border-radius: 0;
+  background: transparent;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
 .setting-card {
   display: grid;
   gap: 12px;
