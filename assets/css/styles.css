@@ -880,6 +880,30 @@ h3 {
   font-weight: 950;
 }
 
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 28px;
+  margin: 4px 0 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 237, 0, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 237, 0, 0.1);
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.admin-badge.is-hidden {
+  display: none;
+}
+
+[data-admin-only].is-hidden {
+  display: none;
+}
+
 .account-settings {
   display: grid;
   gap: 14px;
@@ -1024,6 +1048,11 @@ h3 {
 .settings-menu-item:nth-child(5) .settings-menu-icon {
   background: var(--accent);
   color: var(--text);
+}
+
+.settings-menu-item:nth-child(6) .settings-menu-icon {
+  background: var(--primary);
+  color: var(--bg);
 }
 
 .settings-content {

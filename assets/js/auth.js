@@ -428,7 +428,6 @@
 
   function initAppPage(auth) {
     const userName = document.querySelector("[data-user-name]");
-    const userEmail = document.querySelector("[data-user-email]");
     const logoutButtons = document.querySelectorAll("[data-logout]");
     const accountOpenButton = document.querySelector("[data-account-open]");
     const accountOverlay = document.querySelector("[data-account-overlay]");
@@ -469,10 +468,6 @@
         userName.textContent = getAccountName(auth.currentUser);
       }
 
-      if (userEmail) {
-        userEmail.textContent = auth.currentUser.email || "Keine E-Mail geladen.";
-      }
-
       updateAccountProfile(auth.currentUser);
       fillAccountManagementForms(auth.currentUser);
       updateGoogleProviderStatus(auth.currentUser);
@@ -482,6 +477,7 @@
         await initAccountManagement(auth);
         await initUserSettings(auth);
         await initLinkStatus(auth);
+        await initAdminStatus(auth);
         await initLinkRequest(auth);
       }
     });
@@ -678,6 +674,51 @@
 
     updateText("[data-link-status-title], [data-link-card-title]", copy.title);
     updateText("[data-link-status-text], [data-link-card-text]", copy.text);
+  }
+
+  async function initAdminStatus(auth) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      updateAdminUi(false);
+      return;
+    }
+
+    try {
+      const tokenResult = await user.getIdTokenResult();
+      const claims = tokenResult.claims || {};
+      let data = {};
+
+      if (window.firebase.firestore) {
+        const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
+        data = snapshot.exists ? snapshot.data() : {};
+      }
+
+      updateAdminUi(isAdminAccount(data, claims));
+    } catch (error) {
+      updateAdminUi(false);
+    }
+  }
+
+  function isAdminAccount(data, claims) {
+    return Boolean(
+      claims?.admin === true
+      || claims?.role === "admin"
+      || data?.role === "admin"
+      || data?.isAdmin === true
+    );
+  }
+
+  function updateAdminUi(isAdmin) {
+    document.querySelectorAll("[data-admin-only]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isAdmin);
+    });
+
+    document.querySelectorAll("[data-admin-badge]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isAdmin);
+    });
+
+    updateText("[data-account-role]", isAdmin ? "Admin" : "Mitglied");
   }
 
   function hasFreshLogin(user) {

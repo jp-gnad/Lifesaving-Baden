@@ -75,6 +75,8 @@ Gespeicherte Felder:
   Profilsuche.
 - `dlrgBranch`: freiwillige DLRG-Gliederung aus den Kontoeinstellungen.
 - `birthDate`: freiwilliges Geburtsdatum aus den Kontoeinstellungen.
+- `role`: optionale Rolle, z. B. `admin`.
+- `isAdmin`: optionale Admin-Markierung als Boolean.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
   DLRG-Gliederung, erstem/letztem Wettkampf, Konto-E-Mail und Firebase UID.
@@ -90,16 +92,60 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function adminFields() {
+      return ['role', 'isAdmin', 'admin', 'adminSince', 'adminGrantedBy'];
+    }
+
+    function noAdminFieldsInNewDoc() {
+      return !request.resource.data.keys().hasAny(adminFields());
+    }
+
+    function adminFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(adminFields());
+    }
+
     match /users/{userId} {
-      allow read, create, update, delete: if request.auth != null
-        && request.auth.uid == userId;
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && noAdminFieldsInNewDoc();
+      allow update: if isOwner(userId) && adminFieldsUnchanged();
     }
   }
 }
 ```
 
 Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
-lesen und ändern.
+lesen und ändern. Admin-Felder dürfen Nutzer dabei nicht selbst setzen oder
+ändern.
+
+## Admin-Konten
+
+Die Website erkennt aktuell Admin-Konten, hat aber noch keine Admin-Funktionen.
+Ein Admin-Konto bekommt nur einen sichtbaren Admin-Status und einen vorbereiteten
+Adminbereich.
+
+Aktuell erkennt die Website Adminrechte über eines dieser Merkmale:
+
+- Firestore-Feld `role: "admin"` im Dokument `users/{uid}`
+- Firestore-Feld `isAdmin: true` im Dokument `users/{uid}`
+- später optional Firebase Auth Custom Claim `admin: true`
+
+So verleihst du dir aktuell Adminrechte:
+
+1. In Firebase `Authentication` öffnen.
+2. Dein Konto in der Nutzerliste anklicken.
+3. Die `User UID` kopieren.
+4. In `Firestore Database` zur Collection `users` gehen.
+5. Das Dokument mit genau dieser UID öffnen oder erstellen.
+6. Feld `role` als String mit Wert `admin` hinzufügen.
+7. Website neu laden oder neu einloggen.
+
+Für echte spätere Admin-Funktionen sind Firebase Auth Custom Claims sicherer.
+Diese können nicht direkt von GitHub Pages gesetzt werden, sondern brauchen
+Admin SDK, Cloud Functions oder ein kleines Backend.
 
 ## Kontoverwaltung
 
