@@ -304,6 +304,17 @@ h3 {
   color: var(--text);
 }
 
+.button-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.button-ghost:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
 .button-google {
   margin-top: 10px;
   border-color: var(--line);
@@ -1449,6 +1460,149 @@ h3 {
 .google-account-card,
 .password-card {
   grid-column: 2;
+}
+
+.profile-field-card {
+  gap: 14px;
+  padding: 18px;
+}
+
+.profile-field-card > h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.profile-field-card > .setting-help {
+  margin-left: 0;
+}
+
+.profile-field-list {
+  display: grid;
+  gap: 5px;
+}
+
+.profile-field-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  gap: 16px;
+  align-items: center;
+  min-height: 84px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: var(--surface-muted);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.profile-field-row:hover,
+.profile-field-row.is-active {
+  border-color: rgba(255, 237, 0, 0.26);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-field-row:hover {
+  transform: translateY(-1px);
+}
+
+.profile-field-row.is-empty-highlight {
+  border-color: rgba(227, 6, 19, 0.46);
+  background:
+    linear-gradient(0deg, rgba(227, 6, 19, 0.09), rgba(227, 6, 19, 0.09)),
+    var(--surface-muted);
+}
+
+.profile-field-icon {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.profile-field-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.profile-field-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-field-copy strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.profile-field-copy span {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.profile-field-chevron {
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  color: var(--muted);
+  transform: rotate(45deg);
+}
+
+.profile-field-editor {
+  border: 1px solid rgba(255, 237, 0, 0.22);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.profile-field-edit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-field-edit-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.profile-field-edit-form input,
+.profile-field-edit-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.profile-field-edit-form input:focus,
+.profile-field-edit-form select:focus {
+  outline: 3px solid rgba(255, 237, 0, 0.22);
+  border-color: var(--primary);
+}
+
+.profile-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-hidden-form {
+  display: none;
 }
 
 .danger-zone-card {

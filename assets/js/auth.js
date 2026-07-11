@@ -999,6 +999,283 @@
     return getProviderIds(user).includes(providerId);
   }
 
+  const profileFieldConfig = {
+    displayName: {
+      label: "Name",
+      type: "text",
+      autocomplete: "name",
+      required: true,
+      emptyLabel: "Nicht angegeben"
+    },
+    email: {
+      label: "E-Mail",
+      type: "email",
+      autocomplete: "email",
+      required: true,
+      emptyLabel: "Nicht angegeben",
+      help: "Bei einer neuen E-Mail-Adresse wird eine Bestätigungs-Mail an die neue Adresse gesendet."
+    },
+    dlrgBranch: {
+      label: "DLRG-Gliederung",
+      type: "text",
+      autocomplete: "organization",
+      canDelete: true,
+      emptyLabel: "Nicht angegeben"
+    },
+    birthDate: {
+      label: "Geburtsdatum",
+      type: "date",
+      canDelete: true,
+      emptyLabel: "Nicht angegeben"
+    },
+    gender: {
+      label: "Geschlecht",
+      type: "select",
+      canDelete: true,
+      emptyLabel: "Nicht angegeben",
+      options: [
+        { value: "", label: "Nicht angegeben" },
+        { value: "weiblich", label: "Weiblich" },
+        { value: "maennlich", label: "Männlich" },
+        { value: "divers", label: "Divers" }
+      ]
+    }
+  };
+
+  function getProfileFormValue(form, fieldName) {
+    return form?.elements[fieldName]?.value || "";
+  }
+
+  function formatBirthDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric"
+    });
+  }
+
+  function formatProfileFieldValue(fieldName, value) {
+    const config = profileFieldConfig[fieldName];
+    const trimmedValue = String(value || "").trim();
+
+    if (!trimmedValue) {
+      return config?.emptyLabel || "Nicht angegeben";
+    }
+
+    if (fieldName === "birthDate") {
+      return formatBirthDate(trimmedValue);
+    }
+
+    if (fieldName === "gender") {
+      return config.options.find((option) => option.value === trimmedValue)?.label || trimmedValue;
+    }
+
+    return trimmedValue;
+  }
+
+  function updateProfileFieldList(form = document.querySelector("[data-profile-form]")) {
+    if (!form) {
+      return;
+    }
+
+    document.querySelectorAll("[data-profile-value]").forEach((element) => {
+      const fieldName = element.dataset.profileValue;
+
+      element.textContent = formatProfileFieldValue(fieldName, getProfileFormValue(form, fieldName));
+    });
+
+    document.querySelectorAll("[data-profile-edit]").forEach((row) => {
+      const fieldName = row.dataset.profileEdit;
+      const shouldHighlight = form.dataset.profileDetailsLoaded === "true"
+        && row.hasAttribute("data-highlight-field-when-empty")
+        && !getProfileFormValue(form, fieldName).trim();
+
+      row.classList.toggle("is-empty-highlight", shouldHighlight);
+    });
+  }
+
+  function closeProfileFieldEditor() {
+    const editor = document.querySelector("[data-profile-editor]");
+
+    if (!editor) {
+      return;
+    }
+
+    delete editor.dataset.activeField;
+    editor.classList.add("is-hidden");
+    editor.hidden = true;
+    editor.setAttribute("aria-hidden", "true");
+
+    document.querySelectorAll("[data-profile-edit]").forEach((row) => {
+      row.classList.remove("is-active");
+      row.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function createProfileFieldControl(fieldName, form) {
+    const config = profileFieldConfig[fieldName];
+    const value = getProfileFormValue(form, fieldName);
+
+    if (config.type === "select") {
+      const select = document.createElement("select");
+      select.name = "profileFieldValue";
+
+      config.options.forEach((option) => {
+        const optionElement = document.createElement("option");
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        select.appendChild(optionElement);
+      });
+
+      select.value = value;
+      return select;
+    }
+
+    const input = document.createElement("input");
+    input.name = "profileFieldValue";
+    input.type = config.type;
+    input.value = value;
+
+    if (config.autocomplete) {
+      input.autocomplete = config.autocomplete;
+    }
+
+    if (config.required) {
+      input.required = true;
+    }
+
+    if (fieldName === "displayName") {
+      input.minLength = 2;
+    }
+
+    return input;
+  }
+
+  function openProfileFieldEditor(fieldName, form) {
+    const config = profileFieldConfig[fieldName];
+    const editor = document.querySelector("[data-profile-editor]");
+    const editorLabel = document.querySelector("[data-profile-editor-label]");
+    const editorControl = document.querySelector("[data-profile-editor-control]");
+    const editorHelp = document.querySelector("[data-profile-editor-help]");
+    const deleteButton = document.querySelector("[data-profile-edit-delete]");
+
+    if (!config || !editor || !editorLabel || !editorControl || !editorHelp || !deleteButton) {
+      return;
+    }
+
+    editor.dataset.activeField = fieldName;
+    editorLabel.textContent = config.label;
+    editorHelp.textContent = config.help || "";
+    editorHelp.classList.toggle("is-hidden", !config.help);
+    editorControl.replaceChildren(createProfileFieldControl(fieldName, form));
+    deleteButton.hidden = !config.canDelete;
+    deleteButton.disabled = !config.canDelete;
+
+    editor.classList.remove("is-hidden");
+    editor.hidden = false;
+    editor.setAttribute("aria-hidden", "false");
+
+    document.querySelectorAll("[data-profile-edit]").forEach((row) => {
+      const isActive = row.dataset.profileEdit === fieldName;
+
+      row.classList.toggle("is-active", isActive);
+      row.setAttribute("aria-expanded", String(isActive));
+    });
+
+    editorControl.querySelector("input, select")?.focus();
+  }
+
+  function initProfileFieldEditor(profileForm, auth) {
+    const editorForm = document.querySelector("[data-profile-field-form]");
+    const cancelButton = document.querySelector("[data-profile-edit-cancel]");
+    const deleteButton = document.querySelector("[data-profile-edit-delete]");
+
+    if (!profileForm || !editorForm || profileForm.dataset.fieldEditorAttached) {
+      return;
+    }
+
+    profileForm.dataset.fieldEditorAttached = "true";
+
+    document.querySelectorAll("[data-profile-edit]").forEach((row) => {
+      row.addEventListener("click", () => openProfileFieldEditor(row.dataset.profileEdit, profileForm));
+    });
+
+    editorForm.addEventListener("submit", (event) => saveProfileField(event, auth, profileForm));
+    cancelButton?.addEventListener("click", () => closeProfileFieldEditor());
+    deleteButton?.addEventListener("click", () => deleteProfileField(auth, profileForm));
+  }
+
+  async function saveProfileField(event, auth, profileForm) {
+    event.preventDefault();
+
+    const editor = document.querySelector("[data-profile-editor]");
+    const control = document.querySelector('[name="profileFieldValue"]');
+    const saveButton = document.querySelector("[data-profile-edit-save]");
+    const fieldName = editor?.dataset.activeField;
+    const config = profileFieldConfig[fieldName];
+
+    if (!fieldName || !config || !control || !profileForm.elements[fieldName]) {
+      return;
+    }
+
+    if (control.reportValidity && !control.reportValidity()) {
+      return;
+    }
+
+    const value = config.type === "text" || config.type === "email"
+      ? control.value.trim()
+      : control.value;
+
+    if (config.required && !value) {
+      setProfileMessage(`${config.label} darf nicht leer sein.`, false);
+      return;
+    }
+
+    const previousValue = profileForm.elements[fieldName].value;
+
+    profileForm.elements[fieldName].value = value;
+
+    if (await persistProfileDetails(auth, profileForm, saveButton)) {
+      closeProfileFieldEditor();
+    } else {
+      profileForm.elements[fieldName].value = previousValue;
+      updateProfileFieldList(profileForm);
+    }
+  }
+
+  async function deleteProfileField(auth, profileForm) {
+    const editor = document.querySelector("[data-profile-editor]");
+    const deleteButton = document.querySelector("[data-profile-edit-delete]");
+    const fieldName = editor?.dataset.activeField;
+    const config = profileFieldConfig[fieldName];
+
+    if (!fieldName || !config?.canDelete || !profileForm.elements[fieldName]) {
+      return;
+    }
+
+    const previousValue = profileForm.elements[fieldName].value;
+
+    profileForm.elements[fieldName].value = "";
+
+    if (await persistProfileDetails(auth, profileForm, deleteButton)) {
+      closeProfileFieldEditor();
+    } else {
+      profileForm.elements[fieldName].value = previousValue;
+      updateProfileFieldList(profileForm);
+    }
+  }
+
   function fillAccountManagementForms(user) {
     const profileForm = document.querySelector("[data-profile-form]");
 
@@ -1008,6 +1285,7 @@
 
     profileForm.elements.displayName.value = getAccountName(user);
     profileForm.elements.email.value = user.email || "";
+    updateProfileFieldList(profileForm);
   }
 
   function updateEmptyProfileFieldHighlights(form = document.querySelector("[data-profile-form]")) {
@@ -1018,6 +1296,8 @@
     form.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
       input.classList.toggle("is-empty-highlight", !input.value.trim());
     });
+
+    updateProfileFieldList(form);
   }
 
   function clearEmptyProfileFieldHighlights(form = document.querySelector("[data-profile-form]")) {
@@ -1027,6 +1307,10 @@
 
     form.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
       input.classList.remove("is-empty-highlight");
+    });
+
+    document.querySelectorAll("[data-highlight-field-when-empty]").forEach((row) => {
+      row.classList.remove("is-empty-highlight");
     });
   }
 
@@ -1065,6 +1349,7 @@
     if (profileForm && !profileForm.dataset.listenerAttached) {
       profileForm.dataset.listenerAttached = "true";
       profileForm.addEventListener("submit", (event) => saveProfileDetails(event, auth));
+      initProfileFieldEditor(profileForm, auth);
       profileForm.querySelectorAll("[data-highlight-when-empty]").forEach((input) => {
         input.addEventListener("input", () => {
           if (profileForm.dataset.profileDetailsLoaded === "true") {
@@ -1095,7 +1380,8 @@
   function getOptionalProfileDetails(form) {
     return {
       dlrgBranch: form.elements.dlrgBranch?.value.trim() || "",
-      birthDate: form.elements.birthDate?.value || ""
+      birthDate: form.elements.birthDate?.value || "",
+      gender: form.elements.gender?.value || ""
     };
   }
 
@@ -1123,6 +1409,10 @@
         profileForm.elements.birthDate.value = details.birthDate;
       }
 
+      if (profileForm.elements.gender) {
+        profileForm.elements.gender.value = details.gender;
+      }
+
       profileForm.dataset.profileDetailsLoaded = "true";
       updateEmptyProfileFieldHighlights(profileForm);
     } catch (error) {
@@ -1144,7 +1434,8 @@
         : request.dlrgBranch || "",
       birthDate: hasStoredProfileField(data, "birthDate")
         ? data.birthDate || ""
-        : request.birthDate || ""
+        : request.birthDate || "",
+      gender: data.gender || ""
     };
   }
 
@@ -1173,24 +1464,20 @@
     return getProfileDetailsFromData(data);
   }
 
-  async function saveProfileDetails(event, auth) {
-    event.preventDefault();
-
+  async function persistProfileDetails(auth, form, button) {
     const user = auth.currentUser;
-    const form = event.currentTarget;
-    const button = form.querySelector('button[type="submit"]');
     const displayName = form.elements.displayName.value.trim();
     const email = form.elements.email.value.trim();
     const optionalProfileDetails = getOptionalProfileDetails(form);
 
     if (!user) {
       setProfileMessage("Bitte logge dich erneut ein.", false);
-      return;
+      return false;
     }
 
     if (!displayName || !email) {
       setProfileMessage("Bitte fülle Name und E-Mail aus.", false);
-      return;
+      return false;
     }
 
     const emailChanged = email.toLowerCase() !== String(user.email || "").toLowerCase();
@@ -1220,11 +1507,23 @@
           : "Kontodaten gespeichert.",
         true
       );
+      return true;
     } catch (error) {
       setProfileMessage(translateAuthError(error), false);
+      return false;
     } finally {
       setLoading(button, false);
     }
+  }
+
+  async function saveProfileDetails(event, auth) {
+    event.preventDefault();
+
+    await persistProfileDetails(
+      auth,
+      event.currentTarget,
+      event.currentTarget.querySelector('button[type="submit"]')
+    );
   }
 
   async function requestEmailChange(user, email) {
@@ -1255,6 +1554,7 @@
     if (optionalProfileDetails) {
       payload.dlrgBranch = optionalProfileDetails.dlrgBranch;
       payload.birthDate = optionalProfileDetails.birthDate;
+      payload.gender = optionalProfileDetails.gender;
       payload.profileDetailsUpdatedAt = window.firebase.firestore.FieldValue.serverTimestamp();
     }
 
