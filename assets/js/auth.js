@@ -200,7 +200,7 @@
     initLoginPage(auth, googleProvider);
   }
 
-  if (page === "app" || page === "settings") {
+  if (page === "app" || page === "settings" || page === "link-request") {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;

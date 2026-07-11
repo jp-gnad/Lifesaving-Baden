@@ -28,6 +28,7 @@ Das bedeutet:
 |-- login.html
 |-- app.html
 |-- account-settings.html
+|-- link-request.html
 |-- assets/
 |   |-- css/
 |   |   `-- styles.css
@@ -100,9 +101,11 @@ lesen und ändern.
 
 ## Personenverknüpfung beantragen
 
-In den Kontoeinstellungen kann ein Nutzer die Verknüpfung seines Kontos mit
-einer Person aus der späteren Datenbank beantragen. Der Antrag wird im eigenen
-Firestore-Dokument unter `users/{uid}.personLinkRequest` gespeichert.
+Im Mitgliederbereich erscheint eine Karte `Person verknüpfen`. Der Button
+`Jetzt verknüpfen` führt auf `link-request.html`. Dort kann ein Nutzer die
+Verknüpfung seines Kontos mit einer Person aus der späteren Datenbank
+beantragen. Der Antrag wird im eigenen Firestore-Dokument unter
+`users/{uid}.personLinkRequest` gespeichert.
 
 Zusätzlich öffnet die Website eine vorbereitete E-Mail an `jpg.gnad@web.de`.
 Da GitHub Pages nur statische Dateien ausliefert, kann die Website diese E-Mail

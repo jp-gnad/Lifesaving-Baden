@@ -596,13 +596,24 @@ h3 {
   font-size: 1.2rem;
 }
 
+.dashboard-action-card {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.dashboard-action-card .button {
+  justify-self: start;
+  margin-top: 6px;
+}
+
 .setting-card {
   display: grid;
   gap: 12px;
 }
 
 .setting-card h2,
-.link-request-card h2 {
+.link-request-form-card h2 {
   margin: 0;
   font-size: 1.2rem;
 }
@@ -878,7 +889,7 @@ h3 {
   color: var(--muted);
 }
 
-.link-request-card {
+.link-request-form-card {
   grid-column: 2;
 }
 
@@ -949,7 +960,7 @@ h3 {
     grid-column: auto;
   }
 
-  .link-request-card {
+  .link-request-form-card {
     grid-column: auto;
   }
 }

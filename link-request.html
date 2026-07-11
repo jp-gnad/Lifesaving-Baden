@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
+    <title>Person verknüpfen - Lifesaving Baden</title>
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-request">
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-link-request"></script>
+    <script defer src="assets/js/auth.js?v=20260711-link-request"></script>
+  </head>
+  <body data-page="link-request">
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
+        <span class="brand-mark" aria-hidden="true">LB</span>
+        <span>Lifesaving Baden</span>
+      </a>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <a href="app.html">Mitgliederbereich</a>
+        <a href="account-settings.html">Kontoeinstellungen</a>
+        <button class="nav-button" type="button" data-logout>Abmelden</button>
+      </nav>
+    </header>
+
+    <main class="dashboard link-request-page">
+      <section class="dashboard-header">
+        <p class="eyebrow">Mitgliederbereich</p>
+        <h1>Person verknüpfen</h1>
+        <p>
+          Stelle hier den Antrag, damit dein Konto nach Prüfung deiner Identität
+          mit deiner Person in der Datenbank verknüpft werden kann.
+        </p>
+      </section>
+
+      <section class="settings-layout" aria-label="Personenverknüpfung beantragen">
+        <article class="card settings-profile">
+          <div class="account-avatar account-avatar-large">
+            <img class="is-hidden" src="" alt="" data-account-photo-large>
+            <span data-account-initials-large>?</span>
+          </div>
+          <div>
+            <h2 data-account-name>Mitglied</h2>
+            <p data-account-email>Keine E-Mail geladen.</p>
+          </div>
+        </article>
+
+        <article class="card setting-card link-request-form-card">
+          <h2>Verknüpfungsantrag</h2>
+          <p>
+            Deine Angaben werden gespeichert und zusätzlich als vorbereitete
+            E-Mail an jpg.gnad@web.de geöffnet.
+          </p>
+          <form class="setting-form" data-link-request-form>
+            <label>
+              <span>Vorname</span>
+              <input type="text" name="firstName" autocomplete="given-name" required>
+            </label>
+            <label>
+              <span>Nachname</span>
+              <input type="text" name="lastName" autocomplete="family-name" required>
+            </label>
+            <label>
+              <span>Geburtsdatum</span>
+              <input type="date" name="birthDate" required>
+            </label>
+            <div class="setting-value">
+              <strong>E-Mail des Kontos</strong>
+              <span data-link-account-email>Keine E-Mail geladen.</span>
+            </div>
+            <button class="button button-primary full-width" type="submit">
+              Antrag absenden
+            </button>
+          </form>
+          <p class="setting-help">
+            GitHub Pages kann keine E-Mail im Hintergrund versenden. Bitte sende
+            den geöffneten E-Mail-Entwurf anschließend ab.
+          </p>
+          <p class="form-message" data-link-request-message role="status"></p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
