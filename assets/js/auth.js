@@ -224,6 +224,193 @@
     return window.firebase.auth();
   }
 
+  const userDocCachePrefix = "lifesaving-baden:user-doc:";
+  const userDocCacheTtlMs = 5 * 60 * 1000;
+  let activeUserDocCache = null;
+
+  function getUserDocCacheKey(uid) {
+    return `${userDocCachePrefix}${uid}`;
+  }
+
+  function isFreshUserDocCache(entry) {
+    return Boolean(
+      entry
+      && entry.uid
+      && entry.data
+      && Date.now() - Number(entry.cachedAt || 0) < userDocCacheTtlMs
+    );
+  }
+
+  function readUserDocCache(uid) {
+    if (!uid) {
+      return null;
+    }
+
+    if (activeUserDocCache?.uid === uid && isFreshUserDocCache(activeUserDocCache)) {
+      return activeUserDocCache.data;
+    }
+
+    try {
+      const raw = window.sessionStorage?.getItem(getUserDocCacheKey(uid));
+
+      if (!raw) {
+        return null;
+      }
+
+      const entry = JSON.parse(raw);
+
+      if (!isFreshUserDocCache(entry)) {
+        window.sessionStorage?.removeItem(getUserDocCacheKey(uid));
+        return null;
+      }
+
+      activeUserDocCache = entry;
+      return entry.data;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeUserDocCache(uid, data) {
+    if (!uid || !data) {
+      return data || null;
+    }
+
+    const entry = {
+      uid,
+      cachedAt: Date.now(),
+      data
+    };
+
+    activeUserDocCache = entry;
+
+    try {
+      window.sessionStorage?.setItem(getUserDocCacheKey(uid), JSON.stringify(entry));
+    } catch (error) {
+      // sessionStorage can be blocked; the in-memory cache still helps during this page view.
+    }
+
+    return data;
+  }
+
+  function mergeUserDocCache(uid, patch) {
+    if (!uid || !patch) {
+      return null;
+    }
+
+    return writeUserDocCache(uid, {
+      ...(readUserDocCache(uid) || {}),
+      ...patch
+    });
+  }
+
+  function clearUserDocCache(uid) {
+    if (!uid || activeUserDocCache?.uid === uid) {
+      activeUserDocCache = null;
+    }
+
+    if (!uid) {
+      return;
+    }
+
+    try {
+      window.sessionStorage?.removeItem(getUserDocCacheKey(uid));
+    } catch (error) {
+      // Nothing to do if storage is unavailable.
+    }
+  }
+
+  function clearAllUserDocCaches() {
+    activeUserDocCache = null;
+
+    try {
+      const storage = window.sessionStorage;
+
+      if (!storage) {
+        return;
+      }
+
+      for (let index = storage.length - 1; index >= 0; index -= 1) {
+        const key = storage.key(index);
+
+        if (key?.startsWith(userDocCachePrefix)) {
+          storage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      // Nothing to do if storage is unavailable.
+    }
+  }
+
+  function getAuthUser(target) {
+    return target?.currentUser || target || null;
+  }
+
+  async function loadCurrentUserData(target, options = {}) {
+    const user = getAuthUser(target);
+
+    if (!user || !window.firebase.firestore) {
+      return null;
+    }
+
+    if (!options.forceRefresh) {
+      const cachedData = readUserDocCache(user.uid);
+
+      if (cachedData) {
+        return cachedData;
+      }
+    }
+
+    const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
+    const data = snapshot.exists ? snapshot.data() || {} : null;
+
+    if (data) {
+      writeUserDocCache(user.uid, data);
+    } else {
+      clearUserDocCache(user.uid);
+    }
+
+    return data;
+  }
+
+  function arraysContainSameValues(first = [], second = []) {
+    if (first.length !== second.length) {
+      return false;
+    }
+
+    return first.every((value) => second.includes(value));
+  }
+
+  function getUserIdentityData(user) {
+    return {
+      uid: user.uid,
+      email: user.email || "",
+      displayName: user.displayName || "",
+      emailVerified: Boolean(user.emailVerified),
+      providerIds: getProviderIds(user)
+    };
+  }
+
+  function getChangedIdentityFields(data, identity) {
+    const changes = {};
+
+    Object.entries(identity).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (!arraysContainSameValues(value, Array.isArray(data?.[key]) ? data[key] : [])) {
+          changes[key] = value;
+        }
+
+        return;
+      }
+
+      if (data?.[key] !== value) {
+        changes[key] = value;
+      }
+    });
+
+    return changes;
+  }
+
   function initPasswordVisibilityToggles() {
     document.querySelectorAll("[data-password-toggle]").forEach((button) => {
       if (button.dataset.listenerAttached) {
@@ -295,6 +482,17 @@
     const googleButton = document.querySelector("[data-google-login]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
+    let loginRedirectStarted = false;
+
+    async function finishVerifiedLogin(user) {
+      if (loginRedirectStarted) {
+        return;
+      }
+
+      loginRedirectStarted = true;
+      await ensureUserDocument(user);
+      redirectToApp();
+    }
 
     if (params.has("verified")) {
       setMessage("login", "E-Mail bestätigt. Du kannst jetzt den Login nutzen.", true);
@@ -313,7 +511,7 @@
       await user.reload();
 
       if (hasVerifiedAccess(auth.currentUser)) {
-        redirectToApp();
+        await finishVerifiedLogin(auth.currentUser || user);
         return;
       }
 
@@ -341,7 +539,7 @@
           return;
         }
 
-        redirectToApp();
+        await finishVerifiedLogin(auth.currentUser || user);
       } catch (error) {
         setMessage("login", translateAuthError(error));
       } finally {
@@ -396,8 +594,7 @@
       try {
         setLoading(googleButton, true, "Google öffnet...");
         const { user } = await auth.signInWithPopup(googleProvider);
-        await ensureUserDocument(user);
-        redirectToApp();
+        await finishVerifiedLogin(user);
       } catch (error) {
         setMessage("login", translateAuthError(error));
       } finally {
@@ -595,17 +792,18 @@
       updateGoogleProviderStatus(auth.currentUser);
 
       if (settingsLoadedForUser !== auth.currentUser.uid) {
-        await ensureUserDocument(auth.currentUser);
+        const userData = await ensureUserDocument(auth.currentUser);
         settingsLoadedForUser = auth.currentUser.uid;
-        await initAccountManagement(auth);
-        await initUserSettings(auth);
-        await initLinkStatus(auth);
-        await initAdminStatus(auth);
-        await initLinkRequest(auth);
+        await initAccountManagement(auth, userData);
+        await initUserSettings(auth, userData);
+        await initLinkStatus(auth, userData);
+        await initAdminStatus(auth, userData);
+        await initLinkRequest(auth, userData);
       }
     });
 
     logoutButtons.forEach((button) => button.addEventListener("click", async () => {
+      clearAllUserDocCaches();
       await auth.signOut();
       redirectToLogin();
     }));
@@ -703,7 +901,7 @@
 
   async function ensureUserDocument(user, options = {}) {
     if (!user || !window.firebase.firestore) {
-      return false;
+      return null;
     }
 
     const db = window.firebase.firestore();
@@ -711,52 +909,61 @@
     const userDoc = db.collection("users").doc(user.uid);
 
     try {
-      const snapshot = await userDoc.get();
-      const basePayload = {
-        uid: user.uid,
-        email: user.email || "",
-        displayName: user.displayName || "",
-        emailVerified: Boolean(user.emailVerified),
-        providerIds: getProviderIds(user),
-        updatedAt: fieldValue.serverTimestamp()
-      };
+      let data = options.forceRefresh ? null : readUserDocCache(user.uid);
+      let exists = Boolean(data);
 
-      if (!snapshot.exists) {
-        await userDoc.set({
-          ...basePayload,
+      if (!data) {
+        const snapshot = await userDoc.get();
+        exists = snapshot.exists;
+        data = snapshot.exists ? snapshot.data() || {} : null;
+      }
+
+      const identity = getUserIdentityData(user);
+
+      if (!exists) {
+        const cacheData = {
+          ...identity,
           role: "sportler",
           keepPersonalDataUntilRevoked: true,
           privateProfile: false,
-          publicProfile: true,
+          publicProfile: true
+        };
+
+        await userDoc.set({
+          ...cacheData,
+          updatedAt: fieldValue.serverTimestamp(),
           createdAt: fieldValue.serverTimestamp(),
           lastSignInAt: fieldValue.serverTimestamp()
         });
-        return true;
+        return writeUserDocCache(user.uid, cacheData);
       }
 
-      const updatePayload = {
-        ...basePayload,
-        lastSignInAt: fieldValue.serverTimestamp()
-      };
-      const data = snapshot.data() || {};
+      const updatePayload = getChangedIdentityFields(data, identity);
 
       if (!Object.prototype.hasOwnProperty.call(data, "role")) {
         updatePayload.role = "sportler";
       }
 
-      await userDoc.set(updatePayload, { merge: true });
-      return true;
+      if (Object.keys(updatePayload).length) {
+        await userDoc.set({
+          ...updatePayload,
+          updatedAt: fieldValue.serverTimestamp()
+        }, { merge: true });
+        return mergeUserDocCache(user.uid, updatePayload);
+      }
+
+      return writeUserDocCache(user.uid, data);
     } catch (error) {
       if (options.throwOnError) {
         throw error;
       }
 
       console.warn("Firestore-Nutzerdokument konnte nicht angelegt oder aktualisiert werden.", error);
-      return false;
+      return null;
     }
   }
 
-  async function initLinkStatus(auth) {
+  async function initLinkStatus(auth, userData) {
     const user = auth.currentUser;
 
     if (!user || !window.firebase.firestore) {
@@ -765,8 +972,8 @@
     }
 
     try {
-      const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
-      updateLinkStatusUi(snapshot.exists ? snapshot.data() : null);
+      const data = userData || await loadCurrentUserData(user);
+      updateLinkStatusUi(data);
     } catch (error) {
       updateLinkStatusUi(null);
     }
@@ -929,7 +1136,7 @@
     updateAccountChecklist(data);
   }
 
-  async function initAdminStatus(auth) {
+  async function initAdminStatus(auth, userData) {
     const user = auth.currentUser;
 
     if (!user) {
@@ -940,12 +1147,7 @@
     try {
       const tokenResult = await user.getIdTokenResult();
       const claims = tokenResult.claims || {};
-      let data = {};
-
-      if (window.firebase.firestore) {
-        const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
-        data = snapshot.exists ? snapshot.data() : {};
-      }
+      const data = userData || await loadCurrentUserData(user) || {};
 
       updateRoleUi(getAccountRole(data, claims));
     } catch (error) {
@@ -1074,6 +1276,7 @@
         await window.firebase.firestore().collection("users").doc(user.uid).delete();
       }
 
+      clearUserDocCache(user.uid);
       await user.delete();
       redirectToLogin();
     } catch (error) {
@@ -1576,7 +1779,7 @@
     updatePasswordProviderStatus(auth.currentUser);
   }
 
-  async function initAccountManagement(auth) {
+  async function initAccountManagement(auth, userData) {
     const profileForm = document.querySelector("[data-profile-form]");
     const passwordForm = document.querySelector("[data-password-form]");
     const googleLinkButton = document.querySelector("[data-google-link]");
@@ -1639,7 +1842,7 @@
       passwordUnlinkButton.addEventListener("click", () => unlinkPasswordAccount(auth, passwordUnlinkButton));
     }
 
-    await loadAccountProfileDetails(auth);
+    await loadAccountProfileDetails(auth, userData);
   }
 
   function getOptionalProfileDetails(form) {
@@ -1650,7 +1853,21 @@
     };
   }
 
-  async function loadAccountProfileDetails(auth) {
+  function haveOptionalProfileDetailsChanged(user, details) {
+    const cachedData = readUserDocCache(user.uid);
+
+    if (!cachedData) {
+      return true;
+    }
+
+    const storedDetails = getProfileDetailsFromData(cachedData);
+
+    return details.dlrgBranch !== storedDetails.dlrgBranch
+      || details.birthDate !== storedDetails.birthDate
+      || details.gender !== storedDetails.gender;
+  }
+
+  async function loadAccountProfileDetails(auth, userData) {
     const user = auth.currentUser;
     const profileForm = document.querySelector("[data-profile-form]");
 
@@ -1662,8 +1879,7 @@
       profileForm.dataset.profileDetailsLoaded = "false";
       clearEmptyProfileFieldHighlights(profileForm);
 
-      const snapshot = await window.firebase.firestore().collection("users").doc(user.uid).get();
-      const data = snapshot.exists ? snapshot.data() : {};
+      const data = userData || await loadCurrentUserData(user) || {};
       const details = await syncProfileDetailsFromLinkRequest(user, data);
 
       if (profileForm.elements.dlrgBranch) {
@@ -1707,13 +1923,16 @@
   async function syncProfileDetailsFromLinkRequest(user, data) {
     const request = data.personLinkRequest || {};
     const payload = {};
+    const cachePayload = {};
 
     if (!hasStoredProfileField(data, "dlrgBranch") && request.dlrgBranch) {
       payload.dlrgBranch = request.dlrgBranch;
+      cachePayload.dlrgBranch = request.dlrgBranch;
     }
 
     if (!hasStoredProfileField(data, "birthDate") && request.birthDate) {
       payload.birthDate = request.birthDate;
+      cachePayload.birthDate = request.birthDate;
     }
 
     if (Object.keys(payload).length) {
@@ -1723,7 +1942,8 @@
       payload.updatedAt = fieldValue.serverTimestamp();
 
       await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
-      Object.assign(data, payload);
+      Object.assign(data, cachePayload);
+      mergeUserDocCache(user.uid, cachePayload);
     }
 
     return getProfileDetailsFromData(data);
@@ -1746,11 +1966,19 @@
     }
 
     const emailChanged = email.toLowerCase() !== String(user.email || "").toLowerCase();
+    const displayNameChanged = displayName !== (user.displayName || "");
+    const profileDetailsChanged = haveOptionalProfileDetailsChanged(user, optionalProfileDetails);
+
+    if (!displayNameChanged && !emailChanged && !profileDetailsChanged) {
+      setProfileMessage("Keine Ã„nderung zu speichern.", true);
+      updateEmptyProfileFieldHighlights(form);
+      return true;
+    }
 
     try {
       setLoading(button, true, "Speichern...");
 
-      if (displayName !== (user.displayName || "")) {
+      if (displayNameChanged) {
         await user.updateProfile({ displayName });
       }
 
@@ -1761,9 +1989,9 @@
       await user.reload();
       updateAccountProfile(auth.currentUser);
       fillAccountManagementForms(auth.currentUser);
-      await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
-      await loadAccountProfileDetails(auth);
-      await initLinkStatus(auth);
+      const updatedData = await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
+      await loadAccountProfileDetails(auth, updatedData);
+      await initLinkStatus(auth, updatedData);
       updateEmptyProfileFieldHighlights(form);
 
       setProfileMessage(
@@ -1807,27 +2035,34 @@
 
   async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails) {
     if (!window.firebase.firestore) {
-      return;
+      return null;
     }
 
+    const identity = getUserIdentityData(user);
     const payload = {
-      email: user.email || "",
-      displayName: user.displayName || "",
+      ...identity,
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
     };
+    const cachePayload = { ...identity };
 
     if (optionalProfileDetails) {
       payload.dlrgBranch = optionalProfileDetails.dlrgBranch;
       payload.birthDate = optionalProfileDetails.birthDate;
       payload.gender = optionalProfileDetails.gender;
       payload.profileDetailsUpdatedAt = window.firebase.firestore.FieldValue.serverTimestamp();
+
+      cachePayload.dlrgBranch = optionalProfileDetails.dlrgBranch;
+      cachePayload.birthDate = optionalProfileDetails.birthDate;
+      cachePayload.gender = optionalProfileDetails.gender;
     }
 
     if (pendingEmail) {
       payload.pendingEmail = pendingEmail;
+      cachePayload.pendingEmail = pendingEmail;
     }
 
     await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
+    return mergeUserDocCache(user.uid, cachePayload);
   }
 
   async function changeAccountPassword(event, auth) {
@@ -2096,7 +2331,7 @@
     }
   }
 
-  async function initUserSettings(auth) {
+  async function initUserSettings(auth, userData) {
     const controls = getSettingsControls();
 
     if (!controls.keepData || !controls.privateProfile) {
@@ -2118,7 +2353,7 @@
       }
     });
 
-    await loadUserSettings(auth, db);
+    await loadUserSettings(auth, db, userData);
   }
 
   function getSettingsControls() {
@@ -2185,7 +2420,7 @@
     };
   }
 
-  async function loadUserSettings(auth, db) {
+  async function loadUserSettings(auth, db, userData) {
     const controls = getSettingsControls();
     const user = auth.currentUser;
 
@@ -2197,8 +2432,8 @@
     setSettingsMessage("Einstellung wird geladen...", true);
 
     try {
-      const snapshot = await db.collection("users").doc(user.uid).get();
-      const data = snapshot.exists ? snapshot.data() : {};
+      const loadedData = userData || await loadCurrentUserData(user);
+      const data = loadedData || {};
       const hasKeepDataSetting = Object.prototype.hasOwnProperty.call(
         data,
         "keepPersonalDataUntilRevoked"
@@ -2210,7 +2445,7 @@
       controls.privateProfile.checked = Boolean(data.privateProfile);
       rememberCurrentSettings();
       setSettingsMessage(
-        snapshot.exists ? "Einstellung geladen." : "Noch keine Einstellung gespeichert.",
+        loadedData ? "Einstellung geladen." : "Noch keine Einstellung gespeichert.",
         true
       );
     } catch (error) {
@@ -2229,12 +2464,30 @@
     }
 
     const { payload, userDoc } = getSettingsPayloadFromControls(auth, db);
+    const savedKeepData = controls.keepData.dataset.savedValue;
+    const savedPrivateProfile = controls.privateProfile.dataset.savedValue;
+
+    if (
+      savedKeepData === String(controls.keepData.checked)
+      && savedPrivateProfile === String(controls.privateProfile.checked)
+    ) {
+      setSettingsMessage("Keine Ã„nderung zu speichern.", true);
+      return;
+    }
 
     setSettingsControlsDisabled(true);
     setSettingsMessage("Einstellung wird gespeichert...", true);
 
     try {
       await userDoc.set(payload, { merge: true });
+      mergeUserDocCache(user.uid, {
+        email: payload.email,
+        displayName: payload.displayName,
+        keepPersonalDataUntilRevoked: payload.keepPersonalDataUntilRevoked,
+        privateProfile: payload.privateProfile,
+        publicProfile: payload.publicProfile,
+        consentTextVersion: payload.consentTextVersion
+      });
       rememberCurrentSettings();
       setSettingsMessage("Einstellung gespeichert.", true);
     } catch (error) {
@@ -2245,7 +2498,7 @@
     }
   }
 
-  async function initLinkRequest(auth) {
+  async function initLinkRequest(auth, userData) {
     const controls = getLinkRequestControls();
 
     if (!controls.form) {
@@ -2265,7 +2518,7 @@
       controls.form.addEventListener("submit", (event) => submitLinkRequest(event, auth, db));
     }
 
-    await loadLinkRequest(auth, db);
+    await loadLinkRequest(auth, db, userData);
   }
 
   function getLinkRequestControls() {
@@ -2295,7 +2548,7 @@
     });
   }
 
-  async function loadLinkRequest(auth, db) {
+  async function loadLinkRequest(auth, db, userData) {
     const controls = getLinkRequestControls();
     const user = auth.currentUser;
 
@@ -2306,8 +2559,7 @@
     setLinkRequestControlsDisabled(true);
 
     try {
-      const snapshot = await db.collection("users").doc(user.uid).get();
-      const data = snapshot.exists ? snapshot.data() : {};
+      const data = userData || await loadCurrentUserData(user) || {};
       const request = data.personLinkRequest || null;
 
       if (request) {
@@ -2361,27 +2613,32 @@
       setLinkRequestControlsDisabled(true);
       setLoading(controls.submitButton, true, "Antrag speichern...");
 
+      const requestCacheData = {
+        ...details,
+        recipientEmail: accountLinkRecipient,
+        status: "requested"
+      };
+      const userCacheData = {
+        dlrgBranch: details.dlrgBranch,
+        birthDate: details.birthDate,
+        personLinkStatus: "requested",
+        personLinkRequest: requestCacheData
+      };
+
       await db.collection("users").doc(user.uid).set({
         dlrgBranch: details.dlrgBranch,
         birthDate: details.birthDate,
         profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
         personLinkStatus: "requested",
         personLinkRequest: {
-          ...details,
-          recipientEmail: accountLinkRecipient,
-          status: "requested",
+          ...requestCacheData,
           requestedAt: fieldValue.serverTimestamp(),
           updatedAt: fieldValue.serverTimestamp()
         },
         updatedAt: fieldValue.serverTimestamp()
       }, { merge: true });
 
-      updateLinkStatusUi({
-        personLinkStatus: "requested",
-        personLinkRequest: details,
-        dlrgBranch: details.dlrgBranch,
-        birthDate: details.birthDate
-      });
+      updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
       setLinkRequestMessage("Antrag gespeichert. Dein E-Mail-Programm wird geöffnet.", true);
       window.location.href = buildLinkRequestMailto(details);
     } catch (error) {
