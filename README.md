@@ -31,9 +31,12 @@ Das bedeutet:
 |-- link-request.html
 |-- assets/
 |   |-- img/
+|   |   |-- auth-pool.jpg
 |   |   |-- elch-gelb.png
 |   |   |-- hero-swimmer.jpg
-|   |   `-- lifesaving-baden-logo.png
+|   |   |-- termine-pool.jpg
+|   |   |-- lifesaving-baden-logo.png
+|   |   `-- training-rescue.jpg
 |   |-- css/
 |   |   `-- styles.css
 |   `-- js/
