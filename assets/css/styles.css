@@ -1390,6 +1390,28 @@ h3 {
   justify-items: start;
 }
 
+.settings-profile.is-organizer-account {
+  border-color: rgba(60, 156, 255, 0.34);
+  background:
+    linear-gradient(135deg, var(--organizer-accent-soft), rgba(24, 24, 29, 0.94) 48%),
+    var(--surface);
+}
+
+.settings-profile.is-admin-account {
+  border-color: rgba(227, 6, 19, 0.42);
+  background:
+    linear-gradient(135deg, var(--accent-soft), rgba(24, 24, 29, 0.94) 48%),
+    var(--surface);
+}
+
+.settings-profile.is-organizer-account [data-account-role] {
+  color: var(--organizer-accent);
+}
+
+.settings-profile.is-admin-account [data-account-role] {
+  color: var(--accent-light);
+}
+
 .settings-profile .account-avatar-large {
   justify-self: start;
   border-color: var(--surface);

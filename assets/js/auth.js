@@ -907,6 +907,11 @@
       element.classList.toggle("is-hidden", !isOrganizer || isAdmin);
     });
 
+    document.querySelectorAll("[data-account-type-card]").forEach((element) => {
+      element.classList.toggle("is-organizer-account", isOrganizer && !isAdmin);
+      element.classList.toggle("is-admin-account", isAdmin);
+    });
+
     updateText("[data-account-role]", role?.label || "Sportler");
   }
 
