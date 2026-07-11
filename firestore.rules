@@ -49,7 +49,7 @@ service cloud.firestore {
     function adminKeepsAdminGrantSafe() {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return (!changedKeys.hasAny(["role"])
-        || request.resource.data.role in ["sportler", "organisator", "organizer"])
+        || request.resource.data.role in ["sportler", "kader-sportler", "organisator", "organizer"])
         && (!changedKeys.hasAny(["admin"]) || request.resource.data.admin == false)
         && (!changedKeys.hasAny(["isAdmin"]) || request.resource.data.isAdmin == false);
     }

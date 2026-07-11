@@ -1191,6 +1191,7 @@
     return {
       isAdmin: false,
       isOrganizer: false,
+      isKaderAthlete: false,
       label: "Sportler"
     };
   }
@@ -1198,11 +1199,13 @@
   function getAccountRole(data, claims) {
     const isAdmin = isAdminAccount(data, claims);
     const isOrganizer = isAdmin || isOrganizerAccount(data, claims);
+    const isKaderAthlete = !isOrganizer && isKaderAthleteAccount(data, claims);
 
     return {
       isAdmin,
       isOrganizer,
-      label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : "Sportler"
+      isKaderAthlete,
+      label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : isKaderAthlete ? "Kader-Sportler" : "Sportler"
     };
   }
 
@@ -1234,9 +1237,17 @@
     );
   }
 
+  function isKaderAthleteAccount(data, claims) {
+    return Boolean(
+      hasRole(claims?.role, ["kader-sportler", "kadersportler", "kader"])
+      || hasRole(data?.role, ["kader-sportler", "kadersportler", "kader"])
+    );
+  }
+
   function updateRoleUi(role) {
     const isAdmin = Boolean(role?.isAdmin);
     const isOrganizer = Boolean(role?.isOrganizer);
+    const isKaderAthlete = Boolean(role?.isKaderAthlete);
 
     document.querySelectorAll("[data-admin-only]").forEach((element) => {
       element.classList.toggle("is-hidden", !isAdmin);
@@ -1258,8 +1269,13 @@
       element.classList.toggle("is-hidden", !isOrganizer || isAdmin);
     });
 
+    document.querySelectorAll("[data-kader-badge]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isKaderAthlete);
+    });
+
     document.querySelectorAll("[data-account-type-card]").forEach((element) => {
       element.classList.toggle("is-organizer-account", isOrganizer && !isAdmin);
+      element.classList.toggle("is-kader-account", isKaderAthlete);
       element.classList.toggle("is-admin-account", isAdmin);
     });
 
@@ -1612,6 +1628,10 @@
       return "organisator";
     }
 
+    if (isKaderAthleteAccount(data, {})) {
+      return "kader-sportler";
+    }
+
     return "sportler";
   }
 
@@ -1619,6 +1639,7 @@
     const labels = {
       admin: "Admin",
       organisator: "Organisator",
+      "kader-sportler": "Kader-Sportler",
       sportler: "Sportler"
     };
 
@@ -1641,7 +1662,11 @@
       return 2;
     }
 
-    return 3;
+    if (roleValue === "kader-sportler") {
+      return 3;
+    }
+
+    return 4;
   }
 
   function setAdminAccountRoleAppearance(element, value) {
@@ -1651,6 +1676,7 @@
 
     element.classList.toggle("is-role-admin", value === "admin");
     element.classList.toggle("is-role-organisator", value === "organisator");
+    element.classList.toggle("is-role-kader-sportler", value === "kader-sportler");
     element.classList.toggle("is-role-sportler", value === "sportler");
   }
 
@@ -1673,8 +1699,9 @@
     control.dataset.previousValue = roleValue;
 
     [
-      { value: "sportler", label: "Sportler" },
-      { value: "organisator", label: "Organisator" }
+      { value: "organisator", label: "Organisator" },
+      { value: "kader-sportler", label: "Kader-Sportler" },
+      { value: "sportler", label: "Sportler" }
     ].forEach((role) => {
       const option = document.createElement("option");
 
@@ -1721,6 +1748,7 @@
     card.classList.toggle("has-open-request", hasOpenRequest);
     card.classList.toggle("is-admin-account", getAdminAccountRoleValue(data) === "admin");
     card.classList.toggle("is-organizer-account", getAdminAccountRoleValue(data) === "organisator");
+    card.classList.toggle("is-kader-account", getAdminAccountRoleValue(data) === "kader-sportler");
     card.dataset.adminAccountCard = "";
     card.dataset.targetUid = item.uid;
     card.dataset.hasPendingRequest = String(hasOpenRequest);
@@ -1909,7 +1937,7 @@
     const nextRole = select.value;
     const previousRole = select.dataset.previousValue || "sportler";
 
-    if (!targetUid || !["sportler", "organisator"].includes(nextRole)) {
+    if (!targetUid || !["sportler", "kader-sportler", "organisator"].includes(nextRole)) {
       select.value = previousRole;
       setAdminAccountMessage("Diese Rolle kann hier nicht vergeben werden.", false);
       return;
