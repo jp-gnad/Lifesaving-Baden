@@ -705,6 +705,10 @@ h3 {
   font-size: clamp(2.05rem, 4vw, 3.8rem);
 }
 
+.dashboard-user-name {
+  display: block;
+}
+
 .link-indicator {
   display: inline-grid;
   grid-template-columns: auto auto;
