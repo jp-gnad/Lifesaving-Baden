@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-account-type-card-color">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-fixed-settings-sidebar">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-account-type-card-color"></script>
-    <script defer src="assets/js/auth.js?v=20260711-account-type-card-color"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-fixed-settings-sidebar"></script>
+    <script defer src="assets/js/auth.js?v=20260711-fixed-settings-sidebar"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -28,14 +28,6 @@
     </header>
 
     <main class="dashboard settings-page">
-      <section class="dashboard-header">
-        <p class="eyebrow">Konto</p>
-        <h1>Kontoeinstellungen</h1>
-        <p>
-          Verwalte hier deine Datenschutz-Einstellungen und dein Konto.
-        </p>
-      </section>
-
       <section class="settings-shell" aria-label="Kontoeinstellungen">
         <aside class="settings-sidebar" aria-label="Einstellungskategorien">
           <nav class="settings-menu">
@@ -71,6 +63,14 @@
         </aside>
 
         <div class="settings-content">
+          <section class="dashboard-header settings-page-header">
+            <p class="eyebrow">Konto</p>
+            <h1>Kontoeinstellungen</h1>
+            <p>
+              Verwalte hier deine Datenschutz-Einstellungen und dein Konto.
+            </p>
+          </section>
+
           <section class="settings-category" id="uebersicht" aria-labelledby="settings-overview-title">
             <div class="settings-category-header">
               <p class="eyebrow">Übersicht</p>
