@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-fixed-settings-sidebar">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-settings-tabs">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-fixed-settings-sidebar"></script>
-    <script defer src="assets/js/auth.js?v=20260711-fixed-settings-sidebar"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-settings-tabs"></script>
+    <script defer src="assets/js/auth.js?v=20260711-settings-tabs"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -31,11 +31,7 @@
       <section class="settings-shell" aria-label="Kontoeinstellungen">
         <aside class="settings-sidebar" aria-label="Einstellungskategorien">
           <nav class="settings-menu">
-            <a class="settings-menu-item is-active" href="#uebersicht">
-              <span class="settings-menu-icon">Ü</span>
-              <span>Übersicht</span>
-            </a>
-            <a class="settings-menu-item" href="#persoenliche-daten">
+            <a class="settings-menu-item is-active" href="#persoenliche-daten">
               <span class="settings-menu-icon">P</span>
               <span>Persönliche Daten</span>
             </a>
@@ -71,10 +67,10 @@
             </p>
           </section>
 
-          <section class="settings-category" id="uebersicht" aria-labelledby="settings-overview-title">
+          <section class="settings-category" id="persoenliche-daten" aria-labelledby="settings-personal-title">
             <div class="settings-category-header">
-              <p class="eyebrow">Übersicht</p>
-              <h2 id="settings-overview-title">Dein Konto</h2>
+              <p class="eyebrow">Persönliche Daten</p>
+              <h2 id="settings-personal-title">Profil und Mitgliedsdaten</h2>
             </div>
             <article class="card settings-profile" data-account-type-card>
               <div class="account-avatar account-avatar-large">
@@ -114,13 +110,6 @@
                 </li>
               </ul>
             </article>
-          </section>
-
-          <section class="settings-category" id="persoenliche-daten" aria-labelledby="settings-personal-title">
-            <div class="settings-category-header">
-              <p class="eyebrow">Persönliche Daten</p>
-              <h2 id="settings-personal-title">Profil und Mitgliedsdaten</h2>
-            </div>
             <article class="card setting-card account-form-card">
               <h3>Kontodaten</h3>
               <form class="setting-form" data-profile-form>
@@ -152,7 +141,7 @@
             </article>
           </section>
 
-          <section class="settings-category" id="sicherheit" aria-labelledby="settings-security-title">
+          <section class="settings-category is-hidden" id="sicherheit" aria-labelledby="settings-security-title" hidden aria-hidden="true">
             <div class="settings-category-header">
               <p class="eyebrow">Sicherheit</p>
               <h2 id="settings-security-title">Anmeldung und Passwort</h2>
@@ -191,7 +180,7 @@
             </article>
           </section>
 
-          <section class="settings-category" id="datenschutz" aria-labelledby="settings-privacy-title">
+          <section class="settings-category is-hidden" id="datenschutz" aria-labelledby="settings-privacy-title" hidden aria-hidden="true">
             <div class="settings-category-header">
               <p class="eyebrow">Datenschutz</p>
               <h2 id="settings-privacy-title">Daten und Sichtbarkeit</h2>
@@ -214,7 +203,7 @@
             </article>
           </section>
 
-          <section class="settings-category" id="konto" aria-labelledby="settings-account-title">
+          <section class="settings-category is-hidden" id="konto" aria-labelledby="settings-account-title" hidden aria-hidden="true">
             <div class="settings-category-header">
               <p class="eyebrow">Konto</p>
               <h2 id="settings-account-title">Kontoverwaltung</h2>
@@ -227,7 +216,7 @@
             </article>
           </section>
 
-          <section class="settings-category is-hidden" id="organisator" aria-labelledby="settings-organizer-title" data-organizer-only>
+          <section class="settings-category is-hidden" id="organisator" aria-labelledby="settings-organizer-title" data-organizer-only hidden aria-hidden="true">
             <div class="settings-category-header">
               <p class="eyebrow">Organisator</p>
               <h2 id="settings-organizer-title">Organisatorbereich</h2>
@@ -241,7 +230,7 @@
             </article>
           </section>
 
-          <section class="settings-category is-hidden" id="admin" aria-labelledby="settings-admin-title" data-admin-only>
+          <section class="settings-category is-hidden" id="admin" aria-labelledby="settings-admin-title" data-admin-only hidden aria-hidden="true">
             <div class="settings-category-header">
               <p class="eyebrow">Admin</p>
               <h2 id="settings-admin-title">Adminbereich</h2>

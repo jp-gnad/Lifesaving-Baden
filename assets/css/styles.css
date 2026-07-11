@@ -1328,28 +1328,24 @@ h3 {
 }
 
 .settings-menu-item:nth-child(2) .settings-menu-icon {
-  background: var(--text);
-}
-
-.settings-menu-item:nth-child(3) .settings-menu-icon {
   background: rgb(120, 207, 255);
 }
 
-.settings-menu-item:nth-child(4) .settings-menu-icon {
+.settings-menu-item:nth-child(3) .settings-menu-icon {
   background: rgb(124, 218, 151);
 }
 
-.settings-menu-item:nth-child(5) .settings-menu-icon {
+.settings-menu-item:nth-child(4) .settings-menu-icon {
   background: var(--accent);
   color: var(--text);
 }
 
-.settings-menu-item:nth-child(6) .settings-menu-icon {
+.settings-menu-item:nth-child(5) .settings-menu-icon {
   background: var(--organizer-accent);
   color: var(--bg);
 }
 
-.settings-menu-item:nth-child(7) .settings-menu-icon {
+.settings-menu-item:nth-child(6) .settings-menu-icon {
   background: var(--accent);
   color: var(--text);
 }
@@ -1365,6 +1361,11 @@ h3 {
   display: grid;
   gap: 14px;
   scroll-margin-top: 96px;
+}
+
+.settings-category.is-hidden,
+.settings-category[hidden] {
+  display: none !important;
 }
 
 .settings-category-header {

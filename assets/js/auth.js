@@ -416,25 +416,50 @@
 
   function initSettingsMenu() {
     const menuItems = Array.from(document.querySelectorAll(".settings-menu-item"));
+    const categories = Array.from(document.querySelectorAll(".settings-category"));
 
-    if (!menuItems.length) {
+    if (!menuItems.length || !categories.length) {
       return;
     }
 
-    function setActiveItem(hash) {
-      const activeHash = hash || menuItems[0].getAttribute("href");
+    function getVisibleItems() {
+      return menuItems.filter((item) => !item.classList.contains("is-hidden"));
+    }
+
+    function setActiveItem(hash, options = {}) {
+      const visibleItems = getVisibleItems();
+      const fallbackItem = visibleItems[0] || menuItems[0];
+      const targetItem = visibleItems.find((item) => item.getAttribute("href") === hash) || fallbackItem;
+      const activeHash = targetItem?.getAttribute("href") || "";
 
       menuItems.forEach((item) => {
-        item.classList.toggle("is-active", item.getAttribute("href") === activeHash);
+        item.classList.toggle("is-active", item === targetItem);
       });
+
+      categories.forEach((category) => {
+        const isActive = `#${category.id}` === activeHash;
+
+        category.classList.toggle("is-hidden", !isActive);
+        category.hidden = !isActive;
+        category.setAttribute("aria-hidden", String(!isActive));
+      });
+
+      if (!options.keepHash && activeHash && window.location.hash !== activeHash) {
+        window.history.replaceState(null, "", activeHash);
+      }
     }
 
     menuItems.forEach((item) => {
-      item.addEventListener("click", () => setActiveItem(item.getAttribute("href")));
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        setActiveItem(item.getAttribute("href"));
+      });
     });
 
-    setActiveItem(window.location.hash);
-    window.addEventListener("hashchange", () => setActiveItem(window.location.hash));
+    window.refreshSettingsMenu = () => setActiveItem(window.location.hash, { keepHash: true });
+
+    setActiveItem(window.location.hash, { keepHash: true });
+    window.addEventListener("hashchange", () => setActiveItem(window.location.hash, { keepHash: true }));
   }
 
   function initAppPage(auth) {
@@ -913,6 +938,10 @@
     });
 
     updateText("[data-account-role]", role?.label || "Sportler");
+
+    if (typeof window.refreshSettingsMenu === "function") {
+      window.refreshSettingsMenu();
+    }
   }
 
   function hasFreshLogin(user) {
