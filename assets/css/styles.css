@@ -1,15 +1,15 @@
 :root {
-  --bg: #f6f8fb;
-  --surface: #ffffff;
-  --surface-muted: #edf4f7;
-  --text: #17212b;
-  --muted: #5c6a75;
-  --primary: #006d77;
-  --primary-dark: #004f57;
-  --accent: #e15b3c;
-  --accent-soft: #ffe8df;
-  --line: #d9e2e7;
-  --shadow: 0 18px 45px rgba(23, 33, 43, 0.12);
+  --bg: rgb(15, 15, 18);
+  --surface: rgb(24, 24, 29);
+  --surface-muted: rgb(35, 35, 42);
+  --text: rgb(255, 255, 255);
+  --muted: rgba(255, 255, 255, 0.72);
+  --primary: rgb(255, 237, 0);
+  --primary-dark: rgb(219, 203, 0);
+  --accent: rgb(227, 6, 19);
+  --accent-soft: rgba(227, 6, 19, 0.18);
+  --line: rgba(255, 255, 255, 0.14);
+  --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -52,8 +52,8 @@ input {
   gap: 24px;
   min-height: 72px;
   padding: 16px clamp(20px, 5vw, 72px);
-  border-bottom: 1px solid rgba(217, 226, 231, 0.8);
-  background: rgba(246, 248, 251, 0.92);
+  border-bottom: 1px solid var(--line);
+  background: rgba(15, 15, 18, 0.92);
   backdrop-filter: blur(16px);
 }
 
@@ -71,7 +71,7 @@ input {
   place-items: center;
   border-radius: 8px;
   background: var(--primary);
-  color: white;
+  color: var(--bg);
   font-size: 0.85rem;
   letter-spacing: 0;
 }
@@ -123,7 +123,7 @@ input {
   place-items: center;
   border-radius: 50%;
   background: var(--primary);
-  color: white;
+  color: var(--bg);
   font-weight: 900;
 }
 
@@ -220,7 +220,7 @@ h3 {
 
 .button-primary {
   background: var(--primary);
-  color: white;
+  color: var(--bg);
 }
 
 .button-primary:hover {
@@ -247,8 +247,8 @@ h3 {
   margin-right: 10px;
   place-items: center;
   border-radius: 50%;
-  background: #f4f7fa;
-  color: #1f1f1f;
+  background: var(--primary);
+  color: var(--bg);
   font-weight: 900;
 }
 
@@ -276,9 +276,9 @@ h3 {
   overflow: hidden;
   border-radius: 8px;
   background:
-    linear-gradient(135deg, rgba(0, 109, 119, 0.18), transparent 38%),
-    radial-gradient(circle at 70% 28%, rgba(225, 91, 60, 0.22), transparent 24%),
-    linear-gradient(160deg, #ffffff 0%, #e4f2f4 100%);
+    linear-gradient(135deg, rgba(255, 237, 0, 0.2), transparent 38%),
+    radial-gradient(circle at 70% 28%, rgba(227, 6, 19, 0.26), transparent 24%),
+    linear-gradient(160deg, rgb(24, 24, 29) 0%, rgb(15, 15, 18) 100%);
   box-shadow: var(--shadow);
 }
 
@@ -286,9 +286,9 @@ h3 {
   content: "";
   position: absolute;
   inset: 12%;
-  border: 18px solid white;
+  border: 18px solid var(--text);
   border-radius: 50%;
-  box-shadow: inset 0 0 0 24px var(--accent), 0 18px 30px rgba(0, 79, 87, 0.14);
+  box-shadow: inset 0 0 0 24px var(--accent), 0 18px 30px rgba(0, 0, 0, 0.34);
 }
 
 .signal-board::after {
@@ -299,7 +299,7 @@ h3 {
   width: 82%;
   height: 42%;
   border-radius: 50%;
-  background: rgba(0, 109, 119, 0.18);
+  background: rgba(255, 237, 0, 0.16);
 }
 
 .signal-line {
@@ -308,7 +308,7 @@ h3 {
   width: 76%;
   height: 14px;
   border-radius: 999px;
-  background: rgba(0, 79, 87, 0.16);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .signal-line-a {
@@ -363,12 +363,14 @@ h3 {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
   gap: clamp(24px, 4vw, 56px);
-  background: var(--primary-dark);
-  color: white;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .info-band .eyebrow {
-  color: #9be1e7;
+  color: var(--primary);
 }
 
 .event-list {
@@ -392,7 +394,7 @@ h3 {
 }
 
 .event-list span {
-  color: #cceff2;
+  color: var(--muted);
 }
 
 .site-footer {
@@ -457,7 +459,7 @@ h3 {
 .tab.is-active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 6px 16px rgba(23, 33, 43, 0.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
 .auth-form {
@@ -479,12 +481,12 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 14px;
-  background: white;
+  background: var(--bg);
   color: var(--text);
 }
 
 .auth-form input:focus {
-  outline: 3px solid rgba(0, 109, 119, 0.18);
+  outline: 3px solid rgba(255, 237, 0, 0.22);
   border-color: var(--primary);
 }
 
@@ -536,8 +538,8 @@ h3 {
   overflow: hidden;
   min-height: 360px;
   background:
-    linear-gradient(135deg, rgba(0, 109, 119, 0.2), transparent 35%),
-    linear-gradient(160deg, #ffffff 0%, #e6f3f6 100%);
+    linear-gradient(135deg, rgba(255, 237, 0, 0.16), transparent 35%),
+    linear-gradient(160deg, var(--surface) 0%, var(--bg) 100%);
 }
 
 .auth-aside::before {
@@ -547,9 +549,9 @@ h3 {
   top: 16%;
   width: 210px;
   height: 210px;
-  border: 18px solid white;
+  border: 18px solid var(--text);
   border-radius: 50%;
-  box-shadow: inset 0 0 0 22px var(--accent), 0 18px 35px rgba(0, 79, 87, 0.15);
+  box-shadow: inset 0 0 0 22px var(--accent), 0 18px 35px rgba(0, 0, 0, 0.34);
 }
 
 .status-panel {
@@ -562,7 +564,7 @@ h3 {
   gap: 12px;
   padding: 18px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(24, 24, 29, 0.88);
   color: var(--muted);
   backdrop-filter: blur(12px);
 }
@@ -653,8 +655,8 @@ h3 {
   padding: 28px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  background: #24282b;
-  color: #f6f8fb;
+  background: var(--surface);
+  color: var(--text);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
@@ -669,7 +671,7 @@ h3 {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: #d7dde2;
+  color: var(--muted);
   font-size: 2rem;
   line-height: 1;
   cursor: pointer;
@@ -682,7 +684,7 @@ h3 {
 .account-email,
 .account-name-line {
   margin: 0;
-  color: #d7dde2;
+  color: var(--muted);
   text-align: center;
 }
 
@@ -696,14 +698,14 @@ h3 {
   justify-self: center;
   width: 128px;
   height: 128px;
-  border: 4px solid #ffffff;
+  border: 4px solid var(--text);
   background: var(--primary);
   font-size: 2.5rem;
 }
 
 .account-modal h2 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text);
   font-size: clamp(2rem, 5vw, 3rem);
   line-height: 1.05;
   text-align: center;
@@ -714,7 +716,7 @@ h3 {
   min-width: min(100%, 340px);
   border-color: rgba(255, 255, 255, 0.46);
   background: transparent;
-  color: #c7dcff;
+  color: var(--primary);
 }
 
 .account-settings {
@@ -726,20 +728,20 @@ h3 {
 
 .account-settings h3 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .account-settings .setting-check {
-  color: #f6f8fb;
+  color: var(--text);
 }
 
 .account-settings .setting-help,
 .account-settings .danger-zone p {
-  color: #c7cfd6;
+  color: var(--muted);
 }
 
 .account-modal .form-message.success {
-  color: #9be1e7;
+  color: var(--primary);
 }
 
 .danger-zone {
@@ -759,14 +761,14 @@ h3 {
   min-height: 46px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  background: #9f2f25;
-  color: white;
+  background: var(--accent);
+  color: var(--text);
   font-weight: 850;
   cursor: pointer;
 }
 
 .danger-button:hover {
-  background: #84271f;
+  background: var(--accent);
 }
 
 .danger-button:disabled {
@@ -783,14 +785,14 @@ h3 {
   min-height: 56px;
   border: 0;
   border-radius: 8px;
-  background: #141719;
-  color: #f6f8fb;
+  background: var(--bg);
+  color: var(--text);
   font-weight: 850;
   cursor: pointer;
 }
 
 .account-action:hover {
-  background: #0d0f11;
+  background: var(--surface-muted);
 }
 
 .settings-page .dashboard-header h1 {
@@ -814,7 +816,7 @@ h3 {
 .settings-profile .account-avatar-large {
   justify-self: start;
   border-color: var(--surface);
-  box-shadow: 0 10px 24px rgba(23, 33, 43, 0.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
 }
 
 .settings-profile h2 {
