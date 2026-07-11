@@ -6,7 +6,7 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-email-actions">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-compact-security">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -252,10 +252,10 @@
                     <p class="setting-help no-indent" data-google-provider-status>
                       Google-Status wird geladen.
                     </p>
-                    <button class="button button-secondary full-width" type="button" data-google-link>
+                    <button class="button button-secondary" type="button" data-google-link>
                       Google-Konto verbinden
                     </button>
-                    <button class="button button-danger full-width is-hidden" type="button" data-google-unlink>
+                    <button class="button button-danger is-hidden" type="button" data-google-unlink>
                       Google-Konto abmelden
                     </button>
                     <p class="form-message" data-google-account-message role="status"></p>
@@ -282,7 +282,7 @@
                     <p class="setting-help no-indent" data-password-provider-help>
                       Passwort-Status wird geladen.
                     </p>
-                    <button class="button button-secondary full-width" type="button" data-password-edit>
+                    <button class="button button-secondary" type="button" data-password-edit>
                       E-Mail-Konto hinzufügen
                     </button>
                     <form class="setting-form security-password-form is-hidden" data-password-form hidden aria-hidden="true">
@@ -331,13 +331,15 @@
                           </button>
                         </span>
                       </label>
-                      <button class="button button-primary full-width" type="submit">Passwort speichern</button>
-                      <button class="button button-ghost full-width" type="button" data-password-cancel>Abbrechen</button>
+                      <span class="security-button-row">
+                        <button class="button button-primary" type="submit">Passwort speichern</button>
+                        <button class="button button-ghost" type="button" data-password-cancel>Abbrechen</button>
+                      </span>
                     </form>
-                    <button class="button button-secondary full-width is-hidden" type="button" data-password-verification>
+                    <button class="button button-secondary is-hidden" type="button" data-password-verification>
                       Bestätigungsmail senden
                     </button>
-                    <button class="button button-danger full-width is-hidden" type="button" data-password-unlink>
+                    <button class="button button-danger is-hidden" type="button" data-password-unlink>
                       E-Mail-Konto entfernen
                     </button>
                     <p class="form-message" data-password-message role="status"></p>

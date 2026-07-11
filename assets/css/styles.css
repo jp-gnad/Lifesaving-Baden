@@ -1697,14 +1697,61 @@ h3 {
 }
 
 .security-field-panel {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
   margin-top: 3px;
 }
 
 .security-field-panel .setting-help,
 .security-field-panel .form-message {
+  flex-basis: 100%;
   margin: 0;
+}
+
+.security-field-panel .setting-help {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.security-field-panel .button {
+  min-height: 38px;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+}
+
+.security-password-form {
+  flex-basis: 100%;
+  gap: 10px;
+}
+
+.security-password-form label {
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+
+.security-password-form input {
+  min-height: 38px;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 0.94rem;
+}
+
+.security-password-form .password-field input {
+  padding-right: 44px;
+}
+
+.security-password-form .password-toggle {
+  width: 32px;
+  height: 32px;
+}
+
+.security-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .profile-field-edit-form {
