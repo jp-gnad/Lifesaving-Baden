@@ -1169,6 +1169,11 @@ h3 {
   color: var(--organizer-accent);
 }
 
+.account-modal .admin-badge,
+.account-modal .organizer-badge {
+  justify-self: center;
+}
+
 .admin-badge.is-hidden,
 .organizer-badge.is-hidden {
   display: none;
