@@ -1481,6 +1481,19 @@ h3 {
   gap: 3px;
 }
 
+.security-field-item {
+  display: grid;
+  gap: 0;
+}
+
+.security-field-row {
+  list-style: none;
+}
+
+.security-field-row::-webkit-details-marker {
+  display: none;
+}
+
 .profile-field-row {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 18px;
@@ -1499,9 +1512,14 @@ h3 {
 }
 
 .profile-field-row:hover,
-.profile-field-row.is-active {
+.profile-field-row.is-active,
+.security-field-item[open] > .profile-field-row {
   border-color: rgba(255, 237, 0, 0.26);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.security-field-item[open] .profile-field-chevron {
+  transform: rotate(135deg);
 }
 
 .profile-field-row.is-empty-highlight {
@@ -1560,6 +1578,17 @@ h3 {
   border-radius: 8px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.045);
+}
+
+.security-field-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 3px;
+}
+
+.security-field-panel .setting-help,
+.security-field-panel .form-message {
+  margin: 0;
 }
 
 .profile-field-edit-form {

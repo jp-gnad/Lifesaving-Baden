@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-mobile-heading-small">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-security-fields">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260711-mobile-settings-heading"></script>
+    <script defer src="assets/js/auth.js?v=20260711-security-fields"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -192,37 +192,72 @@
               </button>
               <h2 id="settings-security-title">Sicherheit und Anmeldung</h2>
             </div>
-            <article class="card setting-card google-account-card">
-              <h3>Google-Konto</h3>
-              <p class="setting-help no-indent" data-google-provider-status>
-                Google-Status wird geladen.
-              </p>
-              <button class="button button-secondary full-width" type="button" data-google-link>
-                Google-Konto verbinden
-              </button>
-              <p class="form-message" data-google-account-message role="status"></p>
-            </article>
+            <article class="account-form-card profile-field-card security-field-card">
+              <div class="profile-field-list">
+                <details class="security-field-item">
+                  <summary class="profile-field-row security-field-row">
+                    <span class="profile-field-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <circle cx="12" cy="12" r="8"></circle>
+                        <path d="M12 4a8 8 0 0 1 5.6 13.7"></path>
+                        <path d="M8.5 11.5h7"></path>
+                        <path d="M12 8v7"></path>
+                      </svg>
+                    </span>
+                    <span class="profile-field-copy">
+                      <strong>Google-Konto</strong>
+                      <span data-google-provider-summary>Status wird geladen</span>
+                    </span>
+                    <span class="profile-field-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="profile-field-editor security-field-panel">
+                    <p class="setting-help no-indent" data-google-provider-status>
+                      Google-Status wird geladen.
+                    </p>
+                    <button class="button button-secondary full-width" type="button" data-google-link>
+                      Google-Konto verbinden
+                    </button>
+                    <p class="form-message" data-google-account-message role="status"></p>
+                  </div>
+                </details>
 
-            <article class="card setting-card password-card">
-              <h3>Passwort ändern</h3>
-              <form class="setting-form" data-password-form>
-                <label>
-                  <span>Altes Passwort</span>
-                  <input type="password" name="currentPassword" autocomplete="current-password" required>
-                </label>
-                <label>
-                  <span>Neues Passwort</span>
-                  <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
-                </label>
-                <label>
-                  <span>Neues Passwort wiederholen</span>
-                  <input type="password" name="repeatPassword" autocomplete="new-password" minlength="8" required>
-                </label>
-                <button class="button button-primary full-width" type="submit">
-                  Passwort speichern
-                </button>
-              </form>
-              <p class="form-message" data-password-message role="status"></p>
+                <details class="security-field-item">
+                  <summary class="profile-field-row security-field-row">
+                    <span class="profile-field-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                        <path d="M12 14v2.5"></path>
+                      </svg>
+                    </span>
+                    <span class="profile-field-copy">
+                      <strong>Passwort</strong>
+                      <span data-password-provider-summary>Status wird geladen</span>
+                    </span>
+                    <span class="profile-field-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="profile-field-editor security-field-panel">
+                    <form class="setting-form" data-password-form>
+                      <label>
+                        <span>Altes Passwort</span>
+                        <input type="password" name="currentPassword" autocomplete="current-password" required>
+                      </label>
+                      <label>
+                        <span>Neues Passwort</span>
+                        <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
+                      </label>
+                      <label>
+                        <span>Neues Passwort wiederholen</span>
+                        <input type="password" name="repeatPassword" autocomplete="new-password" minlength="8" required>
+                      </label>
+                      <button class="button button-primary full-width" type="submit">
+                        Passwort speichern
+                      </button>
+                    </form>
+                    <p class="form-message" data-password-message role="status"></p>
+                  </div>
+                </details>
+              </div>
             </article>
           </section>
 

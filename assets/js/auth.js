@@ -1379,18 +1379,23 @@
     const googleLinked = hasProvider(user, "google.com");
     const passwordLinked = hasProvider(user, "password");
 
+    updateText("[data-password-provider-summary]", passwordLinked ? "Passwort-Login aktiv" : "Kein Passwort-Login eingerichtet");
+
     if (googleLinked && passwordLinked) {
+      updateText("[data-google-provider-summary]", "Mit Google verbunden");
       status.textContent = "Dieses Konto ist mit Google und E-Mail/Passwort verbunden. Du kannst das Google-Konto wechseln, ohne das Konto zu verlieren.";
       button.textContent = "Google-Konto wechseln";
       return;
     }
 
     if (googleLinked) {
+      updateText("[data-google-provider-summary]", "Google-Login aktiv");
       status.textContent = "Dieses Konto nutzt Google als Login. Ein Wechsel wird erst angeboten, wenn zusätzlich ein Passwort-Login vorhanden ist.";
       button.textContent = "Google-Konto bestätigen";
       return;
     }
 
+    updateText("[data-google-provider-summary]", "Nicht verbunden");
     status.textContent = "Dieses Konto ist noch nicht mit Google verbunden.";
     button.textContent = "Google-Konto verbinden";
   }
