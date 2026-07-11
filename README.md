@@ -65,6 +65,13 @@ Domains freigegeben werden, auf denen die Website wirklich laufen soll.
 Der Mitgliederbereich speichert die Datenschutz-Einstellung pro Nutzer in
 Firestore unter `users/{uid}`.
 
+Gespeicherte Felder:
+
+- `keepPersonalDataUntilRevoked`: Standardwert in der Website ist `true`.
+- `privateProfile`: Standardwert ist `false`.
+- `publicProfile`: Gegenwert zu `privateProfile`, praktisch fuer spaetere
+  Profilsuche.
+
 1. In Firebase `Firestore Database` oeffnen.
 2. `Create database` waehlen.
 3. `Production mode` nutzen.

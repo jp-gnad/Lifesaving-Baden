@@ -554,7 +554,7 @@ h3 {
 
 .setting-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .setting-check {
@@ -576,6 +576,13 @@ h3 {
 
 .setting-check input:disabled {
   cursor: not-allowed;
+}
+
+.setting-help {
+  margin: -2px 0 0 34px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 860px) {

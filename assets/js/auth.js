@@ -352,70 +352,77 @@
   }
 
   async function initUserSettings(auth) {
-    const checkbox = document.querySelector("[data-keep-data]");
+    const controls = getSettingsControls();
 
-    if (!checkbox) {
+    if (!controls.keepData || !controls.privateProfile) {
       return;
     }
 
     if (!window.firebase.firestore) {
-      checkbox.disabled = true;
+      setSettingsControlsDisabled(true);
       setSettingsMessage("Firestore ist noch nicht geladen.", false);
       return;
     }
 
     const db = window.firebase.firestore();
 
-    if (!checkbox.dataset.listenerAttached) {
-      checkbox.dataset.listenerAttached = "true";
-      checkbox.addEventListener("change", () => saveUserSettings(auth, db));
-    }
+    Object.values(controls).forEach((control) => {
+      if (!control.dataset.listenerAttached) {
+        control.dataset.listenerAttached = "true";
+        control.addEventListener("change", () => saveUserSettings(auth, db));
+      }
+    });
 
     await loadUserSettings(auth, db);
   }
 
-  async function loadUserSettings(auth, db) {
-    const checkbox = document.querySelector("[data-keep-data]");
-    const user = auth.currentUser;
-
-    if (!checkbox || !user) {
-      return;
-    }
-
-    checkbox.disabled = true;
-    setSettingsMessage("Einstellung wird geladen...", true);
-
-    try {
-      const snapshot = await db.collection("users").doc(user.uid).get();
-      const data = snapshot.exists ? snapshot.data() : {};
-
-      checkbox.checked = Boolean(data.keepPersonalDataUntilRevoked);
-      setSettingsMessage(
-        snapshot.exists ? "Einstellung geladen." : "Noch keine Einstellung gespeichert.",
-        true
-      );
-    } catch (error) {
-      setSettingsMessage(translateFirestoreError(error), false);
-    } finally {
-      checkbox.disabled = false;
-    }
+  function getSettingsControls() {
+    return {
+      keepData: document.querySelector("[data-keep-data]"),
+      privateProfile: document.querySelector("[data-private-profile]")
+    };
   }
 
-  async function saveUserSettings(auth, db) {
-    const checkbox = document.querySelector("[data-keep-data]");
-    const user = auth.currentUser;
+  function setSettingsControlsDisabled(isDisabled) {
+    Object.values(getSettingsControls()).forEach((control) => {
+      if (control) {
+        control.disabled = isDisabled;
+      }
+    });
+  }
 
-    if (!checkbox || !user) {
-      return;
-    }
+  function rememberCurrentSettings() {
+    const controls = getSettingsControls();
 
+    Object.values(controls).forEach((control) => {
+      if (control) {
+        control.dataset.savedValue = String(control.checked);
+      }
+    });
+  }
+
+  function restoreRememberedSettings() {
+    const controls = getSettingsControls();
+
+    Object.values(controls).forEach((control) => {
+      if (control && control.dataset.savedValue) {
+        control.checked = control.dataset.savedValue === "true";
+      }
+    });
+  }
+
+  function getSettingsPayloadFromControls(auth, db) {
+    const controls = getSettingsControls();
     const fieldValue = window.firebase.firestore.FieldValue;
-    const shouldKeepData = checkbox.checked;
-    const userDoc = db.collection("users").doc(user.uid);
+    const user = auth.currentUser;
+    const shouldKeepData = controls.keepData.checked;
+    const isPrivateProfile = controls.privateProfile.checked;
     const payload = {
       email: user.email || "",
       displayName: user.displayName || "",
       keepPersonalDataUntilRevoked: shouldKeepData,
+      privateProfile: isPrivateProfile,
+      publicProfile: !isPrivateProfile,
       consentTextVersion: "2026-07-11-v1",
       updatedAt: fieldValue.serverTimestamp()
     };
@@ -427,17 +434,69 @@
       payload.keepPersonalDataRevokedAt = fieldValue.serverTimestamp();
     }
 
-    checkbox.disabled = true;
+    return {
+      payload,
+      userDoc: db.collection("users").doc(user.uid)
+    };
+  }
+
+  async function loadUserSettings(auth, db) {
+    const controls = getSettingsControls();
+    const user = auth.currentUser;
+
+    if (!controls.keepData || !controls.privateProfile || !user) {
+      return;
+    }
+
+    setSettingsControlsDisabled(true);
+    setSettingsMessage("Einstellung wird geladen...", true);
+
+    try {
+      const snapshot = await db.collection("users").doc(user.uid).get();
+      const data = snapshot.exists ? snapshot.data() : {};
+      const hasKeepDataSetting = Object.prototype.hasOwnProperty.call(
+        data,
+        "keepPersonalDataUntilRevoked"
+      );
+
+      controls.keepData.checked = hasKeepDataSetting
+        ? Boolean(data.keepPersonalDataUntilRevoked)
+        : true;
+      controls.privateProfile.checked = Boolean(data.privateProfile);
+      rememberCurrentSettings();
+      setSettingsMessage(
+        snapshot.exists ? "Einstellung geladen." : "Noch keine Einstellung gespeichert.",
+        true
+      );
+    } catch (error) {
+      setSettingsMessage(translateFirestoreError(error), false);
+    } finally {
+      setSettingsControlsDisabled(false);
+    }
+  }
+
+  async function saveUserSettings(auth, db) {
+    const controls = getSettingsControls();
+    const user = auth.currentUser;
+
+    if (!controls.keepData || !controls.privateProfile || !user) {
+      return;
+    }
+
+    const { payload, userDoc } = getSettingsPayloadFromControls(auth, db);
+
+    setSettingsControlsDisabled(true);
     setSettingsMessage("Einstellung wird gespeichert...", true);
 
     try {
       await userDoc.set(payload, { merge: true });
+      rememberCurrentSettings();
       setSettingsMessage("Einstellung gespeichert.", true);
     } catch (error) {
-      checkbox.checked = !shouldKeepData;
+      restoreRememberedSettings();
       setSettingsMessage(translateFirestoreError(error), false);
     } finally {
-      checkbox.disabled = false;
+      setSettingsControlsDisabled(false);
     }
   }
 })();
