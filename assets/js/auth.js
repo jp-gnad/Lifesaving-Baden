@@ -703,6 +703,8 @@
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
       if (!hasLoadedData) {
         checklist.classList.add("is-hidden");
+        checklist.hidden = true;
+        checklist.setAttribute("aria-hidden", "true");
         return;
       }
 
@@ -717,7 +719,10 @@
         progress.style.width = `${percentage}%`;
       }
 
-      checklist.classList.toggle("is-hidden", completed === total);
+      const shouldHide = completed === total;
+      checklist.classList.toggle("is-hidden", shouldHide);
+      checklist.hidden = shouldHide;
+      checklist.setAttribute("aria-hidden", String(shouldHide));
 
       items.forEach((item) => {
         const element = checklist.querySelector(`[data-check-item="${item.key}"]`);
@@ -773,7 +778,10 @@
     });
 
     document.querySelectorAll("[data-link-status-shell]").forEach((element) => {
-      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
+      const shouldHide = !hasLoadedData || isLinked;
+      element.classList.toggle("is-hidden", shouldHide);
+      element.hidden = shouldHide;
+      element.setAttribute("aria-hidden", String(shouldHide));
     });
 
     document.querySelectorAll("[data-link-indicator]").forEach((element) => {
@@ -796,7 +804,10 @@
     });
 
     document.querySelectorAll("[data-link-status-card]").forEach((element) => {
-      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
+      const shouldHide = !hasLoadedData || isLinked;
+      element.classList.toggle("is-hidden", shouldHide);
+      element.hidden = shouldHide;
+      element.setAttribute("aria-hidden", String(shouldHide));
       element.classList.toggle("is-linked", isLinked);
     });
 

@@ -6,12 +6,12 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-linked-indicator-safe">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-hard-hide-linked">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-linked-indicator-safe"></script>
-    <script defer src="assets/js/auth.js?v=20260711-linked-indicator-safe"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-hard-hide-linked"></script>
+    <script defer src="assets/js/auth.js?v=20260711-hard-hide-linked"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -48,7 +48,7 @@
         </div>
       </section>
 
-      <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite">
+      <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite" hidden aria-hidden="true">
         <span class="completion-mark" aria-hidden="true">!</span>
         <div>
           <h2 data-link-status-title>Kontokonfiguration offen</h2>
@@ -59,7 +59,7 @@
       </section>
 
       <section class="dashboard-grid" aria-label="Mitgliederübersicht">
-        <article class="card setting-card account-checklist-card is-hidden" data-account-checklist>
+        <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
           <div class="checklist-heading">
             <h2>Kontokonfiguration</h2>
             <span data-checklist-count>0 von 4 abgeschlossen</span>
@@ -86,7 +86,7 @@
             </li>
           </ul>
         </article>
-        <article class="card dashboard-action-card is-hidden" data-link-status-card>
+        <article class="card dashboard-action-card is-hidden" data-link-status-card hidden aria-hidden="true">
           <h2 data-link-card-title>Person verknüpfen</h2>
           <p data-link-card-text>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
           <a class="button button-primary" href="link-request.html" data-link-card-action>Jetzt verknüpfen</a>

@@ -826,6 +826,12 @@ h3 {
   align-content: start;
 }
 
+.dashboard-action-card.is-hidden,
+.account-checklist-card.is-hidden,
+[hidden] {
+  display: none !important;
+}
+
 .checklist-heading {
   display: flex;
   align-items: start;
