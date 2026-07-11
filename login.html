@@ -6,11 +6,11 @@
     <meta name="description" content="Login und Registrierung für Lifesaving Baden.">
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-checklist-sync">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-login-copy">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-checklist-sync"></script>
-    <script defer src="assets/js/auth.js?v=20260711-checklist-sync"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-login-copy"></script>
+    <script defer src="assets/js/auth.js?v=20260711-login-copy"></script>
   </head>
   <body data-page="login">
     <header class="site-header">
@@ -29,7 +29,7 @@
     <main class="auth-layout">
       <section class="auth-panel" aria-labelledby="auth-title">
         <p class="eyebrow">Mitgliederbereich</p>
-        <h1 id="auth-title">Einloggen oder Konto erstellen</h1>
+        <h1 id="auth-title">Login oder Konto erstellen</h1>
         <p class="auth-note">
           Konten werden über Firebase verwaltet. Neue E-Mail-Konten müssen
           vor dem ersten Zugriff bestätigt werden.
@@ -50,7 +50,7 @@
             <input name="password" type="password" autocomplete="current-password" minlength="8" required>
           </label>
           <p class="form-message" data-form-message="login" role="status"></p>
-          <button class="button button-primary full-width" type="submit">Einloggen</button>
+          <button class="button button-primary full-width" type="submit">Login</button>
           <button class="inline-action" type="button" data-reset-password>
             Passwort vergessen?
           </button>

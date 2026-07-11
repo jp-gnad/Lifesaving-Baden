@@ -263,7 +263,7 @@
     const resetPasswordButton = document.querySelector("[data-reset-password]");
 
     if (params.has("verified")) {
-      setMessage("login", "E-Mail bestätigt. Du kannst dich jetzt einloggen.", true);
+      setMessage("login", "E-Mail bestätigt. Du kannst jetzt den Login nutzen.", true);
     }
 
     if (params.has("needsVerification")) {
@@ -296,7 +296,7 @@
       const password = String(formData.get("password") || "");
 
       try {
-        setLoading(button, true, "Einloggen...");
+        setLoading(button, true, "Login...");
         const { user } = await auth.signInWithEmailAndPassword(email, password);
 
         await user.reload();
