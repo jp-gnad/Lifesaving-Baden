@@ -1651,18 +1651,6 @@ h3 {
   color: var(--accent-light);
 }
 
-.security-field-item.is-provider-active > .profile-field-row {
-  border-color: rgba(28, 191, 105, 0.28);
-}
-
-.security-field-item.is-provider-warning > .profile-field-row {
-  border-color: rgba(255, 184, 77, 0.34);
-}
-
-.security-field-item.is-provider-inactive > .profile-field-row {
-  border-color: rgba(227, 6, 19, 0.24);
-}
-
 .profile-field-icon svg {
   width: 28px;
   height: 28px;
