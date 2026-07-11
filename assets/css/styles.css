@@ -1080,16 +1080,58 @@ h3 {
   background: rgba(15, 15, 18, 0.58);
 }
 
+.admin-account-card.has-open-request {
+  border-color: rgba(255, 237, 0, 0.34);
+  background:
+    linear-gradient(90deg, rgba(255, 237, 0, 0.08), rgba(15, 15, 18, 0.58) 34%),
+    rgba(15, 15, 18, 0.58);
+}
+
 .admin-account-identity {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
-.admin-account-identity h3 {
+.admin-account-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.admin-account-title,
+.admin-account-toggle {
   margin: 0;
   overflow-wrap: anywhere;
   font-size: 1rem;
+}
+
+.admin-account-title {
+  color: var(--text);
+}
+
+.admin-account-card.is-admin-account .admin-account-title,
+.admin-account-card.is-admin-account .admin-account-toggle {
+  color: var(--accent-light);
+}
+
+.admin-account-card.is-organizer-account .admin-account-title,
+.admin-account-card.is-organizer-account .admin-account-toggle {
+  color: var(--organizer-accent);
+}
+
+.admin-account-alert {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--bg);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .admin-account-identity p {
@@ -1147,9 +1189,14 @@ span.admin-role-control {
 }
 
 .admin-role-control.is-role-admin {
-  border-color: rgba(227, 6, 19, 0.46);
-  background: rgba(227, 6, 19, 0.14);
+  border-color: transparent;
+  background: transparent;
   color: var(--accent-light);
+}
+
+span.admin-role-control.is-role-admin {
+  min-height: auto;
+  padding: 0;
 }
 
 .admin-role-control.is-role-organisator {
@@ -1234,6 +1281,22 @@ span.admin-role-control {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.admin-account-details-shell {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-account-details-shell[hidden] {
+  display: none;
+}
+
+.admin-account-request-actions {
+  justify-content: flex-start;
 }
 
 .dashboard-action-card .button {
