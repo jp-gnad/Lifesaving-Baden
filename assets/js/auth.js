@@ -417,20 +417,35 @@
   function initSettingsMenu() {
     const menuItems = Array.from(document.querySelectorAll(".settings-menu-item"));
     const categories = Array.from(document.querySelectorAll(".settings-category"));
+    const mobileSettingsQuery = window.matchMedia("(max-width: 860px)");
 
     if (!menuItems.length || !categories.length) {
       return;
+    }
+
+    function isMobileSettingsView() {
+      return mobileSettingsQuery.matches;
     }
 
     function getVisibleItems() {
       return menuItems.filter((item) => !item.classList.contains("is-hidden"));
     }
 
+    function updateResponsiveSettingsView(hasValidHash) {
+      const isMobile = isMobileSettingsView();
+      const showContent = !isMobile || hasValidHash;
+
+      document.body.classList.toggle("settings-mobile-menu-view", isMobile && !showContent);
+      document.body.classList.toggle("settings-mobile-content-view", isMobile && showContent);
+    }
+
     function setActiveItem(hash, options = {}) {
       const visibleItems = getVisibleItems();
       const fallbackItem = visibleItems[0] || menuItems[0];
-      const targetItem = visibleItems.find((item) => item.getAttribute("href") === hash) || fallbackItem;
+      const hashTargetItem = visibleItems.find((item) => item.getAttribute("href") === hash);
+      const targetItem = hashTargetItem || fallbackItem;
       const activeHash = targetItem?.getAttribute("href") || "";
+      const hasValidHash = Boolean(hashTargetItem);
 
       menuItems.forEach((item) => {
         item.classList.toggle("is-active", item === targetItem);
@@ -444,15 +459,28 @@
         category.setAttribute("aria-hidden", String(!isActive));
       });
 
+      updateResponsiveSettingsView(hasValidHash);
+
       if (!options.keepHash && activeHash && window.location.hash !== activeHash) {
-        window.history.replaceState(null, "", activeHash);
+        if (options.pushHash) {
+          window.history.pushState(null, "", activeHash);
+        } else {
+          window.history.replaceState(null, "", activeHash);
+        }
       }
     }
 
     menuItems.forEach((item) => {
       item.addEventListener("click", (event) => {
         event.preventDefault();
-        setActiveItem(item.getAttribute("href"));
+        const targetHash = item.getAttribute("href");
+
+        if (isMobileSettingsView()) {
+          setActiveItem(targetHash, { pushHash: true });
+          return;
+        }
+
+        setActiveItem(targetHash);
       });
     });
 
@@ -460,6 +488,13 @@
 
     setActiveItem(window.location.hash, { keepHash: true });
     window.addEventListener("hashchange", () => setActiveItem(window.location.hash, { keepHash: true }));
+    window.addEventListener("popstate", () => setActiveItem(window.location.hash, { keepHash: true }));
+
+    if (typeof mobileSettingsQuery.addEventListener === "function") {
+      mobileSettingsQuery.addEventListener("change", () => setActiveItem(window.location.hash, { keepHash: true }));
+    } else if (typeof mobileSettingsQuery.addListener === "function") {
+      mobileSettingsQuery.addListener(() => setActiveItem(window.location.hash, { keepHash: true }));
+    }
   }
 
   function initAppPage(auth) {

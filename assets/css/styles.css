@@ -1672,6 +1672,7 @@ h3 {
 
   .settings-shell {
     grid-template-columns: 1fr;
+    max-width: 720px;
   }
 
   .settings-sidebar {
@@ -1682,11 +1683,19 @@ h3 {
   }
 
   .settings-menu {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .settings-content {
     grid-column: auto;
+  }
+
+  body[data-page="settings"].settings-mobile-menu-view .settings-content {
+    display: none;
+  }
+
+  body[data-page="settings"].settings-mobile-content-view .settings-sidebar {
+    display: none;
   }
 
   .danger-zone-card {
