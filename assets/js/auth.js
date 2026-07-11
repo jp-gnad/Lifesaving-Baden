@@ -1012,6 +1012,10 @@
       element.classList.toggle("is-hidden", !isOrganizer);
     });
 
+    document.querySelectorAll("[data-privileged-menu-divider]").forEach((element) => {
+      element.classList.toggle("is-hidden", !isOrganizer && !isAdmin);
+    });
+
     document.querySelectorAll("[data-admin-badge]").forEach((element) => {
       element.classList.toggle("is-hidden", !isAdmin);
     });
