@@ -1606,6 +1606,15 @@ h3 {
   color: rgba(255, 255, 255, 0.82);
 }
 
+.security-field-item.is-provider-active .profile-field-icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(28, 191, 105, 0.38);
+  border-radius: 50%;
+  background: rgba(28, 191, 105, 0.16);
+  color: var(--success);
+}
+
 .profile-field-icon svg {
   width: 28px;
   height: 28px;

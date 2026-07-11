@@ -1405,6 +1405,7 @@
   function updateGoogleProviderStatus(user) {
     const status = document.querySelector("[data-google-provider-status]");
     const button = document.querySelector("[data-google-link]");
+    const googleProviderItem = document.querySelector("[data-google-provider-item]");
 
     if (!status || !button) {
       return;
@@ -1413,6 +1414,7 @@
     const googleLinked = hasProvider(user, "google.com");
     const passwordLinked = hasProvider(user, "password");
 
+    googleProviderItem?.classList.toggle("is-provider-active", googleLinked);
     updateText("[data-password-provider-summary]", passwordLinked ? "Passwort-Login aktiv" : "Kein Passwort-Login eingerichtet");
 
     if (googleLinked && passwordLinked) {
