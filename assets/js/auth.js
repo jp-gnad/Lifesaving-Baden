@@ -1422,31 +1422,35 @@
 
     const googleLinked = hasProvider(user, "google.com");
     const passwordLinked = hasProvider(user, "password");
-    const canSwitchGoogle = googleLinked && passwordLinked && Boolean(user.emailVerified);
+    const hasEmailFallback = passwordLinked && Boolean(user.emailVerified);
 
     setProviderStatusClass(googleProviderItem, googleLinked ? "active" : "inactive");
     updatePasswordProviderStatus(user);
-    unlinkButton?.classList.toggle("is-hidden", !canSwitchGoogle);
-
-    if (canSwitchGoogle) {
-      updateText("[data-google-provider-summary]", "Google-Konto aktiv");
-      status.textContent = "Google ist verbunden. Du kannst das Google-Konto wechseln oder entfernen, weil ein bestätigtes E-Mail-Konto vorhanden ist.";
-      button.textContent = "Google-Konto wechseln";
-      return;
+    if (unlinkButton) {
+      unlinkButton.classList.toggle("is-hidden", !googleLinked);
+      unlinkButton.disabled = !hasEmailFallback;
+      unlinkButton.title = hasEmailFallback
+        ? ""
+        : "Erst möglich, wenn ein bestätigtes E-Mail-Konto vorhanden ist.";
+      unlinkButton.setAttribute("aria-disabled", String(!hasEmailFallback));
+      unlinkButton.textContent = "Google-Konto abmelden";
+      unlinkButton.dataset.defaultHtml = "Google-Konto abmelden";
     }
 
     if (googleLinked) {
       updateText("[data-google-provider-summary]", "Google-Konto aktiv");
-      status.textContent = passwordLinked
-        ? "Google ist verbunden. Wechseln oder Entfernen wird erst angeboten, wenn das E-Mail-Konto bestätigt ist."
-        : "Google ist verbunden. Lege zusätzlich ein E-Mail-Konto an, bevor du Google wechseln oder entfernen kannst.";
-      button.textContent = "Google-Konto bestätigen";
+      status.textContent = hasEmailFallback
+        ? "Google ist aktiv. Du kannst das Google-Konto wechseln oder abmelden, weil ein bestätigtes E-Mail-Konto vorhanden ist."
+        : "Google ist aktiv. Zum Wechseln oder Abmelden brauchst du zuerst ein bestätigtes E-Mail-Konto.";
+      button.textContent = "Google-Konto wechseln";
+      button.dataset.defaultHtml = "Google-Konto wechseln";
       return;
     }
 
     updateText("[data-google-provider-summary]", "Nicht verbunden");
     status.textContent = "Dieses Konto ist noch nicht mit Google verbunden.";
     button.textContent = "Google-Konto hinzufügen";
+    button.dataset.defaultHtml = "Google-Konto hinzufügen";
   }
 
   function setProviderStatusClass(element, status) {
@@ -1860,19 +1864,18 @@
     const passwordLinked = hasProvider(user, "password");
     let googleWasUnlinked = false;
 
+    if (googleLinked && (!passwordLinked || !user.emailVerified)) {
+      setGoogleAccountMessage(
+        passwordLinked
+          ? "Google-Konto wechseln ist erst möglich, wenn das E-Mail-Konto bestätigt ist."
+          : "Google-Konto wechseln ist erst möglich, wenn zusätzlich ein bestätigtes E-Mail-Konto existiert.",
+        false
+      );
+      return;
+    }
+
     try {
       setLoading(button, true, "Google öffnet...");
-
-      if (googleLinked && (!passwordLinked || !user.emailVerified)) {
-        await user.reauthenticateWithPopup(provider);
-        setGoogleAccountMessage(
-          passwordLinked
-            ? "Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst möglich, wenn das E-Mail-Konto bestätigt ist."
-            : "Google-Konto wurde erneut bestätigt. Ein Wechsel ist erst sicher möglich, wenn zusätzlich ein bestätigtes E-Mail-Konto existiert.",
-          true
-        );
-        return;
-      }
 
       if (googleLinked && passwordLinked) {
         const confirmed = window.confirm(
@@ -1922,11 +1925,11 @@
     }
 
     if (!hasProvider(user, "password") || !user.emailVerified) {
-      setGoogleAccountMessage("Google kann erst entfernt werden, wenn ein bestätigtes E-Mail-Konto vorhanden ist.", false);
+      setGoogleAccountMessage("Google kann erst abgemeldet werden, wenn ein bestätigtes E-Mail-Konto vorhanden ist.", false);
       return;
     }
 
-    const confirmed = window.confirm("Google-Konto entfernen? Dein Login über E-Mail und Passwort bleibt erhalten.");
+    const confirmed = window.confirm("Google-Konto abmelden? Dein Login über E-Mail und Passwort bleibt erhalten.");
 
     if (!confirmed) {
       return;
@@ -1939,7 +1942,7 @@
       updateAccountProfile(auth.currentUser);
       updateGoogleProviderStatus(auth.currentUser);
       await saveIdentitySnapshot(auth.currentUser, null);
-      setGoogleAccountMessage("Google-Konto wurde entfernt.", true);
+      setGoogleAccountMessage("Google-Konto wurde abgemeldet.", true);
     } catch (error) {
       setGoogleAccountMessage(translateAuthError(error), false);
     } finally {
