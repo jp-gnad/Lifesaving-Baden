@@ -32,6 +32,7 @@ Das bedeutet:
 |-- assets/
 |   |-- img/
 |   |   |-- elch-gelb.png
+|   |   |-- hero-swimmer.jpg
 |   |   `-- lifesaving-baden-logo.png
 |   |-- css/
 |   |   `-- styles.css
