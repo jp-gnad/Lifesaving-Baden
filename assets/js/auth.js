@@ -250,6 +250,10 @@
     initAppPage(initFirebase());
   }
 
+  if (page === "settings") {
+    initSettingsMenu();
+  }
+
   function initLoginPage(auth, googleProvider) {
     const params = new URLSearchParams(window.location.search);
     const loginForm = document.querySelector('[data-auth-form="login"]');
@@ -397,6 +401,29 @@
         setLoading(resendButton, false);
       }
     });
+  }
+
+  function initSettingsMenu() {
+    const menuItems = Array.from(document.querySelectorAll(".settings-menu-item"));
+
+    if (!menuItems.length) {
+      return;
+    }
+
+    function setActiveItem(hash) {
+      const activeHash = hash || menuItems[0].getAttribute("href");
+
+      menuItems.forEach((item) => {
+        item.classList.toggle("is-active", item.getAttribute("href") === activeHash);
+      });
+    }
+
+    menuItems.forEach((item) => {
+      item.addEventListener("click", () => setActiveItem(item.getAttribute("href")));
+    });
+
+    setActiveItem(window.location.hash);
+    window.addEventListener("hashchange", () => setActiveItem(window.location.hash));
   }
 
   function initAppPage(auth) {

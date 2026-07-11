@@ -960,6 +960,102 @@ h3 {
   max-width: 18ch;
 }
 
+.settings-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 760px);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+  max-width: 1180px;
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 96px;
+}
+
+.settings-menu {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-menu-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  padding: 8px 12px 8px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.settings-menu-item:hover,
+.settings-menu-item.is-active {
+  border-color: rgba(255, 237, 0, 0.28);
+  background: rgba(255, 237, 0, 0.08);
+  color: var(--text);
+}
+
+.settings-menu-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--bg);
+  font-weight: 950;
+}
+
+.settings-menu-item:nth-child(2) .settings-menu-icon {
+  background: var(--text);
+}
+
+.settings-menu-item:nth-child(3) .settings-menu-icon {
+  background: rgb(120, 207, 255);
+}
+
+.settings-menu-item:nth-child(4) .settings-menu-icon {
+  background: rgb(124, 218, 151);
+}
+
+.settings-menu-item:nth-child(5) .settings-menu-icon {
+  background: var(--accent);
+  color: var(--text);
+}
+
+.settings-content {
+  display: grid;
+  gap: 34px;
+  min-width: 0;
+}
+
+.settings-category {
+  display: grid;
+  gap: 14px;
+  scroll-margin-top: 96px;
+}
+
+.settings-category-header {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-category-header h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 3vw, 2.1rem);
+  line-height: 1.15;
+}
+
+.settings-content .account-form-card,
+.settings-content .google-account-card,
+.settings-content .password-card,
+.settings-content .danger-zone-card {
+  grid-column: auto;
+}
+
 .settings-layout {
   display: grid;
   grid-template-columns: minmax(240px, 0.8fr) minmax(280px, 1.2fr);
@@ -970,7 +1066,9 @@ h3 {
 
 .settings-profile {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
+  align-items: center;
   justify-items: start;
 }
 
@@ -980,7 +1078,8 @@ h3 {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
 }
 
-.settings-profile h2 {
+.settings-profile h2,
+.settings-profile h3 {
   margin: 0 0 8px;
   font-size: 1.4rem;
 }
@@ -1072,6 +1171,18 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar {
+    position: static;
+  }
+
+  .settings-menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .danger-zone-card {
     grid-column: auto;
   }
@@ -1120,5 +1231,13 @@ h3 {
   .account-avatar-large {
     width: 108px;
     height: 108px;
+  }
+
+  .settings-menu {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-profile {
+    grid-template-columns: 1fr;
   }
 }

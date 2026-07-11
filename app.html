@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-link-nudge">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-settings-categories">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-link-nudge"></script>
-    <script defer src="assets/js/auth.js?v=20260711-link-nudge"></script>
+    <script defer src="assets/js/firebase-config.js?v=20260711-settings-categories"></script>
+    <script defer src="assets/js/auth.js?v=20260711-settings-categories"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -68,6 +68,10 @@
           <p data-link-card-text>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
           <a class="button button-primary" href="link-request.html" data-link-card-action>Jetzt verknüpfen</a>
         </article>
+        <article class="card dashboard-action-card is-hidden" data-admin-only>
+          <h2>Adminbereich</h2>
+          <p>Admin-Konto erkannt. Funktionen werden später ergänzt.</p>
+        </article>
       </section>
     </main>
 
@@ -84,6 +88,7 @@
 
         <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
         <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
+        <p class="admin-badge is-hidden" data-admin-badge>Admin-Konto</p>
 
         <a class="account-status-link is-hidden" href="link-request.html" data-account-link-status>
           <span aria-hidden="true">!</span>
