@@ -6,12 +6,12 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-admin-compact">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-admin-birthyear">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260712-admin-compact"></script>
+    <script defer src="assets/js/auth.js?v=20260712-admin-birthyear"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -111,6 +111,19 @@
           </div>
           <div class="admin-request-list" data-admin-request-list aria-live="polite"></div>
           <p class="form-message" data-admin-request-message role="status"></p>
+        </article>
+        <article class="card dashboard-action-card admin-account-panel is-hidden" data-admin-only data-admin-accounts>
+          <div class="admin-panel-heading">
+            <div>
+              <h2>Kontenübersicht</h2>
+              <p data-admin-account-summary>Firebase-Konten werden geladen.</p>
+            </div>
+            <button class="button button-secondary" type="button" data-admin-accounts-refresh>
+              Aktualisieren
+            </button>
+          </div>
+          <div class="admin-account-list" data-admin-account-list aria-live="polite"></div>
+          <p class="form-message" data-admin-account-message role="status"></p>
         </article>
       </section>
     </main>

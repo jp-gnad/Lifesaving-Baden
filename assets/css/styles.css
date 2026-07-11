@@ -904,7 +904,8 @@ h3 {
   color: var(--accent-light);
 }
 
-.admin-request-panel {
+.admin-request-panel,
+.admin-account-panel {
   grid-column: 1 / -1;
 }
 
@@ -1061,6 +1062,78 @@ h3 {
   min-height: 38px;
   padding: 9px 12px;
   font-size: 0.92rem;
+}
+
+.admin-account-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-account-card {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(145px, 190px) minmax(260px, 390px);
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  background: rgba(15, 15, 18, 0.58);
+}
+
+.admin-account-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-account-identity h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.admin-account-identity p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-account-field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+
+.admin-account-field select,
+.admin-account-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.admin-account-field select:focus,
+.admin-account-field input:focus {
+  outline: 3px solid rgba(255, 237, 0, 0.22);
+  border-color: var(--primary);
+}
+
+.admin-account-field select:disabled {
+  color: var(--accent-light);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.admin-account-link-controls {
+  display: grid;
+  grid-template-columns: 82px minmax(120px, 1fr);
+  gap: 8px;
 }
 
 .dashboard-action-card .button {
@@ -2027,6 +2100,10 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .admin-account-card {
+    grid-template-columns: 1fr;
+  }
+
   .admin-decision-field {
     grid-template-columns: 1fr;
   }
@@ -2036,6 +2113,10 @@ h3 {
   }
 
   .admin-request-details {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-account-link-controls {
     grid-template-columns: 1fr;
   }
 

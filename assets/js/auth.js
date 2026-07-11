@@ -154,6 +154,17 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
+  function setAdminAccountMessage(text, isSuccess) {
+    const message = document.querySelector("[data-admin-account-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function setProfileMessage(text, isSuccess) {
     const message = document.querySelector("[data-profile-message]");
 
@@ -1182,6 +1193,7 @@
 
       updateRoleUi(role);
       await initAdminLinkRequests(auth, role);
+      await initAdminAccounts(auth, role);
     } catch (error) {
       updateRoleUi(getDefaultAccountRole());
     }
@@ -1337,6 +1349,41 @@
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }
 
+  function getShortBirthYear(value) {
+    if (!value) {
+      return "--";
+    }
+
+    if (typeof value.toDate === "function") {
+      return String(value.toDate().getFullYear()).slice(-2);
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return String(value.getFullYear()).slice(-2);
+    }
+
+    const text = String(value).trim();
+    const yearMatch = text.match(/^(\d{4})/);
+
+    if (yearMatch) {
+      return yearMatch[1].slice(-2);
+    }
+
+    const parsed = new Date(text);
+
+    if (!Number.isNaN(parsed.getTime())) {
+      return String(parsed.getFullYear()).slice(-2);
+    }
+
+    return "--";
+  }
+
+  function getAdminBirthYear(data) {
+    const request = data?.personLinkRequest || {};
+
+    return getShortBirthYear(data?.birthDate || request.birthDate);
+  }
+
   function appendAdminRequestDetail(list, label, value) {
     if (!value) {
       return;
@@ -1376,7 +1423,7 @@
     identity.className = "admin-request-identity";
     title.className = "admin-request-toggle";
     title.type = "button";
-    title.textContent = `${requestName} (${getInitialsFromName(requestName)})`;
+    title.textContent = `${requestName} (${getAdminBirthYear(data)})`;
     title.dataset.adminRequestToggle = "";
     title.setAttribute("aria-expanded", "false");
     title.setAttribute("aria-controls", detailsId);
@@ -1586,6 +1633,393 @@
     }
 
     await loadAdminLinkRequests(auth);
+  }
+
+  function getAdminAccountControls() {
+    return {
+      panel: document.querySelector("[data-admin-accounts]"),
+      list: document.querySelector("[data-admin-account-list]"),
+      summary: document.querySelector("[data-admin-account-summary]"),
+      refreshButton: document.querySelector("[data-admin-accounts-refresh]")
+    };
+  }
+
+  function setAdminAccountSummary(text) {
+    const { summary } = getAdminAccountControls();
+
+    if (summary) {
+      summary.textContent = text;
+    }
+  }
+
+  function getAdminAccountName(data) {
+    return data?.displayName || data?.personLinkRequest?.accountName || data?.email || "Unbenanntes Konto";
+  }
+
+  function getAdminAccountBranch(data) {
+    return data?.dlrgBranch || data?.personLinkRequest?.dlrgBranch || "Nicht angegeben";
+  }
+
+  function getAdminAccountLinkedId(data) {
+    return data?.linkedPersonId || data?.personId || "";
+  }
+
+  function getAdminAccountRoleValue(data) {
+    if (isAdminAccount(data, {})) {
+      return "admin";
+    }
+
+    if (isOrganizerAccount(data, {})) {
+      return "organisator";
+    }
+
+    return "sportler";
+  }
+
+  function getAdminAccountRoleLabel(value) {
+    const labels = {
+      admin: "Admin",
+      organisator: "Organisator",
+      sportler: "Sportler"
+    };
+
+    return labels[value] || "Sportler";
+  }
+
+  function createAdminAccountRoleSelect(item) {
+    const data = item.data || {};
+    const roleValue = getAdminAccountRoleValue(data);
+    const select = document.createElement("select");
+
+    select.dataset.adminAccountRole = "";
+    select.dataset.previousValue = roleValue;
+    select.disabled = roleValue === "admin";
+
+    if (roleValue === "admin") {
+      const option = document.createElement("option");
+
+      option.value = "admin";
+      option.textContent = "Admin";
+      select.append(option);
+      select.value = "admin";
+      return select;
+    }
+
+    [
+      { value: "sportler", label: "Sportler" },
+      { value: "organisator", label: "Organisator" }
+    ].forEach((role) => {
+      const option = document.createElement("option");
+
+      option.value = role.value;
+      option.textContent = role.label;
+      select.append(option);
+    });
+
+    select.value = roleValue;
+    return select;
+  }
+
+  function createAdminAccountCard(item) {
+    const data = item.data || {};
+    const accountName = getAdminAccountName(data);
+    const linked = isPersonLinked(data);
+    const linkedId = getAdminAccountLinkedId(data);
+    const card = document.createElement("article");
+    const identity = document.createElement("div");
+    const name = document.createElement("h3");
+    const branch = document.createElement("p");
+    const roleLabel = document.createElement("label");
+    const roleText = document.createElement("span");
+    const roleSelect = createAdminAccountRoleSelect(item);
+    const linkField = document.createElement("div");
+    const linkTitle = document.createElement("span");
+    const linkControls = document.createElement("div");
+    const linkedSelect = document.createElement("select");
+    const linkedIdInput = document.createElement("input");
+
+    card.className = "admin-account-card";
+    card.dataset.adminAccountCard = "";
+    card.dataset.targetUid = item.uid;
+
+    identity.className = "admin-account-identity";
+    name.textContent = `${accountName} (${getAdminBirthYear(data)})`;
+    branch.textContent = `DLRG ${getAdminAccountBranch(data)}`;
+    identity.append(name, branch);
+
+    roleLabel.className = "admin-account-field";
+    roleText.textContent = "Rolle";
+    roleLabel.append(roleText, roleSelect);
+
+    linkField.className = "admin-account-field admin-account-link-field";
+    linkTitle.textContent = "Verknüpfung";
+    linkControls.className = "admin-account-link-controls";
+
+    [
+      { value: "linked", label: "Ja" },
+      { value: "open", label: "Nein" }
+    ].forEach((status) => {
+      const option = document.createElement("option");
+
+      option.value = status.value;
+      option.textContent = status.label;
+      linkedSelect.append(option);
+    });
+
+    linkedSelect.dataset.adminAccountLinkStatus = "";
+    linkedSelect.dataset.previousValue = linked ? "linked" : "open";
+    linkedSelect.value = linked ? "linked" : "open";
+
+    linkedIdInput.type = "text";
+    linkedIdInput.value = linkedId;
+    linkedIdInput.placeholder = "Personen-ID";
+    linkedIdInput.dataset.adminAccountLinkId = "";
+    linkedIdInput.dataset.previousValue = linkedId;
+
+    linkControls.append(linkedSelect, linkedIdInput);
+    linkField.append(linkTitle, linkControls);
+    card.append(identity, roleLabel, linkField);
+    return card;
+  }
+
+  function renderAdminAccounts(accounts) {
+    const { list } = getAdminAccountControls();
+
+    if (!list) {
+      return;
+    }
+
+    list.replaceChildren();
+
+    if (!accounts.length) {
+      const emptyState = document.createElement("p");
+
+      emptyState.className = "admin-request-empty";
+      emptyState.textContent = "Keine Konten gefunden.";
+      list.append(emptyState);
+      setAdminAccountSummary("Keine Konten gefunden.");
+      return;
+    }
+
+    accounts.forEach((account) => {
+      list.append(createAdminAccountCard(account));
+    });
+
+    setAdminAccountSummary(`${accounts.length} Konten gefunden.`);
+  }
+
+  async function loadAdminAccounts(auth) {
+    const { list, refreshButton } = getAdminAccountControls();
+
+    if (!list || !window.firebase.firestore) {
+      return;
+    }
+
+    try {
+      setLoading(refreshButton, true, "Lade...");
+      setAdminAccountSummary("Firebase-Konten werden geladen.");
+      setAdminAccountMessage("", true);
+
+      const snapshot = await window.firebase.firestore()
+        .collection("users")
+        .limit(200)
+        .get();
+      const accounts = snapshot.docs
+        .map((doc) => ({ uid: doc.id, data: doc.data() || {} }))
+        .sort((first, second) => getAdminAccountName(first.data).localeCompare(
+          getAdminAccountName(second.data),
+          "de",
+          { sensitivity: "base" }
+        ));
+
+      renderAdminAccounts(accounts);
+    } catch (error) {
+      setAdminAccountSummary("Konten konnten nicht geladen werden.");
+      setAdminAccountMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(refreshButton, false);
+    }
+  }
+
+  async function updateAdminAccountRole(auth, select) {
+    const card = select.closest("[data-admin-account-card]");
+    const targetUid = card?.dataset.targetUid;
+    const nextRole = select.value;
+    const previousRole = select.dataset.previousValue || "sportler";
+
+    if (!targetUid || !["sportler", "organisator"].includes(nextRole)) {
+      select.value = previousRole;
+      setAdminAccountMessage("Diese Rolle kann hier nicht vergeben werden.", false);
+      return;
+    }
+
+    if (nextRole === previousRole) {
+      return;
+    }
+
+    try {
+      select.disabled = true;
+      setAdminAccountMessage("Rolle wird gespeichert...", true);
+      await window.firebase.firestore().collection("users").doc(targetUid).update({
+        role: nextRole,
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+      });
+      select.dataset.previousValue = nextRole;
+
+      if (targetUid === auth.currentUser?.uid) {
+        clearUserDocCache(targetUid);
+      }
+
+      setAdminAccountMessage(`Rolle gespeichert: ${getAdminAccountRoleLabel(nextRole)}.`, true);
+    } catch (error) {
+      select.value = previousRole;
+      setAdminAccountMessage(translateFirestoreError(error), false);
+    } finally {
+      select.disabled = false;
+    }
+  }
+
+  async function updateAdminAccountLinkStatus(auth, select) {
+    const card = select.closest("[data-admin-account-card]");
+    const targetUid = card?.dataset.targetUid;
+    const nextStatus = select.value;
+    const previousStatus = select.dataset.previousValue || "open";
+    const idInput = card?.querySelector("[data-admin-account-link-id]");
+
+    if (!targetUid || !["linked", "open"].includes(nextStatus)) {
+      select.value = previousStatus;
+      setAdminAccountMessage("Dieser Verknüpfungsstatus ist ungültig.", false);
+      return;
+    }
+
+    if (nextStatus === previousStatus) {
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const linkedId = idInput?.value.trim() || "";
+    const payload = {
+      personLinkStatus: nextStatus === "linked" ? "linked" : "open",
+      personLinked: nextStatus === "linked",
+      updatedAt: fieldValue.serverTimestamp()
+    };
+
+    if (nextStatus === "linked" && linkedId) {
+      payload.linkedPersonId = linkedId;
+    }
+
+    if (nextStatus === "open") {
+      payload.linkedPersonId = fieldValue.delete();
+    }
+
+    try {
+      select.disabled = true;
+      setAdminAccountMessage("Verknüpfung wird gespeichert...", true);
+      await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
+      select.dataset.previousValue = nextStatus;
+
+      if (idInput && nextStatus === "open") {
+        idInput.value = "";
+        idInput.dataset.previousValue = "";
+      }
+
+      if (targetUid === auth.currentUser?.uid) {
+        clearUserDocCache(targetUid);
+      }
+
+      setAdminAccountMessage(
+        nextStatus === "linked" ? "Konto als verknüpft markiert." : "Verknüpfung entfernt.",
+        true
+      );
+    } catch (error) {
+      select.value = previousStatus;
+      setAdminAccountMessage(translateFirestoreError(error), false);
+    } finally {
+      select.disabled = false;
+    }
+  }
+
+  async function updateAdminAccountLinkedId(auth, input) {
+    const card = input.closest("[data-admin-account-card]");
+    const targetUid = card?.dataset.targetUid;
+    const nextId = input.value.trim();
+    const previousId = input.dataset.previousValue || "";
+
+    if (!targetUid || nextId === previousId) {
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const payload = {
+      updatedAt: fieldValue.serverTimestamp()
+    };
+
+    if (nextId) {
+      payload.linkedPersonId = nextId;
+      payload.personLinkStatus = "linked";
+      payload.personLinked = true;
+    } else {
+      payload.linkedPersonId = fieldValue.delete();
+    }
+
+    try {
+      input.disabled = true;
+      setAdminAccountMessage("Personen-ID wird gespeichert...", true);
+      await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
+      input.dataset.previousValue = nextId;
+
+      const statusSelect = card.querySelector("[data-admin-account-link-status]");
+
+      if (nextId && statusSelect) {
+        statusSelect.value = "linked";
+        statusSelect.dataset.previousValue = "linked";
+      }
+
+      if (targetUid === auth.currentUser?.uid) {
+        clearUserDocCache(targetUid);
+      }
+
+      setAdminAccountMessage("Personen-ID gespeichert.", true);
+    } catch (error) {
+      input.value = previousId;
+      setAdminAccountMessage(translateFirestoreError(error), false);
+    } finally {
+      input.disabled = false;
+    }
+  }
+
+  async function initAdminAccounts(auth, role) {
+    const { panel, list, refreshButton } = getAdminAccountControls();
+
+    if (!panel || !list || !role?.isAdmin) {
+      return;
+    }
+
+    if (!list.dataset.listenerAttached) {
+      list.dataset.listenerAttached = "true";
+      list.addEventListener("change", (event) => {
+        if (event.target.matches("[data-admin-account-role]")) {
+          updateAdminAccountRole(auth, event.target);
+          return;
+        }
+
+        if (event.target.matches("[data-admin-account-link-status]")) {
+          updateAdminAccountLinkStatus(auth, event.target);
+          return;
+        }
+
+        if (event.target.matches("[data-admin-account-link-id]")) {
+          updateAdminAccountLinkedId(auth, event.target);
+        }
+      });
+    }
+
+    if (refreshButton && !refreshButton.dataset.listenerAttached) {
+      refreshButton.dataset.listenerAttached = "true";
+      refreshButton.addEventListener("click", () => loadAdminAccounts(auth));
+    }
+
+    await loadAdminAccounts(auth);
   }
 
   function hasFreshLogin(user) {
