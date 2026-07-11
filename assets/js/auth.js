@@ -2,6 +2,7 @@
   const page = document.body.dataset.page;
   const appUrl = "app.html";
   const loginUrl = "login.html";
+  const accountLinkRecipient = "jpg.gnad@web.de";
 
   function getVerificationRedirectUrl() {
     return new URL("login.html?verified=1", window.location.href).href;
@@ -75,13 +76,13 @@
     const messages = {
       "auth/email-already-in-use": "Diese E-Mail ist bereits registriert.",
       "auth/invalid-credential": "E-Mail oder Passwort stimmt nicht.",
-      "auth/invalid-email": "Bitte gib eine gueltige E-Mail-Adresse ein.",
+      "auth/invalid-email": "Bitte gib eine gültige E-Mail-Adresse ein.",
       "auth/network-request-failed": "Firebase ist gerade nicht erreichbar.",
       "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
       "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
       "auth/popup-closed-by-user": "Google-Login wurde abgebrochen.",
       "auth/requires-recent-login": "Bitte melde dich neu an und versuche es direkt danach erneut.",
-      "auth/too-many-requests": "Zu viele Versuche. Bitte spaeter erneut probieren.",
+      "auth/too-many-requests": "Zu viele Versuche. Bitte später erneut probieren.",
       "auth/unauthorized-domain": "Diese Domain ist in Firebase noch nicht freigegeben.",
       "auth/user-disabled": "Dieses Konto wurde deaktiviert.",
       "auth/user-not-found": "E-Mail oder Passwort stimmt nicht.",
@@ -89,7 +90,7 @@
       "auth/wrong-password": "E-Mail oder Passwort stimmt nicht."
     };
 
-    return messages[error.code] || "Der Login ist fehlgeschlagen. Bitte pruefe die Eingaben.";
+    return messages[error.code] || "Der Login ist fehlgeschlagen. Bitte prüfe die Eingaben.";
   }
 
   function translateFirestoreError(error) {
@@ -124,6 +125,17 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
+  function setLinkRequestMessage(text, isSuccess) {
+    const message = document.querySelector("[data-link-request-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function disableAuthControls() {
     document
       .querySelectorAll('[data-auth-form] button, [data-google-login], [data-resend-verification]')
@@ -136,7 +148,7 @@
     if (window.location.protocol === "file:") {
       setMessage(
         "login",
-        "Bitte oeffne die Seite ueber GitHub Pages oder einen lokalen HTTP-Server, nicht per Doppelklick als Datei."
+        "Bitte öffne die Seite über GitHub Pages oder einen lokalen HTTP-Server, nicht per Doppelklick als Datei."
       );
       disableAuthControls();
       return false;
@@ -145,7 +157,7 @@
     if (!window.isFirebaseConfigured) {
       setMessage(
         "login",
-        "Firebase ist noch nicht konfiguriert. Pruefe assets/js/firebase-config.js."
+        "Firebase ist noch nicht konfiguriert. Prüfe assets/js/firebase-config.js."
       );
       disableAuthControls();
       return false;
@@ -154,7 +166,7 @@
     if (!window.firebase || !window.firebase.auth) {
       setMessage(
         "login",
-        "Firebase konnte nicht geladen werden. Pruefe Internetverbindung, Browser-Blocker oder die Firebase-Skripte."
+        "Firebase konnte nicht geladen werden. Prüfe Internetverbindung, Browser-Blocker oder die Firebase-Skripte."
       );
       disableAuthControls();
       return false;
@@ -205,11 +217,11 @@
     const resendButton = document.querySelector("[data-resend-verification]");
 
     if (params.has("verified")) {
-      setMessage("login", "E-Mail bestaetigt. Du kannst dich jetzt einloggen.", true);
+      setMessage("login", "E-Mail bestätigt. Du kannst dich jetzt einloggen.", true);
     }
 
     if (params.has("needsVerification")) {
-      setMessage("login", "Bitte bestaetige zuerst deine E-Mail-Adresse.");
+      setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse.");
     }
 
     auth.onAuthStateChanged(async (user) => {
@@ -226,7 +238,7 @@
       }
 
       showResendButton(true);
-      setMessage("login", "Bitte bestaetige deine E-Mail-Adresse, bevor du fortfaehrst.");
+      setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
     });
 
     loginForm.addEventListener("submit", async (event) => {
@@ -245,7 +257,7 @@
 
         if (!auth.currentUser?.emailVerified) {
           showResendButton(true);
-          setMessage("login", "Bitte bestaetige deine E-Mail-Adresse, bevor du fortfaehrst.");
+          setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
           return;
         }
 
@@ -279,7 +291,7 @@
         showResendButton(true);
         setMessage(
           "login",
-          "Konto erstellt. Bitte bestaetige deine E-Mail-Adresse und logge dich danach ein.",
+          "Konto erstellt. Bitte bestätige deine E-Mail-Adresse und logge dich danach ein.",
           true
         );
         registerForm.reset();
@@ -292,7 +304,7 @@
 
     googleButton.addEventListener("click", async () => {
       try {
-        setLoading(googleButton, true, "Google oeffnet...");
+        setLoading(googleButton, true, "Google öffnet...");
         await auth.signInWithPopup(googleProvider);
         redirectToApp();
       } catch (error) {
@@ -315,7 +327,7 @@
         await user.sendEmailVerification({
           url: getVerificationRedirectUrl()
         });
-        setMessage("login", "Bestaetigungs-Mail wurde erneut gesendet.", true);
+        setMessage("login", "Bestätigungs-Mail wurde erneut gesendet.", true);
       } catch (error) {
         setMessage("login", translateAuthError(error));
       } finally {
@@ -376,6 +388,7 @@
       if (settingsLoadedForUser !== auth.currentUser.uid) {
         settingsLoadedForUser = auth.currentUser.uid;
         await initUserSettings(auth);
+        await initLinkRequest(auth);
       }
     });
 
@@ -470,6 +483,7 @@
     setTextForAll("[data-account-email]", accountEmail);
     setTextForAll("[data-account-name]", accountName);
     setTextForAll("[data-account-greeting-name]", accountName);
+    setTextForAll("[data-link-account-email]", accountEmail);
     updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
   }
@@ -493,12 +507,12 @@
     }
 
     if (!hasFreshLogin(user)) {
-      setDeleteMessage("Bitte melde dich neu an und loesche das Konto direkt danach.", false);
+      setDeleteMessage("Bitte melde dich neu an und lösche das Konto direkt danach.", false);
       return;
     }
 
     const confirmed = window.confirm(
-      "Konto wirklich loeschen? Diese Aktion entfernt dein Konto und deine gespeicherten Einstellungen."
+      "Konto wirklich löschen? Diese Aktion entfernt dein Konto und deine gespeicherten Einstellungen."
     );
 
     if (!confirmed) {
@@ -506,7 +520,7 @@
     }
 
     try {
-      setLoading(deleteButton, true, "Loeschen...");
+      setLoading(deleteButton, true, "Löschen...");
 
       if (window.firebase.firestore) {
         await window.firebase.firestore().collection("users").doc(user.uid).delete();
@@ -668,5 +682,153 @@
     } finally {
       setSettingsControlsDisabled(false);
     }
+  }
+
+  async function initLinkRequest(auth) {
+    const controls = getLinkRequestControls();
+
+    if (!controls.form) {
+      return;
+    }
+
+    if (!window.firebase.firestore) {
+      setLinkRequestControlsDisabled(true);
+      setLinkRequestMessage("Firestore ist noch nicht geladen.", false);
+      return;
+    }
+
+    const db = window.firebase.firestore();
+
+    if (!controls.form.dataset.listenerAttached) {
+      controls.form.dataset.listenerAttached = "true";
+      controls.form.addEventListener("submit", (event) => submitLinkRequest(event, auth, db));
+    }
+
+    await loadLinkRequest(auth, db);
+  }
+
+  function getLinkRequestControls() {
+    const form = document.querySelector("[data-link-request-form]");
+
+    return {
+      form,
+      firstName: form?.querySelector('[name="firstName"]'),
+      lastName: form?.querySelector('[name="lastName"]'),
+      birthDate: form?.querySelector('[name="birthDate"]'),
+      submitButton: form?.querySelector('button[type="submit"]')
+    };
+  }
+
+  function setLinkRequestControlsDisabled(isDisabled) {
+    const controls = getLinkRequestControls();
+
+    if (!controls.form) {
+      return;
+    }
+
+    controls.form.querySelectorAll("input, button").forEach((control) => {
+      control.disabled = isDisabled;
+    });
+  }
+
+  async function loadLinkRequest(auth, db) {
+    const controls = getLinkRequestControls();
+    const user = auth.currentUser;
+
+    if (!controls.form || !user) {
+      return;
+    }
+
+    setLinkRequestControlsDisabled(true);
+
+    try {
+      const snapshot = await db.collection("users").doc(user.uid).get();
+      const data = snapshot.exists ? snapshot.data() : {};
+      const request = data.personLinkRequest || null;
+
+      if (request) {
+        controls.firstName.value = request.firstName || "";
+        controls.lastName.value = request.lastName || "";
+        controls.birthDate.value = request.birthDate || "";
+        setLinkRequestMessage("Letzter Antrag ist gespeichert.", true);
+      }
+    } catch (error) {
+      setLinkRequestMessage(translateFirestoreError(error), false);
+    } finally {
+      setLinkRequestControlsDisabled(false);
+    }
+  }
+
+  async function submitLinkRequest(event, auth, db) {
+    event.preventDefault();
+
+    const controls = getLinkRequestControls();
+    const user = auth.currentUser;
+
+    if (!controls.form || !user) {
+      setLinkRequestMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    const details = {
+      firstName: controls.firstName.value.trim(),
+      lastName: controls.lastName.value.trim(),
+      birthDate: controls.birthDate.value,
+      accountEmail: user.email || "",
+      accountName: getAccountName(user),
+      accountUid: user.uid
+    };
+
+    if (!details.firstName || !details.lastName || !details.birthDate) {
+      setLinkRequestMessage("Bitte fülle Vorname, Nachname und Geburtsdatum aus.", false);
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+
+    try {
+      setLinkRequestControlsDisabled(true);
+      setLoading(controls.submitButton, true, "Antrag speichern...");
+
+      await db.collection("users").doc(user.uid).set({
+        personLinkStatus: "requested",
+        personLinkRequest: {
+          ...details,
+          recipientEmail: accountLinkRecipient,
+          status: "requested",
+          requestedAt: fieldValue.serverTimestamp(),
+          updatedAt: fieldValue.serverTimestamp()
+        },
+        updatedAt: fieldValue.serverTimestamp()
+      }, { merge: true });
+
+      setLinkRequestMessage("Antrag gespeichert. Dein E-Mail-Programm wird geöffnet.", true);
+      window.location.href = buildLinkRequestMailto(details);
+    } catch (error) {
+      setLinkRequestMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(controls.submitButton, false);
+      setLinkRequestControlsDisabled(false);
+    }
+  }
+
+  function buildLinkRequestMailto(details) {
+    const subject = "Konto-Verknüpfung beantragt";
+    const body = [
+      "Hallo Jan-Philipp,",
+      "",
+      "ich möchte mein Lifesaving-Baden-Konto mit meiner Person in der Datenbank verknüpfen.",
+      "",
+      `Vorname: ${details.firstName}`,
+      `Nachname: ${details.lastName}`,
+      `Geburtsdatum: ${details.birthDate}`,
+      `E-Mail des Kontos: ${details.accountEmail}`,
+      `Kontoname: ${details.accountName}`,
+      `Firebase UID: ${details.accountUid}`,
+      "",
+      "Bitte prüfe meine Identität und ordne die passende Person zu."
+    ].join("\n");
+
+    return `mailto:${accountLinkRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 })();

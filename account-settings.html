@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Kontoeinstellungen fuer Lifesaving Baden.">
+    <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="stylesheet" href="assets/css/styles.css?v=20260711-darkmode">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -49,7 +49,7 @@
           <h2>Datenschutz</h2>
           <label class="setting-check">
             <input type="checkbox" data-keep-data>
-            <span>Persoenliche Daten bis auf Widerruf speichern</span>
+            <span>Persönliche Daten bis auf Widerruf speichern</span>
           </label>
           <label class="setting-check">
             <input type="checkbox" data-private-profile>
@@ -57,15 +57,49 @@
           </label>
           <p class="setting-help">
             Wenn dieser Haken aus ist, kann dein Profil von anderen Accounts
-            oeffentlich gefunden und eingesehen werden.
+            öffentlich gefunden und eingesehen werden.
           </p>
           <p class="form-message success" data-settings-message role="status"></p>
         </article>
 
+        <article class="card setting-card link-request-card">
+          <h2>Personenverknüpfung beantragen</h2>
+          <p>
+            Beantrage hier die Verknüpfung deines Kontos mit deiner Person in
+            der Datenbank. Die Angaben werden zur Identitätsprüfung verwendet.
+          </p>
+          <form class="setting-form" data-link-request-form>
+            <label>
+              <span>Vorname</span>
+              <input type="text" name="firstName" autocomplete="given-name" required>
+            </label>
+            <label>
+              <span>Nachname</span>
+              <input type="text" name="lastName" autocomplete="family-name" required>
+            </label>
+            <label>
+              <span>Geburtsdatum</span>
+              <input type="date" name="birthDate" required>
+            </label>
+            <div class="setting-value">
+              <strong>E-Mail des Kontos</strong>
+              <span data-link-account-email>Keine E-Mail geladen.</span>
+            </div>
+            <button class="button button-primary full-width" type="submit">
+              Verknüpfung beantragen
+            </button>
+          </form>
+          <p class="setting-help">
+            Nach dem Speichern öffnet sich eine vorbereitete E-Mail an
+            jpg.gnad@web.de. Bitte sende diese E-Mail ab.
+          </p>
+          <p class="form-message" data-link-request-message role="status"></p>
+        </article>
+
         <article class="card danger-zone danger-zone-card">
-          <h2>Konto loeschen</h2>
+          <h2>Konto löschen</h2>
           <p>Das Konto und die gespeicherten Einstellungen werden entfernt.</p>
-          <button class="danger-button" type="button" data-delete-account>Konto loeschen</button>
+          <button class="danger-button" type="button" data-delete-account>Konto löschen</button>
           <p class="form-message" data-delete-message role="status"></p>
         </article>
       </section>
