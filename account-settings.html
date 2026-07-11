@@ -6,7 +6,7 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-settings-tabs">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260711-settings-menu-title">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -30,6 +30,7 @@
     <main class="dashboard settings-page">
       <section class="settings-shell" aria-label="Kontoeinstellungen">
         <aside class="settings-sidebar" aria-label="Einstellungskategorien">
+          <p class="settings-menu-title">Kontoeinstellungen</p>
           <nav class="settings-menu">
             <a class="settings-menu-item is-active" href="#persoenliche-daten">
               <span class="settings-menu-icon">P</span>
@@ -59,14 +60,6 @@
         </aside>
 
         <div class="settings-content">
-          <section class="dashboard-header settings-page-header">
-            <p class="eyebrow">Konto</p>
-            <h1>Kontoeinstellungen</h1>
-            <p>
-              Verwalte hier deine Datenschutz-Einstellungen und dein Konto.
-            </p>
-          </section>
-
           <section class="settings-category" id="persoenliche-daten" aria-labelledby="settings-personal-title">
             <div class="settings-category-header">
               <p class="eyebrow">Persönliche Daten</p>
