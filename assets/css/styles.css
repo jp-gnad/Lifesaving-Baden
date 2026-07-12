@@ -1855,11 +1855,12 @@ span.admin-role-control.is-role-admin {
   padding-inline: 42px;
   border-color: rgba(255, 255, 255, 0.46);
   background: transparent;
-  color: var(--primary);
+  color: var(--muted);
 }
 
 .account-manage:hover {
   background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
   transform: none;
 }
 
