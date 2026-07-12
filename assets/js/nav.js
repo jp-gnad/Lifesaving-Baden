@@ -2,6 +2,7 @@
   function syncNavBodyState() {
     const hasOpenNav = Boolean(document.querySelector(".nav.is-open"));
 
+    document.documentElement.classList.toggle("nav-open", hasOpenNav);
     document.body.classList.toggle("nav-open", hasOpenNav);
   }
 

@@ -71,6 +71,7 @@ body.modal-open {
   overflow: hidden;
 }
 
+html.nav-open,
 body.nav-open {
   overflow: hidden;
 }
@@ -2585,6 +2586,7 @@ span.admin-role-control.is-role-admin {
     align-items: center;
     flex-direction: row;
     gap: 12px;
+    backdrop-filter: none;
   }
 
   .site-footer {
@@ -2618,11 +2620,14 @@ span.admin-role-control.is-role-admin {
     position: fixed;
     top: 68px;
     right: 0;
-    bottom: 0;
     left: 0;
     z-index: 30;
     display: none;
     width: 100vw;
+    height: calc(100vh - 68px);
+    height: calc(100dvh - 68px);
+    min-height: calc(100vh - 68px);
+    min-height: calc(100dvh - 68px);
     min-width: 0;
     padding: 22px clamp(20px, 5vw, 64px);
     border: 0;
@@ -2630,8 +2635,7 @@ span.admin-role-control.is-role-admin {
     border-radius: 0;
     background: rgba(24, 24, 29, 0.98);
     box-shadow: var(--shadow);
-    backdrop-filter: blur(16px);
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .nav.is-open .nav-links {
