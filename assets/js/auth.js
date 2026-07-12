@@ -1675,6 +1675,73 @@
     return 4;
   }
 
+  function getAdminAccountRoleSortRank(roleValue, hasOpenRequest) {
+    if (roleValue === "admin") {
+      return 0;
+    }
+
+    if (hasOpenRequest) {
+      return 1;
+    }
+
+    if (roleValue === "organisator") {
+      return 2;
+    }
+
+    if (roleValue === "kader-sportler") {
+      return 3;
+    }
+
+    return 4;
+  }
+
+  function updateAdminAccountCardRole(card, roleValue) {
+    if (!card) {
+      return;
+    }
+
+    card.dataset.accountRole = roleValue;
+    card.classList.toggle("is-admin-account", roleValue === "admin");
+    card.classList.toggle("is-organizer-account", roleValue === "organisator");
+    card.classList.toggle("is-kader-account", roleValue === "kader-sportler");
+  }
+
+  function getAdminAccountCardSortData(card) {
+    return {
+      rank: getAdminAccountRoleSortRank(
+        card?.dataset.accountRole || "sportler",
+        card?.dataset.hasPendingRequest === "true"
+      ),
+      name: card?.dataset.accountName || ""
+    };
+  }
+
+  function reorderAdminAccountCard(card) {
+    const list = card?.parentElement;
+
+    if (!card || !list) {
+      return;
+    }
+
+    const current = getAdminAccountCardSortData(card);
+    const target = Array.from(list.querySelectorAll("[data-admin-account-card]"))
+      .find((otherCard) => {
+        if (otherCard === card) {
+          return false;
+        }
+
+        const other = getAdminAccountCardSortData(otherCard);
+
+        if (current.rank !== other.rank) {
+          return current.rank < other.rank;
+        }
+
+        return current.name.localeCompare(other.name, "de", { sensitivity: "base" }) < 0;
+      });
+
+    list.insertBefore(card, target || null);
+  }
+
   function setAdminAccountRoleAppearance(element, value) {
     if (!element) {
       return;
@@ -1752,12 +1819,11 @@
 
     card.className = "admin-account-card";
     card.classList.toggle("has-open-request", hasOpenRequest);
-    card.classList.toggle("is-admin-account", getAdminAccountRoleValue(data) === "admin");
-    card.classList.toggle("is-organizer-account", getAdminAccountRoleValue(data) === "organisator");
-    card.classList.toggle("is-kader-account", getAdminAccountRoleValue(data) === "kader-sportler");
     card.dataset.adminAccountCard = "";
     card.dataset.targetUid = item.uid;
     card.dataset.hasPendingRequest = String(hasOpenRequest);
+    card.dataset.accountName = accountName;
+    updateAdminAccountCardRole(card, getAdminAccountRoleValue(data));
 
     identity.className = "admin-account-identity";
     titleRow.className = "admin-account-title-row";
@@ -1962,6 +2028,8 @@
       });
       select.dataset.previousValue = nextRole;
       setAdminAccountRoleAppearance(select, nextRole);
+      updateAdminAccountCardRole(card, nextRole);
+      reorderAdminAccountCard(card);
 
       if (targetUid === auth.currentUser?.uid) {
         clearUserDocCache(targetUid);
