@@ -48,7 +48,10 @@ service cloud.firestore {
       && (!changedKeys.hasAny(["linkedPersonId"])
         || !request.resource.data.keys().hasAny(["linkedPersonId"]))
       && (!changedKeys.hasAny(["personLinkStatus"])
-        || request.resource.data.personLinkStatus in ["open", "requested", "rejected", "withdrawn"])
+        || (
+          request.resource.data.personLinkStatus in ["open", "requested", "rejected", "withdrawn"]
+          && (request.resource.data.personLinkStatus != "requested" || !hasStoredLinkId())
+        ))
       && ownerKeepsLinkRequestSafe(changedKeys)
       && ownerKeepsLinkIssueSafe(changedKeys);
     }
@@ -57,7 +60,10 @@ service cloud.firestore {
       return !changedKeys.hasAny(["personLinkRequest"])
         || !request.resource.data.keys().hasAny(["personLinkRequest"])
         || !request.resource.data.personLinkRequest.keys().hasAny(["status"])
-        || request.resource.data.personLinkRequest.status in ["requested", "rejected", "withdrawn"];
+        || (
+          request.resource.data.personLinkRequest.status in ["requested", "rejected", "withdrawn"]
+          && (request.resource.data.personLinkRequest.status != "requested" || !hasStoredLinkId())
+        );
     }
 
     function ownerKeepsLinkIssueSafe(changedKeys) {
@@ -65,6 +71,15 @@ service cloud.firestore {
         || !request.resource.data.keys().hasAny(["personLinkIssue"])
         || (
           hasStoredLinkId()
+          && request.resource.data.personLinkIssue.keys().hasOnly([
+            "status",
+            "message",
+            "accountEmail",
+            "accountName",
+            "accountUid",
+            "reportedAt",
+            "updatedAt"
+          ])
           && request.resource.data.personLinkIssue.keys().hasAny(["status"])
           && request.resource.data.personLinkIssue.status in ["reported", "withdrawn"]
         );
