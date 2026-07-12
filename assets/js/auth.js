@@ -2839,6 +2839,29 @@
     updatePasswordProviderStatus(auth.currentUser);
   }
 
+  function initSecurityAccordion() {
+    const items = Array.from(document.querySelectorAll(".security-field-item"));
+
+    items.forEach((item) => {
+      if (item.dataset.accordionAttached) {
+        return;
+      }
+
+      item.dataset.accordionAttached = "true";
+      item.addEventListener("toggle", () => {
+        if (!item.open) {
+          return;
+        }
+
+        items.forEach((otherItem) => {
+          if (otherItem !== item) {
+            otherItem.open = false;
+          }
+        });
+      });
+    });
+  }
+
   async function initAccountManagement(auth, userData) {
     const profileForm = document.querySelector("[data-profile-form]");
     const passwordForm = document.querySelector("[data-password-form]");
@@ -2848,6 +2871,8 @@
     const passwordCancelButton = document.querySelector("[data-password-cancel]");
     const passwordVerificationButton = document.querySelector("[data-password-verification]");
     const passwordUnlinkButton = document.querySelector("[data-password-unlink]");
+
+    initSecurityAccordion();
 
     if (profileForm && !profileForm.dataset.listenerAttached) {
       profileForm.dataset.listenerAttached = "true";
