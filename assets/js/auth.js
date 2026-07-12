@@ -1177,21 +1177,13 @@
       element.classList.toggle("is-hidden", !hasLoadedData || !isLinked);
     });
 
-    document.querySelectorAll("[data-link-status-action], [data-link-card-action]").forEach((element) => {
+    document.querySelectorAll("[data-link-status-action]").forEach((element) => {
       element.textContent = copy.action;
       element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
     });
 
-    document.querySelectorAll("[data-link-status-card]").forEach((element) => {
-      const shouldHide = !hasLoadedData || isLinked;
-      element.classList.toggle("is-hidden", shouldHide);
-      element.hidden = shouldHide;
-      element.setAttribute("aria-hidden", String(shouldHide));
-      element.classList.toggle("is-linked", isLinked);
-    });
-
-    updateText("[data-link-status-title], [data-link-card-title]", copy.title);
-    updateText("[data-link-status-text], [data-link-card-text]", copy.text);
+    updateText("[data-link-status-title]", copy.title);
+    updateText("[data-link-status-text]", copy.text);
     updateAccountChecklist(data);
   }
 

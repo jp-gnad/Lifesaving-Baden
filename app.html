@@ -6,13 +6,13 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-account-button-muted">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-remove-link-card">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-modal-scrollbar-fix"></script>
+    <script defer src="assets/js/auth.js?v=20260713-remove-link-card"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -90,20 +90,15 @@
             </li>
           </ul>
         </article>
-        <article class="card dashboard-action-card is-hidden" data-link-status-card hidden aria-hidden="true">
-          <h2 data-link-card-title>Person verknüpfen</h2>
-          <p data-link-card-text>Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.</p>
-          <a class="button button-primary" href="link-request.html" data-link-card-action>Jetzt verknüpfen</a>
-        </article>
-        <article class="card dashboard-action-card is-hidden" data-kader-only>
+        <article class="is-hidden" data-kader-only>
           <h2>Kaderbereich</h2>
           <p>Kader-Zugang erkannt. Inhalte und Funktionen werden später ergänzt.</p>
         </article>
-        <article class="card dashboard-action-card is-hidden" data-organizer-only>
+        <article class="is-hidden" data-organizer-only>
           <h2>Organisatorbereich</h2>
           <p>Organisator-Konto erkannt. Funktionen werden später ergänzt.</p>
         </article>
-        <article class="card dashboard-action-card admin-account-panel is-hidden" data-admin-only data-admin-accounts>
+        <article class="admin-account-panel is-hidden" data-admin-only data-admin-accounts>
           <div class="admin-panel-heading">
             <div>
               <h2>Kontenübersicht</h2>
