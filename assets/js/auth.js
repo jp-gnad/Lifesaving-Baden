@@ -2343,14 +2343,13 @@
     },
     gender: {
       label: "Geschlecht",
-      type: "select",
+      type: "radio",
       canDelete: true,
       emptyLabel: "Nicht angegeben",
       options: [
-        { value: "", label: "Nicht angegeben" },
         { value: "weiblich", label: "Weiblich" },
         { value: "maennlich", label: "Männlich" },
-        { value: "divers", label: "Divers" }
+        { value: "", label: "Keine Angabe" }
       ]
     }
   };
@@ -2440,6 +2439,34 @@
     const config = profileFieldConfig[fieldName];
     const value = getProfileFormValue(form, fieldName);
 
+    if (config.type === "radio") {
+      const list = document.createElement("div");
+
+      list.className = "profile-radio-list";
+      list.setAttribute("role", "radiogroup");
+      list.setAttribute("aria-label", config.label);
+
+      config.options.forEach((option) => {
+        const optionLabel = document.createElement("label");
+        const radio = document.createElement("input");
+        const marker = document.createElement("span");
+        const text = document.createElement("span");
+
+        optionLabel.className = "profile-radio-option";
+        radio.type = "radio";
+        radio.name = "profileFieldValue";
+        radio.value = option.value;
+        radio.checked = option.value === value;
+        marker.className = "profile-radio-marker";
+        marker.setAttribute("aria-hidden", "true");
+        text.textContent = option.label;
+        optionLabel.append(radio, marker, text);
+        list.append(optionLabel);
+      });
+
+      return list;
+    }
+
     if (config.type === "select") {
       const select = document.createElement("select");
       select.name = "profileFieldValue";
@@ -2473,6 +2500,16 @@
     }
 
     return input;
+  }
+
+  function getProfileEditorValue(control, config) {
+    if (config.type === "radio") {
+      return document.querySelector('[name="profileFieldValue"]:checked')?.value || "";
+    }
+
+    return config.type === "text" || config.type === "email"
+      ? control.value.trim()
+      : control.value;
   }
 
   function openProfileFieldEditor(fieldName, form) {
@@ -2558,9 +2595,7 @@
       return;
     }
 
-    const value = config.type === "text" || config.type === "email"
-      ? control.value.trim()
-      : control.value;
+    const value = getProfileEditorValue(control, config);
 
     if (config.required && !value) {
       setProfileMessage(`${config.label} darf nicht leer sein.`, false);
