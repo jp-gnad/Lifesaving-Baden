@@ -48,6 +48,7 @@
   --success: rgb(28, 191, 105);
   --line: rgba(255, 255, 255, 0.14);
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
+  --mobile-header-height: 68px;
   font-family: "Lifesaving Baden", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -2587,6 +2588,10 @@ span.admin-role-control.is-role-admin {
 }
 
 @media (max-width: 860px) {
+  body {
+    padding-top: var(--mobile-header-height);
+  }
+
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
@@ -2594,9 +2599,13 @@ span.admin-role-control.is-role-admin {
   }
 
   .site-header {
+    position: fixed;
+    right: 0;
+    left: 0;
     align-items: center;
     flex-direction: row;
     gap: 12px;
+    min-height: var(--mobile-header-height);
     backdrop-filter: none;
   }
 
@@ -2629,16 +2638,16 @@ span.admin-role-control.is-role-admin {
 
   .nav-links {
     position: fixed;
-    top: 68px;
+    top: var(--mobile-header-height);
     right: 0;
     left: 0;
     z-index: 30;
     display: none;
     width: 100vw;
-    height: calc(100vh - 68px);
-    height: calc(100dvh - 68px);
-    min-height: calc(100vh - 68px);
-    min-height: calc(100dvh - 68px);
+    height: calc(100vh - var(--mobile-header-height));
+    height: calc(100dvh - var(--mobile-header-height));
+    min-height: calc(100vh - var(--mobile-header-height));
+    min-height: calc(100dvh - var(--mobile-header-height));
     min-width: 0;
     padding: 22px clamp(20px, 5vw, 64px);
     border: 0;
