@@ -505,7 +505,42 @@ h3 {
 .section-grid,
 .info-band,
 .dashboard {
+  position: relative;
   padding: clamp(34px, 5vw, 68px) clamp(20px, 5vw, 64px);
+}
+
+body[data-page="app"] .dashboard {
+  isolation: isolate;
+  min-height: calc(100vh - 68px);
+  overflow: hidden;
+}
+
+body[data-page="app"] .dashboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(15, 15, 18, 0.96) 0%, rgba(15, 15, 18, 0.9) 48%, rgba(15, 15, 18, 0.82) 100%),
+    linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.78) 52%, rgba(15, 15, 18, 0.96) 100%),
+    url("../img/training-rescue.jpg") center 42% / cover no-repeat;
+  filter: saturate(0.82) contrast(0.96);
+}
+
+body[data-page="app"] .dashboard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 237, 0, 0.09), transparent 26%),
+    radial-gradient(circle at 82% 22%, rgba(227, 6, 19, 0.06), transparent 24%),
+    linear-gradient(180deg, rgba(15, 15, 18, 0.18), rgba(15, 15, 18, 0.58));
+}
+
+body[data-page="app"] .dashboard > * {
+  position: relative;
+  z-index: 1;
 }
 
 .section-grid {
@@ -2718,6 +2753,13 @@ span.admin-role-control.is-role-admin {
   .info-band,
   .auth-layout {
     grid-template-columns: 1fr;
+  }
+
+  body[data-page="app"] .dashboard::before {
+    background:
+      linear-gradient(90deg, rgba(15, 15, 18, 0.98) 0%, rgba(15, 15, 18, 0.92) 100%),
+      linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.82) 52%, rgba(15, 15, 18, 0.96) 100%),
+      url("../img/training-rescue.jpg") center 42% / cover no-repeat;
   }
 
   .hero {
