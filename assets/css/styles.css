@@ -1285,9 +1285,10 @@ span.admin-role-control.is-role-admin {
 
 .admin-link-editor {
   display: grid;
-  grid-template-columns: minmax(130px, 1fr) 32px 32px;
+  grid-template-columns: minmax(96px, 170px) 30px 30px;
   align-items: center;
   gap: 6px;
+  justify-content: start;
 }
 
 .admin-link-editor[hidden],
@@ -1295,34 +1296,68 @@ span.admin-role-control.is-role-admin {
   display: none;
 }
 
+.admin-link-editor input {
+  width: 170px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 6px 9px;
+}
+
+.admin-account-field .admin-link-editor input:focus {
+  outline: 2px solid rgba(255, 237, 0, 0.12);
+  border-color: rgba(255, 237, 0, 0.34);
+}
+
 .admin-link-icon-button {
   display: inline-grid;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.03);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--muted);
   font-size: 1rem;
   font-weight: 800;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+  transition: color 160ms ease, background 160ms ease;
 }
 
 .admin-link-icon-button:hover,
 .admin-link-icon-button:focus-visible {
-  border-color: rgba(255, 237, 0, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.admin-link-icon-button:focus-visible {
+  outline: 2px solid rgba(255, 237, 0, 0.28);
+  outline-offset: 2px;
+}
+
+.admin-link-edit:hover,
+.admin-link-edit:focus-visible {
   background: rgba(255, 237, 0, 0.08);
   color: var(--accent);
 }
 
 .admin-link-save {
+  color: var(--muted);
+}
+
+.admin-link-save:hover,
+.admin-link-save:focus-visible {
+  background: rgba(28, 191, 105, 0.1);
   color: var(--success);
 }
 
 .admin-link-cancel {
+  color: var(--muted);
+}
+
+.admin-link-cancel:hover,
+.admin-link-cancel:focus-visible {
+  background: rgba(227, 6, 19, 0.1);
   color: var(--danger);
 }
 
