@@ -1783,7 +1783,7 @@ span.admin-role-control.is-role-admin {
 .account-modal {
   position: relative;
   display: grid;
-  width: min(100%, 520px);
+  width: min(100%, 460px);
   max-height: calc(100vh - 112px);
   overflow: auto;
   gap: 16px;
@@ -1857,6 +1857,11 @@ span.admin-role-control.is-role-admin {
   color: var(--primary);
 }
 
+.account-manage:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: none;
+}
+
 .account-manage-attention {
   position: absolute;
   top: 50%;
@@ -1866,12 +1871,12 @@ span.admin-role-control.is-role-admin {
   height: 20px;
   place-items: center;
   border-radius: 50%;
-  background: var(--primary);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--text);
   font-size: 0.76rem;
   font-weight: 850;
   line-height: 1;
-  box-shadow: 0 0 0 1px rgba(255, 237, 0, 0.32);
+  box-shadow: 0 0 0 1px rgba(227, 6, 19, 0.4);
   transform: translateY(-50%);
 }
 
