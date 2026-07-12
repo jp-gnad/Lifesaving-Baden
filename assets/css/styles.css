@@ -1590,7 +1590,8 @@ span.admin-role-control.is-role-admin {
   font-weight: 600;
 }
 
-.setting-form input {
+.setting-form input,
+.setting-form textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -1598,9 +1599,16 @@ span.admin-role-control.is-role-admin {
   padding: 10px 12px;
   background: var(--bg);
   color: var(--text);
+  font: inherit;
 }
 
-.setting-form input:focus {
+.setting-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.setting-form input:focus,
+.setting-form textarea:focus {
   outline: 1px solid rgba(255, 237, 0, 0.34);
   outline-offset: 1px;
   border-color: rgba(255, 255, 255, 0.28);
@@ -1961,6 +1969,11 @@ span.admin-role-control.is-role-admin {
   background: rgb(120, 207, 255);
 }
 
+.settings-menu-item[href="#verknuepfungen"] .settings-menu-icon {
+  background: var(--primary);
+  color: var(--bg);
+}
+
 .settings-menu-item[href="#datenschutz"] .settings-menu-icon {
   background: rgb(124, 218, 151);
 }
@@ -2157,6 +2170,85 @@ span.admin-role-control.is-role-admin {
   background:
     linear-gradient(0deg, rgba(227, 6, 19, 0.09), rgba(227, 6, 19, 0.09)),
     var(--surface-muted);
+}
+
+.link-management-status-row {
+  cursor: default;
+}
+
+.link-management-status-row.is-link-linked {
+  border-color: rgba(28, 191, 105, 0.34);
+  background:
+    linear-gradient(0deg, rgba(28, 191, 105, 0.1), rgba(28, 191, 105, 0.1)),
+    var(--surface-muted);
+}
+
+.link-management-status-row.is-link-requested,
+.link-management-status-row.is-link-issue {
+  border-color: rgba(255, 237, 0, 0.36);
+  background:
+    linear-gradient(0deg, rgba(255, 237, 0, 0.1), rgba(255, 237, 0, 0.1)),
+    var(--surface-muted);
+}
+
+.link-management-status-row.is-link-rejected {
+  border-color: rgba(227, 6, 19, 0.42);
+  background:
+    linear-gradient(0deg, rgba(227, 6, 19, 0.08), rgba(227, 6, 19, 0.08)),
+    var(--surface-muted);
+}
+
+.link-management-status-row.is-link-linked .profile-field-icon {
+  color: var(--success);
+}
+
+.link-management-status-row.is-link-requested .profile-field-icon,
+.link-management-status-row.is-link-issue .profile-field-icon {
+  color: var(--primary);
+}
+
+.link-management-status-row.is-link-rejected .profile-field-icon {
+  color: var(--danger);
+}
+
+.link-management-panel {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px 0;
+}
+
+.link-management-panel.is-hidden,
+.link-management-panel[hidden] {
+  display: none;
+}
+
+.link-management-details {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.link-management-details div {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.42fr) 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.link-management-details dt {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.link-management-details dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.link-issue-form {
+  max-width: 560px;
 }
 
 .profile-field-icon {
@@ -2494,6 +2586,11 @@ span.admin-role-control.is-role-admin {
 
   .admin-account-link-controls {
     grid-template-columns: 1fr;
+  }
+
+  .link-management-details div {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .auth-aside {

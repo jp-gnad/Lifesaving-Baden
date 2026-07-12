@@ -6,12 +6,12 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-account-edit-mode">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-link-management">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260712-account-edit-mode"></script>
+    <script defer src="assets/js/auth.js?v=20260712-link-management"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -51,6 +51,16 @@
                 </svg>
               </span>
               <span>Sicherheit und Anmeldung</span>
+            </a>
+            <a class="settings-menu-item" href="#verknuepfungen">
+              <span class="settings-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M9.4 14.6 8 16a3.5 3.5 0 0 1-5-5l2-2a3.5 3.5 0 0 1 5 0"></path>
+                  <path d="M14.6 9.4 16 8a3.5 3.5 0 0 1 5 5l-2 2a3.5 3.5 0 0 1-5 0"></path>
+                  <path d="M8.8 15.2 15.2 8.8"></path>
+                </svg>
+              </span>
+              <span>Verknüpfungen</span>
             </a>
             <a class="settings-menu-item" href="#datenschutz">
               <span class="settings-menu-icon" aria-hidden="true">
@@ -346,6 +356,90 @@
                   </div>
                 </details>
               </div>
+            </article>
+          </section>
+
+          <section class="settings-category is-hidden" id="verknuepfungen" aria-labelledby="settings-links-title" hidden aria-hidden="true">
+            <div class="settings-category-header">
+              <button class="settings-mobile-back" type="button" data-settings-mobile-back aria-label="Zurück zum Einstellungsmenü">
+                <span aria-hidden="true">←</span>
+              </button>
+              <h2 id="settings-links-title">Verknüpfungen</h2>
+            </div>
+            <article class="account-form-card profile-field-card link-management-card" data-link-management>
+              <div class="profile-field-list">
+                <div class="profile-field-row link-management-status-row" data-link-management-status-row>
+                  <span class="profile-field-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M9.4 14.6 8 16a3.5 3.5 0 0 1-5-5l2-2a3.5 3.5 0 0 1 5 0"></path>
+                      <path d="M14.6 9.4 16 8a3.5 3.5 0 0 1 5 5l-2 2a3.5 3.5 0 0 1-5 0"></path>
+                      <path d="M8.8 15.2 15.2 8.8"></path>
+                    </svg>
+                  </span>
+                  <span class="profile-field-copy">
+                    <strong data-link-management-title>Status wird geladen</strong>
+                    <span data-link-management-text>Die Verknüpfung wird geprüft.</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="link-management-panel is-hidden" data-link-open-panel hidden aria-hidden="true">
+                <p class="setting-help no-indent">
+                  Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.
+                </p>
+                <a class="button button-primary" href="link-request.html">Verknüpfung beantragen</a>
+              </div>
+
+              <div class="link-management-panel is-hidden" data-link-requested-panel hidden aria-hidden="true">
+                <dl class="link-management-details">
+                  <div>
+                    <dt>Name</dt>
+                    <dd data-link-request-name>Nicht angegeben</dd>
+                  </div>
+                  <div>
+                    <dt>Geburtsdatum</dt>
+                    <dd data-link-request-birth-date>Nicht angegeben</dd>
+                  </div>
+                  <div>
+                    <dt>DLRG-Gliederung</dt>
+                    <dd data-link-request-branch>Nicht angegeben</dd>
+                  </div>
+                  <div>
+                    <dt>Erster Wettkampf</dt>
+                    <dd data-link-request-first-competition>Nicht angegeben</dd>
+                  </div>
+                  <div>
+                    <dt>Letzter Wettkampf</dt>
+                    <dd data-link-request-last-competition>Nicht angegeben</dd>
+                  </div>
+                </dl>
+                <span class="security-button-row">
+                  <a class="button button-secondary" href="link-request.html">Antrag bearbeiten</a>
+                  <button class="button button-danger" type="button" data-link-request-withdraw>Antrag zurückziehen</button>
+                </span>
+              </div>
+
+              <div class="link-management-panel is-hidden" data-link-linked-panel hidden aria-hidden="true">
+                <p class="setting-help no-indent">
+                  Dein Konto ist mit der Datenbank verknüpft.
+                </p>
+                <span class="security-button-row">
+                  <button class="button button-secondary" type="button" data-link-issue-open>Fehler melden</button>
+                  <button class="button button-danger" type="button" data-link-unlink>Verknüpfung aufheben</button>
+                </span>
+                <form class="setting-form link-issue-form is-hidden" data-link-issue-form hidden aria-hidden="true">
+                  <label>
+                    <span>Fehlerbeschreibung</span>
+                    <textarea name="issueText" rows="4" placeholder="Die Verknüpfung gehört nicht zu meiner Person." required></textarea>
+                  </label>
+                  <span class="security-button-row">
+                    <button class="button button-primary" type="submit">Fehler senden</button>
+                    <button class="button button-ghost" type="button" data-link-issue-cancel>Abbrechen</button>
+                  </span>
+                </form>
+              </div>
+
+              <p class="form-message" data-link-management-message role="status"></p>
             </article>
           </section>
 

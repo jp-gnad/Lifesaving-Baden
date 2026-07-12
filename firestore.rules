@@ -30,16 +30,44 @@ service cloud.firestore {
         "role",
         "admin",
         "isAdmin",
-        "personLinked",
-        "personId",
-        "linkedPersonId",
         "personLinkDecision"
       ])
+      && ownerKeepsLinkFieldsSafe(changedKeys);
+    }
+
+    function hasStoredLinkId() {
+      return resource.data.keys().hasAny(["linkedPersonId"])
+        || resource.data.keys().hasAny(["personId"]);
+    }
+
+    function ownerKeepsLinkFieldsSafe(changedKeys) {
+      return (!changedKeys.hasAny(["personLinked"])
+        || request.resource.data.personLinked == false)
+      && (!changedKeys.hasAny(["personId"])
+        || !request.resource.data.keys().hasAny(["personId"]))
+      && (!changedKeys.hasAny(["linkedPersonId"])
+        || !request.resource.data.keys().hasAny(["linkedPersonId"]))
       && (!changedKeys.hasAny(["personLinkStatus"])
-        || request.resource.data.personLinkStatus != "linked")
-      && (!changedKeys.hasAny(["personLinkRequest"])
-        || !("status" in request.resource.data.personLinkRequest)
-        || request.resource.data.personLinkRequest.status != "linked");
+        || request.resource.data.personLinkStatus in ["open", "requested", "rejected", "withdrawn"])
+      && ownerKeepsLinkRequestSafe(changedKeys)
+      && ownerKeepsLinkIssueSafe(changedKeys);
+    }
+
+    function ownerKeepsLinkRequestSafe(changedKeys) {
+      return !changedKeys.hasAny(["personLinkRequest"])
+        || !request.resource.data.keys().hasAny(["personLinkRequest"])
+        || !request.resource.data.personLinkRequest.keys().hasAny(["status"])
+        || request.resource.data.personLinkRequest.status in ["requested", "rejected", "withdrawn"];
+    }
+
+    function ownerKeepsLinkIssueSafe(changedKeys) {
+      return !changedKeys.hasAny(["personLinkIssue"])
+        || !request.resource.data.keys().hasAny(["personLinkIssue"])
+        || (
+          hasStoredLinkId()
+          && request.resource.data.personLinkIssue.keys().hasAny(["status"])
+          && request.resource.data.personLinkIssue.status in ["reported", "withdrawn"]
+        );
     }
 
     function ownerCreatesOnlySportlerAccount() {

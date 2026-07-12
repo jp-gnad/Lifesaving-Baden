@@ -149,6 +149,17 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
+  function setLinkManagementMessage(text, isSuccess) {
+    const message = document.querySelector("[data-link-management-message]");
+
+    if (!message) {
+      return;
+    }
+
+    message.textContent = text;
+    message.classList.toggle("success", Boolean(isSuccess));
+  }
+
   function setAdminAccountMessage(text, isSuccess) {
     const message = document.querySelector("[data-admin-account-message]");
 
@@ -816,6 +827,7 @@
         await initAccountManagement(auth, userData);
         await initUserSettings(auth, userData);
         await initLinkStatus(auth, userData);
+        await initLinkManagement(auth, userData);
         await initAdminStatus(auth, userData);
         await initLinkRequest(auth, userData);
       }
@@ -1006,6 +1018,10 @@
     const requestStatus = data?.personLinkRequest?.status;
 
     return Boolean(data?.personLinkStatus === "requested" || requestStatus === "requested");
+  }
+
+  function hasOpenLinkIssue(data) {
+    return data?.personLinkIssue?.status === "reported";
   }
 
   function hasRejectedLinkRequest(data) {
@@ -1647,6 +1663,18 @@
     return labels[value] || "Sportler";
   }
 
+  function hasAdminLinkAttention(data) {
+    return hasPendingLinkRequest(data) || hasOpenLinkIssue(data);
+  }
+
+  function getAdminAttentionTimestamp(data) {
+    if (hasOpenLinkIssue(data)) {
+      return getTimestampMillis(data?.personLinkIssue?.reportedAt);
+    }
+
+    return getAdminRequestTimestamp(data);
+  }
+
   function getAdminAccountSortRank(item) {
     const data = item?.data || {};
     const roleValue = getAdminAccountRoleValue(data);
@@ -1655,7 +1683,7 @@
       return 0;
     }
 
-    if (hasPendingLinkRequest(data)) {
+    if (hasAdminLinkAttention(data)) {
       return 1;
     }
 
@@ -1670,12 +1698,12 @@
     return 4;
   }
 
-  function getAdminAccountRoleSortRank(roleValue, hasOpenRequest) {
+  function getAdminAccountRoleSortRank(roleValue, hasAttention) {
     if (roleValue === "admin") {
       return 0;
     }
 
-    if (hasOpenRequest) {
+    if (hasAttention) {
       return 1;
     }
 
@@ -1705,7 +1733,7 @@
     return {
       rank: getAdminAccountRoleSortRank(
         card?.dataset.accountRole || "sportler",
-        card?.dataset.hasPendingRequest === "true"
+        card?.dataset.hasAdminAttention === "true"
       ),
       name: card?.dataset.accountName || ""
     };
@@ -1911,15 +1939,18 @@
   function createAdminAccountCard(item) {
     const data = item.data || {};
     const request = data.personLinkRequest || {};
+    const issue = data.personLinkIssue || {};
     const accountName = getAdminAccountName(data);
     const linkedId = getAdminAccountLinkedId(data);
     const roleValue = getAdminAccountRoleValue(data);
     const hasOpenRequest = hasPendingLinkRequest(data);
+    const hasOpenIssue = hasOpenLinkIssue(data);
+    const hasAttention = hasOpenRequest || hasOpenIssue;
     const detailsId = `admin-account-details-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
     const card = document.createElement("article");
     const identity = document.createElement("div");
     const titleRow = document.createElement("div");
-    const name = hasOpenRequest ? document.createElement("button") : document.createElement("h3");
+    const name = hasAttention ? document.createElement("button") : document.createElement("h3");
     const branch = document.createElement("p");
     const roleLabel = document.createElement("label");
     const roleText = document.createElement("span");
@@ -1943,10 +1974,13 @@
     const rejectButton = document.createElement("button");
 
     card.className = "admin-account-card";
-    card.classList.toggle("has-open-request", hasOpenRequest);
+    card.classList.toggle("has-open-request", hasAttention);
+    card.classList.toggle("has-link-issue", hasOpenIssue);
     card.dataset.adminAccountCard = "";
     card.dataset.targetUid = item.uid;
     card.dataset.hasPendingRequest = String(hasOpenRequest);
+    card.dataset.hasLinkIssue = String(hasOpenIssue);
+    card.dataset.hasAdminAttention = String(hasAttention);
     card.dataset.accountName = accountName;
     card.dataset.linkedPersonId = linkedId;
     updateAdminAccountCardRole(card, roleValue);
@@ -1954,12 +1988,12 @@
     identity.className = "admin-account-identity";
     titleRow.className = "admin-account-title-row";
 
-    if (hasOpenRequest) {
+    if (hasAttention) {
       const requestAlert = document.createElement("span");
 
       requestAlert.className = "admin-account-alert";
       requestAlert.textContent = "!";
-      requestAlert.title = "Offener Verknüpfungsantrag";
+      requestAlert.title = hasOpenIssue ? "Gemeldeter Verknüpfungsfehler" : "Offener Verknüpfungsantrag";
       name.className = "admin-request-toggle admin-account-toggle";
       name.type = "button";
       name.textContent = `${accountName} (${getAdminBirthYear(data)})`;
@@ -2020,27 +2054,45 @@
 
     card.append(identity, roleLabel, linkField, cardActions);
 
-    if (hasOpenRequest) {
+    if (hasAttention) {
       detailsShell.className = "admin-account-details-shell";
       detailsShell.id = detailsId;
       detailsShell.hidden = true;
       detailsShell.setAttribute("aria-hidden", "true");
 
       details.className = "admin-request-details";
-      appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-      appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
-      appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
-      appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
+      if (hasOpenIssue) {
+        appendAdminRequestDetail(details, "Status", "Verknüpfungsfehler gemeldet");
+        appendAdminRequestDetail(details, "Personen-ID", linkedId || "Keine ID gespeichert");
+        appendAdminRequestDetail(details, "Meldung", issue.message || "Verknüpfung stimmt nicht mit der Person überein.");
+        appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
+      } else {
+        appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
+        appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
+        appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
+        appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
+      }
 
       actions.className = "admin-request-actions admin-account-request-actions";
-      approveButton.className = "button button-primary";
       approveButton.type = "button";
-      approveButton.textContent = "Verknüpfen";
-      approveButton.dataset.adminAccountRequestAction = "approve";
-      rejectButton.className = "button button-danger";
       rejectButton.type = "button";
-      rejectButton.textContent = "Ablehnen";
-      rejectButton.dataset.adminAccountRequestAction = "reject";
+
+      if (hasOpenIssue) {
+        approveButton.className = "button button-primary";
+        approveButton.textContent = "Erledigt";
+        approveButton.dataset.adminAccountIssueAction = "resolve";
+        rejectButton.className = "button button-secondary";
+        rejectButton.textContent = "Abbrechen";
+        rejectButton.dataset.adminAccountIssueAction = "cancel";
+      } else {
+        approveButton.className = "button button-primary";
+        approveButton.textContent = "Verknüpfen";
+        approveButton.dataset.adminAccountRequestAction = "approve";
+        rejectButton.className = "button button-danger";
+        rejectButton.textContent = "Ablehnen";
+        rejectButton.dataset.adminAccountRequestAction = "reject";
+      }
+
       actions.append(approveButton, rejectButton);
       detailsShell.append(details, actions);
       card.append(detailsShell);
@@ -2087,10 +2139,20 @@
     });
 
     const pendingCount = accounts.filter((account) => hasPendingLinkRequest(account.data)).length;
+    const issueCount = accounts.filter((account) => hasOpenLinkIssue(account.data)).length;
+    const attentionParts = [];
+
+    if (pendingCount) {
+      attentionParts.push(`${pendingCount} offene Anträge`);
+    }
+
+    if (issueCount) {
+      attentionParts.push(`${issueCount} gemeldete Fehler`);
+    }
 
     setAdminAccountSummary(
-      pendingCount
-        ? `${accounts.length} Konten gefunden, ${pendingCount} offene Anträge.`
+      attentionParts.length
+        ? `${accounts.length} Konten gefunden, ${attentionParts.join(", ")}.`
         : `${accounts.length} Konten gefunden.`
     );
   }
@@ -2120,8 +2182,8 @@
             return rankDifference;
           }
 
-          if (hasPendingLinkRequest(first.data) && hasPendingLinkRequest(second.data)) {
-            const timeDifference = getAdminRequestTimestamp(second.data) - getAdminRequestTimestamp(first.data);
+          if (hasAdminLinkAttention(first.data) && hasAdminLinkAttention(second.data)) {
+            const timeDifference = getAdminAttentionTimestamp(second.data) - getAdminAttentionTimestamp(first.data);
 
             if (timeDifference !== 0) {
               return timeDifference;
@@ -2321,6 +2383,55 @@
     }
   }
 
+  async function decideAdminAccountIssue(auth, button) {
+    const user = auth.currentUser;
+    const card = button.closest("[data-admin-account-card]");
+    const targetUid = card?.dataset.targetUid;
+    const action = button.dataset.adminAccountIssueAction;
+    const status = action === "resolve" ? "resolved" : "cancelled";
+
+    if (!user || !targetUid || !window.firebase.firestore) {
+      setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
+      return;
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+
+    try {
+      card.querySelectorAll("button, input, select").forEach((control) => {
+        control.disabled = true;
+      });
+      setAdminAccountMessage(
+        status === "resolved" ? "Fehlermeldung wird erledigt..." : "Fehlermeldung wird abgebrochen...",
+        true
+      );
+
+      await window.firebase.firestore().collection("users").doc(targetUid).update({
+        "personLinkIssue.status": status,
+        "personLinkIssue.decidedByUid": user.uid,
+        "personLinkIssue.decidedByEmail": user.email || "",
+        "personLinkIssue.decidedAt": fieldValue.serverTimestamp(),
+        "personLinkIssue.updatedAt": fieldValue.serverTimestamp(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      if (targetUid === user.uid) {
+        clearUserDocCache(user.uid);
+      }
+
+      await loadAdminAccounts(auth);
+      setAdminAccountMessage(
+        status === "resolved" ? "Fehlermeldung erledigt." : "Fehlermeldung abgebrochen.",
+        true
+      );
+    } catch (error) {
+      card.querySelectorAll("button, input, select").forEach((control) => {
+        control.disabled = false;
+      });
+      setAdminAccountMessage(translateFirestoreError(error), false);
+    }
+  }
+
   async function initAdminAccounts(auth, role) {
     const { panel, list, refreshButton } = getAdminAccountControls();
 
@@ -2333,6 +2444,7 @@
       list.addEventListener("click", (event) => {
         const toggleButton = event.target.closest("[data-admin-account-toggle]");
         const actionButton = event.target.closest("[data-admin-account-request-action]");
+        const issueActionButton = event.target.closest("[data-admin-account-issue-action]");
         const editAccountButton = event.target.closest("[data-admin-account-edit]");
         const saveAccountButton = event.target.closest("[data-admin-account-save]");
         const cancelAccountButton = event.target.closest("[data-admin-account-cancel]");
@@ -2370,6 +2482,11 @@
 
         if (actionButton) {
           decideAdminAccountRequest(auth, actionButton);
+          return;
+        }
+
+        if (issueActionButton) {
+          decideAdminAccountIssue(auth, issueActionButton);
         }
       });
 
@@ -3572,6 +3689,328 @@
     }
   }
 
+  function getLinkManagementControls() {
+    return {
+      root: document.querySelector("[data-link-management]"),
+      statusRow: document.querySelector("[data-link-management-status-row]"),
+      title: document.querySelector("[data-link-management-title]"),
+      text: document.querySelector("[data-link-management-text]"),
+      openPanel: document.querySelector("[data-link-open-panel]"),
+      requestedPanel: document.querySelector("[data-link-requested-panel]"),
+      linkedPanel: document.querySelector("[data-link-linked-panel]"),
+      withdrawButton: document.querySelector("[data-link-request-withdraw]"),
+      unlinkButton: document.querySelector("[data-link-unlink]"),
+      issueOpenButton: document.querySelector("[data-link-issue-open]"),
+      issueCancelButton: document.querySelector("[data-link-issue-cancel]"),
+      issueForm: document.querySelector("[data-link-issue-form]")
+    };
+  }
+
+  function setLinkManagementPanel(panel, shouldShow) {
+    if (!panel) {
+      return;
+    }
+
+    panel.classList.toggle("is-hidden", !shouldShow);
+    panel.hidden = !shouldShow;
+    panel.setAttribute("aria-hidden", String(!shouldShow));
+  }
+
+  function setLinkManagementControlsDisabled(isDisabled) {
+    const controls = getLinkManagementControls();
+
+    controls.root?.querySelectorAll("button, textarea").forEach((control) => {
+      control.disabled = isDisabled;
+    });
+  }
+
+  function setLinkManagementStatus(data) {
+    const controls = getLinkManagementControls();
+    const linked = isPersonLinked(data);
+    const requested = hasPendingLinkRequest(data);
+    const issueReported = hasOpenLinkIssue(data);
+    const rejected = hasRejectedLinkRequest(data);
+    let state = "open";
+    let title = "Nicht verknüpft";
+    let text = "Dein Konto ist noch nicht mit der Datenbank verknüpft.";
+
+    if (linked && issueReported) {
+      state = "issue";
+      title = "Fehler gemeldet";
+      text = "Deine Meldung wurde an den Adminbereich übermittelt.";
+    } else if (linked) {
+      state = "linked";
+      title = "Verknüpft";
+      text = "Dein Konto ist mit der Datenbank verknüpft.";
+    } else if (requested) {
+      state = "requested";
+      title = "Antrag gestellt";
+      text = "Dein Verknüpfungsantrag liegt im Adminbereich zur Prüfung.";
+    } else if (rejected) {
+      state = "rejected";
+      title = "Antrag abgelehnt";
+      text = "Du kannst die Angaben prüfen und erneut absenden.";
+    }
+
+    if (controls.title) {
+      controls.title.textContent = title;
+    }
+
+    if (controls.text) {
+      controls.text.textContent = text;
+    }
+
+    controls.statusRow?.classList.remove("is-link-open", "is-link-requested", "is-link-linked", "is-link-issue", "is-link-rejected");
+    controls.statusRow?.classList.add(`is-link-${state}`);
+
+    setLinkManagementPanel(controls.openPanel, state === "open" || state === "rejected");
+    setLinkManagementPanel(controls.requestedPanel, state === "requested");
+    setLinkManagementPanel(controls.linkedPanel, state === "linked" || state === "issue");
+
+    if (controls.issueOpenButton) {
+      controls.issueOpenButton.classList.toggle("is-hidden", state === "issue");
+      controls.issueOpenButton.hidden = state === "issue";
+    }
+
+    if (controls.issueForm && state !== "linked") {
+      closeLinkIssueForm();
+    }
+
+    return state;
+  }
+
+  function fillLinkRequestPreview(data) {
+    const request = data?.personLinkRequest || {};
+    const fullName = `${request.firstName || ""} ${request.lastName || ""}`.trim();
+
+    updateText("[data-link-request-name]", fullName || "Nicht angegeben");
+    updateText("[data-link-request-birth-date]", formatBirthDate(request.birthDate || data?.birthDate) || "Nicht angegeben");
+    updateText("[data-link-request-branch]", request.dlrgBranch || data?.dlrgBranch || "Nicht angegeben");
+    updateText("[data-link-request-first-competition]", request.firstCompetition || "Nicht angegeben");
+    updateText("[data-link-request-last-competition]", request.lastCompetition || "Nicht angegeben");
+  }
+
+  function updateLinkManagementUi(data) {
+    if (!document.querySelector("[data-link-management]")) {
+      return;
+    }
+
+    fillLinkRequestPreview(data || {});
+    setLinkManagementStatus(data || {});
+  }
+
+  function openLinkIssueForm() {
+    const { issueForm } = getLinkManagementControls();
+
+    if (!issueForm) {
+      return;
+    }
+
+    issueForm.classList.remove("is-hidden");
+    issueForm.hidden = false;
+    issueForm.setAttribute("aria-hidden", "false");
+    issueForm.elements.issueText?.focus();
+  }
+
+  function closeLinkIssueForm() {
+    const { issueForm } = getLinkManagementControls();
+
+    if (!issueForm) {
+      return;
+    }
+
+    issueForm.reset();
+    issueForm.classList.add("is-hidden");
+    issueForm.hidden = true;
+    issueForm.setAttribute("aria-hidden", "true");
+  }
+
+  async function initLinkManagement(auth, userData) {
+    const controls = getLinkManagementControls();
+    const user = auth.currentUser;
+
+    if (!controls.root || !user) {
+      return;
+    }
+
+    if (!window.firebase.firestore) {
+      setLinkManagementControlsDisabled(true);
+      setLinkManagementMessage("Firestore ist noch nicht geladen.", false);
+      return;
+    }
+
+    if (controls.withdrawButton && !controls.withdrawButton.dataset.listenerAttached) {
+      controls.withdrawButton.dataset.listenerAttached = "true";
+      controls.withdrawButton.addEventListener("click", () => withdrawLinkRequest(auth, controls.withdrawButton));
+    }
+
+    if (controls.unlinkButton && !controls.unlinkButton.dataset.listenerAttached) {
+      controls.unlinkButton.dataset.listenerAttached = "true";
+      controls.unlinkButton.addEventListener("click", () => unlinkCurrentPerson(auth, controls.unlinkButton));
+    }
+
+    if (controls.issueOpenButton && !controls.issueOpenButton.dataset.listenerAttached) {
+      controls.issueOpenButton.dataset.listenerAttached = "true";
+      controls.issueOpenButton.addEventListener("click", () => openLinkIssueForm());
+    }
+
+    if (controls.issueCancelButton && !controls.issueCancelButton.dataset.listenerAttached) {
+      controls.issueCancelButton.dataset.listenerAttached = "true";
+      controls.issueCancelButton.addEventListener("click", () => closeLinkIssueForm());
+    }
+
+    if (controls.issueForm && !controls.issueForm.dataset.listenerAttached) {
+      controls.issueForm.dataset.listenerAttached = "true";
+      controls.issueForm.addEventListener("submit", (event) => reportLinkIssue(event, auth));
+    }
+
+    try {
+      const data = userData || await loadCurrentUserData(user) || {};
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("", true);
+    } catch (error) {
+      setLinkManagementMessage(translateFirestoreError(error), false);
+    }
+  }
+
+  async function withdrawLinkRequest(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user || !window.firebase.firestore) {
+      setLinkManagementMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      setLoading(button, true, "Ziehe zurück...");
+      setLinkManagementControlsDisabled(true);
+      await window.firebase.firestore().collection("users").doc(user.uid).update({
+        personLinkStatus: "open",
+        "personLinkRequest.status": "withdrawn",
+        "personLinkRequest.withdrawnAt": fieldValue.serverTimestamp(),
+        "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const data = mergeUserDocCache(user.uid, {
+        personLinkStatus: "open",
+        personLinkRequest: {
+          ...(readUserDocCache(user.uid)?.personLinkRequest || {}),
+          status: "withdrawn"
+        }
+      });
+
+      updateLinkStatusUi(data);
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("Antrag zurückgezogen.", true);
+    } catch (error) {
+      setLinkManagementMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(button, false);
+      setLinkManagementControlsDisabled(false);
+    }
+  }
+
+  async function unlinkCurrentPerson(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user || !window.firebase.firestore) {
+      setLinkManagementMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    const confirmed = window.confirm("Bist du dir wirklich sicher? Die Verknüpfung zu deiner Person wird aufgehoben.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      setLoading(button, true, "Hebe auf...");
+      setLinkManagementControlsDisabled(true);
+      await window.firebase.firestore().collection("users").doc(user.uid).update({
+        linkedPersonId: fieldValue.delete(),
+        personId: fieldValue.delete(),
+        personLinked: false,
+        personLinkStatus: "open",
+        personLinkIssue: fieldValue.delete(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const cachedData = { ...(readUserDocCache(user.uid) || {}) };
+
+      delete cachedData.linkedPersonId;
+      delete cachedData.personId;
+      delete cachedData.personLinkIssue;
+      cachedData.personLinked = false;
+      cachedData.personLinkStatus = "open";
+      writeUserDocCache(user.uid, cachedData);
+      updateLinkStatusUi(cachedData);
+      updateLinkManagementUi(cachedData);
+      setLinkManagementMessage("Verknüpfung aufgehoben.", true);
+    } catch (error) {
+      setLinkManagementMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(button, false);
+      setLinkManagementControlsDisabled(false);
+    }
+  }
+
+  async function reportLinkIssue(event, auth) {
+    event.preventDefault();
+
+    const user = auth.currentUser;
+    const controls = getLinkManagementControls();
+    const text = controls.issueForm?.elements.issueText?.value.trim() || "";
+
+    if (!user || !window.firebase.firestore) {
+      setLinkManagementMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    if (!text) {
+      setLinkManagementMessage("Bitte beschreibe kurz, was nicht stimmt.", false);
+      return;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+      const payload = {
+        status: "reported",
+        message: text,
+        accountEmail: user.email || "",
+        accountName: getAccountName(user),
+        accountUid: user.uid
+      };
+
+      setLinkManagementControlsDisabled(true);
+      await window.firebase.firestore().collection("users").doc(user.uid).update({
+        personLinkIssue: {
+          ...payload,
+          reportedAt: fieldValue.serverTimestamp(),
+          updatedAt: fieldValue.serverTimestamp()
+        },
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const data = mergeUserDocCache(user.uid, {
+        personLinkIssue: payload
+      });
+
+      closeLinkIssueForm();
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("Fehlermeldung gesendet.", true);
+    } catch (error) {
+      setLinkManagementMessage(translateFirestoreError(error), false);
+    } finally {
+      setLinkManagementControlsDisabled(false);
+    }
+  }
+
   async function initUserSettings(auth, userData) {
     const controls = getSettingsControls();
 
@@ -3803,6 +4242,12 @@
       const data = userData || await loadCurrentUserData(user) || {};
       const request = data.personLinkRequest || null;
 
+      if (isPersonLinked(data)) {
+        setLinkRequestControlsDisabled(true);
+        setLinkRequestMessage("Dieses Konto ist bereits mit der Datenbank verknüpft.", true);
+        return;
+      }
+
       if (request) {
         await syncProfileDetailsFromLinkRequest(user, data);
         controls.firstName.value = request.firstName || "";
@@ -3814,6 +4259,8 @@
         setLinkRequestMessage(
           request.status === "rejected"
             ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
+            : request.status === "withdrawn"
+              ? "Letzter Antrag wurde zurückgezogen. Du kannst die Angaben prüfen und erneut absenden."
             : "Letzter Antrag ist gespeichert.",
           true
         );
@@ -3821,7 +4268,9 @@
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
     } finally {
-      setLinkRequestControlsDisabled(false);
+      if (!isPersonLinked(readUserDocCache(user.uid))) {
+        setLinkRequestControlsDisabled(false);
+      }
     }
   }
 
@@ -3850,6 +4299,11 @@
 
     if (!details.firstName || !details.lastName || !details.birthDate || !details.dlrgBranch) {
       setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geburtsdatum und DLRG-Gliederung aus.", false);
+      return;
+    }
+
+    if (isPersonLinked(readUserDocCache(user.uid))) {
+      setLinkRequestMessage("Dieses Konto ist bereits mit der Datenbank verknüpft.", false);
       return;
     }
 
