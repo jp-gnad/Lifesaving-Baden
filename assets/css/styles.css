@@ -894,7 +894,7 @@ body[data-page="app"] .dashboard > * {
   background:
     linear-gradient(90deg, rgba(15, 15, 18, 0.92) 0%, rgba(15, 15, 18, 0.72) 48%, rgba(15, 15, 18, 0.28) 100%),
     linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.28) 50%, rgba(15, 15, 18, 0.72) 100%),
-    url("../img/training-rescue.jpg") center 30% / cover no-repeat;
+    url("../img/hero-swimmer.jpg") center 46% / cover no-repeat;
 }
 
 .dashboard-header::after {
@@ -2778,7 +2778,7 @@ span.admin-role-control.is-role-admin {
     background:
       linear-gradient(90deg, rgba(15, 15, 18, 0.94) 0%, rgba(15, 15, 18, 0.78) 100%),
       linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.38) 52%, rgba(15, 15, 18, 0.78) 100%),
-      url("../img/training-rescue.jpg") center 30% / cover no-repeat;
+      url("../img/hero-swimmer.jpg") center 46% / cover no-repeat;
   }
 
   body[data-page="app"] .dashboard::after {
