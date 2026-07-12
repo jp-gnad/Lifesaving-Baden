@@ -1,9 +1,47 @@
 (() => {
+  let lockedScrollY = 0;
+
+  function lockPageScroll() {
+    if (document.body.classList.contains("nav-open")) {
+      return;
+    }
+
+    lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add("nav-open");
+    document.body.classList.add("nav-open");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${lockedScrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+  }
+
+  function unlockPageScroll() {
+    if (!document.body.classList.contains("nav-open")) {
+      return;
+    }
+
+    const scrollY = lockedScrollY;
+
+    document.documentElement.classList.remove("nav-open");
+    document.body.classList.remove("nav-open");
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    window.scrollTo(0, scrollY);
+  }
+
   function syncNavBodyState() {
     const hasOpenNav = Boolean(document.querySelector(".nav.is-open"));
 
-    document.documentElement.classList.toggle("nav-open", hasOpenNav);
-    document.body.classList.toggle("nav-open", hasOpenNav);
+    if (hasOpenNav) {
+      lockPageScroll();
+      return;
+    }
+
+    unlockPageScroll();
   }
 
   function closeNav(nav) {
@@ -46,6 +84,14 @@
 
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
+      return;
+    }
+
+    document.querySelectorAll(".nav.is-open").forEach(closeNav);
+  });
+
+  window.addEventListener("resize", () => {
+    if (!window.matchMedia("(min-width: 861px)").matches) {
       return;
     }
 
