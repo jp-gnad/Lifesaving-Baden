@@ -70,6 +70,7 @@ body {
 
 body.modal-open {
   overflow: hidden;
+  padding-right: var(--scrollbar-compensation, 0);
 }
 
 html.nav-open,

@@ -847,6 +847,9 @@
       return;
     }
 
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+
+    document.body.style.setProperty("--scrollbar-compensation", `${scrollbarWidth}px`);
     accountOverlay.classList.remove("is-hidden");
     accountOverlay.setAttribute("aria-hidden", "false");
     document.body.classList.add("modal-open");
@@ -862,6 +865,7 @@
     accountOverlay.classList.add("is-hidden");
     accountOverlay.setAttribute("aria-hidden", "true");
     document.body.classList.remove("modal-open");
+    document.body.style.removeProperty("--scrollbar-compensation");
   }
 
   function setTextForAll(selector, text) {
