@@ -1073,7 +1073,7 @@ h3 {
 
 .admin-account-card {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(145px, 190px) minmax(260px, 390px);
+  grid-template-columns: minmax(210px, 1fr) minmax(145px, 190px) minmax(180px, 260px) max-content;
   gap: 14px;
   align-items: center;
   padding: 12px 14px;
@@ -1220,6 +1220,37 @@ h3 {
   font-weight: 700;
 }
 
+.admin-role-display {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 30px;
+  align-items: center;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.admin-role-display[hidden],
+.admin-role-control[hidden] {
+  display: none;
+}
+
+.admin-role-display.is-role-admin {
+  color: var(--accent-light);
+}
+
+.admin-role-display.is-role-organisator {
+  color: var(--organizer-accent);
+}
+
+.admin-role-display.is-role-kader-sportler {
+  color: var(--kader-accent);
+}
+
+.admin-role-display.is-role-sportler {
+  color: var(--text);
+}
+
 span.admin-role-control {
   display: inline-flex;
   align-items: center;
@@ -1285,7 +1316,7 @@ span.admin-role-control.is-role-admin {
 
 .admin-link-editor {
   display: grid;
-  grid-template-columns: minmax(96px, 170px) 30px 30px;
+  grid-template-columns: minmax(96px, 170px);
   align-items: center;
   gap: 6px;
   justify-content: start;
@@ -1335,30 +1366,46 @@ span.admin-role-control.is-role-admin {
   outline-offset: 2px;
 }
 
-.admin-link-edit:hover,
-.admin-link-edit:focus-visible {
+.admin-account-edit:hover,
+.admin-account-edit:focus-visible {
   background: rgba(255, 237, 0, 0.08);
   color: var(--accent);
 }
 
-.admin-link-save {
+.admin-account-save {
   color: var(--muted);
 }
 
-.admin-link-save:hover,
-.admin-link-save:focus-visible {
+.admin-account-save:hover,
+.admin-account-save:focus-visible {
   background: rgba(28, 191, 105, 0.1);
   color: var(--success);
 }
 
-.admin-link-cancel {
+.admin-account-cancel {
   color: var(--muted);
 }
 
-.admin-link-cancel:hover,
-.admin-link-cancel:focus-visible {
+.admin-account-cancel:hover,
+.admin-account-cancel:focus-visible {
   background: rgba(227, 6, 19, 0.1);
   color: var(--danger);
+}
+
+.admin-account-actions {
+  display: inline-grid;
+  grid-template-columns: 30px;
+  justify-content: end;
+  justify-self: end;
+  gap: 4px;
+}
+
+.admin-account-card.is-editing .admin-account-actions {
+  grid-template-columns: 30px 30px;
+}
+
+.admin-account-actions [hidden] {
+  display: none;
 }
 
 .admin-account-details-shell {
