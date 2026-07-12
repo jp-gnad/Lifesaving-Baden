@@ -129,6 +129,12 @@ input {
   font-weight: 550;
 }
 
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nav a,
 .nav-button {
   min-height: 38px;
@@ -157,6 +163,53 @@ input {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--bg);
+}
+
+.nav-menu-toggle {
+  display: none;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nav-menu-toggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.nav-menu-toggle:hover,
+.nav-menu-toggle:focus-visible,
+.nav.is-open .nav-menu-toggle {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.nav.is-open .nav-menu-toggle {
+  color: var(--primary);
+}
+
+.nav.is-open .nav-menu-toggle span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.nav.is-open .nav-menu-toggle span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav.is-open .nav-menu-toggle span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 .account-trigger {
@@ -2524,15 +2577,70 @@ span.admin-role-control.is-role-admin {
 }
 
 @media (max-width: 860px) {
-  .site-header,
+  .site-header {
+    align-items: center;
+    flex-direction: row;
+    gap: 12px;
+  }
+
   .site-footer {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .brand {
+    min-width: 0;
+  }
+
+  .brand > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .nav {
+    position: relative;
+    width: auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .nav-menu-toggle {
+    display: inline-flex;
+  }
+
+  .nav-links {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 30;
+    display: none;
+    min-width: min(76vw, 260px);
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(24, 24, 29, 0.98);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+  }
+
+  .nav.is-open .nav-links {
+    display: grid;
+    gap: 4px;
+  }
+
+  .nav .nav-links a,
+  .nav .nav-links .nav-button {
+    justify-content: flex-start;
     width: 100%;
-    flex-wrap: wrap;
+    min-height: 40px;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .account-trigger {
+    flex: 0 0 auto;
   }
 
   .hero,
@@ -2698,6 +2806,12 @@ span.admin-role-control.is-role-admin {
   .nav-button {
     flex: 1 1 auto;
     text-align: center;
+  }
+
+  .nav .nav-links a,
+  .nav .nav-links .nav-button {
+    flex: none;
+    text-align: left;
   }
 
   .hero-actions,

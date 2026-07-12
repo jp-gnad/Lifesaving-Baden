@@ -6,10 +6,11 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-login-yellow">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-mobile-header">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="assets/js/nav.js?v=20260712-mobile-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
     <script defer src="assets/js/auth.js?v=20260712-avatar-sync"></script>
   </head>
@@ -22,7 +23,14 @@
         <span>Lifesaving Baden</span>
       </a>
       <nav class="nav" aria-label="Hauptnavigation">
-        <a href="app.html">Home</a>
+        <button class="nav-menu-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="main-nav-links" aria-label="Menü öffnen">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+        <div class="nav-links" id="main-nav-links" data-nav-links>
+          <a href="app.html">Home</a>
+        </div>
         <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
           <span class="account-avatar account-avatar-small">
             <img class="is-hidden" src="" alt="" data-account-photo-small>
