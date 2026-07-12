@@ -1489,8 +1489,9 @@ span.admin-role-control.is-role-admin {
 }
 
 .setting-form input:focus {
-  outline: 3px solid rgba(255, 237, 0, 0.22);
-  border-color: var(--primary);
+  outline: 1px solid rgba(255, 237, 0, 0.34);
+  outline-offset: 1px;
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .setting-form input.is-empty-highlight {
@@ -2214,8 +2215,9 @@ span.admin-role-control.is-role-admin {
 
 .profile-field-edit-form input:focus,
 .profile-field-edit-form select:focus {
-  outline: 3px solid rgba(255, 237, 0, 0.22);
-  border-color: var(--primary);
+  outline: 1px solid rgba(255, 237, 0, 0.34);
+  outline-offset: 1px;
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .profile-radio-list {
@@ -2275,7 +2277,7 @@ span.admin-role-control.is-role-admin {
 }
 
 .profile-radio-option input:focus-visible + .profile-radio-marker {
-  outline: 3px solid rgba(255, 237, 0, 0.24);
+  outline: 1px solid rgba(255, 237, 0, 0.34);
   outline-offset: 3px;
 }
 
