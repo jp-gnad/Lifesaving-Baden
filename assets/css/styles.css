@@ -1862,12 +1862,36 @@ span.admin-role-control.is-role-admin {
 }
 
 .account-manage {
+  position: relative;
   justify-self: stretch;
   width: 100%;
   min-height: 50px;
+  padding-inline: 42px;
   border-color: rgba(255, 255, 255, 0.46);
   background: transparent;
   color: var(--primary);
+}
+
+.account-manage-attention {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--bg);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(255, 237, 0, 0.32);
+  transform: translateY(-50%);
+}
+
+.account-manage-attention.is-hidden {
+  display: none;
 }
 
 .account-role-line strong.is-role-admin {

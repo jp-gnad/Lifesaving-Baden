@@ -1065,6 +1065,15 @@
     const completed = items.filter((item) => item.complete).length;
     const total = items.length;
     const percentage = total ? Math.round((completed / total) * 100) : 0;
+    const isComplete = hasLoadedData && completed === total;
+
+    document.querySelectorAll("[data-account-manage-attention]").forEach((element) => {
+      const shouldHide = !hasLoadedData || isComplete;
+
+      element.classList.toggle("is-hidden", shouldHide);
+      element.hidden = shouldHide;
+      element.setAttribute("aria-hidden", "true");
+    });
 
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
       if (!hasLoadedData) {
@@ -1085,7 +1094,7 @@
         progress.style.width = `${percentage}%`;
       }
 
-      const shouldHide = completed === total;
+      const shouldHide = isComplete;
       checklist.classList.toggle("is-hidden", shouldHide);
       checklist.hidden = shouldHide;
       checklist.setAttribute("aria-hidden", String(shouldHide));
