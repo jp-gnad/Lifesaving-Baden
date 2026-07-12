@@ -515,6 +515,23 @@ body[data-page="app"] .dashboard {
   padding-top: 0;
 }
 
+body[data-page="app"] .dashboard::after {
+  content: "";
+  position: absolute;
+  top: clamp(300px, 38vh, 430px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  background: radial-gradient(circle at 18% 0%, rgba(255, 237, 0, 0.09), transparent 24%);
+  pointer-events: none;
+}
+
+body[data-page="app"] .dashboard > * {
+  position: relative;
+  z-index: 1;
+}
+
 .section-grid {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
@@ -877,7 +894,7 @@ body[data-page="app"] .dashboard {
   background:
     linear-gradient(90deg, rgba(15, 15, 18, 0.92) 0%, rgba(15, 15, 18, 0.72) 48%, rgba(15, 15, 18, 0.28) 100%),
     linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.28) 50%, rgba(15, 15, 18, 0.72) 100%),
-    url("../img/training-rescue.jpg") center 42% / cover no-repeat;
+    url("../img/training-rescue.jpg") center 30% / cover no-repeat;
 }
 
 .dashboard-header::after {
@@ -885,9 +902,7 @@ body[data-page="app"] .dashboard {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background:
-    radial-gradient(circle at 18% 18%, rgba(255, 237, 0, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(15, 15, 18, 0), rgba(15, 15, 18, 0.46));
+  background: linear-gradient(180deg, rgba(15, 15, 18, 0), rgba(15, 15, 18, 0.46));
   pointer-events: none;
 }
 
@@ -2763,7 +2778,11 @@ span.admin-role-control.is-role-admin {
     background:
       linear-gradient(90deg, rgba(15, 15, 18, 0.94) 0%, rgba(15, 15, 18, 0.78) 100%),
       linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.38) 52%, rgba(15, 15, 18, 0.78) 100%),
-      url("../img/training-rescue.jpg") center 42% / cover no-repeat;
+      url("../img/training-rescue.jpg") center 30% / cover no-repeat;
+  }
+
+  body[data-page="app"] .dashboard::after {
+    top: clamp(280px, 42vh, 380px);
   }
 
   .hero {
