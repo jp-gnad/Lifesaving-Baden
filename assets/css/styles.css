@@ -141,6 +141,10 @@ input {
   gap: 8px;
 }
 
+.nav-link-icon {
+  display: none;
+}
+
 .nav a,
 .nav-button {
   min-height: 38px;
@@ -2653,6 +2657,9 @@ span.admin-role-control.is-role-admin {
 
   .nav .nav-links a,
   .nav .nav-links .nav-button {
+    display: flex;
+    align-items: center;
+    gap: 14px;
     justify-content: flex-start;
     width: 100%;
     min-height: 54px;
@@ -2660,6 +2667,25 @@ span.admin-role-control.is-role-admin {
     border-radius: 8px;
     font-size: 1.14rem;
     text-align: left;
+  }
+
+  .nav-link-icon {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    place-items: center;
+    color: inherit;
+  }
+
+  .nav-link-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
   }
 
   .account-trigger {

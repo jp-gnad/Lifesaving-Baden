@@ -1,35 +1,25 @@
 (() => {
   let lockedScrollY = 0;
 
-  function lockPageScroll() {
-    if (document.body.classList.contains("nav-open")) {
-      return;
-    }
-
-    lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    document.documentElement.classList.add("nav-open");
-    document.body.classList.add("nav-open");
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${lockedScrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
-  }
-
-  function unlockPageScroll() {
+  function preventNavScroll(event) {
     if (!document.body.classList.contains("nav-open")) {
       return;
     }
 
+    event.preventDefault();
+  }
+
+  function lockPageScroll() {
+    lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add("nav-open");
+    document.body.classList.add("nav-open");
+  }
+
+  function unlockPageScroll() {
     const scrollY = lockedScrollY;
 
     document.documentElement.classList.remove("nav-open");
     document.body.classList.remove("nav-open");
-    document.body.style.position = "";
-    document.body.style.top = "";
-    document.body.style.left = "";
-    document.body.style.right = "";
-    document.body.style.width = "";
     window.scrollTo(0, scrollY);
   }
 
@@ -89,6 +79,9 @@
 
     document.querySelectorAll(".nav.is-open").forEach(closeNav);
   });
+
+  document.addEventListener("touchmove", preventNavScroll, { passive: false });
+  document.addEventListener("wheel", preventNavScroll, { passive: false });
 
   window.addEventListener("resize", () => {
     if (!window.matchMedia("(min-width: 861px)").matches) {

@@ -6,11 +6,11 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-ios-scroll-lock">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-mobile-nav-icons">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/nav.js?v=20260712-ios-scroll-lock"></script>
+    <script defer src="assets/js/nav.js?v=20260712-mobile-nav-icons"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
     <script defer src="assets/js/auth.js?v=20260712-avatar-sync"></script>
   </head>
@@ -29,7 +29,15 @@
           <span aria-hidden="true"></span>
         </button>
         <div class="nav-links" id="main-nav-links" data-nav-links>
-          <a href="app.html">Home</a>
+          <a href="app.html">
+            <span class="nav-link-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m3 11 9-8 9 8"></path>
+                <path d="M5 10v10h5v-6h4v6h5V10"></path>
+              </svg>
+            </span>
+            <span>Home</span>
+          </a>
         </div>
         <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
           <span class="account-avatar account-avatar-small">
