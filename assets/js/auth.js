@@ -898,24 +898,32 @@
   }
 
   function updateAvatar(photoSelector, initialsSelector, user) {
-    const photo = document.querySelector(photoSelector);
-    const initials = document.querySelector(initialsSelector);
+    const photos = Array.from(document.querySelectorAll(photoSelector));
+    const initialsList = Array.from(document.querySelectorAll(initialsSelector));
 
-    if (!photo || !initials) {
+    if (!photos.length || !initialsList.length) {
       return;
     }
 
-    if (user.photoURL) {
-      photo.src = user.photoURL;
-      photo.classList.remove("is-hidden");
-      initials.classList.add("is-hidden");
-      return;
-    }
+    photos.forEach((photo, index) => {
+      const initials = initialsList[index];
 
-    photo.removeAttribute("src");
-    photo.classList.add("is-hidden");
-    initials.textContent = getInitials(user);
-    initials.classList.remove("is-hidden");
+      if (!initials) {
+        return;
+      }
+
+      if (user.photoURL) {
+        photo.src = user.photoURL;
+        photo.classList.remove("is-hidden");
+        initials.classList.add("is-hidden");
+        return;
+      }
+
+      photo.removeAttribute("src");
+      photo.classList.add("is-hidden");
+      initials.textContent = getInitials(user);
+      initials.classList.remove("is-hidden");
+    });
   }
 
   function updateAccountProfile(user) {
