@@ -1,10 +1,17 @@
 (() => {
+  function syncNavBodyState() {
+    const hasOpenNav = Boolean(document.querySelector(".nav.is-open"));
+
+    document.body.classList.toggle("nav-open", hasOpenNav);
+  }
+
   function closeNav(nav) {
     const toggle = nav.querySelector("[data-nav-toggle]");
 
     nav.classList.remove("is-open");
     toggle?.setAttribute("aria-expanded", "false");
     toggle?.setAttribute("aria-label", "Menü öffnen");
+    syncNavBodyState();
   }
 
   document.querySelectorAll("[data-nav-toggle]").forEach((toggle) => {
@@ -20,6 +27,7 @@
 
       toggle.setAttribute("aria-expanded", String(isOpen));
       toggle.setAttribute("aria-label", isOpen ? "Menü schließen" : "Menü öffnen");
+      syncNavBodyState();
     });
 
     links.querySelectorAll("a").forEach((link) => {
