@@ -2173,41 +2173,37 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-management-status-row {
-  cursor: default;
+  list-style: none;
+  cursor: pointer;
 }
 
-.link-management-status-row.is-link-linked {
-  border-color: rgba(28, 191, 105, 0.34);
-  background:
-    linear-gradient(0deg, rgba(28, 191, 105, 0.1), rgba(28, 191, 105, 0.1)),
-    var(--surface-muted);
+.link-management-status-row::-webkit-details-marker {
+  display: none;
 }
 
-.link-management-status-row.is-link-requested,
-.link-management-status-row.is-link-issue {
-  border-color: rgba(255, 237, 0, 0.36);
-  background:
-    linear-gradient(0deg, rgba(255, 237, 0, 0.1), rgba(255, 237, 0, 0.1)),
-    var(--surface-muted);
+.link-management-card .profile-field-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
 }
 
-.link-management-status-row.is-link-rejected {
-  border-color: rgba(227, 6, 19, 0.42);
-  background:
-    linear-gradient(0deg, rgba(227, 6, 19, 0.08), rgba(227, 6, 19, 0.08)),
-    var(--surface-muted);
-}
-
-.link-management-status-row.is-link-linked .profile-field-icon {
+.link-management-card.is-link-linked .profile-field-icon {
+  border: 1px solid rgba(28, 191, 105, 0.38);
+  background: rgba(28, 191, 105, 0.16);
   color: var(--success);
 }
 
-.link-management-status-row.is-link-requested .profile-field-icon,
-.link-management-status-row.is-link-issue .profile-field-icon {
+.link-management-card.is-link-requested .profile-field-icon,
+.link-management-card.is-link-issue .profile-field-icon {
+  border: 1px solid rgba(255, 237, 0, 0.42);
+  background: rgba(255, 237, 0, 0.14);
   color: var(--primary);
 }
 
-.link-management-status-row.is-link-rejected .profile-field-icon {
+.link-management-card.is-link-open .profile-field-icon,
+.link-management-card.is-link-rejected .profile-field-icon {
+  border: 1px solid rgba(227, 6, 19, 0.44);
+  background: rgba(227, 6, 19, 0.14);
   color: var(--danger);
 }
 

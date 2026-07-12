@@ -3692,6 +3692,7 @@
   function getLinkManagementControls() {
     return {
       root: document.querySelector("[data-link-management]"),
+      details: document.querySelector("[data-link-management-details]"),
       statusRow: document.querySelector("[data-link-management-status-row]"),
       title: document.querySelector("[data-link-management-title]"),
       text: document.querySelector("[data-link-management-text]"),
@@ -3701,6 +3702,7 @@
       withdrawButton: document.querySelector("[data-link-request-withdraw]"),
       unlinkButton: document.querySelector("[data-link-unlink]"),
       issueOpenButton: document.querySelector("[data-link-issue-open]"),
+      issueWithdrawButton: document.querySelector("[data-link-issue-withdraw]"),
       issueCancelButton: document.querySelector("[data-link-issue-cancel]"),
       issueForm: document.querySelector("[data-link-issue-form]")
     };
@@ -3760,8 +3762,8 @@
       controls.text.textContent = text;
     }
 
-    controls.statusRow?.classList.remove("is-link-open", "is-link-requested", "is-link-linked", "is-link-issue", "is-link-rejected");
-    controls.statusRow?.classList.add(`is-link-${state}`);
+    controls.root?.classList.remove("is-link-open", "is-link-requested", "is-link-linked", "is-link-issue", "is-link-rejected");
+    controls.root?.classList.add(`is-link-${state}`);
 
     setLinkManagementPanel(controls.openPanel, state === "open" || state === "rejected");
     setLinkManagementPanel(controls.requestedPanel, state === "requested");
@@ -3770,6 +3772,11 @@
     if (controls.issueOpenButton) {
       controls.issueOpenButton.classList.toggle("is-hidden", state === "issue");
       controls.issueOpenButton.hidden = state === "issue";
+    }
+
+    if (controls.issueWithdrawButton) {
+      controls.issueWithdrawButton.classList.toggle("is-hidden", state !== "issue");
+      controls.issueWithdrawButton.hidden = state !== "issue";
     }
 
     if (controls.issueForm && state !== "linked") {
@@ -3852,6 +3859,11 @@
     if (controls.issueOpenButton && !controls.issueOpenButton.dataset.listenerAttached) {
       controls.issueOpenButton.dataset.listenerAttached = "true";
       controls.issueOpenButton.addEventListener("click", () => openLinkIssueForm());
+    }
+
+    if (controls.issueWithdrawButton && !controls.issueWithdrawButton.dataset.listenerAttached) {
+      controls.issueWithdrawButton.dataset.listenerAttached = "true";
+      controls.issueWithdrawButton.addEventListener("click", () => withdrawLinkIssue(auth, controls.issueWithdrawButton));
     }
 
     if (controls.issueCancelButton && !controls.issueCancelButton.dataset.listenerAttached) {
@@ -4007,6 +4019,43 @@
     } catch (error) {
       setLinkManagementMessage(translateFirestoreError(error), false);
     } finally {
+      setLinkManagementControlsDisabled(false);
+    }
+  }
+
+  async function withdrawLinkIssue(auth, button) {
+    const user = auth.currentUser;
+
+    if (!user || !window.firebase.firestore) {
+      setLinkManagementMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      setLoading(button, true, "Ziehe zurück...");
+      setLinkManagementControlsDisabled(true);
+      await window.firebase.firestore().collection("users").doc(user.uid).update({
+        "personLinkIssue.status": "withdrawn",
+        "personLinkIssue.withdrawnAt": fieldValue.serverTimestamp(),
+        "personLinkIssue.updatedAt": fieldValue.serverTimestamp(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const data = mergeUserDocCache(user.uid, {
+        personLinkIssue: {
+          ...(readUserDocCache(user.uid)?.personLinkIssue || {}),
+          status: "withdrawn"
+        }
+      });
+
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("Fehlermeldung zurückgezogen.", true);
+    } catch (error) {
+      setLinkManagementMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(button, false);
       setLinkManagementControlsDisabled(false);
     }
   }

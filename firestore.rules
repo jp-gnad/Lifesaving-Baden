@@ -78,6 +78,7 @@ service cloud.firestore {
             "accountName",
             "accountUid",
             "reportedAt",
+            "withdrawnAt",
             "updatedAt"
           ])
           && request.resource.data.personLinkIssue.keys().hasAny(["status"])
