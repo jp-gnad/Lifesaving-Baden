@@ -2445,6 +2445,16 @@
       list.className = "profile-radio-list";
       list.setAttribute("role", "radiogroup");
       list.setAttribute("aria-label", config.label);
+      list.addEventListener("change", () => {
+        const editorForm = list.closest("form");
+
+        if (editorForm?.requestSubmit) {
+          editorForm.requestSubmit();
+          return;
+        }
+
+        editorForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
 
       config.options.forEach((option) => {
         const optionLabel = document.createElement("label");
@@ -2527,6 +2537,7 @@
 
     activeRow.insertAdjacentElement("afterend", editor);
     editor.dataset.activeField = fieldName;
+    editor.classList.toggle("is-choice-editor", config.type === "radio");
     editorLabel.textContent = config.label;
     editorHelp.textContent = config.help || "";
     editorHelp.classList.toggle("is-hidden", !config.help);

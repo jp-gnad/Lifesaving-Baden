@@ -2124,6 +2124,11 @@ span.admin-role-control.is-role-admin {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.profile-field-editor.is-choice-editor [data-profile-editor-label],
+.profile-field-editor.is-choice-editor .profile-field-actions {
+  display: none;
+}
+
 .security-field-panel {
   display: flex;
   flex-wrap: wrap;
