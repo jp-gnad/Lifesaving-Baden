@@ -1085,7 +1085,37 @@ h3 {
 .admin-account-card.has-open-request {
   border-color: rgba(255, 237, 0, 0.34);
   background:
-    linear-gradient(90deg, rgba(255, 237, 0, 0.08), rgba(15, 15, 18, 0.58) 34%),
+    linear-gradient(90deg, rgba(255, 237, 0, 0.1), rgba(15, 15, 18, 0.58) 36%),
+    rgba(15, 15, 18, 0.58);
+}
+
+.admin-account-card.is-admin-account {
+  border-color: rgba(227, 6, 19, 0.2);
+  background:
+    linear-gradient(90deg, rgba(227, 6, 19, 0.1), rgba(15, 15, 18, 0.58) 34%),
+    rgba(15, 15, 18, 0.58);
+}
+
+.admin-account-card.is-organizer-account {
+  border-color: rgba(60, 156, 255, 0.2);
+  background:
+    linear-gradient(90deg, rgba(60, 156, 255, 0.1), rgba(15, 15, 18, 0.58) 34%),
+    rgba(15, 15, 18, 0.58);
+}
+
+.admin-account-card.is-kader-account {
+  border-color: rgba(255, 237, 0, 0.22);
+  background:
+    linear-gradient(90deg, rgba(255, 237, 0, 0.09), rgba(15, 15, 18, 0.58) 34%),
+    rgba(15, 15, 18, 0.58);
+}
+
+.admin-account-card.has-open-request.is-admin-account,
+.admin-account-card.has-open-request.is-organizer-account,
+.admin-account-card.has-open-request.is-kader-account {
+  border-color: rgba(255, 237, 0, 0.34);
+  background:
+    linear-gradient(90deg, rgba(255, 237, 0, 0.11), rgba(15, 15, 18, 0.58) 38%),
     rgba(15, 15, 18, 0.58);
 }
 
@@ -1207,15 +1237,15 @@ span.admin-role-control.is-role-admin {
 }
 
 .admin-role-control.is-role-organisator {
-  border-color: rgba(60, 156, 255, 0.46);
-  background: rgba(60, 156, 255, 0.14);
-  color: var(--organizer-accent);
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .admin-role-control.is-role-kader-sportler {
-  border-color: rgba(255, 237, 0, 0.48);
-  background: var(--kader-accent-soft);
-  color: var(--kader-accent);
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .admin-role-control.is-role-sportler {
