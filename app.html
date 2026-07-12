@@ -6,13 +6,13 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-dashboard-hero-position">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-account-modal-role">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-kader-area"></script>
+    <script defer src="assets/js/auth.js?v=20260713-account-modal-role"></script>
   </head>
   <body data-page="app">
     <header class="site-header">
@@ -132,17 +132,10 @@
 
         <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
         <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
-        <p class="admin-badge is-hidden" data-admin-badge>Admin-Konto</p>
-        <p class="organizer-badge is-hidden" data-organizer-badge>Organisator-Konto</p>
-        <p class="kader-badge is-hidden" data-kader-badge>Kader-Sportler</p>
-
-        <a class="account-status-link is-hidden" href="link-request.html" data-account-link-status>
-          <span aria-hidden="true">!</span>
-          <strong>Kontokonfiguration offen</strong>
-        </a>
+        <p class="account-name-line account-role-line">Status: <strong data-account-role>Sportler</strong></p>
 
         <a class="button button-secondary account-manage" href="account-settings.html">
-          Kontoeinstellungen verwalten
+          Kontoeinstellungen
         </a>
 
         <div class="account-actions">

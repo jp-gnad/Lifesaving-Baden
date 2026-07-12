@@ -1146,7 +1146,6 @@
     const copy = getLinkStatusCopy(data);
     const hasLoadedData = Boolean(data);
     const isLinked = copy.state === "linked";
-    const hasRequest = copy.state === "requested";
 
     document.querySelectorAll("[data-account-attention]").forEach((element) => {
       element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
@@ -1161,16 +1160,6 @@
 
     document.querySelectorAll("[data-link-indicator]").forEach((element) => {
       element.classList.toggle("is-hidden", !hasLoadedData || !isLinked);
-    });
-
-    document.querySelectorAll("[data-account-link-status]").forEach((element) => {
-      const statusLabel = element.querySelector("strong");
-
-      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
-
-      if (statusLabel) {
-        statusLabel.textContent = hasRequest ? "Antrag in Prüfung" : copy.title;
-      }
     });
 
     document.querySelectorAll("[data-link-status-action], [data-link-card-action]").forEach((element) => {
@@ -1294,18 +1283,6 @@
       element.classList.toggle("is-hidden", !isOrganizer && !isAdmin);
     });
 
-    document.querySelectorAll("[data-admin-badge]").forEach((element) => {
-      element.classList.toggle("is-hidden", !isAdmin);
-    });
-
-    document.querySelectorAll("[data-organizer-badge]").forEach((element) => {
-      element.classList.toggle("is-hidden", !isOrganizer || isAdmin);
-    });
-
-    document.querySelectorAll("[data-kader-badge]").forEach((element) => {
-      element.classList.toggle("is-hidden", !isKaderAthlete);
-    });
-
     document.querySelectorAll("[data-account-type-card]").forEach((element) => {
       element.classList.toggle("is-organizer-account", isOrganizer && !isAdmin);
       element.classList.toggle("is-kader-account", isKaderAthlete);
@@ -1313,6 +1290,12 @@
     });
 
     updateText("[data-account-role]", role?.label || "Sportler");
+    document.querySelectorAll("[data-account-role]").forEach((element) => {
+      element.classList.toggle("is-role-admin", isAdmin);
+      element.classList.toggle("is-role-organisator", isOrganizer && !isAdmin);
+      element.classList.toggle("is-role-kader-sportler", isKaderAthlete);
+      element.classList.toggle("is-role-sportler", !isAdmin && !isOrganizer && !isKaderAthlete);
+    });
 
     if (typeof window.refreshSettingsMenu === "function") {
       window.refreshSettingsMenu();

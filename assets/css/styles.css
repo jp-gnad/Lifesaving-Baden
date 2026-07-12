@@ -1862,83 +1862,28 @@ span.admin-role-control.is-role-admin {
 }
 
 .account-manage {
-  justify-self: center;
-  min-width: min(100%, 340px);
+  justify-self: stretch;
+  width: 100%;
+  min-height: 50px;
   border-color: rgba(255, 255, 255, 0.46);
   background: transparent;
   color: var(--primary);
 }
 
-.account-status-link {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
-  align-items: center;
-  justify-self: stretch;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 237, 0, 0.28);
-  border-radius: 8px;
-  background: rgba(255, 237, 0, 0.08);
-  color: var(--text);
-}
-
-.account-status-link.is-hidden {
-  display: none;
-}
-
-.account-status-link span {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--primary);
-  color: var(--bg);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.admin-badge,
-.organizer-badge,
-.kader-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  min-height: 28px;
-  margin: 4px 0 0;
-  padding: 5px 10px;
-  border: 1px solid rgba(227, 6, 19, 0.42);
-  border-radius: 999px;
-  background: var(--accent-soft);
+.account-role-line strong.is-role-admin {
   color: var(--accent-light);
-  font-size: 0.84rem;
-  font-weight: 750;
 }
 
-.organizer-badge {
-  border-color: rgba(60, 156, 255, 0.42);
-  background: var(--organizer-accent-soft);
+.account-role-line strong.is-role-organisator {
   color: var(--organizer-accent);
 }
 
-.kader-badge {
-  border-color: rgba(255, 237, 0, 0.42);
-  background: var(--kader-accent-soft);
+.account-role-line strong.is-role-kader-sportler {
   color: var(--kader-accent);
 }
 
-.account-modal .admin-badge,
-.account-modal .organizer-badge,
-.account-modal .kader-badge {
-  justify-self: center;
-}
-
-.admin-badge.is-hidden,
-.organizer-badge.is-hidden,
-.kader-badge.is-hidden {
-  display: none;
+.account-role-line strong.is-role-sportler {
+  color: var(--text);
 }
 
 [data-admin-only].is-hidden,
