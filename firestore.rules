@@ -25,7 +25,8 @@ service cloud.firestore {
     }
 
     function ownerKeepsProtectedFieldsSafe() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return !changedKeys.hasAny([
         "role",
         "admin",
         "isAdmin",
@@ -34,9 +35,9 @@ service cloud.firestore {
         "linkedPersonId",
         "personLinkDecision"
       ])
-      && (!("personLinkStatus" in request.resource.data)
+      && (!changedKeys.hasAny(["personLinkStatus"])
         || request.resource.data.personLinkStatus != "linked")
-      && (!("personLinkRequest" in request.resource.data)
+      && (!changedKeys.hasAny(["personLinkRequest"])
         || !("status" in request.resource.data.personLinkRequest)
         || request.resource.data.personLinkRequest.status != "linked");
     }

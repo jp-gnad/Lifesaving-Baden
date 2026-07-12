@@ -110,6 +110,12 @@
     return messages[error.code] || "Die Einstellung konnte nicht gespeichert werden.";
   }
 
+  function translateProfileSaveError(error) {
+    return String(error?.code || "").startsWith("auth/")
+      ? translateAuthError(error)
+      : translateFirestoreError(error);
+  }
+
   function setSettingsMessage(text, isSuccess) {
     const message = document.querySelector("[data-settings-message]");
 
@@ -3010,7 +3016,7 @@
       );
       return true;
     } catch (error) {
-      setProfileMessage(translateAuthError(error), false);
+      setProfileMessage(translateProfileSaveError(error), false);
       return false;
     } finally {
       setLoading(button, false);
