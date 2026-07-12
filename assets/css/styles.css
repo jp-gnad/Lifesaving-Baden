@@ -149,13 +149,13 @@ input {
 .nav .nav-button {
   border: 1px solid rgba(255, 237, 0, 0.46);
   background: rgba(255, 237, 0, 0.1);
-  color: var(--accent);
+  color: var(--primary);
   font-weight: 700;
 }
 
 .nav .nav-button:hover {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: var(--primary);
+  background: var(--primary);
   color: var(--bg);
 }
 
