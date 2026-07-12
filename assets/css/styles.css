@@ -1648,22 +1648,7 @@ span.admin-role-control.is-role-admin {
 }
 
 .checklist-item.is-complete {
-  color: var(--text);
-}
-
-.checklist-item.is-complete .checklist-dot {
-  border-color: var(--success);
-  background: var(--success);
-}
-
-.checklist-item.is-complete .checklist-dot::after {
-  width: 9px;
-  height: 5px;
-  border-bottom: 2px solid var(--bg);
-  border-left: 2px solid var(--bg);
-  border-radius: 0;
-  background: transparent;
-  transform: rotate(-45deg) translateY(-1px);
+  display: none;
 }
 
 .setting-card {

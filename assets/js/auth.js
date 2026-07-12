@@ -1087,7 +1087,7 @@
       const progress = checklist.querySelector("[data-checklist-progress]");
 
       if (count) {
-        count.textContent = `${completed} von ${total} abgeschlossen`;
+        count.textContent = `${percentage}% abgeschlossen`;
       }
 
       if (progress) {
@@ -1104,6 +1104,8 @@
 
         if (element) {
           element.classList.toggle("is-complete", item.complete);
+          element.hidden = item.complete;
+          element.setAttribute("aria-hidden", String(item.complete));
         }
       });
     });
