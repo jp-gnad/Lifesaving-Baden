@@ -6,7 +6,7 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-link-management-accordion">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260712-member-nav">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -15,16 +15,21 @@
   </head>
   <body data-page="link-request">
     <header class="site-header">
-      <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
+      <a class="brand" href="app.html" aria-label="Lifesaving Baden Mitgliederbereich">
         <span class="brand-mark" aria-hidden="true">
           <img src="assets/img/lifesaving-baden-logo.png" alt="">
         </span>
         <span>Lifesaving Baden</span>
       </a>
       <nav class="nav" aria-label="Hauptnavigation">
-        <a href="app.html">Mitgliederbereich</a>
-        <a href="account-settings.html">Kontoeinstellungen</a>
-        <button class="nav-button" type="button" data-logout>Abmelden</button>
+        <a href="app.html">Home</a>
+        <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
+          <span class="account-avatar account-avatar-small">
+            <img class="is-hidden" src="" alt="" data-account-photo-small>
+            <span data-account-initials-small>?</span>
+          </span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
+        </button>
       </nav>
     </header>
 
@@ -97,5 +102,37 @@
         </article>
       </section>
     </main>
+
+    <div class="account-overlay is-hidden" data-account-overlay aria-hidden="true">
+      <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+        <button class="account-close" type="button" data-account-close aria-label="Kontofenster schließen">&times;</button>
+
+        <p class="account-email" data-account-email>Keine E-Mail geladen.</p>
+
+        <div class="account-avatar account-avatar-large">
+          <img class="is-hidden" src="" alt="" data-account-photo-large>
+          <span data-account-initials-large>?</span>
+        </div>
+
+        <h2 id="account-title">Hallo <span data-account-greeting-name>Mitglied</span>!</h2>
+        <p class="account-name-line">Name: <strong data-account-name>Mitglied</strong></p>
+        <p class="admin-badge is-hidden" data-admin-badge>Admin-Konto</p>
+        <p class="organizer-badge is-hidden" data-organizer-badge>Organisator-Konto</p>
+        <p class="kader-badge is-hidden" data-kader-badge>Kader-Sportler</p>
+
+        <a class="account-status-link is-hidden" href="link-request.html" data-account-link-status>
+          <span aria-hidden="true">!</span>
+          <strong>Kontokonfiguration offen</strong>
+        </a>
+
+        <a class="button button-secondary account-manage" href="account-settings.html">
+          Kontoeinstellungen verwalten
+        </a>
+
+        <div class="account-actions">
+          <button class="account-action" type="button" data-logout>Abmelden</button>
+        </div>
+      </section>
+    </div>
   </body>
 </html>
