@@ -1217,6 +1217,7 @@
       isAdmin: false,
       isOrganizer: false,
       isKaderAthlete: false,
+      hasKaderAccess: false,
       label: "Sportler"
     };
   }
@@ -1224,12 +1225,15 @@
   function getAccountRole(data, claims) {
     const isAdmin = isAdminAccount(data, claims);
     const isOrganizer = isAdmin || isOrganizerAccount(data, claims);
-    const isKaderAthlete = !isOrganizer && isKaderAthleteAccount(data, claims);
+    const isKaderRole = isKaderAthleteAccount(data, claims);
+    const isKaderAthlete = !isOrganizer && isKaderRole;
+    const hasKaderAccess = isAdmin || isOrganizer || isKaderRole;
 
     return {
       isAdmin,
       isOrganizer,
       isKaderAthlete,
+      hasKaderAccess,
       label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : isKaderAthlete ? "Kader-Sportler" : "Sportler"
     };
   }
@@ -1280,6 +1284,10 @@
 
     document.querySelectorAll("[data-organizer-only]").forEach((element) => {
       element.classList.toggle("is-hidden", !isOrganizer);
+    });
+
+    document.querySelectorAll("[data-kader-only]").forEach((element) => {
+      element.classList.toggle("is-hidden", !role?.hasKaderAccess);
     });
 
     document.querySelectorAll("[data-privileged-menu-divider]").forEach((element) => {

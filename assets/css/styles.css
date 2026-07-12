@@ -972,6 +972,17 @@ h3 {
   color: var(--organizer-accent);
 }
 
+.dashboard-action-card[data-kader-only] {
+  border-color: rgba(255, 237, 0, 0.34);
+  background:
+    linear-gradient(135deg, var(--kader-accent-soft), rgba(24, 24, 29, 0.94) 44%),
+    var(--surface);
+}
+
+.dashboard-action-card[data-kader-only] h2 {
+  color: var(--kader-accent);
+}
+
 .dashboard-action-card[data-admin-only] {
   border-color: rgba(227, 6, 19, 0.42);
   background:
@@ -1882,7 +1893,8 @@ span.admin-role-control.is-role-admin {
 }
 
 [data-admin-only].is-hidden,
-[data-organizer-only].is-hidden {
+[data-organizer-only].is-hidden,
+[data-kader-only].is-hidden {
   display: none;
 }
 
