@@ -999,12 +999,7 @@
   }
 
   function isPersonLinked(data) {
-    return Boolean(
-      data?.personLinkStatus === "linked"
-      || data?.personLinked === true
-      || data?.linkedPersonId
-      || data?.personId
-    );
+    return Boolean(data?.linkedPersonId || data?.personId);
   }
 
   function hasPendingLinkRequest(data) {
@@ -1787,11 +1782,69 @@
     return control;
   }
 
+  function createAdminLinkIconButton(label, icon, action) {
+    const button = document.createElement("button");
+
+    button.className = `admin-link-icon-button admin-link-${action}`;
+    button.type = "button";
+    button.textContent = icon;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.dataset[`adminAccountLink${action.charAt(0).toUpperCase()}${action.slice(1)}`] = "";
+
+    return button;
+  }
+
+  function getAdminAccountLinkedIdFromCard(card) {
+    return card?.dataset.linkedPersonId || "";
+  }
+
+  function setAdminAccountLinkedIdDisplay(card, linkedId) {
+    const normalizedId = linkedId.trim();
+    const display = card?.querySelector("[data-admin-account-link-value]");
+    const input = card?.querySelector("[data-admin-account-link-id]");
+
+    if (!card || !display) {
+      return;
+    }
+
+    card.dataset.linkedPersonId = normalizedId;
+    display.textContent = normalizedId || "Keine ID";
+    display.classList.toggle("is-empty", !normalizedId);
+
+    if (input) {
+      input.value = normalizedId;
+      input.dataset.previousValue = normalizedId;
+    }
+  }
+
+  function setAdminLinkEditorOpen(card, shouldOpen) {
+    const display = card?.querySelector(".admin-link-display");
+    const editor = card?.querySelector(".admin-link-editor");
+    const input = card?.querySelector("[data-admin-account-link-id]");
+
+    if (!display || !editor || !input) {
+      return;
+    }
+
+    display.classList.toggle("is-hidden", shouldOpen);
+    display.hidden = shouldOpen;
+    display.setAttribute("aria-hidden", String(shouldOpen));
+    editor.classList.toggle("is-hidden", !shouldOpen);
+    editor.hidden = !shouldOpen;
+    editor.setAttribute("aria-hidden", String(!shouldOpen));
+
+    if (shouldOpen) {
+      input.value = getAdminAccountLinkedIdFromCard(card);
+      input.focus();
+      input.select();
+    }
+  }
+
   function createAdminAccountCard(item) {
     const data = item.data || {};
     const request = data.personLinkRequest || {};
     const accountName = getAdminAccountName(data);
-    const linked = isPersonLinked(data);
     const linkedId = getAdminAccountLinkedId(data);
     const hasOpenRequest = hasPendingLinkRequest(data);
     const detailsId = `admin-account-details-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
@@ -1806,11 +1859,13 @@
     const linkField = document.createElement("div");
     const linkTitle = document.createElement("span");
     const linkControls = document.createElement("div");
-    const linkedToggleLabel = document.createElement("label");
-    const linkedToggleInput = document.createElement("input");
-    const linkedToggleTrack = document.createElement("span");
-    const linkedToggleText = document.createElement("span");
+    const linkDisplay = document.createElement("div");
+    const linkedIdValue = document.createElement("span");
+    const editLinkButton = createAdminLinkIconButton("Personen-ID bearbeiten", "✎", "edit");
+    const linkEditor = document.createElement("div");
     const linkedIdInput = document.createElement("input");
+    const saveLinkButton = createAdminLinkIconButton("Personen-ID speichern", "✓", "save");
+    const cancelLinkButton = createAdminLinkIconButton("Bearbeitung abbrechen", "×", "cancel");
     const detailsShell = document.createElement("div");
     const details = document.createElement("dl");
     const actions = document.createElement("div");
@@ -1823,6 +1878,7 @@
     card.dataset.targetUid = item.uid;
     card.dataset.hasPendingRequest = String(hasOpenRequest);
     card.dataset.accountName = accountName;
+    card.dataset.linkedPersonId = linkedId;
     updateAdminAccountCardRole(card, getAdminAccountRoleValue(data));
 
     identity.className = "admin-account-identity";
@@ -1858,24 +1914,25 @@
     linkTitle.textContent = "Verknüpfung";
     linkControls.className = "admin-account-link-controls";
 
-    linkedToggleLabel.className = "admin-link-switch";
-    linkedToggleInput.type = "checkbox";
-    linkedToggleInput.checked = linked;
-    linkedToggleInput.dataset.adminAccountLinkToggle = "";
-    linkedToggleInput.dataset.previousValue = linked ? "linked" : "open";
-    linkedToggleTrack.className = "admin-link-switch-track";
-    linkedToggleTrack.setAttribute("aria-hidden", "true");
-    linkedToggleText.className = "admin-link-switch-text";
-    linkedToggleText.textContent = linked ? "Ja" : "Nein";
-    linkedToggleLabel.append(linkedToggleInput, linkedToggleTrack, linkedToggleText);
+    linkDisplay.className = "admin-link-display";
+    linkedIdValue.className = "admin-link-id-value";
+    linkedIdValue.dataset.adminAccountLinkValue = "";
+    linkedIdValue.textContent = linkedId || "Keine ID";
+    linkedIdValue.classList.toggle("is-empty", !linkedId);
+    linkDisplay.append(linkedIdValue, editLinkButton);
+
+    linkEditor.className = "admin-link-editor is-hidden";
+    linkEditor.hidden = true;
+    linkEditor.setAttribute("aria-hidden", "true");
 
     linkedIdInput.type = "text";
     linkedIdInput.value = linkedId;
     linkedIdInput.placeholder = hasOpenRequest ? "Personen-ID zum Verknüpfen" : "Personen-ID";
     linkedIdInput.dataset.adminAccountLinkId = "";
     linkedIdInput.dataset.previousValue = linkedId;
+    linkEditor.append(linkedIdInput, saveLinkButton, cancelLinkButton);
 
-    linkControls.append(linkedToggleLabel, linkedIdInput);
+    linkControls.append(linkDisplay, linkEditor);
     linkField.append(linkTitle, linkControls);
     card.append(identity, roleLabel, linkField);
 
@@ -2045,98 +2102,6 @@
     }
   }
 
-  async function updateAdminAccountLinkStatus(auth, toggle) {
-    const card = toggle.closest("[data-admin-account-card]");
-    const targetUid = card?.dataset.targetUid;
-    const user = auth.currentUser;
-    const nextStatus = toggle.checked ? "linked" : "open";
-    const previousStatus = toggle.dataset.previousValue || "open";
-    const idInput = card?.querySelector("[data-admin-account-link-id]");
-    const switchText = card?.querySelector(".admin-link-switch-text");
-    const hasOpenRequest = card?.dataset.hasPendingRequest === "true";
-
-    if (!targetUid || !user || !["linked", "open"].includes(nextStatus)) {
-      toggle.checked = previousStatus === "linked";
-      setAdminAccountMessage("Dieser Verknüpfungsstatus ist ungültig.", false);
-      return;
-    }
-
-    if (nextStatus === previousStatus) {
-      return;
-    }
-
-    const fieldValue = window.firebase.firestore.FieldValue;
-    const linkedId = idInput?.value.trim() || "";
-    const payload = {
-      personLinkStatus: nextStatus === "linked" ? "linked" : "open",
-      personLinked: nextStatus === "linked",
-      updatedAt: fieldValue.serverTimestamp()
-    };
-
-    if (nextStatus === "linked" && linkedId) {
-      payload.linkedPersonId = linkedId;
-    }
-
-    if (nextStatus === "linked" && hasOpenRequest) {
-      payload.personLinkDecision = {
-        status: "linked",
-        personId: linkedId,
-        decidedByUid: user.uid,
-        decidedByEmail: user.email || "",
-        decidedAt: fieldValue.serverTimestamp()
-      };
-      payload["personLinkRequest.status"] = "linked";
-      payload["personLinkRequest.decidedByUid"] = user.uid;
-      payload["personLinkRequest.decidedByEmail"] = user.email || "";
-      payload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
-    }
-
-    if (nextStatus === "open") {
-      payload.linkedPersonId = fieldValue.delete();
-
-      if (hasOpenRequest) {
-        payload["personLinkRequest.status"] = "open";
-      }
-    }
-
-    try {
-      toggle.disabled = true;
-      setAdminAccountMessage("Verknüpfung wird gespeichert...", true);
-      await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
-      toggle.dataset.previousValue = nextStatus;
-
-      if (switchText) {
-        switchText.textContent = nextStatus === "linked" ? "Ja" : "Nein";
-      }
-
-      if (idInput && nextStatus === "open") {
-        idInput.value = "";
-        idInput.dataset.previousValue = "";
-      }
-
-      if (hasOpenRequest) {
-        await loadAdminAccounts(auth);
-      }
-
-      if (targetUid === auth.currentUser?.uid) {
-        clearUserDocCache(targetUid);
-      }
-
-      setAdminAccountMessage(
-        nextStatus === "linked" ? "Konto als verknüpft markiert." : "Verknüpfung entfernt.",
-        true
-      );
-    } catch (error) {
-      toggle.checked = previousStatus === "linked";
-      if (switchText) {
-        switchText.textContent = previousStatus === "linked" ? "Ja" : "Nein";
-      }
-      setAdminAccountMessage(translateFirestoreError(error), false);
-    } finally {
-      toggle.disabled = false;
-    }
-  }
-
   async function updateAdminAccountLinkedId(auth, input) {
     const card = input.closest("[data-admin-account-card]");
     const targetUid = card?.dataset.targetUid;
@@ -2145,7 +2110,19 @@
     const previousId = input.dataset.previousValue || "";
     const hasOpenRequest = card?.dataset.hasPendingRequest === "true";
 
-    if (!targetUid || !user || nextId === previousId) {
+    if (!targetUid || !user) {
+      setAdminAccountMessage("Personen-ID kann gerade nicht gespeichert werden.", false);
+      return;
+    }
+
+    if (hasOpenRequest && !nextId) {
+      setAdminAccountMessage("Bitte trage zuerst eine Personen-ID ein.", false);
+      input.focus();
+      return;
+    }
+
+    if (nextId === previousId) {
+      setAdminLinkEditorOpen(card, false);
       return;
     }
 
@@ -2173,25 +2150,21 @@
       }
     } else {
       payload.linkedPersonId = fieldValue.delete();
+      payload.personId = fieldValue.delete();
+      payload.personLinkStatus = "open";
+      payload.personLinked = false;
     }
 
     try {
-      input.disabled = true;
+      card.querySelectorAll("[data-admin-account-link-id], [data-admin-account-link-save], [data-admin-account-link-cancel]")
+        .forEach((control) => {
+          control.disabled = true;
+        });
       setAdminAccountMessage("Personen-ID wird gespeichert...", true);
       await window.firebase.firestore().collection("users").doc(targetUid).update(payload);
       input.dataset.previousValue = nextId;
-
-      const statusToggle = card.querySelector("[data-admin-account-link-toggle]");
-      const switchText = card.querySelector(".admin-link-switch-text");
-
-      if (nextId && statusToggle) {
-        statusToggle.checked = true;
-        statusToggle.dataset.previousValue = "linked";
-      }
-
-      if (nextId && switchText) {
-        switchText.textContent = "Ja";
-      }
+      setAdminAccountLinkedIdDisplay(card, nextId);
+      setAdminLinkEditorOpen(card, false);
 
       if (hasOpenRequest && nextId) {
         await loadAdminAccounts(auth);
@@ -2201,12 +2174,18 @@
         clearUserDocCache(targetUid);
       }
 
-      setAdminAccountMessage("Personen-ID gespeichert.", true);
+      setAdminAccountMessage(
+        nextId ? "Personen-ID gespeichert. Konto ist verknüpft." : "Personen-ID entfernt. Konto ist nicht verknüpft.",
+        true
+      );
     } catch (error) {
       input.value = previousId;
       setAdminAccountMessage(translateFirestoreError(error), false);
     } finally {
-      input.disabled = false;
+      card.querySelectorAll("[data-admin-account-link-id], [data-admin-account-link-save], [data-admin-account-link-cancel]")
+        .forEach((control) => {
+          control.disabled = false;
+        });
     }
   }
 
@@ -2216,10 +2195,18 @@
     const targetUid = card?.dataset.targetUid;
     const action = button.dataset.adminAccountRequestAction;
     const approve = action === "approve";
-    const personId = card?.querySelector("[data-admin-account-link-id]")?.value.trim() || "";
+    const personId = getAdminAccountLinkedIdFromCard(card)
+      || card?.querySelector("[data-admin-account-link-id]")?.value.trim()
+      || "";
 
     if (!user || !targetUid || !window.firebase.firestore) {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
+      return;
+    }
+
+    if (approve && !personId) {
+      setAdminAccountMessage("Bitte trage zuerst eine Personen-ID ein.", false);
+      setAdminLinkEditorOpen(card, true);
       return;
     }
 
@@ -2248,6 +2235,7 @@
 
     if (!approve) {
       updatePayload.linkedPersonId = fieldValue.delete();
+      updatePayload.personId = fieldValue.delete();
     }
 
     try {
@@ -2284,9 +2272,32 @@
       list.addEventListener("click", (event) => {
         const toggleButton = event.target.closest("[data-admin-account-toggle]");
         const actionButton = event.target.closest("[data-admin-account-request-action]");
+        const editLinkButton = event.target.closest("[data-admin-account-link-edit]");
+        const saveLinkButton = event.target.closest("[data-admin-account-link-save]");
+        const cancelLinkButton = event.target.closest("[data-admin-account-link-cancel]");
 
         if (toggleButton) {
           toggleAdminAccountDetails(toggleButton);
+          return;
+        }
+
+        if (editLinkButton) {
+          setAdminLinkEditorOpen(editLinkButton.closest("[data-admin-account-card]"), true);
+          return;
+        }
+
+        if (saveLinkButton) {
+          const card = saveLinkButton.closest("[data-admin-account-card]");
+          const input = card?.querySelector("[data-admin-account-link-id]");
+
+          if (input) {
+            updateAdminAccountLinkedId(auth, input);
+          }
+          return;
+        }
+
+        if (cancelLinkButton) {
+          setAdminLinkEditorOpen(cancelLinkButton.closest("[data-admin-account-card]"), false);
           return;
         }
 
@@ -2295,19 +2306,26 @@
         }
       });
 
+      list.addEventListener("keydown", (event) => {
+        if (!event.target.matches("[data-admin-account-link-id]")) {
+          return;
+        }
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          updateAdminAccountLinkedId(auth, event.target);
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setAdminLinkEditorOpen(event.target.closest("[data-admin-account-card]"), false);
+        }
+      });
+
       list.addEventListener("change", (event) => {
         if (event.target.matches("[data-admin-account-role]")) {
           updateAdminAccountRole(auth, event.target);
-          return;
-        }
-
-        if (event.target.matches("[data-admin-account-link-toggle]")) {
-          updateAdminAccountLinkStatus(auth, event.target);
-          return;
-        }
-
-        if (event.target.matches("[data-admin-account-link-id]")) {
-          updateAdminAccountLinkedId(auth, event.target);
         }
       });
     }
