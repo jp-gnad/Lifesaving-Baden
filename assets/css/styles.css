@@ -512,6 +512,7 @@ h3 {
 body[data-page="app"] .dashboard {
   isolation: isolate;
   min-height: calc(100vh - 68px);
+  padding-top: 0;
 }
 
 .section-grid {
@@ -865,17 +866,18 @@ body[data-page="app"] .dashboard {
 
 .dashboard-header {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
-  max-width: 820px;
-  margin-bottom: 28px;
-  padding: clamp(22px, 4vw, 38px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  width: calc(100% + (2 * clamp(20px, 5vw, 64px)));
+  max-width: none;
+  min-height: clamp(300px, 38vh, 430px);
+  margin: calc(-1 * clamp(34px, 5vw, 68px)) calc(-1 * clamp(20px, 5vw, 64px)) 28px;
+  padding: clamp(54px, 8vw, 96px) clamp(20px, 5vw, 64px) clamp(34px, 5vw, 56px);
+  border-bottom: 1px solid var(--line);
   background:
-    linear-gradient(90deg, rgba(15, 15, 18, 0.88) 0%, rgba(15, 15, 18, 0.78) 56%, rgba(15, 15, 18, 0.52) 100%),
-    linear-gradient(0deg, rgba(15, 15, 18, 0.88) 0%, rgba(15, 15, 18, 0.5) 48%, rgba(15, 15, 18, 0.9) 100%),
-    url("../img/training-rescue.jpg") right 42% / 62% auto no-repeat;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+    linear-gradient(90deg, rgba(15, 15, 18, 0.92) 0%, rgba(15, 15, 18, 0.72) 48%, rgba(15, 15, 18, 0.28) 100%),
+    linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.28) 50%, rgba(15, 15, 18, 0.72) 100%),
+    url("../img/training-rescue.jpg") center 42% / cover no-repeat;
 }
 
 .dashboard-header::after {
@@ -884,8 +886,8 @@ body[data-page="app"] .dashboard {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(circle at 14% 16%, rgba(255, 237, 0, 0.1), transparent 28%),
-    linear-gradient(90deg, rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.62));
+    radial-gradient(circle at 18% 18%, rgba(255, 237, 0, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(15, 15, 18, 0), rgba(15, 15, 18, 0.46));
   pointer-events: none;
 }
 
@@ -2753,9 +2755,14 @@ span.admin-role-control.is-role-admin {
   }
 
   .dashboard-header {
+    width: calc(100% + (2 * clamp(20px, 5vw, 64px)));
+    min-height: clamp(280px, 42vh, 380px);
+    margin-right: calc(-1 * clamp(20px, 5vw, 64px));
+    margin-left: calc(-1 * clamp(20px, 5vw, 64px));
+    padding-top: clamp(42px, 7vw, 62px);
     background:
-      linear-gradient(90deg, rgba(15, 15, 18, 0.93) 0%, rgba(15, 15, 18, 0.82) 100%),
-      linear-gradient(0deg, rgba(15, 15, 18, 0.92) 0%, rgba(15, 15, 18, 0.62) 48%, rgba(15, 15, 18, 0.94) 100%),
+      linear-gradient(90deg, rgba(15, 15, 18, 0.94) 0%, rgba(15, 15, 18, 0.78) 100%),
+      linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.38) 52%, rgba(15, 15, 18, 0.78) 100%),
       url("../img/training-rescue.jpg") center 42% / cover no-repeat;
   }
 
