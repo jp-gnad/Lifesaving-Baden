@@ -68,6 +68,17 @@ body {
   color: var(--text);
 }
 
+body[data-page="settings"] {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+body[data-page="settings"] .dashboard {
+  flex: 1 0 auto;
+  min-height: calc(100vh - 68px - 80px);
+}
+
 body.modal-open {
   overflow: hidden;
   padding-right: var(--scrollbar-compensation, 0);
