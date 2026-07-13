@@ -2639,8 +2639,7 @@
       type: "email",
       autocomplete: "email",
       required: true,
-      emptyLabel: "Nicht angegeben",
-      help: "Bei einer neuen E-Mail-Adresse wird eine Bestätigungs-Mail an die neue Adresse gesendet."
+      emptyLabel: "Nicht angegeben"
     },
     dlrgBranch: {
       label: "DLRG-Gliederung",
@@ -2845,7 +2844,7 @@
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
     const activeRow = document.querySelector(`[data-profile-edit="${fieldName}"]`);
 
-    if (!config || !editor || !editorLabel || !editorControl || !editorHelp || !deleteButton || !activeRow) {
+    if (!config || !editor || !editorLabel || !editorControl || !deleteButton || !activeRow) {
       return;
     }
 
@@ -2853,8 +2852,10 @@
     editor.dataset.activeField = fieldName;
     editor.classList.toggle("is-choice-editor", config.type === "radio");
     editorLabel.textContent = config.label;
-    editorHelp.textContent = config.help || "";
-    editorHelp.classList.toggle("is-hidden", !config.help);
+    if (editorHelp) {
+      editorHelp.textContent = config.help || "";
+      editorHelp.classList.toggle("is-hidden", !config.help);
+    }
     editorControl.replaceChildren(createProfileFieldControl(fieldName, form));
     deleteButton.hidden = !config.canDelete;
     deleteButton.disabled = !config.canDelete;

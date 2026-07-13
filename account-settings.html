@@ -12,7 +12,7 @@
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-role-dashboard-header"></script>
+    <script defer src="assets/js/auth.js?v=20260713-personal-data-quiet"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -230,7 +230,6 @@
                     <span data-profile-editor-label>Feld bearbeiten</span>
                     <span data-profile-editor-control></span>
                   </label>
-                  <p class="setting-help no-indent" data-profile-editor-help></p>
                   <div class="profile-field-actions">
                     <button class="button button-primary" type="submit" data-profile-edit-save>Speichern</button>
                     <button class="button button-secondary" type="button" data-profile-edit-delete>Löschen</button>
@@ -247,11 +246,6 @@
                 <input type="hidden" name="gender" data-highlight-when-empty>
                 <button type="submit" data-profile-hidden-submit>Kontodaten speichern</button>
               </form>
-              <p class="setting-help">
-                Bei einer neuen E-Mail-Adresse wird eine Bestätigungs-Mail an die
-                neue Adresse gesendet. Dein Konto bleibt dabei erhalten.
-              </p>
-              <p class="form-message" data-profile-message role="status"></p>
             </article>
           </section>
 
