@@ -675,8 +675,7 @@ body[data-page="app"] .dashboard > * {
 }
 
 .footer-links a:hover {
-  background: var(--surface-muted);
-  color: var(--primary);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .footer-note {
