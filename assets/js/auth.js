@@ -2015,7 +2015,7 @@
     }
 
     card.dataset.linkedPersonId = normalizedId;
-    display.textContent = normalizedId || "Keine ID";
+    display.textContent = normalizedId;
     display.classList.toggle("is-empty", !normalizedId);
 
     if (input) {
@@ -2200,7 +2200,7 @@
     linkDisplay.className = "admin-link-display";
     linkedIdValue.className = "admin-link-id-value";
     linkedIdValue.dataset.adminAccountLinkValue = "";
-    linkedIdValue.textContent = linkedId || "Keine ID";
+    linkedIdValue.textContent = linkedId;
     linkedIdValue.classList.toggle("is-empty", !linkedId);
     linkDisplay.append(linkedIdValue);
 
@@ -2236,7 +2236,7 @@
       details.className = "admin-request-details";
       if (hasOpenIssue) {
         appendAdminRequestDetail(details, "Status", "Verknüpfungsfehler gemeldet");
-        appendAdminRequestDetail(details, "Personen-ID", linkedId || "Keine ID gespeichert");
+        appendAdminRequestDetail(details, "Personen-ID", linkedId);
         appendAdminRequestDetail(details, "Meldung", issue.message || "Verknüpfung stimmt nicht mit der Person überein.");
         appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
       } else {
