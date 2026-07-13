@@ -1219,15 +1219,25 @@
     ];
   }
 
+  function isAccountChecklistComplete(data) {
+    if (!data) {
+      return false;
+    }
+
+    const items = getAccountChecklistItems(data);
+
+    return items.length > 0 && items.every((item) => item.complete);
+  }
+
   function updateAccountChecklist(data) {
     const hasLoadedData = Boolean(data);
     const items = getAccountChecklistItems(data || {});
     const completed = items.filter((item) => item.complete).length;
     const total = items.length;
     const percentage = total ? Math.round((completed / total) * 100) : 0;
-    const isComplete = hasLoadedData && completed === total;
+    const isComplete = hasLoadedData && isAccountChecklistComplete(data);
 
-    document.querySelectorAll("[data-account-manage-attention]").forEach((element) => {
+    document.querySelectorAll("[data-account-attention], [data-account-manage-attention]").forEach((element) => {
       const shouldHide = !hasLoadedData || isComplete;
 
       element.classList.toggle("is-hidden", shouldHide);
@@ -1317,10 +1327,6 @@
     const copy = getLinkStatusCopy(data);
     const hasLoadedData = Boolean(data);
     const isLinked = copy.state === "linked";
-
-    document.querySelectorAll("[data-account-attention]").forEach((element) => {
-      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
-    });
 
     document.querySelectorAll("[data-link-status-shell]").forEach((element) => {
       const shouldHide = !hasLoadedData || isLinked;
