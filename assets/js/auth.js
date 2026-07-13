@@ -491,6 +491,33 @@
     return nameDetails.displayName || data?.email || user?.email || "";
   }
 
+  function normalizeDlrgBranchName(value) {
+    let text = String(value || "").replace(/\s+/g, " ").trim();
+
+    if (!text) {
+      return "";
+    }
+
+    text = text.replace(/[.,;]+$/g, "").trim();
+
+    let previousText = "";
+
+    while (text && text !== previousText) {
+      previousText = text;
+      text = text
+        .replace(/^(?:dlrg|deutsche\s+lebens[-\s]*rettungs[-\s]*gesellschaft)\b[\s\-:,.]*/i, "")
+        .replace(/^(?:ortsgruppe|og|ortsverband|ov|kreisgruppe|kg|bezirk|bez\.?|bz|landesverband|lv)\b[\s\-:,.]*/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    return text
+      .replace(/(?:\s*,?\s*(?:e\.?\s*v\.?|eingetragener\s+verein))\.?$/i, "")
+      .replace(/[.,;]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function getUserIdentityData(user, options = {}) {
     const nameDetails = normalizeNameDetails(
       options.nameDetails || splitDisplayNameIntoNameParts(user.displayName || "")
@@ -1639,7 +1666,7 @@
     title.setAttribute("aria-expanded", "false");
     title.setAttribute("aria-controls", detailsId);
     branch.className = "admin-request-branch";
-    branch.textContent = `DLRG ${request.dlrgBranch || data.dlrgBranch || "Nicht angegeben"}`;
+    branch.textContent = `DLRG ${normalizeDlrgBranchName(request.dlrgBranch || data.dlrgBranch) || "Nicht angegeben"}`;
     identity.append(title, branch);
 
     details.className = "admin-request-details";
@@ -1841,7 +1868,7 @@
   }
 
   function getAdminAccountBranch(data) {
-    return String(data?.dlrgBranch || "").trim();
+    return normalizeDlrgBranchName(data?.dlrgBranch);
   }
 
   function getAdminAccountLinkedId(data) {
@@ -3524,7 +3551,7 @@
 
   function getOptionalProfileDetails(form) {
     return {
-      dlrgBranch: form.elements.dlrgBranch?.value.trim() || "",
+      dlrgBranch: normalizeDlrgBranchName(form.elements.dlrgBranch?.value),
       birthDate: form.elements.birthDate?.value || "",
       gender: form.elements.gender?.value || ""
     };
@@ -3539,7 +3566,10 @@
 
     const storedDetails = getProfileDetailsFromData(cachedData);
 
+    const storedRawBranch = String(cachedData.dlrgBranch || "").trim();
+
     return details.dlrgBranch !== storedDetails.dlrgBranch
+      || (storedRawBranch && details.dlrgBranch !== storedRawBranch)
       || details.birthDate !== storedDetails.birthDate
       || details.gender !== storedDetails.gender;
   }
@@ -3619,8 +3649,8 @@
 
     return {
       dlrgBranch: hasStoredProfileField(data, "dlrgBranch")
-        ? data.dlrgBranch || ""
-        : request.dlrgBranch || "",
+        ? normalizeDlrgBranchName(data.dlrgBranch)
+        : normalizeDlrgBranchName(request.dlrgBranch),
       birthDate: hasStoredProfileField(data, "birthDate")
         ? data.birthDate || ""
         : request.birthDate || "",
@@ -3634,8 +3664,10 @@
     const cachePayload = {};
 
     if (!hasStoredProfileField(data, "dlrgBranch") && request.dlrgBranch) {
-      payload.dlrgBranch = request.dlrgBranch;
-      cachePayload.dlrgBranch = request.dlrgBranch;
+      const normalizedBranch = normalizeDlrgBranchName(request.dlrgBranch);
+
+      payload.dlrgBranch = normalizedBranch;
+      cachePayload.dlrgBranch = normalizedBranch;
     }
 
     if (!hasStoredProfileField(data, "birthDate") && request.birthDate) {
@@ -4160,7 +4192,7 @@
 
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
     updateText("[data-link-request-birth-date]", formatBirthDate(request.birthDate || data?.birthDate) || "Nicht angegeben");
-    updateText("[data-link-request-branch]", request.dlrgBranch || data?.dlrgBranch || "Nicht angegeben");
+    updateText("[data-link-request-branch]", normalizeDlrgBranchName(request.dlrgBranch || data?.dlrgBranch) || "Nicht angegeben");
     updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request) || "Nicht angegeben");
   }
 
@@ -4692,7 +4724,7 @@
         controls.firstName.value = request.firstName || nameDetails.firstName || "";
         controls.lastName.value = request.lastName || nameDetails.lastName || "";
         controls.birthDate.value = request.birthDate || "";
-        controls.dlrgBranch.value = request.dlrgBranch || "";
+        controls.dlrgBranch.value = normalizeDlrgBranchName(request.dlrgBranch);
         controls.identityHint.value = getLinkRequestIdentityHint(request).slice(0, 200);
         setLinkRequestMessage(
           request.status === "rejected"
@@ -4708,7 +4740,7 @@
         controls.firstName.value = nameDetails.firstName || "";
         controls.lastName.value = nameDetails.lastName || "";
         controls.birthDate.value = data.birthDate || "";
-        controls.dlrgBranch.value = data.dlrgBranch || "";
+        controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = "";
       }
     } catch (error) {
@@ -4735,7 +4767,7 @@
       firstName: controls.firstName.value.trim(),
       lastName: controls.lastName.value.trim(),
       birthDate: controls.birthDate.value,
-      dlrgBranch: controls.dlrgBranch.value.trim(),
+      dlrgBranch: normalizeDlrgBranchName(controls.dlrgBranch.value),
       identityHint: controls.identityHint.value.trim(),
       accountEmail: user.email || "",
       accountName: getAccountName(user),
@@ -4760,6 +4792,7 @@
     const fieldValue = window.firebase.firestore.FieldValue;
 
     try {
+      controls.dlrgBranch.value = details.dlrgBranch;
       setLinkRequestControlsDisabled(true);
       setLoading(controls.submitButton, true, "Antrag speichern...");
 
