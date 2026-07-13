@@ -1127,10 +1127,6 @@
 
       const updatePayload = getChangedIdentityFields(data, identity);
 
-      if (!Object.prototype.hasOwnProperty.call(data, "role")) {
-        updatePayload.role = "sportler";
-      }
-
       const shouldDeleteLinkedRequest = isPersonLinked(data)
         && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
 
@@ -1148,10 +1144,6 @@
           ...data,
           ...getChangedIdentityFields(data, identity)
         };
-
-        if (updatePayload.role) {
-          cacheData.role = updatePayload.role;
-        }
 
         if (shouldDeleteLinkedRequest) {
           delete cacheData.personLinkRequest;
@@ -1593,6 +1585,8 @@
     return String(
       request.identityHint
       || data?.personLinkRequest?.identityHint
+      || data?.personLinkIdentityHint
+      || data?.["personLinkRequest.identityHint"]
       || ""
     ).trim();
   }
@@ -1821,6 +1815,7 @@
     if (approve && personId) {
       updatePayload.linkedPersonId = personId;
       updatePayload.personLinkRequest = fieldValue.delete();
+      updatePayload.personLinkIdentityHint = fieldValue.delete();
     }
 
     if (!approve) {
@@ -2606,6 +2601,7 @@
     if (approve && personId) {
       updatePayload.linkedPersonId = personId;
       updatePayload.personLinkRequest = fieldValue.delete();
+      updatePayload.personLinkIdentityHint = fieldValue.delete();
     }
 
     if (!approve) {
@@ -4706,7 +4702,7 @@
         controls.lastName.value = request.lastName || nameDetails.lastName || "";
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = getLinkRequestIdentityHint(request).slice(0, 200);
+        controls.identityHint.value = getLinkRequestIdentityHint(request, data).slice(0, 200);
         setLinkRequestMessage(
           request.status === "rejected"
             ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
@@ -4722,7 +4718,7 @@
         controls.lastName.value = nameDetails.lastName || "";
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = "";
+        controls.identityHint.value = getLinkRequestIdentityHint({}, data).slice(0, 200);
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
@@ -4789,10 +4785,16 @@
       const userCacheData = {
         dlrgBranch: details.dlrgBranch,
         birthDate: details.birthDate,
+        personLinkIdentityHint: details.identityHint,
         personLinkStatus: "requested",
         personLinkRequest: requestCacheData
       };
-      const requestWriteData = {
+      await db.collection("users").doc(user.uid).update({
+        dlrgBranch: details.dlrgBranch,
+        birthDate: details.birthDate,
+        personLinkIdentityHint: details.identityHint,
+        profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
+        personLinkStatus: "requested",
         "personLinkRequest.firstName": details.firstName,
         "personLinkRequest.lastName": details.lastName,
         "personLinkRequest.birthDate": details.birthDate,
@@ -4801,15 +4803,7 @@
         "personLinkRequest.accountEmail": details.accountEmail,
         "personLinkRequest.accountName": details.accountName,
         "personLinkRequest.accountUid": details.accountUid,
-        "personLinkRequest.status": "requested"
-      };
-
-      await db.collection("users").doc(user.uid).set({
-        dlrgBranch: details.dlrgBranch,
-        birthDate: details.birthDate,
-        profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
-        personLinkStatus: "requested",
-        ...requestWriteData,
+        "personLinkRequest.status": "requested",
         "personLinkRequest.requestedAt": fieldValue.serverTimestamp(),
         "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
         "personLinkRequest.firstCompetition": fieldValue.delete(),
@@ -4819,7 +4813,7 @@
         "personLinkRequest.decidedAt": fieldValue.delete(),
         "personLinkRequest.withdrawnAt": fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
-      }, { merge: true });
+      });
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
       setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);

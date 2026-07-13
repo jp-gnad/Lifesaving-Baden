@@ -112,19 +112,23 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(["admin", "isAdmin"]);
     }
 
-    function adminKeepsAdminGrantSafe() {
+    function adminKeepsAdminGrantSafe(uid) {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return (!changedKeys.hasAny(["role"])
         || request.resource.data.role in ["sportler", "kader-sportler", "organisator", "organizer"])
         && (!changedKeys.hasAny(["admin"]) || request.resource.data.admin == false)
-        && (!changedKeys.hasAny(["isAdmin"]) || request.resource.data.isAdmin == false);
+        && (!changedKeys.hasAny(["isAdmin"]) || request.resource.data.isAdmin == false)
+        && (
+          request.auth.uid != uid
+          || !changedKeys.hasAny(["role", "admin", "isAdmin"])
+        );
     }
 
     match /users/{uid} {
       allow create: if isOwner(uid) && ownerCreatesOnlySportlerAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
-      allow update: if (isAdmin() && adminKeepsAdminGrantSafe())
+      allow update: if (isAdmin() && adminKeepsAdminGrantSafe(uid))
         || (isOwner(uid) && ownerKeepsProtectedFieldsSafe());
       allow delete: if isAdmin() || isOwner(uid);
     }
