@@ -2457,6 +2457,7 @@ span.admin-role-control.is-role-admin {
 }
 
 .profile-field-editor.is-choice-editor [data-profile-editor-label],
+.profile-field-editor.is-name-editor [data-profile-editor-label],
 .profile-field-editor.is-choice-editor .profile-field-actions {
   display: none;
 }
@@ -2555,6 +2556,18 @@ span.admin-role-control.is-role-admin {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.profile-name-part {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.profile-name-part-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 520;
 }
 
 .profile-radio-list {

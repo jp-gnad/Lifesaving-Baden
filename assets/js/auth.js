@@ -2884,9 +2884,19 @@
       const group = document.createElement("div");
       const firstNameInput = document.createElement("input");
       const lastNameInput = document.createElement("input");
+      const firstNameField = document.createElement("span");
+      const lastNameField = document.createElement("span");
+      const firstNameLabel = document.createElement("span");
+      const lastNameLabel = document.createElement("span");
 
       group.className = "profile-name-parts";
       group.dataset.profileNameParts = "";
+      firstNameField.className = "profile-name-part";
+      lastNameField.className = "profile-name-part";
+      firstNameLabel.className = "profile-name-part-label";
+      lastNameLabel.className = "profile-name-part-label";
+      firstNameLabel.textContent = "Vorname";
+      lastNameLabel.textContent = "Nachname";
 
       firstNameInput.name = "firstName";
       firstNameInput.type = "text";
@@ -2906,7 +2916,9 @@
       lastNameInput.minLength = 2;
       lastNameInput.setAttribute("aria-label", "Nachname");
 
-      group.append(firstNameInput, lastNameInput);
+      firstNameField.append(firstNameLabel, firstNameInput);
+      lastNameField.append(lastNameLabel, lastNameInput);
+      group.append(firstNameField, lastNameField);
       return group;
     }
 
@@ -3009,6 +3021,7 @@
     activeRow.insertAdjacentElement("afterend", editor);
     editor.dataset.activeField = fieldName;
     editor.classList.toggle("is-choice-editor", config.type === "radio");
+    editor.classList.toggle("is-name-editor", config.type === "name-parts");
     editorLabel.textContent = config.label;
     if (editorHelp) {
       editorHelp.textContent = config.help || "";
