@@ -4756,6 +4756,11 @@
       return;
     }
 
+    if (!details.identityHint) {
+      setLinkRequestMessage("Bitte gib eine kurze Identitätsinfo an.", false);
+      return;
+    }
+
     if (!details.firstName || !details.lastName || !details.birthDate || !details.dlrgBranch) {
       setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geburtsdatum und DLRG-Gliederung aus.", false);
       return;

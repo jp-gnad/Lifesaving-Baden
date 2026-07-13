@@ -12,7 +12,7 @@
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-link-request-redirect"></script>
+    <script defer src="assets/js/auth.js?v=20260713-link-request-identity-required"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -100,6 +100,7 @@
                 name="identityHint"
                 rows="4"
                 maxlength="200"
+                required
                 placeholder="z. B. erster oder letzter Wettkampf, Ortsgruppe, Zeitraum oder weitere eindeutige Hinweise"
               ></textarea>
               <small>Max. 200 Zeichen. Je konkreter die Angaben, desto leichter ist die Zuordnung.</small>
