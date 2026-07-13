@@ -4806,6 +4806,7 @@
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
       setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);
+      redirectToApp();
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
     } finally {
