@@ -1562,6 +1562,21 @@
     list.append(term, description);
   }
 
+  function getLinkRequestIdentityHint(request = {}) {
+    const directHint = String(request.identityHint || "").trim();
+
+    if (directHint) {
+      return directHint;
+    }
+
+    return [
+      request.firstCompetition ? `Erster Wettkampf: ${request.firstCompetition}` : "",
+      request.lastCompetition ? `Letzter Wettkampf: ${request.lastCompetition}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   function createAdminRequestCard(item) {
     const data = item.data || {};
     const request = data.personLinkRequest || {};
@@ -1601,8 +1616,7 @@
     details.hidden = true;
     details.setAttribute("aria-hidden", "true");
     appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-    appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
-    appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
+    appendAdminRequestDetail(details, "IdentitÃ¤tsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
     appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
 
     personIdLabel.className = "admin-decision-field";
@@ -2241,8 +2255,7 @@
         appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
       } else {
         appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-        appendAdminRequestDetail(details, "Erster Wettkampf", request.firstCompetition || "Nicht angegeben");
-        appendAdminRequestDetail(details, "Letzter Wettkampf", request.lastCompetition || "Nicht angegeben");
+        appendAdminRequestDetail(details, "IdentitÃ¤tsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
         appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
       }
 
@@ -4117,8 +4130,7 @@
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
     updateText("[data-link-request-birth-date]", formatBirthDate(request.birthDate || data?.birthDate) || "Nicht angegeben");
     updateText("[data-link-request-branch]", request.dlrgBranch || data?.dlrgBranch || "Nicht angegeben");
-    updateText("[data-link-request-first-competition]", request.firstCompetition || "Nicht angegeben");
-    updateText("[data-link-request-last-competition]", request.lastCompetition || "Nicht angegeben");
+    updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request) || "Nicht angegeben");
   }
 
   function updateLinkManagementUi(data) {
@@ -4588,8 +4600,7 @@
       lastName: form?.querySelector('[name="lastName"]'),
       birthDate: form?.querySelector('[name="birthDate"]'),
       dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
-      firstCompetition: form?.querySelector('[name="firstCompetition"]'),
-      lastCompetition: form?.querySelector('[name="lastCompetition"]'),
+      identityHint: form?.querySelector('[name="identityHint"]'),
       submitButton: form?.querySelector('button[type="submit"]')
     };
   }
@@ -4601,7 +4612,7 @@
       return;
     }
 
-    controls.form.querySelectorAll("input, button").forEach((control) => {
+    controls.form.querySelectorAll("input, textarea, button").forEach((control) => {
       control.disabled = isDisabled;
     });
   }
@@ -4634,8 +4645,7 @@
         controls.lastName.value = request.lastName || nameDetails.lastName || "";
         controls.birthDate.value = request.birthDate || "";
         controls.dlrgBranch.value = request.dlrgBranch || "";
-        controls.firstCompetition.value = request.firstCompetition || "";
-        controls.lastCompetition.value = request.lastCompetition || "";
+        controls.identityHint.value = getLinkRequestIdentityHint(request).slice(0, 200);
         setLinkRequestMessage(
           request.status === "rejected"
             ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
@@ -4651,8 +4661,7 @@
         controls.lastName.value = nameDetails.lastName || "";
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = data.dlrgBranch || "";
-        controls.firstCompetition.value = "";
-        controls.lastCompetition.value = "";
+        controls.identityHint.value = "";
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
@@ -4679,12 +4688,16 @@
       lastName: controls.lastName.value.trim(),
       birthDate: controls.birthDate.value,
       dlrgBranch: controls.dlrgBranch.value.trim(),
-      firstCompetition: controls.firstCompetition.value.trim(),
-      lastCompetition: controls.lastCompetition.value.trim(),
+      identityHint: controls.identityHint.value.trim(),
       accountEmail: user.email || "",
       accountName: getAccountName(user),
       accountUid: user.uid
     };
+
+    if (details.identityHint.length > 200) {
+      setLinkRequestMessage("Die IdentitÃ¤tsinfo darf maximal 200 Zeichen haben.", false);
+      return;
+    }
 
     if (!details.firstName || !details.lastName || !details.birthDate || !details.dlrgBranch) {
       setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geburtsdatum und DLRG-Gliederung aus.", false);
@@ -4712,17 +4725,20 @@
         personLinkStatus: "requested",
         personLinkRequest: requestCacheData
       };
+      const requestWriteData = Object.fromEntries(
+        Object.entries(requestCacheData).map(([key, value]) => [`personLinkRequest.${key}`, value])
+      );
 
       await db.collection("users").doc(user.uid).set({
         dlrgBranch: details.dlrgBranch,
         birthDate: details.birthDate,
         profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
         personLinkStatus: "requested",
-        personLinkRequest: {
-          ...requestCacheData,
-          requestedAt: fieldValue.serverTimestamp(),
-          updatedAt: fieldValue.serverTimestamp()
-        },
+        ...requestWriteData,
+        "personLinkRequest.requestedAt": fieldValue.serverTimestamp(),
+        "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
+        "personLinkRequest.firstCompetition": fieldValue.delete(),
+        "personLinkRequest.lastCompetition": fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
       }, { merge: true });
 

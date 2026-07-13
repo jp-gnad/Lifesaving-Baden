@@ -102,7 +102,7 @@ Gespeicherte Felder:
 - `isAdmin` / `admin`: optionale Admin-Markierung als Boolean.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
-  DLRG-Gliederung, erstem/letztem Wettkampf, Konto-E-Mail und Firebase UID.
+  DLRG-Gliederung, kurzer IdentitÃ¤tsinfo, Konto-E-Mail und Firebase UID.
 
 1. In Firebase `Firestore Database` öffnen.
 2. `Create database` wählen.
