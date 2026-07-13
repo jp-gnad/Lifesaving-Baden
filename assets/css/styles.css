@@ -625,7 +625,7 @@ body[data-page="app"] .dashboard > * {
 
 .site-footer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   padding: 22px clamp(20px, 5vw, 64px);
@@ -650,7 +650,7 @@ body[data-page="app"] .dashboard > * {
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -690,8 +690,13 @@ body[data-page="app"] .dashboard > * {
 }
 
 .legal-hero h1 {
+  max-width: none;
   margin: 0;
   font-size: 3rem;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  white-space: nowrap;
   line-height: 1.05;
 }
 
@@ -2864,7 +2869,7 @@ span.admin-role-control.is-role-admin {
   }
 
   .legal-hero h1 {
-    font-size: 2.35rem;
+    font-size: 2.15rem;
   }
 
   .brand {
@@ -3168,7 +3173,7 @@ span.admin-role-control.is-role-admin {
   }
 
   .legal-hero h1 {
-    font-size: 2rem;
+    font-size: 1.7rem;
   }
 
   .nav a,
