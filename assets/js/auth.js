@@ -1589,8 +1589,12 @@
     list.append(term, description);
   }
 
-  function getLinkRequestIdentityHint(request = {}) {
-    return String(request.identityHint || "").trim();
+  function getLinkRequestIdentityHint(request = {}, data = {}) {
+    return String(
+      request.identityHint
+      || data?.personLinkRequest?.identityHint
+      || ""
+    ).trim();
   }
 
   function hasLegacyLinkRequestFields(request = {}) {
@@ -1684,7 +1688,7 @@
     details.hidden = true;
     details.setAttribute("aria-hidden", "true");
     appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-    appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
+    appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
     appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
 
     personIdLabel.className = "admin-decision-field";
@@ -2323,7 +2327,7 @@
         appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
       } else {
         appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-        appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
+        appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
         appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
       }
 
@@ -2426,7 +2430,7 @@
       const snapshot = await window.firebase.firestore()
         .collection("users")
         .limit(200)
-        .get();
+        .get({ source: "server" });
       const accounts = snapshot.docs
         .map((doc) => ({ uid: doc.id, data: doc.data() || {} }))
         .sort((first, second) => {
@@ -4166,7 +4170,7 @@
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
     updateText("[data-link-request-birth-date]", formatBirthDate(data?.birthDate) || "Nicht angegeben");
     updateText("[data-link-request-branch]", normalizeDlrgBranchName(data?.dlrgBranch) || "Nicht angegeben");
-    updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request) || "Nicht angegeben");
+    updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
   }
 
   function updateLinkManagementUi(data) {
@@ -4788,9 +4792,17 @@
         personLinkStatus: "requested",
         personLinkRequest: requestCacheData
       };
-      const requestWriteData = Object.fromEntries(
-        Object.entries(requestCacheData).map(([key, value]) => [`personLinkRequest.${key}`, value])
-      );
+      const requestWriteData = {
+        "personLinkRequest.firstName": details.firstName,
+        "personLinkRequest.lastName": details.lastName,
+        "personLinkRequest.birthDate": details.birthDate,
+        "personLinkRequest.dlrgBranch": details.dlrgBranch,
+        "personLinkRequest.identityHint": details.identityHint,
+        "personLinkRequest.accountEmail": details.accountEmail,
+        "personLinkRequest.accountName": details.accountName,
+        "personLinkRequest.accountUid": details.accountUid,
+        "personLinkRequest.status": "requested"
+      };
 
       await db.collection("users").doc(user.uid).set({
         dlrgBranch: details.dlrgBranch,
