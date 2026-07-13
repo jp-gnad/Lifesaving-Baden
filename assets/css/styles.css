@@ -898,6 +898,38 @@ body[data-page="app"] .dashboard > * {
     url("../img/hero-swimmer.jpg") center 34% / cover no-repeat;
 }
 
+.dashboard-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.dashboard-header.is-role-admin::before {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(227, 6, 19, 0.2), transparent 34%),
+    linear-gradient(105deg, rgba(227, 6, 19, 0.13), transparent 48%);
+  opacity: 1;
+}
+
+.dashboard-header.is-role-organisator::before {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(60, 156, 255, 0.2), transparent 34%),
+    linear-gradient(105deg, rgba(60, 156, 255, 0.12), transparent 48%);
+  opacity: 1;
+}
+
+.dashboard-header.is-role-kader-sportler::before {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 237, 0, 0.16), transparent 34%),
+    linear-gradient(105deg, rgba(255, 237, 0, 0.1), transparent 48%);
+  opacity: 1;
+}
+
 .dashboard-header::after {
   content: "";
   position: absolute;

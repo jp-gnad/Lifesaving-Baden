@@ -1316,6 +1316,13 @@
       element.classList.toggle("is-admin-account", isAdmin);
     });
 
+    document.querySelectorAll(".dashboard-header").forEach((element) => {
+      element.classList.toggle("is-role-admin", isAdmin);
+      element.classList.toggle("is-role-organisator", isOrganizer && !isAdmin);
+      element.classList.toggle("is-role-kader-sportler", isKaderAthlete);
+      element.classList.toggle("is-role-sportler", !isAdmin && !isOrganizer && !isKaderAthlete);
+    });
+
     updateText("[data-account-role]", role?.label || "Sportler");
     document.querySelectorAll("[data-account-role]").forEach((element) => {
       element.classList.toggle("is-role-admin", isAdmin);
