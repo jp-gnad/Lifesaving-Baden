@@ -987,12 +987,33 @@
         updatePayload.role = "sportler";
       }
 
+      const shouldDeleteLinkedRequest = isPersonLinked(data)
+        && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
+
+      if (shouldDeleteLinkedRequest) {
+        updatePayload.personLinkRequest = fieldValue.delete();
+      }
+
       if (Object.keys(updatePayload).length) {
         await userDoc.set({
           ...updatePayload,
           updatedAt: fieldValue.serverTimestamp()
         }, { merge: true });
-        return mergeUserDocCache(user.uid, updatePayload);
+
+        const cacheData = {
+          ...data,
+          ...getChangedIdentityFields(data, identity)
+        };
+
+        if (updatePayload.role) {
+          cacheData.role = updatePayload.role;
+        }
+
+        if (shouldDeleteLinkedRequest) {
+          delete cacheData.personLinkRequest;
+        }
+
+        return writeUserDocCache(user.uid, cacheData);
       }
 
       return writeUserDocCache(user.uid, data);
@@ -1047,11 +1068,10 @@
   }
 
   function getAccountChecklistItems(data) {
-    const request = data?.personLinkRequest || {};
     const linked = isPersonLinked(data);
     const requestSubmitted = linked || hasPendingLinkRequest(data);
-    const dlrgBranchAdded = hasChecklistValue(data?.dlrgBranch) || hasChecklistValue(request.dlrgBranch);
-    const birthDateAdded = hasChecklistValue(data?.birthDate) || hasChecklistValue(request.birthDate);
+    const dlrgBranchAdded = hasChecklistValue(data?.dlrgBranch);
+    const birthDateAdded = hasChecklistValue(data?.birthDate);
     const genderAdded = hasChecklistValue(data?.gender);
 
     return [
@@ -1394,6 +1414,10 @@
     return getShortBirthYear(data?.birthDate || request.birthDate);
   }
 
+  function getAdminAccountBirthYear(data) {
+    return getShortBirthYear(data?.birthDate);
+  }
+
   function appendAdminRequestDetail(list, label, value) {
     if (!value) {
       return;
@@ -1557,6 +1581,11 @@
       return;
     }
 
+    if (approve && !personId) {
+      setAdminRequestMessage("Bitte trage zuerst eine Personen-ID ein.", false);
+      return;
+    }
+
     const fieldValue = window.firebase.firestore.FieldValue;
     const status = approve ? "linked" : "rejected";
     const updatePayload = {
@@ -1569,19 +1598,20 @@
         decidedByUid: user.uid,
         decidedByEmail: user.email || "",
         decidedAt: fieldValue.serverTimestamp()
-      },
-      "personLinkRequest.status": status,
-      "personLinkRequest.decidedByUid": user.uid,
-      "personLinkRequest.decidedByEmail": user.email || "",
-      "personLinkRequest.decidedAt": fieldValue.serverTimestamp()
+      }
     };
 
     if (approve && personId) {
       updatePayload.linkedPersonId = personId;
+      updatePayload.personLinkRequest = fieldValue.delete();
     }
 
     if (!approve) {
       updatePayload.linkedPersonId = fieldValue.delete();
+      updatePayload["personLinkRequest.status"] = status;
+      updatePayload["personLinkRequest.decidedByUid"] = user.uid;
+      updatePayload["personLinkRequest.decidedByEmail"] = user.email || "";
+      updatePayload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
     }
 
     try {
@@ -1635,7 +1665,7 @@
   }
 
   function getAdminAccountBranch(data) {
-    return data?.dlrgBranch || data?.personLinkRequest?.dlrgBranch || "Nicht angegeben";
+    return data?.dlrgBranch || "Nicht angegeben";
   }
 
   function getAdminAccountLinkedId(data) {
@@ -2002,14 +2032,14 @@
       requestAlert.title = hasOpenIssue ? "Gemeldeter Verknüpfungsfehler" : "Offener Verknüpfungsantrag";
       name.className = "admin-request-toggle admin-account-toggle";
       name.type = "button";
-      name.textContent = `${accountName} (${getAdminBirthYear(data)})`;
+      name.textContent = `${accountName} (${getAdminAccountBirthYear(data)})`;
       name.dataset.adminAccountToggle = "";
       name.setAttribute("aria-expanded", "false");
       name.setAttribute("aria-controls", detailsId);
       titleRow.append(requestAlert, name);
     } else {
       name.className = "admin-account-title";
-      name.textContent = `${accountName} (${getAdminBirthYear(data)})`;
+      name.textContent = `${accountName} (${getAdminAccountBirthYear(data)})`;
       titleRow.append(name);
     }
 
@@ -2257,6 +2287,7 @@
         payload.linkedPersonId = nextId;
         payload.personLinkStatus = "linked";
         payload.personLinked = true;
+        payload.personLinkRequest = fieldValue.delete();
         if (hasOpenRequest) {
           payload.personLinkDecision = {
             status: "linked",
@@ -2265,10 +2296,6 @@
             decidedByEmail: user.email || "",
             decidedAt: fieldValue.serverTimestamp()
           };
-          payload["personLinkRequest.status"] = "linked";
-          payload["personLinkRequest.decidedByUid"] = user.uid;
-          payload["personLinkRequest.decidedByEmail"] = user.email || "";
-          payload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
         }
       } else {
         payload.linkedPersonId = fieldValue.delete();
@@ -2351,20 +2378,21 @@
         decidedByUid: user.uid,
         decidedByEmail: user.email || "",
         decidedAt: fieldValue.serverTimestamp()
-      },
-      "personLinkRequest.status": status,
-      "personLinkRequest.decidedByUid": user.uid,
-      "personLinkRequest.decidedByEmail": user.email || "",
-      "personLinkRequest.decidedAt": fieldValue.serverTimestamp()
+      }
     };
 
     if (approve && personId) {
       updatePayload.linkedPersonId = personId;
+      updatePayload.personLinkRequest = fieldValue.delete();
     }
 
     if (!approve) {
       updatePayload.linkedPersonId = fieldValue.delete();
       updatePayload.personId = fieldValue.delete();
+      updatePayload["personLinkRequest.status"] = status;
+      updatePayload["personLinkRequest.decidedByUid"] = user.uid;
+      updatePayload["personLinkRequest.decidedByEmail"] = user.email || "";
+      updatePayload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
     }
 
     try {
