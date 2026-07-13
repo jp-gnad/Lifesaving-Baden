@@ -3148,6 +3148,18 @@ span.admin-role-control.is-role-admin {
     display: none;
   }
 
+  body[data-page="settings"].settings-mobile-menu-view .settings-menu-item.is-active {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+  }
+
+  body[data-page="settings"].settings-mobile-menu-view .settings-menu-item.is-active:hover {
+    border-color: rgba(255, 237, 0, 0.28);
+    background: rgba(255, 237, 0, 0.08);
+    color: var(--text);
+  }
+
   body[data-page="settings"].settings-mobile-content-view .settings-sidebar {
     display: none;
   }
