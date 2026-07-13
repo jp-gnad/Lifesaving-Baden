@@ -6,7 +6,7 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-admin-field-sizing">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-mobile-admin-settings">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -52,7 +52,12 @@
     <main class="dashboard settings-page">
       <section class="settings-shell" aria-label="Kontoeinstellungen">
         <aside class="settings-sidebar" aria-label="Einstellungskategorien">
-          <p class="settings-menu-title">Kontoeinstellungen</p>
+          <div class="settings-menu-heading">
+            <a class="settings-home-link" href="app.html" aria-label="Zurueck zum Home">
+              <span aria-hidden="true">&larr;</span>
+            </a>
+            <p class="settings-menu-title">Kontoeinstellungen</p>
+          </div>
           <nav class="settings-menu">
             <a class="settings-menu-item is-active" href="#persoenliche-daten">
               <span class="settings-menu-icon" aria-hidden="true">
