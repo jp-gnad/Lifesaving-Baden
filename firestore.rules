@@ -59,9 +59,30 @@ service cloud.firestore {
     function ownerKeepsLinkRequestSafe(changedKeys) {
       return !changedKeys.hasAny(["personLinkRequest"])
         || !request.resource.data.keys().hasAny(["personLinkRequest"])
-        || !request.resource.data.personLinkRequest.keys().hasAny(["status"])
         || (
-          request.resource.data.personLinkRequest.status in ["requested", "rejected", "withdrawn"]
+          request.resource.data.personLinkRequest.keys().hasOnly([
+            "firstName",
+            "lastName",
+            "birthDate",
+            "dlrgBranch",
+            "identityHint",
+            "accountEmail",
+            "accountName",
+            "accountUid",
+            "status",
+            "requestedAt",
+            "updatedAt",
+            "withdrawnAt"
+          ])
+          && request.resource.data.personLinkRequest.keys().hasAny(["status"])
+          && request.resource.data.personLinkRequest.status in ["requested", "rejected", "withdrawn"]
+          && (!request.resource.data.personLinkRequest.keys().hasAny(["accountUid"])
+            || request.resource.data.personLinkRequest.accountUid == request.auth.uid)
+          && (!request.resource.data.personLinkRequest.keys().hasAny(["identityHint"])
+            || (
+              request.resource.data.personLinkRequest.identityHint is string
+              && request.resource.data.personLinkRequest.identityHint.size() <= 200
+            ))
           && (request.resource.data.personLinkRequest.status != "requested" || !hasStoredLinkId())
         );
     }

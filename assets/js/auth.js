@@ -1563,18 +1563,49 @@
   }
 
   function getLinkRequestIdentityHint(request = {}) {
-    const directHint = String(request.identityHint || "").trim();
+    return String(request.identityHint || "").trim();
+  }
 
-    if (directHint) {
-      return directHint;
+  function hasLegacyLinkRequestFields(request = {}) {
+    return [
+      "firstCompetition",
+      "lastCompetition",
+      "decidedByUid",
+      "decidedByEmail",
+      "decidedAt"
+    ].some((fieldName) => Object.prototype.hasOwnProperty.call(request, fieldName));
+  }
+
+  async function cleanupLegacyLinkRequestFields(user, data = {}) {
+    const request = data?.personLinkRequest || null;
+
+    if (!user || !request || !window.firebase.firestore || !hasLegacyLinkRequestFields(request)) {
+      return data || {};
     }
 
-    return [
-      request.firstCompetition ? `Erster Wettkampf: ${request.firstCompetition}` : "",
-      request.lastCompetition ? `Letzter Wettkampf: ${request.lastCompetition}` : ""
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const fieldValue = window.firebase.firestore.FieldValue;
+    const cleanupPayload = {
+      "personLinkRequest.firstCompetition": fieldValue.delete(),
+      "personLinkRequest.lastCompetition": fieldValue.delete(),
+      "personLinkRequest.decidedByUid": fieldValue.delete(),
+      "personLinkRequest.decidedByEmail": fieldValue.delete(),
+      "personLinkRequest.decidedAt": fieldValue.delete(),
+      updatedAt: fieldValue.serverTimestamp()
+    };
+    const cleanedRequest = { ...request };
+
+    delete cleanedRequest.firstCompetition;
+    delete cleanedRequest.lastCompetition;
+    delete cleanedRequest.decidedByUid;
+    delete cleanedRequest.decidedByEmail;
+    delete cleanedRequest.decidedAt;
+
+    await window.firebase.firestore().collection("users").doc(user.uid).update(cleanupPayload);
+
+    return writeUserDocCache(user.uid, {
+      ...data,
+      personLinkRequest: cleanedRequest
+    });
   }
 
   function createAdminRequestCard(item) {
@@ -1616,7 +1647,7 @@
     details.hidden = true;
     details.setAttribute("aria-hidden", "true");
     appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-    appendAdminRequestDetail(details, "IdentitÃ¤tsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
+    appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
     appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
 
     personIdLabel.className = "admin-decision-field";
@@ -2255,7 +2286,7 @@
         appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
       } else {
         appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-        appendAdminRequestDetail(details, "IdentitÃ¤tsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
+        appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request) || "Nicht angegeben");
         appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
       }
 
@@ -4213,7 +4244,9 @@
     }
 
     try {
-      const data = userData || await loadCurrentUserData(user) || {};
+      let data = userData || await loadCurrentUserData(user) || {};
+
+      data = await cleanupLegacyLinkRequestFields(user, data);
       updateLinkManagementUi(data);
       setLinkManagementMessage("", true);
     } catch (error) {
@@ -4239,15 +4272,28 @@
         "personLinkRequest.status": "withdrawn",
         "personLinkRequest.withdrawnAt": fieldValue.serverTimestamp(),
         "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
+        "personLinkRequest.firstCompetition": fieldValue.delete(),
+        "personLinkRequest.lastCompetition": fieldValue.delete(),
+        "personLinkRequest.decidedByUid": fieldValue.delete(),
+        "personLinkRequest.decidedByEmail": fieldValue.delete(),
+        "personLinkRequest.decidedAt": fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
       });
 
+      const requestCache = {
+        ...(readUserDocCache(user.uid)?.personLinkRequest || {}),
+        status: "withdrawn"
+      };
+
+      delete requestCache.firstCompetition;
+      delete requestCache.lastCompetition;
+      delete requestCache.decidedByUid;
+      delete requestCache.decidedByEmail;
+      delete requestCache.decidedAt;
+
       const data = mergeUserDocCache(user.uid, {
         personLinkStatus: "open",
-        personLinkRequest: {
-          ...(readUserDocCache(user.uid)?.personLinkRequest || {}),
-          status: "withdrawn"
-        }
+        personLinkRequest: requestCache
       });
 
       updateLinkStatusUi(data);
@@ -4628,7 +4674,9 @@
     setLinkRequestControlsDisabled(true);
 
     try {
-      const data = userData || await loadCurrentUserData(user) || {};
+      let data = userData || await loadCurrentUserData(user) || {};
+
+      data = await cleanupLegacyLinkRequestFields(user, data);
       const request = data.personLinkRequest || null;
 
       if (isPersonLinked(data)) {
@@ -4695,7 +4743,7 @@
     };
 
     if (details.identityHint.length > 200) {
-      setLinkRequestMessage("Die IdentitÃ¤tsinfo darf maximal 200 Zeichen haben.", false);
+      setLinkRequestMessage("Die Identitätsinfo darf maximal 200 Zeichen haben.", false);
       return;
     }
 
@@ -4739,6 +4787,10 @@
         "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
         "personLinkRequest.firstCompetition": fieldValue.delete(),
         "personLinkRequest.lastCompetition": fieldValue.delete(),
+        "personLinkRequest.decidedByUid": fieldValue.delete(),
+        "personLinkRequest.decidedByEmail": fieldValue.delete(),
+        "personLinkRequest.decidedAt": fieldValue.delete(),
+        "personLinkRequest.withdrawnAt": fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
       }, { merge: true });
 
