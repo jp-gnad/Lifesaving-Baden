@@ -6,13 +6,13 @@
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-role-dashboard-header">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-name-parts">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-personal-data-quiet"></script>
+    <script defer src="assets/js/auth.js?v=20260713-name-parts"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -239,6 +239,8 @@
               </div>
 
               <form class="setting-form profile-hidden-form" data-profile-form aria-hidden="true">
+                <input type="hidden" name="firstName">
+                <input type="hidden" name="lastName">
                 <input type="hidden" name="displayName">
                 <input type="hidden" name="email">
                 <input type="hidden" name="dlrgBranch" data-highlight-when-empty>

@@ -2551,6 +2551,12 @@ span.admin-role-control.is-role-admin {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+.profile-name-parts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .profile-radio-list {
   display: grid;
   gap: 2px;
@@ -2950,6 +2956,10 @@ span.admin-role-control.is-role-admin {
 
   .button {
     width: 100%;
+  }
+
+  .profile-name-parts {
+    grid-template-columns: 1fr;
   }
 
   h1 {

@@ -84,6 +84,8 @@ Gespeicherte Felder:
 
 - `uid`: Firebase UID des Kontos.
 - `email`: aktuelle Konto-E-Mail.
+- `firstName`: Vorname des Kontos.
+- `lastName`: Nachname des Kontos.
 - `displayName`: aktueller Anzeigename.
 - `emailVerified`: Status der E-Mail-Bestätigung.
 - `providerIds`: verwendete Login-Anbieter, z. B. `password` oder

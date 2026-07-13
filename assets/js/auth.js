@@ -411,11 +411,97 @@
     return first.every((value) => second.includes(value));
   }
 
-  function getUserIdentityData(user) {
+  function normalizeNamePart(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function formatFullName(firstName, lastName) {
+    return [normalizeNamePart(firstName), normalizeNamePart(lastName)]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+
+  function splitDisplayNameIntoNameParts(displayName) {
+    const normalizedName = normalizeNamePart(displayName);
+
+    if (!normalizedName) {
+      return {
+        firstName: "",
+        lastName: ""
+      };
+    }
+
+    const parts = normalizedName.split(" ");
+
+    if (parts.length === 1) {
+      return {
+        firstName: parts[0],
+        lastName: ""
+      };
+    }
+
+    return {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(" ")
+    };
+  }
+
+  function normalizeNameDetails(details = {}) {
+    const firstName = normalizeNamePart(details.firstName);
+    const lastName = normalizeNamePart(details.lastName);
+    const displayName = firstName && lastName
+      ? formatFullName(firstName, lastName)
+      : normalizeNamePart(details.displayName) || formatFullName(firstName, lastName);
+
+    return {
+      firstName,
+      lastName,
+      displayName
+    };
+  }
+
+  function getNameDetailsFromData(data = {}, user = null) {
+    const storedFirstName = normalizeNamePart(data?.firstName);
+    const storedLastName = normalizeNamePart(data?.lastName);
+
+    if (storedFirstName || storedLastName) {
+      return normalizeNameDetails({
+        firstName: storedFirstName,
+        lastName: storedLastName,
+        displayName: data?.displayName || user?.displayName || ""
+      });
+    }
+
+    const sourceName = normalizeNamePart(data?.displayName || user?.displayName || "");
+
+    return normalizeNameDetails({
+      ...splitDisplayNameIntoNameParts(sourceName),
+      displayName: sourceName
+    });
+  }
+
+  function formatSortableName(data = {}, user = null) {
+    const nameDetails = getNameDetailsFromData(data, user);
+
+    if (nameDetails.firstName && nameDetails.lastName) {
+      return `${nameDetails.lastName}, ${nameDetails.firstName}`;
+    }
+
+    return nameDetails.displayName || data?.email || user?.email || "";
+  }
+
+  function getUserIdentityData(user, options = {}) {
+    const nameDetails = normalizeNameDetails(
+      options.nameDetails || splitDisplayNameIntoNameParts(user.displayName || "")
+    );
+
     return {
       uid: user.uid,
       email: user.email || "",
-      displayName: user.displayName || "",
+      displayName: nameDetails.displayName || user.displayName || "",
+      firstName: nameDetails.firstName,
+      lastName: nameDetails.lastName,
       emailVerified: Boolean(user.emailVerified),
       providerIds: getProviderIds(user)
     };
@@ -582,19 +668,33 @@
 
       const button = registerForm.querySelector('button[type="submit"]');
       const formData = new FormData(registerForm);
-      const name = String(formData.get("name") || "").trim();
+      const firstName = normalizeNamePart(formData.get("firstName"));
+      const lastName = normalizeNamePart(formData.get("lastName"));
+      const displayName = formatFullName(firstName, lastName);
       const email = String(formData.get("email") || "").trim();
       const password = String(formData.get("password") || "");
+
+      if (!firstName || !lastName) {
+        setMessage("register", "Bitte gib Vorname und Nachname an.");
+        return;
+      }
 
       try {
         setLoading(button, true, "Konto erstellen...");
         const { user } = await auth.createUserWithEmailAndPassword(email, password);
         let firestoreError = null;
 
-        await user.updateProfile({ displayName: name });
+        await user.updateProfile({ displayName });
 
         try {
-          await ensureUserDocument(auth.currentUser || user, { throwOnError: true });
+          await ensureUserDocument(auth.currentUser || user, {
+            throwOnError: true,
+            nameDetails: {
+              firstName,
+              lastName,
+              displayName
+            }
+          });
         } catch (error) {
           firestoreError = error;
         }
@@ -875,8 +975,15 @@
   }
 
   function getAccountName(user) {
-    if (user.displayName) {
-      return user.displayName;
+    if (!user) {
+      return "Mitglied";
+    }
+
+    const cachedData = user.uid ? readUserDocCache(user.uid) : null;
+    const nameDetails = getNameDetailsFromData(cachedData || {}, user);
+
+    if (nameDetails.displayName) {
+      return nameDetails.displayName;
     }
 
     if (user.email) {
@@ -961,7 +1068,17 @@
         data = snapshot.exists ? snapshot.data() || {} : null;
       }
 
-      const identity = getUserIdentityData(user);
+      const nameDetails = normalizeNameDetails(options.nameDetails || getNameDetailsFromData(data || {}, user));
+
+      if (nameDetails.displayName && nameDetails.displayName !== (user.displayName || "")) {
+        try {
+          await user.updateProfile({ displayName: nameDetails.displayName });
+        } catch (error) {
+          console.warn("Firebase Auth-Anzeigename konnte nicht aktualisiert werden.", error);
+        }
+      }
+
+      const identity = getUserIdentityData(user, { nameDetails });
 
       if (!exists) {
         const cacheData = {
@@ -1363,9 +1480,16 @@
 
   function getAdminRequestName(data) {
     const request = data?.personLinkRequest || {};
+    const firstName = normalizeNamePart(request.firstName);
+    const lastName = normalizeNamePart(request.lastName);
+
+    if (firstName && lastName) {
+      return `${lastName}, ${firstName}`;
+    }
+
     const requestName = `${request.firstName || ""} ${request.lastName || ""}`.trim();
 
-    return requestName || data?.displayName || request.accountName || "Unbenanntes Konto";
+    return requestName || request.accountName || formatSortableName(data) || "Unbenanntes Konto";
   }
 
   function getInitialsFromName(name) {
@@ -1668,7 +1792,7 @@
   }
 
   function getAdminAccountName(data) {
-    return data?.displayName || data?.personLinkRequest?.accountName || data?.email || "Unbenanntes Konto";
+    return formatSortableName(data) || data?.personLinkRequest?.accountName || data?.email || "Unbenanntes Konto";
   }
 
   function getAdminAccountBranch(data) {
@@ -2629,8 +2753,7 @@
   const profileFieldConfig = {
     displayName: {
       label: "Name",
-      type: "text",
-      autocomplete: "name",
+      type: "name-parts",
       required: true,
       emptyLabel: "Nicht angegeben"
     },
@@ -2668,6 +2791,11 @@
   };
 
   function getProfileFormValue(form, fieldName) {
+    if (fieldName === "displayName") {
+      return form?.elements.displayName?.value
+        || formatFullName(form?.elements.firstName?.value, form?.elements.lastName?.value);
+    }
+
     return form?.elements[fieldName]?.value || "";
   }
 
@@ -2751,6 +2879,36 @@
   function createProfileFieldControl(fieldName, form) {
     const config = profileFieldConfig[fieldName];
     const value = getProfileFormValue(form, fieldName);
+
+    if (config.type === "name-parts") {
+      const group = document.createElement("div");
+      const firstNameInput = document.createElement("input");
+      const lastNameInput = document.createElement("input");
+
+      group.className = "profile-name-parts";
+      group.dataset.profileNameParts = "";
+
+      firstNameInput.name = "firstName";
+      firstNameInput.type = "text";
+      firstNameInput.value = normalizeNamePart(form?.elements.firstName?.value);
+      firstNameInput.placeholder = "Vorname";
+      firstNameInput.autocomplete = "given-name";
+      firstNameInput.required = true;
+      firstNameInput.minLength = 2;
+      firstNameInput.setAttribute("aria-label", "Vorname");
+
+      lastNameInput.name = "lastName";
+      lastNameInput.type = "text";
+      lastNameInput.value = normalizeNamePart(form?.elements.lastName?.value);
+      lastNameInput.placeholder = "Nachname";
+      lastNameInput.autocomplete = "family-name";
+      lastNameInput.required = true;
+      lastNameInput.minLength = 2;
+      lastNameInput.setAttribute("aria-label", "Nachname");
+
+      group.append(firstNameInput, lastNameInput);
+      return group;
+    }
 
     if (config.type === "radio") {
       const list = document.createElement("div");
@@ -2908,12 +3066,58 @@
     event.preventDefault();
 
     const editor = document.querySelector("[data-profile-editor]");
-    const control = document.querySelector('[name="profileFieldValue"]');
     const saveButton = document.querySelector("[data-profile-edit-save]");
     const fieldName = editor?.dataset.activeField;
     const config = profileFieldConfig[fieldName];
+    const control = config?.type === "name-parts"
+      ? document.querySelector("[data-profile-name-parts]")
+      : document.querySelector('[name="profileFieldValue"]');
 
     if (!fieldName || !config || !control || !profileForm.elements[fieldName]) {
+      return;
+    }
+
+    if (config.type === "name-parts") {
+      const firstNameInput = control.querySelector('[name="firstName"]');
+      const lastNameInput = control.querySelector('[name="lastName"]');
+
+      if (firstNameInput?.reportValidity && !firstNameInput.reportValidity()) {
+        return;
+      }
+
+      if (lastNameInput?.reportValidity && !lastNameInput.reportValidity()) {
+        return;
+      }
+
+      const nextNameDetails = normalizeNameDetails({
+        firstName: firstNameInput?.value,
+        lastName: lastNameInput?.value
+      });
+
+      if (!nextNameDetails.firstName || !nextNameDetails.lastName) {
+        setProfileMessage("Vorname und Nachname dürfen nicht leer sein.", false);
+        return;
+      }
+
+      const previousNameDetails = {
+        firstName: profileForm.elements.firstName?.value || "",
+        lastName: profileForm.elements.lastName?.value || "",
+        displayName: profileForm.elements.displayName.value
+      };
+
+      profileForm.elements.firstName.value = nextNameDetails.firstName;
+      profileForm.elements.lastName.value = nextNameDetails.lastName;
+      profileForm.elements.displayName.value = nextNameDetails.displayName;
+
+      if (await persistProfileDetails(auth, profileForm, saveButton)) {
+        closeProfileFieldEditor();
+      } else {
+        profileForm.elements.firstName.value = previousNameDetails.firstName;
+        profileForm.elements.lastName.value = previousNameDetails.lastName;
+        profileForm.elements.displayName.value = previousNameDetails.displayName;
+        updateProfileFieldList(profileForm);
+      }
+
       return;
     }
 
@@ -2969,7 +3173,17 @@
       return;
     }
 
-    profileForm.elements.displayName.value = getAccountName(user);
+    const nameDetails = getNameDetailsFromData({}, user);
+
+    if (profileForm.elements.firstName) {
+      profileForm.elements.firstName.value = nameDetails.firstName;
+    }
+
+    if (profileForm.elements.lastName) {
+      profileForm.elements.lastName.value = nameDetails.lastName;
+    }
+
+    profileForm.elements.displayName.value = nameDetails.displayName || getAccountName(user);
     profileForm.elements.email.value = user.email || "";
     updateProfileFieldList(profileForm);
   }
@@ -3267,6 +3481,20 @@
       || details.gender !== storedDetails.gender;
   }
 
+  function haveNameDetailsChanged(user, nameDetails) {
+    const cachedData = readUserDocCache(user.uid);
+
+    if (!cachedData) {
+      return true;
+    }
+
+    const storedNameDetails = getNameDetailsFromData(cachedData, user);
+
+    return nameDetails.firstName !== storedNameDetails.firstName
+      || nameDetails.lastName !== storedNameDetails.lastName
+      || nameDetails.displayName !== storedNameDetails.displayName;
+  }
+
   async function loadAccountProfileDetails(auth, userData) {
     const user = auth.currentUser;
     const profileForm = document.querySelector("[data-profile-form]");
@@ -3281,6 +3509,23 @@
 
       const data = userData || await loadCurrentUserData(user) || {};
       const details = await syncProfileDetailsFromLinkRequest(user, data);
+      const nameDetails = getNameDetailsFromData(data, user);
+
+      if (profileForm.elements.firstName) {
+        profileForm.elements.firstName.value = nameDetails.firstName;
+      }
+
+      if (profileForm.elements.lastName) {
+        profileForm.elements.lastName.value = nameDetails.lastName;
+      }
+
+      if (profileForm.elements.displayName) {
+        profileForm.elements.displayName.value = nameDetails.displayName || getAccountName(user);
+      }
+
+      if (profileForm.elements.email) {
+        profileForm.elements.email.value = user.email || data.email || "";
+      }
 
       if (profileForm.elements.dlrgBranch) {
         profileForm.elements.dlrgBranch.value = details.dlrgBranch;
@@ -3351,7 +3596,12 @@
 
   async function persistProfileDetails(auth, form, button) {
     const user = auth.currentUser;
-    const displayName = form.elements.displayName.value.trim();
+    const nameDetails = normalizeNameDetails({
+      firstName: form.elements.firstName?.value,
+      lastName: form.elements.lastName?.value,
+      displayName: form.elements.displayName?.value
+    });
+    const displayName = nameDetails.displayName;
     const email = form.elements.email.value.trim();
     const optionalProfileDetails = getOptionalProfileDetails(form);
 
@@ -3360,16 +3610,21 @@
       return false;
     }
 
-    if (!displayName || !email) {
-      setProfileMessage("Bitte fülle Name und E-Mail aus.", false);
+    if (!nameDetails.firstName || !nameDetails.lastName || !email) {
+      setProfileMessage("Bitte fülle Vorname, Nachname und E-Mail aus.", false);
       return false;
+    }
+
+    if (form.elements.displayName) {
+      form.elements.displayName.value = displayName;
     }
 
     const emailChanged = email.toLowerCase() !== String(user.email || "").toLowerCase();
     const displayNameChanged = displayName !== (user.displayName || "");
+    const nameDetailsChanged = haveNameDetailsChanged(user, nameDetails);
     const profileDetailsChanged = haveOptionalProfileDetailsChanged(user, optionalProfileDetails);
 
-    if (!displayNameChanged && !emailChanged && !profileDetailsChanged) {
+    if (!displayNameChanged && !nameDetailsChanged && !emailChanged && !profileDetailsChanged) {
       setProfileMessage("Keine Ã„nderung zu speichern.", true);
       updateEmptyProfileFieldHighlights(form);
       return true;
@@ -3387,9 +3642,14 @@
       }
 
       await user.reload();
+      const updatedData = await saveIdentitySnapshot(
+        auth.currentUser,
+        emailChanged ? email : null,
+        optionalProfileDetails,
+        nameDetails
+      );
       updateAccountProfile(auth.currentUser);
       fillAccountManagementForms(auth.currentUser);
-      const updatedData = await saveIdentitySnapshot(auth.currentUser, emailChanged ? email : null, optionalProfileDetails);
       await loadAccountProfileDetails(auth, updatedData);
       await initLinkStatus(auth, updatedData);
       updateEmptyProfileFieldHighlights(form);
@@ -3433,12 +3693,15 @@
     await user.sendEmailVerification(actionSettings);
   }
 
-  async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails) {
+  async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails, nameDetails = null) {
     if (!window.firebase.firestore) {
       return null;
     }
 
-    const identity = getUserIdentityData(user);
+    const cachedData = readUserDocCache(user.uid) || {};
+    const identity = getUserIdentityData(user, {
+      nameDetails: nameDetails || getNameDetailsFromData(cachedData, user)
+    });
     const payload = {
       ...identity,
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
@@ -4168,9 +4431,12 @@
     const user = auth.currentUser;
     const shouldKeepData = controls.keepData.checked;
     const isPrivateProfile = controls.privateProfile.checked;
+    const nameDetails = getNameDetailsFromData(readUserDocCache(user.uid) || {}, user);
     const payload = {
       email: user.email || "",
-      displayName: user.displayName || "",
+      displayName: nameDetails.displayName || user.displayName || "",
+      firstName: nameDetails.firstName,
+      lastName: nameDetails.lastName,
       keepPersonalDataUntilRevoked: shouldKeepData,
       privateProfile: isPrivateProfile,
       publicProfile: !isPrivateProfile,
@@ -4254,6 +4520,8 @@
       mergeUserDocCache(user.uid, {
         email: payload.email,
         displayName: payload.displayName,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
         keepPersonalDataUntilRevoked: payload.keepPersonalDataUntilRevoked,
         privateProfile: payload.privateProfile,
         publicProfile: payload.publicProfile,
@@ -4341,8 +4609,10 @@
 
       if (request) {
         await syncProfileDetailsFromLinkRequest(user, data);
-        controls.firstName.value = request.firstName || "";
-        controls.lastName.value = request.lastName || "";
+        const nameDetails = getNameDetailsFromData(data, user);
+
+        controls.firstName.value = request.firstName || nameDetails.firstName || "";
+        controls.lastName.value = request.lastName || nameDetails.lastName || "";
         controls.birthDate.value = request.birthDate || "";
         controls.dlrgBranch.value = request.dlrgBranch || "";
         controls.firstCompetition.value = request.firstCompetition || "";
@@ -4355,6 +4625,15 @@
             : "Letzter Antrag ist gespeichert.",
           true
         );
+      } else {
+        const nameDetails = getNameDetailsFromData(data, user);
+
+        controls.firstName.value = nameDetails.firstName || "";
+        controls.lastName.value = nameDetails.lastName || "";
+        controls.birthDate.value = data.birthDate || "";
+        controls.dlrgBranch.value = data.dlrgBranch || "";
+        controls.firstCompetition.value = "";
+        controls.lastCompetition.value = "";
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
