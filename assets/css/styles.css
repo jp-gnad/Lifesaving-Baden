@@ -2184,39 +2184,40 @@ span.admin-role-control.is-role-admin {
 }
 
 .settings-home-link {
-  display: inline-grid;
+  display: none;
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
-  font-size: 1.45rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 2rem;
   font-weight: 900;
   line-height: 1;
-  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition: color 160ms ease;
 }
 
 .settings-home-link:hover,
 .settings-home-link:focus-visible {
-  border-color: rgba(255, 237, 0, 0.32);
-  background: rgba(255, 237, 0, 0.08);
   color: var(--primary);
 }
 
 .settings-home-link:focus-visible {
-  outline: 2px solid rgba(255, 237, 0, 0.28);
-  outline-offset: 2px;
+  outline: 0;
+}
+
+.settings-home-link span:first-child {
+  transform: translateY(-1px);
 }
 
 .settings-menu-title {
   margin: 0;
   color: var(--text);
-  font-size: clamp(1.24rem, 1.7vw, 1.5rem);
+  font-size: 1.75rem;
   font-weight: 750;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .settings-menu {
@@ -3110,6 +3111,12 @@ span.admin-role-control.is-role-admin {
 
   .settings-menu-heading {
     margin-bottom: 22px;
+  }
+
+  .settings-home-link {
+    display: inline-grid;
+    align-items: center;
+    justify-content: center;
   }
 
   .settings-menu {
