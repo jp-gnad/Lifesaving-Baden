@@ -1599,7 +1599,8 @@
       "lastCompetition",
       "decidedByUid",
       "decidedByEmail",
-      "decidedAt"
+      "decidedAt",
+      ...(request.status === "requested" ? [] : ["birthDate", "dlrgBranch"])
     ].some((fieldName) => Object.prototype.hasOwnProperty.call(request, fieldName));
   }
 
@@ -1617,6 +1618,10 @@
       "personLinkRequest.decidedByUid": fieldValue.delete(),
       "personLinkRequest.decidedByEmail": fieldValue.delete(),
       "personLinkRequest.decidedAt": fieldValue.delete(),
+      ...(request.status === "requested" ? {} : {
+        "personLinkRequest.birthDate": fieldValue.delete(),
+        "personLinkRequest.dlrgBranch": fieldValue.delete()
+      }),
       updatedAt: fieldValue.serverTimestamp()
     };
     const cleanedRequest = { ...request };
@@ -1626,6 +1631,11 @@
     delete cleanedRequest.decidedByUid;
     delete cleanedRequest.decidedByEmail;
     delete cleanedRequest.decidedAt;
+
+    if (request.status !== "requested") {
+      delete cleanedRequest.birthDate;
+      delete cleanedRequest.dlrgBranch;
+    }
 
     await window.firebase.firestore().collection("users").doc(user.uid).update(cleanupPayload);
 
@@ -3640,52 +3650,15 @@
     }
   }
 
-  function hasStoredProfileField(data, fieldName) {
-    return Object.prototype.hasOwnProperty.call(data, fieldName);
-  }
-
   function getProfileDetailsFromData(data) {
-    const request = data.personLinkRequest || {};
-
     return {
-      dlrgBranch: hasStoredProfileField(data, "dlrgBranch")
-        ? normalizeDlrgBranchName(data.dlrgBranch)
-        : normalizeDlrgBranchName(request.dlrgBranch),
-      birthDate: hasStoredProfileField(data, "birthDate")
-        ? data.birthDate || ""
-        : request.birthDate || "",
+      dlrgBranch: normalizeDlrgBranchName(data.dlrgBranch),
+      birthDate: data.birthDate || "",
       gender: data.gender || ""
     };
   }
 
   async function syncProfileDetailsFromLinkRequest(user, data) {
-    const request = data.personLinkRequest || {};
-    const payload = {};
-    const cachePayload = {};
-
-    if (!hasStoredProfileField(data, "dlrgBranch") && request.dlrgBranch) {
-      const normalizedBranch = normalizeDlrgBranchName(request.dlrgBranch);
-
-      payload.dlrgBranch = normalizedBranch;
-      cachePayload.dlrgBranch = normalizedBranch;
-    }
-
-    if (!hasStoredProfileField(data, "birthDate") && request.birthDate) {
-      payload.birthDate = request.birthDate;
-      cachePayload.birthDate = request.birthDate;
-    }
-
-    if (Object.keys(payload).length) {
-      const fieldValue = window.firebase.firestore.FieldValue;
-
-      payload.profileDetailsUpdatedAt = fieldValue.serverTimestamp();
-      payload.updatedAt = fieldValue.serverTimestamp();
-
-      await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
-      Object.assign(data, cachePayload);
-      mergeUserDocCache(user.uid, cachePayload);
-    }
-
     return getProfileDetailsFromData(data);
   }
 
@@ -4191,8 +4164,8 @@
     const fullName = `${request.firstName || ""} ${request.lastName || ""}`.trim();
 
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
-    updateText("[data-link-request-birth-date]", formatBirthDate(request.birthDate || data?.birthDate) || "Nicht angegeben");
-    updateText("[data-link-request-branch]", normalizeDlrgBranchName(request.dlrgBranch || data?.dlrgBranch) || "Nicht angegeben");
+    updateText("[data-link-request-birth-date]", formatBirthDate(data?.birthDate) || "Nicht angegeben");
+    updateText("[data-link-request-branch]", normalizeDlrgBranchName(data?.dlrgBranch) || "Nicht angegeben");
     updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request) || "Nicht angegeben");
   }
 
@@ -4306,6 +4279,8 @@
         "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
         "personLinkRequest.firstCompetition": fieldValue.delete(),
         "personLinkRequest.lastCompetition": fieldValue.delete(),
+        "personLinkRequest.birthDate": fieldValue.delete(),
+        "personLinkRequest.dlrgBranch": fieldValue.delete(),
         "personLinkRequest.decidedByUid": fieldValue.delete(),
         "personLinkRequest.decidedByEmail": fieldValue.delete(),
         "personLinkRequest.decidedAt": fieldValue.delete(),
@@ -4319,6 +4294,8 @@
 
       delete requestCache.firstCompetition;
       delete requestCache.lastCompetition;
+      delete requestCache.birthDate;
+      delete requestCache.dlrgBranch;
       delete requestCache.decidedByUid;
       delete requestCache.decidedByEmail;
       delete requestCache.decidedAt;
@@ -4723,8 +4700,8 @@
 
         controls.firstName.value = request.firstName || nameDetails.firstName || "";
         controls.lastName.value = request.lastName || nameDetails.lastName || "";
-        controls.birthDate.value = request.birthDate || "";
-        controls.dlrgBranch.value = normalizeDlrgBranchName(request.dlrgBranch);
+        controls.birthDate.value = data.birthDate || "";
+        controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = getLinkRequestIdentityHint(request).slice(0, 200);
         setLinkRequestMessage(
           request.status === "rejected"
