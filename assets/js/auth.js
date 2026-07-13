@@ -1796,7 +1796,7 @@
   }
 
   function getAdminAccountBranch(data) {
-    return data?.dlrgBranch || "Nicht angegeben";
+    return String(data?.dlrgBranch || "").trim();
   }
 
   function getAdminAccountLinkedId(data) {
@@ -2174,8 +2174,14 @@
       titleRow.append(name);
     }
 
-    branch.textContent = `DLRG ${getAdminAccountBranch(data)}`;
-    identity.append(titleRow, branch);
+    const accountBranch = getAdminAccountBranch(data);
+
+    if (accountBranch) {
+      branch.textContent = `DLRG ${accountBranch}`;
+      identity.append(titleRow, branch);
+    } else {
+      identity.append(titleRow);
+    }
 
     roleLabel.className = "admin-account-field";
     roleText.textContent = "Rolle";
