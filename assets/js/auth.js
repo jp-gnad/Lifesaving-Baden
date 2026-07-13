@@ -1586,7 +1586,6 @@
       request.identityHint
       || data?.personLinkRequest?.identityHint
       || data?.personLinkIdentityHint
-      || data?.["personLinkRequest.identityHint"]
       || ""
     ).trim();
   }
@@ -1641,6 +1640,38 @@
       ...data,
       personLinkRequest: cleanedRequest
     });
+  }
+
+  function hasInactiveLinkRequestData(data = {}) {
+    const requestStatus = data?.personLinkRequest?.status;
+    const accountStatus = data?.personLinkStatus;
+    const hasActiveRequest = accountStatus === "requested" || requestStatus === "requested";
+
+    return Boolean(
+      !hasActiveRequest
+      && (data?.personLinkRequest || data?.personLinkIdentityHint)
+    );
+  }
+
+  async function cleanupInactiveLinkRequestData(user, data = {}) {
+    if (!user || !window.firebase.firestore || !hasInactiveLinkRequestData(data)) {
+      return data || {};
+    }
+
+    const fieldValue = window.firebase.firestore.FieldValue;
+
+    await window.firebase.firestore().collection("users").doc(user.uid).update({
+      personLinkRequest: fieldValue.delete(),
+      personLinkIdentityHint: fieldValue.delete(),
+      updatedAt: fieldValue.serverTimestamp()
+    });
+
+    const cleanedData = { ...data };
+
+    delete cleanedData.personLinkRequest;
+    delete cleanedData.personLinkIdentityHint;
+
+    return writeUserDocCache(user.uid, cleanedData);
   }
 
   function createAdminRequestCard(item) {
@@ -1820,10 +1851,9 @@
 
     if (!approve) {
       updatePayload.linkedPersonId = fieldValue.delete();
-      updatePayload["personLinkRequest.status"] = status;
-      updatePayload["personLinkRequest.decidedByUid"] = user.uid;
-      updatePayload["personLinkRequest.decidedByEmail"] = user.email || "";
-      updatePayload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
+      updatePayload.personId = fieldValue.delete();
+      updatePayload.personLinkRequest = fieldValue.delete();
+      updatePayload.personLinkIdentityHint = fieldValue.delete();
     }
 
     try {
@@ -2607,10 +2637,8 @@
     if (!approve) {
       updatePayload.linkedPersonId = fieldValue.delete();
       updatePayload.personId = fieldValue.delete();
-      updatePayload["personLinkRequest.status"] = status;
-      updatePayload["personLinkRequest.decidedByUid"] = user.uid;
-      updatePayload["personLinkRequest.decidedByEmail"] = user.email || "";
-      updatePayload["personLinkRequest.decidedAt"] = fieldValue.serverTimestamp();
+      updatePayload.personLinkRequest = fieldValue.delete();
+      updatePayload.personLinkIdentityHint = fieldValue.delete();
     }
 
     try {
@@ -4252,6 +4280,7 @@
       let data = userData || await loadCurrentUserData(user) || {};
 
       data = await cleanupLegacyLinkRequestFields(user, data);
+      data = await cleanupInactiveLinkRequestData(user, data);
       updateLinkManagementUi(data);
       setLinkManagementMessage("", true);
     } catch (error) {
@@ -4274,36 +4303,18 @@
       setLinkManagementControlsDisabled(true);
       await window.firebase.firestore().collection("users").doc(user.uid).update({
         personLinkStatus: "open",
-        "personLinkRequest.status": "withdrawn",
-        "personLinkRequest.withdrawnAt": fieldValue.serverTimestamp(),
-        "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
-        "personLinkRequest.firstCompetition": fieldValue.delete(),
-        "personLinkRequest.lastCompetition": fieldValue.delete(),
-        "personLinkRequest.birthDate": fieldValue.delete(),
-        "personLinkRequest.dlrgBranch": fieldValue.delete(),
-        "personLinkRequest.decidedByUid": fieldValue.delete(),
-        "personLinkRequest.decidedByEmail": fieldValue.delete(),
-        "personLinkRequest.decidedAt": fieldValue.delete(),
+        personLinkRequest: fieldValue.delete(),
+        personLinkIdentityHint: fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
       });
 
-      const requestCache = {
-        ...(readUserDocCache(user.uid)?.personLinkRequest || {}),
-        status: "withdrawn"
-      };
+      const cachedData = { ...(readUserDocCache(user.uid) || {}) };
 
-      delete requestCache.firstCompetition;
-      delete requestCache.lastCompetition;
-      delete requestCache.birthDate;
-      delete requestCache.dlrgBranch;
-      delete requestCache.decidedByUid;
-      delete requestCache.decidedByEmail;
-      delete requestCache.decidedAt;
+      cachedData.personLinkStatus = "open";
+      delete cachedData.personLinkRequest;
+      delete cachedData.personLinkIdentityHint;
 
-      const data = mergeUserDocCache(user.uid, {
-        personLinkStatus: "open",
-        personLinkRequest: requestCache
-      });
+      const data = writeUserDocCache(user.uid, cachedData);
 
       updateLinkStatusUi(data);
       updateLinkManagementUi(data);
@@ -4686,6 +4697,7 @@
       let data = userData || await loadCurrentUserData(user) || {};
 
       data = await cleanupLegacyLinkRequestFields(user, data);
+      data = await cleanupInactiveLinkRequestData(user, data);
       const request = data.personLinkRequest || null;
 
       if (isPersonLinked(data)) {
@@ -4718,7 +4730,7 @@
         controls.lastName.value = nameDetails.lastName || "";
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = getLinkRequestIdentityHint({}, data).slice(0, 200);
+        controls.identityHint.value = "";
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);
