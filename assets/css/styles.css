@@ -2464,13 +2464,6 @@ span.admin-role-control.is-role-admin {
   margin-inline: auto;
 }
 
-@media (min-width: 521px) {
-  .link-request-page .settings-profile {
-    grid-template-columns: auto auto;
-    justify-content: center;
-  }
-}
-
 .link-request-card-heading {
   display: grid;
 }
@@ -2651,15 +2644,15 @@ span.admin-role-control.is-role-admin {
 .link-request-step-actions {
   display: flex;
   width: 100%;
-  max-width: 400px;
+  max-width: none;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: space-between;
   gap: 6px;
   margin: 2px auto 0;
 }
 
 .link-request-step-actions.is-forward-only {
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 .link-request-step-actions .button {
@@ -2737,6 +2730,31 @@ span.admin-role-control.is-role-admin {
   font-weight: 650;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .link-request-step-heading h3 {
+    font-size: 1.75rem;
+  }
+
+  .link-request-step-heading h3.link-request-step-heading-long {
+    font-size: 1.35rem;
+  }
+
+  .link-request-name-fields label > span,
+  .link-request-step-form input,
+  .link-request-step-form textarea,
+  .link-request-summary dd {
+    font-size: 1rem;
+  }
+
+  .link-request-page .settings-profile h2 {
+    font-size: 1.3rem;
+  }
+
+  .link-request-page .settings-profile p {
+    font-size: 1rem;
+  }
 }
 
 .account-form-card,
@@ -3563,19 +3581,18 @@ span.admin-role-control.is-role-admin {
   }
 
   .link-request-step > label,
-  .link-request-gender-fieldset,
-  .link-request-step-actions {
+  .link-request-gender-fieldset {
     max-width: 340px;
   }
 
   .link-request-step-actions {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     gap: 8px;
   }
 
   .link-request-step-actions.is-forward-only {
-    justify-content: center;
+    justify-content: flex-end;
   }
 
   .link-request-step-actions .button {
