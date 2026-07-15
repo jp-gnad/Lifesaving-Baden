@@ -145,8 +145,9 @@
       return;
     }
 
-    message.textContent = text;
-    message.classList.toggle("success", Boolean(isSuccess));
+    message.textContent = isSuccess ? "" : text;
+    message.hidden = Boolean(isSuccess || !text);
+    message.classList.remove("success");
   }
 
   function setLinkManagementMessage(text, isSuccess) {
@@ -4783,6 +4784,32 @@
     showLinkRequestStep(form, currentStep + 1);
   }
 
+  function setLinkRequestPreviewMode(form, isPreview) {
+    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
+    const summaryStep = steps[steps.length - 1];
+    const backButton = summaryStep?.querySelector("[data-link-step-back]");
+    const editButton = summaryStep?.querySelector("[data-link-request-edit]");
+    const submitButton = summaryStep?.querySelector('button[type="submit"]');
+
+    if (!form || !summaryStep || !editButton) {
+      return;
+    }
+
+    form.dataset.previewMode = String(isPreview);
+
+    [backButton, submitButton].forEach((button) => {
+      if (!button) {
+        return;
+      }
+
+      button.hidden = isPreview;
+      button.setAttribute("aria-hidden", String(isPreview));
+    });
+
+    editButton.hidden = !isPreview;
+    editButton.setAttribute("aria-hidden", String(!isPreview));
+  }
+
   function initLinkRequestSteps(form) {
     if (!form || form.dataset.stepNavigationAttached) {
       return;
@@ -4798,6 +4825,11 @@
       button.addEventListener("click", () => {
         showLinkRequestStep(form, getLinkRequestCurrentStep(form) - 1);
       });
+    });
+
+    form.querySelector("[data-link-request-edit]")?.addEventListener("click", () => {
+      setLinkRequestPreviewMode(form, false);
+      showLinkRequestStep(form, 0);
     });
 
     form.querySelectorAll("input, textarea").forEach((control) => {
@@ -4894,6 +4926,8 @@
             : "Letzter Antrag ist gespeichert.",
           true
         );
+        setLinkRequestPreviewMode(controls.form, true);
+        showLinkRequestStep(controls.form, controls.steps.length - 1, false);
       } else {
         const nameDetails = getNameDetailsFromData(data, user);
 
@@ -4905,6 +4939,8 @@
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = "";
+        setLinkRequestPreviewMode(controls.form, false);
+        showLinkRequestStep(controls.form, 0, false);
       }
     } catch (error) {
       setLinkRequestMessage(translateFirestoreError(error), false);

@@ -2643,6 +2643,10 @@ span.admin-role-control.is-role-admin {
   justify-content: flex-end;
 }
 
+.link-request-step-actions [data-link-request-edit] {
+  margin-left: auto;
+}
+
 .link-request-step-actions .button {
   min-width: 0;
   min-height: 34px;
