@@ -4241,6 +4241,7 @@
       : "Keine Angabe");
     updateText("[data-link-request-branch]", normalizeDlrgBranchName(data?.dlrgBranch) || "Nicht angegeben");
     updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
+    updateText("[data-link-request-email]", request.accountEmail || data?.email || "Nicht angegeben");
   }
 
   function updateLinkManagementUi(data) {
