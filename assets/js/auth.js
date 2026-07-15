@@ -5221,6 +5221,7 @@
       await db.collection("users").doc(user.uid).update(updatePayload);
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
+      clearUserDocCache(user.uid);
       setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);
       redirectToApp();
     } catch (error) {
