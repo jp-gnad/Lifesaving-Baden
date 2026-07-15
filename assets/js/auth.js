@@ -4839,6 +4839,7 @@
     const backButton = summaryStep?.querySelector("[data-link-step-back]");
     const editButton = summaryStep?.querySelector("[data-link-request-edit]");
     const submitButton = summaryStep?.querySelector('button[type="submit"]');
+    const confirmation = summaryStep?.querySelector("[data-link-request-confirmation]");
 
     if (!form || !summaryStep || !editButton) {
       return;
@@ -4857,6 +4858,11 @@
 
     editButton.hidden = !isPreview;
     editButton.setAttribute("aria-hidden", String(!isPreview));
+
+    if (confirmation) {
+      confirmation.hidden = isPreview;
+      confirmation.setAttribute("aria-hidden", String(isPreview));
+    }
   }
 
   function initLinkRequestSteps(form) {
@@ -4878,6 +4884,9 @@
 
     form.querySelector("[data-link-request-edit]")?.addEventListener("click", () => {
       form.dataset.editingExistingRequest = "true";
+      if (form.elements.identityConfirmation) {
+        form.elements.identityConfirmation.checked = false;
+      }
       setLinkRequestPreviewMode(form, false);
       showLinkRequestStep(form, 0);
     });

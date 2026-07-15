@@ -2647,6 +2647,27 @@ span.admin-role-control.is-role-admin {
   margin-inline: auto;
 }
 
+.setting-form .link-request-confirmation {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.setting-form .link-request-confirmation input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
 .link-request-edit-button {
   border: 0;
   background: transparent;
