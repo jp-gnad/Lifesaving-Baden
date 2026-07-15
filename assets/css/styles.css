@@ -2435,9 +2435,10 @@ span.admin-role-control.is-role-admin {
 
 .link-request-page .settings-layout {
   grid-template-columns: minmax(0, 1fr);
-  width: 100%;
-  max-width: 520px;
-  margin-inline: auto;
+  width: min(100%, 480px);
+  max-width: 480px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .link-request-page .settings-profile,
@@ -2447,9 +2448,15 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-request-page .dashboard-header {
-  max-width: 520px;
-  margin-inline: auto;
   text-align: center;
+}
+
+.link-request-page .dashboard-header h1 {
+  max-width: none;
+}
+
+.link-request-page .dashboard-header p {
+  margin-inline: auto;
 }
 
 @media (min-width: 521px) {
@@ -2500,9 +2507,24 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-request-step-heading h3 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   margin: 0;
   font-size: clamp(1.25rem, 3vw, 1.65rem);
   line-height: 1.18;
+}
+
+.link-request-step-icon {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--primary);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .link-request-step-heading h3:focus {
@@ -2512,7 +2534,7 @@ span.admin-role-control.is-role-admin {
 .link-request-name-fields {
   display: grid;
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-inline: auto;
@@ -2520,13 +2542,13 @@ span.admin-role-control.is-role-admin {
 
 .link-request-step > label {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   margin-inline: auto;
 }
 
 .link-request-gender-fieldset {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   min-width: 0;
   margin: 0 auto;
   border: 0;
@@ -2613,7 +2635,7 @@ span.admin-role-control.is-role-admin {
 .link-request-step-actions {
   display: flex;
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;

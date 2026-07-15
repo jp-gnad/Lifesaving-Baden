@@ -6,7 +6,7 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-steps">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-centered-icons">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -86,7 +86,14 @@
           <form class="setting-form link-request-step-form" data-link-request-form data-current-step="0">
             <section class="link-request-step" data-link-request-step data-step-label="Persönliche Angaben">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">Name</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                    <circle cx="9" cy="10" r="2"></circle>
+                    <path d="M6.5 15c.6-1.6 1.4-2.4 2.5-2.4s1.9.8 2.5 2.4M14 9h4M14 13h4"></path>
+                  </svg>
+                  <span>Name</span>
+                </h3>
               </div>
               <div class="link-request-name-fields">
                 <label>
@@ -105,7 +112,13 @@
 
             <section class="link-request-step" data-link-request-step data-step-label="Geschlecht" hidden aria-hidden="true">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">Geschlecht</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="7" r="3"></circle>
+                    <path d="M6.5 20c.9-4.6 2.7-7 5.5-7s4.6 2.4 5.5 7M9 20h6"></path>
+                  </svg>
+                  <span>Geschlecht</span>
+                </h3>
               </div>
               <fieldset class="link-request-gender-fieldset">
                 <legend class="link-request-visually-hidden">Geschlecht</legend>
@@ -130,7 +143,14 @@
 
             <section class="link-request-step" data-link-request-step data-step-label="Geburtsdatum" hidden aria-hidden="true">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">Geburtsdatum</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M7 3v3M17 3v3M4 9h16"></path>
+                    <rect x="4" y="5" width="16" height="16" rx="2"></rect>
+                    <path d="M8 13h3M8 17h3M14 13h2"></path>
+                  </svg>
+                  <span>Geburtsdatum</span>
+                </h3>
               </div>
               <label>
                 <span class="link-request-visually-hidden">Geburtsdatum</span>
@@ -144,7 +164,12 @@
 
             <section class="link-request-step" data-link-request-step data-step-label="DLRG-Gliederung" hidden aria-hidden="true">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">DLRG-Gliederung</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01"></path>
+                  </svg>
+                  <span>DLRG-Gliederung</span>
+                </h3>
               </div>
               <label>
                 <span class="link-request-visually-hidden">DLRG-Gliederung</span>
@@ -158,7 +183,13 @@
 
             <section class="link-request-step" data-link-request-step data-step-label="Identitätsprüfung" hidden aria-hidden="true">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">Hinweise zur Identitätsprüfung</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"></path>
+                    <path d="m8.5 12 2.2 2.2 4.8-5"></path>
+                  </svg>
+                  <span>Hinweise zur Identitätsprüfung</span>
+                </h3>
               </div>
               <label>
                 <span class="link-request-visually-hidden">Hinweise zur Identitätsprüfung</span>
@@ -177,7 +208,13 @@
 
             <section class="link-request-step" data-link-request-step data-step-label="Prüfen &amp; absenden" hidden aria-hidden="true">
               <div class="link-request-step-heading">
-                <h3 tabindex="-1">Angaben prüfen</h3>
+                <h3 tabindex="-1">
+                  <svg class="link-request-step-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+                    <path d="M9 3h6v3H9zM8.5 14l2.2 2.2 4.8-5"></path>
+                  </svg>
+                  <span>Angaben prüfen</span>
+                </h3>
               </div>
               <div class="link-request-summary" aria-label="Zusammenfassung des Verknüpfungsantrags">
                 <dl>
