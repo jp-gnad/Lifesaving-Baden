@@ -2435,8 +2435,8 @@ span.admin-role-control.is-role-admin {
 
 .link-request-page .settings-layout {
   grid-template-columns: minmax(0, 1fr);
-  width: min(100%, 480px);
-  max-width: 480px;
+  width: min(100%, 560px);
+  max-width: 560px;
   margin-right: auto;
   margin-left: auto;
 }
@@ -2505,28 +2505,33 @@ span.admin-role-control.is-role-admin {
 .link-request-step-heading {
   display: grid;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   gap: 10px;
   margin-inline: auto;
-  text-align: center;
+  text-align: left;
 }
 
 .link-request-step-heading h3 {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   margin: 0;
-  font-size: clamp(1.65rem, 4vw, 2rem);
-  line-height: 1.3;
+  font-size: clamp(1.4rem, 3vw, 1.65rem);
+  line-height: 1.35;
+}
+
+.link-request-step-heading h3.link-request-step-heading-long {
+  white-space: nowrap;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
 }
 
 .link-request-step-icon {
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   fill: none;
-  stroke: var(--primary);
+  stroke: rgba(255, 255, 255, 0.58);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
@@ -2539,22 +2544,27 @@ span.admin-role-control.is-role-admin {
 .link-request-name-fields {
   display: grid;
   width: 100%;
-  max-width: 340px;
+  max-width: 400px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-inline: auto;
 }
 
+.link-request-name-fields label > span {
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .link-request-step > label {
   width: 100%;
-  max-width: 340px;
+  max-width: 400px;
   margin-inline: auto;
   line-height: 1.45;
 }
 
 .link-request-gender-fieldset {
   width: 100%;
-  max-width: 340px;
+  max-width: 400px;
   min-width: 0;
   margin: 0 auto;
   border: 0;
@@ -2641,7 +2651,7 @@ span.admin-role-control.is-role-admin {
 .link-request-step-actions {
   display: flex;
   width: 100%;
-  max-width: 340px;
+  max-width: 400px;
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
@@ -3548,14 +3558,14 @@ span.admin-role-control.is-role-admin {
 
   .link-request-name-fields,
   .link-request-gender-options {
-    max-width: 310px;
+    max-width: 340px;
     grid-template-columns: 1fr;
   }
 
   .link-request-step > label,
   .link-request-gender-fieldset,
   .link-request-step-actions {
-    max-width: 310px;
+    max-width: 340px;
   }
 
   .link-request-step-actions {
