@@ -3155,6 +3155,7 @@
     const editorControl = document.querySelector("[data-profile-editor-control]");
     const editorHelp = document.querySelector("[data-profile-editor-help]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
+    const emailChangeCancelButton = document.querySelector("[data-profile-email-change-cancel]");
     const activeRow = document.querySelector(`[data-profile-edit="${fieldName}"]`);
 
     if (!config || !editor || !editorLabel || !editorControl || !deleteButton || !activeRow) {
@@ -3173,6 +3174,12 @@
     editorControl.replaceChildren(createProfileFieldControl(fieldName, form));
     deleteButton.hidden = !config.canDelete;
     deleteButton.disabled = !config.canDelete;
+    if (emailChangeCancelButton) {
+      const canCancelEmailChange = fieldName === "email" && Boolean(form.dataset.pendingEmail);
+
+      emailChangeCancelButton.hidden = !canCancelEmailChange;
+      emailChangeCancelButton.disabled = !canCancelEmailChange;
+    }
 
     editor.classList.remove("is-hidden");
     editor.hidden = false;
@@ -3192,6 +3199,7 @@
     const editorForm = document.querySelector("[data-profile-field-form]");
     const cancelButton = document.querySelector("[data-profile-edit-cancel]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
+    const emailChangeCancelButton = document.querySelector("[data-profile-email-change-cancel]");
 
     if (!profileForm || !editorForm || profileForm.dataset.fieldEditorAttached) {
       return;
@@ -3216,6 +3224,9 @@
     editorForm.addEventListener("submit", (event) => saveProfileField(event, auth, profileForm));
     cancelButton?.addEventListener("click", () => closeProfileFieldEditor());
     deleteButton?.addEventListener("click", () => deleteProfileField(auth, profileForm));
+    emailChangeCancelButton?.addEventListener("click", () => {
+      cancelPendingEmailChange(auth, profileForm, emailChangeCancelButton);
+    });
   }
 
   async function saveProfileField(event, auth, profileForm) {
@@ -3285,6 +3296,15 @@
 
     if (config.required && !value) {
       setProfileMessage(`${config.label} darf nicht leer sein.`, false);
+      return;
+    }
+
+    if (
+      fieldName === "email"
+      && profileForm.dataset.pendingEmail
+      && value.toLowerCase() === String(auth.currentUser?.email || "").toLowerCase()
+    ) {
+      await cancelPendingEmailChange(auth, profileForm, saveButton);
       return;
     }
 
@@ -4753,6 +4773,40 @@
       if (!isPersonLinked(readUserDocCache(user.uid))) {
         setLinkRequestControlsDisabled(false);
       }
+    }
+  }
+
+  async function cancelPendingEmailChange(auth, profileForm, button) {
+    const user = auth.currentUser;
+
+    if (!user || !window.firebase.firestore || !profileForm?.dataset.pendingEmail) {
+      return false;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      setLoading(button, true, "Ziehe zurück...");
+      await window.firebase.firestore().collection("users").doc(user.uid).update({
+        pendingEmail: fieldValue.delete(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const data = { ...(readUserDocCache(user.uid) || {}) };
+
+      delete data.pendingEmail;
+      writeUserDocCache(user.uid, data);
+      delete profileForm.dataset.pendingEmail;
+      profileForm.elements.email.value = user.email || data.email || "";
+      updateProfileFieldList(profileForm);
+      closeProfileFieldEditor();
+      setProfileMessage("E-Mail-Änderung zurückgezogen.", true);
+      return true;
+    } catch (error) {
+      setProfileMessage(translateProfileSaveError(error), false);
+      return false;
+    } finally {
+      setLoading(button, false);
     }
   }
 
