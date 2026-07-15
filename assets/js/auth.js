@@ -4675,9 +4675,50 @@
 
         submitLinkRequest(event, auth, db);
       });
+      controls.form.querySelector("[data-link-request-preview-withdraw]")?.addEventListener("click", (event) => {
+        withdrawLinkRequestFromForm(auth, db, controls.form, event.currentTarget);
+      });
     }
 
     await loadLinkRequest(auth, db, userData);
+  }
+
+  async function withdrawLinkRequestFromForm(auth, db, form, button) {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setLinkRequestMessage("Bitte logge dich erneut ein.", false);
+      return;
+    }
+
+    try {
+      const fieldValue = window.firebase.firestore.FieldValue;
+
+      setLoading(button, true, "Ziehe zurück...");
+      setLinkRequestControlsDisabled(true);
+      await db.collection("users").doc(user.uid).update({
+        personLinkStatus: "open",
+        personLinkRequest: fieldValue.delete(),
+        personLinkIdentityHint: fieldValue.delete(),
+        updatedAt: fieldValue.serverTimestamp()
+      });
+
+      const data = { ...(readUserDocCache(user.uid) || {}) };
+
+      data.personLinkStatus = "open";
+      delete data.personLinkRequest;
+      delete data.personLinkIdentityHint;
+      writeUserDocCache(user.uid, data);
+      updateLinkStatusUi(data);
+      await loadLinkRequest(auth, db, data);
+    } catch (error) {
+      setLinkRequestMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(button, false);
+      if (!isPersonLinked(readUserDocCache(user.uid))) {
+        setLinkRequestControlsDisabled(false);
+      }
+    }
   }
 
   function getLinkRequestCurrentStep(form) {
@@ -4842,6 +4883,7 @@
     const summaryStep = steps[steps.length - 1];
     const backButton = summaryStep?.querySelector("[data-link-step-back]");
     const editButton = summaryStep?.querySelector("[data-link-request-edit]");
+    const withdrawButton = summaryStep?.querySelector("[data-link-request-preview-withdraw]");
     const submitButton = summaryStep?.querySelector('button[type="submit"]');
     const confirmation = summaryStep?.querySelector("[data-link-request-confirmation]");
     const confirmationInput = confirmation?.querySelector('[name="identityConfirmation"]');
@@ -4863,6 +4905,11 @@
 
     editButton.hidden = !isPreview;
     editButton.setAttribute("aria-hidden", String(!isPreview));
+
+    if (withdrawButton) {
+      withdrawButton.hidden = !isPreview;
+      withdrawButton.setAttribute("aria-hidden", String(!isPreview));
+    }
 
     if (confirmation) {
       confirmation.hidden = false;

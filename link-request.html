@@ -6,13 +6,13 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-confirmation-state">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-withdraw-action">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260715-link-request-gender-prefill"></script>
+    <script defer src="assets/js/auth.js?v=20260715-link-request-withdraw-action"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -256,6 +256,13 @@
                     <path d="m13.8 7.6 3 3M4 20h5"></path>
                   </svg>
                   <span>Antrag bearbeiten</span>
+                </button>
+                <button class="button link-request-edit-button" type="button" data-link-request-preview-withdraw hidden aria-hidden="true">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="m9 7-5 5 5 5"></path>
+                    <path d="M4 12h9a6 6 0 0 1 6 6"></path>
+                  </svg>
+                  <span>Antrag zurückziehen</span>
                 </button>
                 <button class="button button-primary" type="submit">Antrag absenden</button>
               </div>

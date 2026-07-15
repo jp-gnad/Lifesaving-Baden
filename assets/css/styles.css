@@ -2643,8 +2643,8 @@ span.admin-role-control.is-role-admin {
   justify-content: flex-end;
 }
 
-.link-request-step-actions [data-link-request-edit] {
-  margin-inline: auto;
+.link-request-step-form[data-preview-mode="true"] .link-request-step-actions {
+  justify-content: center;
 }
 
 .setting-form .link-request-confirmation {
