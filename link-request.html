@@ -70,13 +70,6 @@
 
         <article class="card setting-card link-request-form-card">
           <div class="link-request-card-heading">
-            <div>
-              <h2>Verknüpfungsantrag</h2>
-            </div>
-            <div class="link-request-progress-copy" aria-live="polite">
-              <span>Schritt <strong data-link-step-current>1</strong> von <span data-link-step-total>6</span></span>
-              <span data-link-step-label>Persönliche Angaben</span>
-            </div>
             <div
               class="link-request-progress"
               role="progressbar"
@@ -113,10 +106,9 @@
             <section class="link-request-step" data-link-request-step data-step-label="Geschlecht" hidden aria-hidden="true">
               <div class="link-request-step-heading">
                 <h3 tabindex="-1">Geschlecht</h3>
-                <p>Optional – mit Weiter überspringen.</p>
               </div>
               <fieldset class="link-request-gender-fieldset">
-                <legend>Auswahl <span>Optional</span></legend>
+                <legend class="link-request-visually-hidden">Geschlecht</legend>
                 <div class="link-request-gender-options">
                   <label class="link-request-gender-option">
                     <input type="radio" name="gender" value="maennlich">
@@ -131,7 +123,7 @@
                 </div>
               </fieldset>
               <div class="link-request-step-actions">
-                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
                 <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
               </div>
             </section>
@@ -141,11 +133,11 @@
                 <h3 tabindex="-1">Geburtsdatum</h3>
               </div>
               <label>
-                <span>Geburtsdatum</span>
+                <span class="link-request-visually-hidden">Geburtsdatum</span>
                 <input type="date" name="birthDate" autocomplete="bday" required>
               </label>
               <div class="link-request-step-actions">
-                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
                 <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
               </div>
             </section>
@@ -155,11 +147,11 @@
                 <h3 tabindex="-1">DLRG-Gliederung</h3>
               </div>
               <label>
-                <span>DLRG-Gliederung</span>
+                <span class="link-request-visually-hidden">DLRG-Gliederung</span>
                 <input type="text" name="dlrgBranch" autocomplete="organization" required>
               </label>
               <div class="link-request-step-actions">
-                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
                 <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
               </div>
             </section>
@@ -169,17 +161,16 @@
                 <h3 tabindex="-1">Hinweise zur Identitätsprüfung</h3>
               </div>
               <label>
-                <span>Hinweise <small class="link-request-optional">Optional</small></span>
+                <span class="link-request-visually-hidden">Hinweise zur Identitätsprüfung</span>
                 <textarea
                   name="identityHint"
                   rows="4"
                   maxlength="200"
                   placeholder="z. B. Ortsgruppe oder letzter Wettkampf"
                 ></textarea>
-                <small>Max. 200 Zeichen.</small>
               </label>
               <div class="link-request-step-actions">
-                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
                 <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
               </div>
             </section>
@@ -217,7 +208,7 @@
                 </dl>
               </div>
               <div class="link-request-step-actions">
-                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
                 <button class="button button-primary" type="submit">Antrag absenden</button>
               </div>
             </section>

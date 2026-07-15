@@ -2433,29 +2433,19 @@ span.admin-role-control.is-role-admin {
   grid-column: 2;
 }
 
+.link-request-page .settings-layout {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 760px;
+}
+
+.link-request-page .settings-profile,
+.link-request-page .link-request-form-card {
+  grid-column: 1;
+  width: 100%;
+}
+
 .link-request-card-heading {
   display: grid;
-  gap: 12px;
-}
-
-.link-request-card-heading > div:first-child {
-  display: grid;
-  gap: 5px;
-}
-
-.link-request-progress-copy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 650;
-}
-
-.link-request-progress-copy span:last-child {
-  color: var(--text);
-  text-align: right;
 }
 
 .link-request-progress {
@@ -2490,11 +2480,6 @@ span.admin-role-control.is-role-admin {
   gap: 7px;
 }
 
-.link-request-step-heading .eyebrow {
-  margin: 0;
-  font-size: 0.74rem;
-}
-
 .link-request-step-heading h3 {
   margin: 0;
   font-size: clamp(1.25rem, 3vw, 1.65rem);
@@ -2503,11 +2488,6 @@ span.admin-role-control.is-role-admin {
 
 .link-request-step-heading h3:focus {
   outline: none;
-}
-
-.link-request-step-heading p:last-child {
-  color: var(--muted);
-  line-height: 1.5;
 }
 
 .link-request-name-fields {
@@ -2523,19 +2503,14 @@ span.admin-role-control.is-role-admin {
   padding: 0;
 }
 
-.link-request-gender-fieldset legend {
-  margin-bottom: 10px;
-  padding: 0;
-  color: var(--text);
-  font-weight: 650;
-}
-
-.link-request-gender-fieldset legend span,
-.link-request-optional {
-  margin-left: 6px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 650;
+.link-request-visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .link-request-gender-options {
@@ -2609,7 +2584,7 @@ span.admin-role-control.is-role-admin {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 6px;
   margin-top: 2px;
 }
 
@@ -2618,7 +2593,11 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-request-step-actions .button {
-  min-width: 118px;
+  min-width: 0;
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 0.86rem;
 }
 
 .link-request-summary {
@@ -3477,15 +3456,6 @@ span.admin-role-control.is-role-admin {
     width: 100%;
   }
 
-  .link-request-card-heading {
-    gap: 10px;
-  }
-
-  .link-request-progress-copy {
-    gap: 8px;
-    font-size: 0.76rem;
-  }
-
   .link-request-step {
     min-height: 0;
     gap: 16px;
@@ -3498,16 +3468,17 @@ span.admin-role-control.is-role-admin {
   }
 
   .link-request-step-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    justify-content: space-between;
     gap: 8px;
   }
 
   .link-request-step-actions.is-forward-only {
-    grid-template-columns: 1fr;
+    justify-content: flex-end;
   }
 
   .link-request-step-actions .button {
+    width: auto;
     min-width: 0;
   }
 
