@@ -1719,6 +1719,7 @@
     details.hidden = true;
     details.setAttribute("aria-hidden", "true");
     appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
+    appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
     appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
     appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
 
@@ -2358,6 +2359,7 @@
         appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
       } else {
         appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
+        appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
         appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
         appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
       }
@@ -4199,6 +4201,9 @@
 
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
     updateText("[data-link-request-birth-date]", formatBirthDate(data?.birthDate) || "Nicht angegeben");
+    updateText("[data-link-request-gender]", request.gender
+      ? formatProfileFieldValue("gender", request.gender)
+      : "Keine Angabe");
     updateText("[data-link-request-branch]", normalizeDlrgBranchName(data?.dlrgBranch) || "Nicht angegeben");
     updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
   }
@@ -4657,10 +4662,166 @@
 
     if (!controls.form.dataset.listenerAttached) {
       controls.form.dataset.listenerAttached = "true";
-      controls.form.addEventListener("submit", (event) => submitLinkRequest(event, auth, db));
+      initLinkRequestSteps(controls.form);
+      controls.form.addEventListener("submit", (event) => {
+        const currentStep = getLinkRequestCurrentStep(controls.form);
+
+        if (currentStep < controls.steps.length - 1) {
+          event.preventDefault();
+          goToNextLinkRequestStep(controls.form);
+          return;
+        }
+
+        submitLinkRequest(event, auth, db);
+      });
     }
 
     await loadLinkRequest(auth, db, userData);
+  }
+
+  function getLinkRequestCurrentStep(form) {
+    const stepIndex = Number.parseInt(form?.dataset.currentStep || "0", 10);
+
+    return Number.isFinite(stepIndex) ? stepIndex : 0;
+  }
+
+  function updateLinkRequestSummary(form) {
+    if (!form) {
+      return;
+    }
+
+    const firstName = form.elements.firstName?.value.trim() || "";
+    const lastName = form.elements.lastName?.value.trim() || "";
+    const gender = form.querySelector('[name="gender"]:checked')?.value || "";
+    const setSummaryText = (selector, value) => {
+      const element = form.querySelector(selector);
+
+      if (element) {
+        element.textContent = value;
+      }
+    };
+
+    setSummaryText("[data-link-summary-name]", `${firstName} ${lastName}`.trim() || "Nicht angegeben");
+    setSummaryText("[data-link-summary-gender]", gender
+      ? formatProfileFieldValue("gender", gender)
+      : "Keine Angabe");
+    setSummaryText("[data-link-summary-birth-date]", formatBirthDate(form.elements.birthDate?.value) || "Nicht angegeben");
+    setSummaryText("[data-link-summary-branch]", normalizeDlrgBranchName(form.elements.dlrgBranch?.value) || "Nicht angegeben");
+    setSummaryText("[data-link-summary-identity-hint]", form.elements.identityHint?.value.trim() || "Keine Angabe");
+  }
+
+  function showLinkRequestStep(form, nextStepIndex, shouldFocus = true) {
+    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
+
+    if (!form || !steps.length) {
+      return;
+    }
+
+    const stepIndex = Math.max(0, Math.min(nextStepIndex, steps.length - 1));
+    const progress = document.querySelector("[data-link-progress]");
+    const progressBar = document.querySelector("[data-link-progress-bar]");
+    const currentStepText = document.querySelector("[data-link-step-current]");
+    const totalStepText = document.querySelector("[data-link-step-total]");
+    const stepLabel = document.querySelector("[data-link-step-label]");
+
+    form.dataset.currentStep = String(stepIndex);
+    steps.forEach((step, index) => {
+      const isActive = index === stepIndex;
+
+      step.hidden = !isActive;
+      step.setAttribute("aria-hidden", String(!isActive));
+    });
+
+    if (currentStepText) {
+      currentStepText.textContent = String(stepIndex + 1);
+    }
+
+    if (totalStepText) {
+      totalStepText.textContent = String(steps.length);
+    }
+
+    if (stepLabel) {
+      stepLabel.textContent = steps[stepIndex].dataset.stepLabel || "";
+    }
+
+    if (progress) {
+      progress.setAttribute("aria-valuemax", String(steps.length));
+      progress.setAttribute("aria-valuenow", String(stepIndex + 1));
+    }
+
+    if (progressBar) {
+      progressBar.style.width = `${((stepIndex + 1) / steps.length) * 100}%`;
+    }
+
+    updateLinkRequestSummary(form);
+
+    if (shouldFocus) {
+      window.requestAnimationFrame(() => steps[stepIndex].querySelector("h3")?.focus());
+    }
+  }
+
+  function validateLinkRequestStep(step) {
+    const invalidControl = Array.from(step?.querySelectorAll("input, textarea, select") || [])
+      .find((control) => !control.checkValidity());
+
+    if (!invalidControl) {
+      return true;
+    }
+
+    invalidControl.reportValidity();
+    return false;
+  }
+
+  function goToNextLinkRequestStep(form) {
+    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
+    const currentStep = getLinkRequestCurrentStep(form);
+
+    if (!steps[currentStep] || !validateLinkRequestStep(steps[currentStep])) {
+      return;
+    }
+
+    showLinkRequestStep(form, currentStep + 1);
+  }
+
+  function initLinkRequestSteps(form) {
+    if (!form || form.dataset.stepNavigationAttached) {
+      return;
+    }
+
+    form.dataset.stepNavigationAttached = "true";
+
+    form.querySelectorAll("[data-link-step-next]").forEach((button) => {
+      button.addEventListener("click", () => goToNextLinkRequestStep(form));
+    });
+
+    form.querySelectorAll("[data-link-step-back]").forEach((button) => {
+      button.addEventListener("click", () => {
+        showLinkRequestStep(form, getLinkRequestCurrentStep(form) - 1);
+      });
+    });
+
+    form.querySelector("[data-link-gender-skip]")?.addEventListener("click", () => {
+      form.querySelectorAll('[name="gender"]').forEach((input) => {
+        input.checked = false;
+      });
+      goToNextLinkRequestStep(form);
+    });
+
+    form.querySelectorAll("input, textarea").forEach((control) => {
+      control.addEventListener("input", () => updateLinkRequestSummary(form));
+      control.addEventListener("change", () => updateLinkRequestSummary(form));
+
+      if (control.tagName !== "TEXTAREA") {
+        control.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && getLinkRequestCurrentStep(form) < form.querySelectorAll("[data-link-request-step]").length - 1) {
+            event.preventDefault();
+            goToNextLinkRequestStep(form);
+          }
+        });
+      }
+    });
+
+    showLinkRequestStep(form, 0, false);
   }
 
   function getLinkRequestControls() {
@@ -4668,8 +4829,10 @@
 
     return {
       form,
+      steps: Array.from(form?.querySelectorAll("[data-link-request-step]") || []),
       firstName: form?.querySelector('[name="firstName"]'),
       lastName: form?.querySelector('[name="lastName"]'),
+      genderInputs: Array.from(form?.querySelectorAll('[name="gender"]') || []),
       birthDate: form?.querySelector('[name="birthDate"]'),
       dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
       identityHint: form?.querySelector('[name="identityHint"]'),
@@ -4684,7 +4847,7 @@
       return;
     }
 
-    controls.form.querySelectorAll("input, textarea, button").forEach((control) => {
+    controls.form.querySelectorAll("input, textarea, select, button").forEach((control) => {
       control.disabled = isDisabled;
     });
   }
@@ -4718,6 +4881,9 @@
 
         controls.firstName.value = request.firstName || nameDetails.firstName || "";
         controls.lastName.value = request.lastName || nameDetails.lastName || "";
+        controls.genderInputs.forEach((input) => {
+          input.checked = input.value === request.gender;
+        });
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = getLinkRequestIdentityHint(request, data).slice(0, 200);
@@ -4734,6 +4900,9 @@
 
         controls.firstName.value = nameDetails.firstName || "";
         controls.lastName.value = nameDetails.lastName || "";
+        controls.genderInputs.forEach((input) => {
+          input.checked = false;
+        });
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = "";
@@ -4744,6 +4913,7 @@
       if (!isPersonLinked(readUserDocCache(user.uid))) {
         setLinkRequestControlsDisabled(false);
       }
+      updateLinkRequestSummary(controls.form);
     }
   }
 
@@ -4761,6 +4931,7 @@
     const details = {
       firstName: controls.firstName.value.trim(),
       lastName: controls.lastName.value.trim(),
+      gender: controls.form.querySelector('[name="gender"]:checked')?.value || "",
       birthDate: controls.birthDate.value,
       dlrgBranch: normalizeDlrgBranchName(controls.dlrgBranch.value),
       identityHint: controls.identityHint.value.trim(),
@@ -4774,8 +4945,8 @@
       return;
     }
 
-    if (!details.identityHint) {
-      setLinkRequestMessage("Bitte gib eine kurze Identitätsinfo an.", false);
+    if (details.gender && !["maennlich", "weiblich"].includes(details.gender)) {
+      setLinkRequestMessage("Bitte wähle eine gültige Geschlechtsangabe aus oder überspringe den Schritt.", false);
       return;
     }
 
@@ -4800,14 +4971,18 @@
         ...details,
         status: "requested"
       };
+      if (!details.gender) {
+        delete requestCacheData.gender;
+      }
       const userCacheData = {
         dlrgBranch: details.dlrgBranch,
         birthDate: details.birthDate,
+        ...(details.gender ? { gender: details.gender } : {}),
         personLinkIdentityHint: details.identityHint,
         personLinkStatus: "requested",
         personLinkRequest: requestCacheData
       };
-      await db.collection("users").doc(user.uid).update({
+      const updatePayload = {
         dlrgBranch: details.dlrgBranch,
         birthDate: details.birthDate,
         personLinkIdentityHint: details.identityHint,
@@ -4815,6 +4990,7 @@
         personLinkStatus: "requested",
         "personLinkRequest.firstName": details.firstName,
         "personLinkRequest.lastName": details.lastName,
+        "personLinkRequest.gender": details.gender || fieldValue.delete(),
         "personLinkRequest.birthDate": details.birthDate,
         "personLinkRequest.dlrgBranch": details.dlrgBranch,
         "personLinkRequest.identityHint": details.identityHint,
@@ -4831,7 +5007,13 @@
         "personLinkRequest.decidedAt": fieldValue.delete(),
         "personLinkRequest.withdrawnAt": fieldValue.delete(),
         updatedAt: fieldValue.serverTimestamp()
-      });
+      };
+
+      if (details.gender) {
+        updatePayload.gender = details.gender;
+      }
+
+      await db.collection("users").doc(user.uid).update(updatePayload);
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
       setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);

@@ -6,13 +6,13 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-mobile-settings-menu-neutral">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-steps">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260713-checklist-attention"></script>
+    <script defer src="assets/js/auth.js?v=20260715-link-request-gender"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -72,46 +72,171 @@
         </article>
 
         <article class="card setting-card link-request-form-card">
-          <h2>Verknüpfungsantrag</h2>
-          <p>
-            Deine Angaben werden gespeichert und im Adminbereich zur Prüfung
-            angezeigt.
-          </p>
-          <form class="setting-form" data-link-request-form>
-            <label>
-              <span>Vorname</span>
-              <input type="text" name="firstName" autocomplete="given-name" required>
-            </label>
-            <label>
-              <span>Nachname</span>
-              <input type="text" name="lastName" autocomplete="family-name" required>
-            </label>
-            <label>
-              <span>Geburtsdatum</span>
-              <input type="date" name="birthDate" required>
-            </label>
-            <label>
-              <span>Mitglied in DLRG-Gliederung</span>
-              <input type="text" name="dlrgBranch" autocomplete="organization" required>
-            </label>
-            <label>
-              <span>Hinweise zur Identitätsprüfung</span>
-              <textarea
-                name="identityHint"
-                rows="4"
-                maxlength="200"
-                required
-                placeholder="z. B. erster oder letzter Wettkampf, Ortsgruppe, Zeitraum oder weitere eindeutige Hinweise"
-              ></textarea>
-              <small>Max. 200 Zeichen. Je konkreter die Angaben, desto leichter ist die Zuordnung.</small>
-            </label>
-            <div class="setting-value">
-              <strong>E-Mail des Kontos</strong>
-              <span data-link-account-email>Keine E-Mail geladen.</span>
+          <div class="link-request-card-heading">
+            <div>
+              <h2>Verknüpfungsantrag</h2>
+              <p>Deine Angaben werden gespeichert und im Adminbereich zur Prüfung angezeigt.</p>
             </div>
-            <button class="button button-primary full-width" type="submit">
-              Antrag absenden
-            </button>
+            <div class="link-request-progress-copy" aria-live="polite">
+              <span>Schritt <strong data-link-step-current>1</strong> von <span data-link-step-total>6</span></span>
+              <span data-link-step-label>Persönliche Angaben</span>
+            </div>
+            <div
+              class="link-request-progress"
+              role="progressbar"
+              aria-label="Fortschritt des Verknüpfungsantrags"
+              aria-valuemin="1"
+              aria-valuemax="6"
+              aria-valuenow="1"
+              data-link-progress
+            >
+              <span data-link-progress-bar></span>
+            </div>
+          </div>
+
+          <form class="setting-form link-request-step-form" data-link-request-form data-current-step="0">
+            <section class="link-request-step" data-link-request-step data-step-label="Persönliche Angaben">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Zu deiner Person</p>
+                <h3 tabindex="-1">Wie heißt du?</h3>
+                <p>Gib deinen Vor- und Nachnamen so an, wie er in den Mitgliedsdaten geführt wird.</p>
+              </div>
+              <div class="link-request-name-fields">
+                <label>
+                  <span>Vorname</span>
+                  <input type="text" name="firstName" autocomplete="given-name" required>
+                </label>
+                <label>
+                  <span>Nachname</span>
+                  <input type="text" name="lastName" autocomplete="family-name" required>
+                </label>
+              </div>
+              <div class="link-request-step-actions is-forward-only">
+                <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
+              </div>
+            </section>
+
+            <section class="link-request-step" data-link-request-step data-step-label="Geschlecht" hidden aria-hidden="true">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Freiwillige Angabe</p>
+                <h3 tabindex="-1">Welches Geschlecht möchtest du angeben?</h3>
+                <p>Die Auswahl ist optional und kann ohne Angabe übersprungen werden.</p>
+              </div>
+              <fieldset class="link-request-gender-fieldset">
+                <legend>Geschlecht auswählen <span>Optional</span></legend>
+                <div class="link-request-gender-options">
+                  <label class="link-request-gender-option">
+                    <input type="radio" name="gender" value="maennlich">
+                    <span class="link-request-gender-marker" aria-hidden="true"></span>
+                    <span>Männlich</span>
+                  </label>
+                  <label class="link-request-gender-option">
+                    <input type="radio" name="gender" value="weiblich">
+                    <span class="link-request-gender-marker" aria-hidden="true"></span>
+                    <span>Weiblich</span>
+                  </label>
+                </div>
+              </fieldset>
+              <div class="link-request-step-actions">
+                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-ghost" type="button" data-link-gender-skip>Ohne Angabe weiter</button>
+                <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
+              </div>
+            </section>
+
+            <section class="link-request-step" data-link-request-step data-step-label="Geburtsdatum" hidden aria-hidden="true">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Zu deiner Person</p>
+                <h3 tabindex="-1">Wann bist du geboren?</h3>
+                <p>Das Geburtsdatum hilft dabei, Personen mit gleichem Namen sicher zu unterscheiden.</p>
+              </div>
+              <label>
+                <span>Geburtsdatum</span>
+                <input type="date" name="birthDate" autocomplete="bday" required>
+              </label>
+              <div class="link-request-step-actions">
+                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
+              </div>
+            </section>
+
+            <section class="link-request-step" data-link-request-step data-step-label="DLRG-Gliederung" hidden aria-hidden="true">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Mitgliedschaft</p>
+                <h3 tabindex="-1">In welcher DLRG-Gliederung bist du Mitglied?</h3>
+                <p>Trage den Namen deiner Ortsgruppe oder Gliederung ein.</p>
+              </div>
+              <label>
+                <span>DLRG-Gliederung</span>
+                <input type="text" name="dlrgBranch" autocomplete="organization" required>
+              </label>
+              <div class="link-request-step-actions">
+                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
+              </div>
+            </section>
+
+            <section class="link-request-step" data-link-request-step data-step-label="Identitätsprüfung" hidden aria-hidden="true">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Freiwillige Angabe</p>
+                <h3 tabindex="-1">Hinweise zur Identitätsprüfung</h3>
+                <p>Weitere Hinweise können dem Admin helfen, dich eindeutig zuzuordnen.</p>
+              </div>
+              <label>
+                <span>Hinweise <small class="link-request-optional">Optional</small></span>
+                <textarea
+                  name="identityHint"
+                  rows="4"
+                  maxlength="200"
+                  placeholder="z. B. erster oder letzter Wettkampf, Ortsgruppe, Zeitraum oder weitere eindeutige Hinweise"
+                ></textarea>
+                <small>Max. 200 Zeichen. Je konkreter die Angaben, desto leichter ist die Zuordnung.</small>
+              </label>
+              <div class="link-request-step-actions">
+                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-primary" type="button" data-link-step-next>Weiter</button>
+              </div>
+            </section>
+
+            <section class="link-request-step" data-link-request-step data-step-label="Prüfen &amp; absenden" hidden aria-hidden="true">
+              <div class="link-request-step-heading">
+                <p class="eyebrow">Fast geschafft</p>
+                <h3 tabindex="-1">Bitte prüfe deine Angaben</h3>
+                <p>Mit dem Absenden wird der Antrag für die Admins zur Prüfung freigegeben.</p>
+              </div>
+              <div class="link-request-summary" aria-label="Zusammenfassung des Verknüpfungsantrags">
+                <dl>
+                  <div class="link-request-summary-wide">
+                    <dt>Name</dt>
+                    <dd data-link-summary-name>Nicht angegeben</dd>
+                  </div>
+                  <div>
+                    <dt>Geschlecht</dt>
+                    <dd data-link-summary-gender>Keine Angabe</dd>
+                  </div>
+                  <div>
+                    <dt>Geburtsdatum</dt>
+                    <dd data-link-summary-birth-date>Nicht angegeben</dd>
+                  </div>
+                  <div class="link-request-summary-wide">
+                    <dt>DLRG-Gliederung</dt>
+                    <dd data-link-summary-branch>Nicht angegeben</dd>
+                  </div>
+                  <div class="link-request-summary-wide">
+                    <dt>Hinweise zur Identitätsprüfung</dt>
+                    <dd data-link-summary-identity-hint>Keine Angabe</dd>
+                  </div>
+                  <div class="link-request-summary-wide">
+                    <dt>E-Mail des Kontos</dt>
+                    <dd data-link-account-email>Keine E-Mail geladen.</dd>
+                  </div>
+                </dl>
+              </div>
+              <div class="link-request-step-actions">
+                <button class="button button-secondary" type="button" data-link-step-back>Zurück</button>
+                <button class="button button-primary" type="submit">Antrag absenden</button>
+              </div>
+            </section>
           </form>
           <p class="setting-help">
             Nach dem Absenden bleibt dein Antrag gespeichert, bis ein Admin ihn

@@ -63,6 +63,7 @@ service cloud.firestore {
           request.resource.data.personLinkRequest.keys().hasOnly([
             "firstName",
             "lastName",
+            "gender",
             "birthDate",
             "dlrgBranch",
             "identityHint",
@@ -83,6 +84,8 @@ service cloud.firestore {
               request.resource.data.personLinkRequest.identityHint is string
               && request.resource.data.personLinkRequest.identityHint.size() <= 200
             ))
+          && (!request.resource.data.personLinkRequest.keys().hasAny(["gender"])
+            || request.resource.data.personLinkRequest.gender in ["maennlich", "weiblich"])
           && (request.resource.data.personLinkRequest.status != "requested" || !hasStoredLinkId())
         );
     }
