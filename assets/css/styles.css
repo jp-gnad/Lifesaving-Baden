@@ -2435,13 +2435,28 @@ span.admin-role-control.is-role-admin {
 
 .link-request-page .settings-layout {
   grid-template-columns: minmax(0, 1fr);
-  max-width: 760px;
+  width: 100%;
+  max-width: 520px;
+  margin-inline: auto;
 }
 
 .link-request-page .settings-profile,
 .link-request-page .link-request-form-card {
   grid-column: 1;
   width: 100%;
+}
+
+.link-request-page .dashboard-header {
+  max-width: 520px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+@media (min-width: 521px) {
+  .link-request-page .settings-profile {
+    grid-template-columns: auto auto;
+    justify-content: center;
+  }
 }
 
 .link-request-card-heading {
@@ -2477,7 +2492,11 @@ span.admin-role-control.is-role-admin {
 
 .link-request-step-heading {
   display: grid;
+  width: 100%;
+  max-width: 400px;
   gap: 7px;
+  margin-inline: auto;
+  text-align: center;
 }
 
 .link-request-step-heading h3 {
@@ -2492,13 +2511,24 @@ span.admin-role-control.is-role-admin {
 
 .link-request-name-fields {
   display: grid;
+  width: 100%;
+  max-width: 400px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  margin-inline: auto;
+}
+
+.link-request-step > label {
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
 }
 
 .link-request-gender-fieldset {
+  width: 100%;
+  max-width: 400px;
   min-width: 0;
-  margin: 0;
+  margin: 0 auto;
   border: 0;
   padding: 0;
 }
@@ -2582,14 +2612,16 @@ span.admin-role-control.is-role-admin {
 
 .link-request-step-actions {
   display: flex;
+  width: 100%;
+  max-width: 400px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 6px;
-  margin-top: 2px;
+  margin: 2px auto 0;
 }
 
 .link-request-step-actions.is-forward-only {
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 .link-request-step-actions .button {
@@ -2601,6 +2633,9 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-request-summary {
+  width: 100%;
+  max-width: 440px;
+  margin-inline: auto;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 8px;
   padding: 12px;
@@ -3469,12 +3504,12 @@ span.admin-role-control.is-role-admin {
 
   .link-request-step-actions {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     gap: 8px;
   }
 
   .link-request-step-actions.is-forward-only {
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .link-request-step-actions .button {
