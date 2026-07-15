@@ -4903,19 +4903,44 @@
       showLinkRequestStep(form, 0);
     });
 
+    form.querySelectorAll('[name="gender"]').forEach((control) => {
+      const rememberCheckedState = () => {
+        control.dataset.wasChecked = String(control.checked);
+      };
+
+      control.addEventListener("pointerdown", rememberCheckedState);
+      control.closest("label")?.addEventListener("pointerdown", rememberCheckedState);
+      control.addEventListener("click", () => {
+        if (control.dataset.wasChecked === "true") {
+          control.checked = false;
+        }
+
+        delete control.dataset.wasChecked;
+        updateLinkRequestSummary(form);
+      });
+      control.addEventListener("keydown", (event) => {
+        if (event.key !== " " || !control.checked) {
+          return;
+        }
+
+        event.preventDefault();
+        control.checked = false;
+        control.dispatchEvent(new Event("input", { bubbles: true }));
+        control.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+
     form.querySelectorAll("input, textarea").forEach((control) => {
       control.addEventListener("input", () => updateLinkRequestSummary(form));
-      control.addEventListener("change", () => {
-        updateLinkRequestSummary(form);
-
-        if (control.name === "gender" && control.checked && !control.closest("[data-link-request-step]")?.hidden) {
-          goToNextLinkRequestStep(form);
-        }
-      });
+      control.addEventListener("change", () => updateLinkRequestSummary(form));
 
       if (control.tagName !== "TEXTAREA") {
         control.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" && getLinkRequestCurrentStep(form) < form.querySelectorAll("[data-link-request-step]").length - 1) {
+          if (
+            event.key === "Enter"
+            && control.name !== "gender"
+            && getLinkRequestCurrentStep(form) < form.querySelectorAll("[data-link-request-step]").length - 1
+          ) {
             event.preventDefault();
             goToNextLinkRequestStep(form);
           }
