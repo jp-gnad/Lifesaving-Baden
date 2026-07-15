@@ -2644,7 +2644,30 @@ span.admin-role-control.is-role-admin {
 }
 
 .link-request-step-actions [data-link-request-edit] {
-  margin-left: auto;
+  margin-inline: auto;
+}
+
+.link-request-edit-button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.link-request-edit-button:hover {
+  transform: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.link-request-edit-button svg {
+  width: 18px;
+  height: 18px;
+  margin-right: 7px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .link-request-step-actions .button {

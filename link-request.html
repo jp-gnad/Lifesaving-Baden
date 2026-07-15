@@ -6,7 +6,7 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-preview">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-edit-action">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -246,7 +246,13 @@
               </div>
               <div class="link-request-step-actions">
                 <button class="button button-ghost" type="button" data-link-step-back>Zurück</button>
-                <button class="button button-primary" type="button" data-link-request-edit hidden aria-hidden="true">Antrag bearbeiten</button>
+                <button class="button link-request-edit-button" type="button" data-link-request-edit hidden aria-hidden="true">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="m4 20 4.4-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path>
+                    <path d="m13.8 7.6 3 3M4 20h5"></path>
+                  </svg>
+                  <span>Antrag bearbeiten</span>
+                </button>
                 <button class="button button-primary" type="submit">Antrag absenden</button>
               </div>
             </section>
