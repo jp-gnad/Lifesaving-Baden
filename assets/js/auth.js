@@ -5051,7 +5051,7 @@
         controls.firstName.value = nameDetails.firstName || "";
         controls.lastName.value = nameDetails.lastName || "";
         controls.genderInputs.forEach((input) => {
-          input.checked = false;
+          input.checked = input.value === data.gender;
         });
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
