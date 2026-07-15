@@ -2480,9 +2480,8 @@ span.admin-role-control.is-role-admin {
 
 .link-request-step {
   display: flex;
-  min-height: 380px;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   padding-top: 8px;
 }
 
@@ -2611,8 +2610,7 @@ span.admin-role-control.is-role-admin {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: auto;
-  padding-top: 8px;
+  margin-top: 2px;
 }
 
 .link-request-step-actions.is-forward-only {
@@ -3511,16 +3509,6 @@ span.admin-role-control.is-role-admin {
 
   .link-request-step-actions .button {
     min-width: 0;
-  }
-
-  .link-request-step-actions [data-link-gender-skip] {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .link-request-step-actions [data-link-gender-skip] + [data-link-step-next] {
-    grid-column: 2;
-    grid-row: 1;
   }
 
   .link-request-summary {

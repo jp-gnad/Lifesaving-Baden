@@ -4800,16 +4800,15 @@
       });
     });
 
-    form.querySelector("[data-link-gender-skip]")?.addEventListener("click", () => {
-      form.querySelectorAll('[name="gender"]').forEach((input) => {
-        input.checked = false;
-      });
-      goToNextLinkRequestStep(form);
-    });
-
     form.querySelectorAll("input, textarea").forEach((control) => {
       control.addEventListener("input", () => updateLinkRequestSummary(form));
-      control.addEventListener("change", () => updateLinkRequestSummary(form));
+      control.addEventListener("change", () => {
+        updateLinkRequestSummary(form);
+
+        if (control.name === "gender" && control.checked && !control.closest("[data-link-request-step]")?.hidden) {
+          goToNextLinkRequestStep(form);
+        }
+      });
 
       if (control.tagName !== "TEXTAREA") {
         control.addEventListener("keydown", (event) => {
