@@ -6,13 +6,13 @@
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-corners">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-actions-inset">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20260715-link-request-gender"></script>
+    <script defer src="assets/js/auth.js?v=20260715-link-request-summary-empty"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -197,7 +197,7 @@
                   name="identityHint"
                   rows="4"
                   maxlength="200"
-                  placeholder="z. B. Ortsgruppe oder letzter Wettkampf"
+                  placeholder="z. B. erster Wettkampf"
                 ></textarea>
               </label>
               <div class="link-request-step-actions">
@@ -224,7 +224,7 @@
                   </div>
                   <div>
                     <dt>Geschlecht</dt>
-                    <dd data-link-summary-gender>Keine Angabe</dd>
+                    <dd data-link-summary-gender></dd>
                   </div>
                   <div>
                     <dt>Geburtsdatum</dt>
@@ -236,7 +236,7 @@
                   </div>
                   <div class="link-request-summary-wide">
                     <dt>Hinweise zur Identitätsprüfung</dt>
-                    <dd data-link-summary-identity-hint>Keine Angabe</dd>
+                    <dd data-link-summary-identity-hint></dd>
                   </div>
                   <div class="link-request-summary-wide">
                     <dt>E-Mail des Kontos</dt>

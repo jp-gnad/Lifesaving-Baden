@@ -4704,10 +4704,10 @@
     setSummaryText("[data-link-summary-name]", `${firstName} ${lastName}`.trim() || "Nicht angegeben");
     setSummaryText("[data-link-summary-gender]", gender
       ? formatProfileFieldValue("gender", gender)
-      : "Keine Angabe");
+      : "");
     setSummaryText("[data-link-summary-birth-date]", formatBirthDate(form.elements.birthDate?.value) || "Nicht angegeben");
     setSummaryText("[data-link-summary-branch]", normalizeDlrgBranchName(form.elements.dlrgBranch?.value) || "Nicht angegeben");
-    setSummaryText("[data-link-summary-identity-hint]", form.elements.identityHint?.value.trim() || "Keine Angabe");
+    setSummaryText("[data-link-summary-identity-hint]", form.elements.identityHint?.value.trim() || "");
   }
 
   function showLinkRequestStep(form, nextStepIndex, shouldFocus = true) {

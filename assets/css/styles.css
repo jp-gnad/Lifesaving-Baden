@@ -2644,7 +2644,7 @@ span.admin-role-control.is-role-admin {
 .link-request-step-actions {
   display: flex;
   width: 100%;
-  max-width: none;
+  max-width: 400px;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 6px;
@@ -3581,7 +3581,8 @@ span.admin-role-control.is-role-admin {
   }
 
   .link-request-step > label,
-  .link-request-gender-fieldset {
+  .link-request-gender-fieldset,
+  .link-request-step-actions {
     max-width: 340px;
   }
 
