@@ -4686,6 +4686,46 @@
     return Number.isFinite(stepIndex) ? stepIndex : 0;
   }
 
+  function getLinkRequestEditableDetails(form) {
+    return {
+      firstName: form?.elements.firstName?.value.trim() || "",
+      lastName: form?.elements.lastName?.value.trim() || "",
+      gender: form?.querySelector('[name="gender"]:checked')?.value || "",
+      birthDate: form?.elements.birthDate?.value || "",
+      dlrgBranch: normalizeDlrgBranchName(form?.elements.dlrgBranch?.value),
+      identityHint: form?.elements.identityHint?.value.trim() || ""
+    };
+  }
+
+  function rememberLinkRequestBaseline(form) {
+    if (form) {
+      form.dataset.linkRequestBaseline = JSON.stringify(getLinkRequestEditableDetails(form));
+    }
+  }
+
+  function getLinkRequestBaseline(form) {
+    if (!form?.dataset.linkRequestBaseline) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(form.dataset.linkRequestBaseline);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getChangedLinkRequestFields(form) {
+    const baseline = getLinkRequestBaseline(form);
+    const currentDetails = getLinkRequestEditableDetails(form);
+
+    if (!baseline) {
+      return Object.keys(currentDetails);
+    }
+
+    return Object.keys(currentDetails).filter((fieldName) => currentDetails[fieldName] !== baseline[fieldName]);
+  }
+
   function updateLinkRequestSummary(form) {
     if (!form) {
       return;
@@ -4755,6 +4795,15 @@
     }
 
     updateLinkRequestSummary(form);
+
+    if (stepIndex === steps.length - 1 && form.dataset.editingExistingRequest === "true") {
+      const hasChanges = getChangedLinkRequestFields(form).length > 0;
+
+      setLinkRequestPreviewMode(form, !hasChanges);
+      if (!hasChanges) {
+        delete form.dataset.editingExistingRequest;
+      }
+    }
 
     if (shouldFocus) {
       window.requestAnimationFrame(() => steps[stepIndex].querySelector("h3")?.focus());
@@ -4828,6 +4877,7 @@
     });
 
     form.querySelector("[data-link-request-edit]")?.addEventListener("click", () => {
+      form.dataset.editingExistingRequest = "true";
       setLinkRequestPreviewMode(form, false);
       showLinkRequestStep(form, 0);
     });
@@ -4918,6 +4968,8 @@
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = getLinkRequestIdentityHint(request, data).slice(0, 200);
+        rememberLinkRequestBaseline(controls.form);
+        delete controls.form.dataset.editingExistingRequest;
         setLinkRequestMessage(
           request.status === "rejected"
             ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
@@ -4939,6 +4991,8 @@
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = "";
+        delete controls.form.dataset.linkRequestBaseline;
+        delete controls.form.dataset.editingExistingRequest;
         setLinkRequestPreviewMode(controls.form, false);
         showLinkRequestStep(controls.form, 0, false);
       }
@@ -4963,17 +5017,21 @@
       return;
     }
 
+    const editableDetails = getLinkRequestEditableDetails(controls.form);
     const details = {
-      firstName: controls.firstName.value.trim(),
-      lastName: controls.lastName.value.trim(),
-      gender: controls.form.querySelector('[name="gender"]:checked')?.value || "",
-      birthDate: controls.birthDate.value,
-      dlrgBranch: normalizeDlrgBranchName(controls.dlrgBranch.value),
-      identityHint: controls.identityHint.value.trim(),
+      ...editableDetails,
       accountEmail: user.email || "",
       accountName: getAccountName(user),
       accountUid: user.uid
     };
+    const cachedData = readUserDocCache(user.uid) || {};
+    const isUpdatingExistingRequest = Boolean(
+      getLinkRequestBaseline(controls.form)
+      && cachedData.personLinkRequest?.status === "requested"
+    );
+    const changedFields = isUpdatingExistingRequest
+      ? getChangedLinkRequestFields(controls.form)
+      : Object.keys(editableDetails);
 
     if (details.identityHint.length > 200) {
       setLinkRequestMessage("Die Identitätsinfo darf maximal 200 Zeichen haben.", false);
@@ -4995,57 +5053,114 @@
       return;
     }
 
+    if (isUpdatingExistingRequest && !changedFields.length) {
+      delete controls.form.dataset.editingExistingRequest;
+      setLinkRequestPreviewMode(controls.form, true);
+      showLinkRequestStep(controls.form, controls.steps.length - 1, false);
+      return;
+    }
+
     const fieldValue = window.firebase.firestore.FieldValue;
 
     try {
       controls.dlrgBranch.value = details.dlrgBranch;
       setLinkRequestControlsDisabled(true);
-      setLoading(controls.submitButton, true, "Antrag speichern...");
+      setLoading(
+        controls.submitButton,
+        true,
+        isUpdatingExistingRequest ? "Änderungen speichern..." : "Antrag speichern..."
+      );
 
-      const requestCacheData = {
-        ...details,
-        status: "requested"
-      };
-      if (!details.gender) {
-        delete requestCacheData.gender;
-      }
-      const userCacheData = {
-        dlrgBranch: details.dlrgBranch,
-        birthDate: details.birthDate,
-        ...(details.gender ? { gender: details.gender } : {}),
-        personLinkIdentityHint: details.identityHint,
-        personLinkStatus: "requested",
-        personLinkRequest: requestCacheData
-      };
-      const updatePayload = {
-        dlrgBranch: details.dlrgBranch,
-        birthDate: details.birthDate,
-        personLinkIdentityHint: details.identityHint,
-        profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
-        personLinkStatus: "requested",
-        "personLinkRequest.firstName": details.firstName,
-        "personLinkRequest.lastName": details.lastName,
-        "personLinkRequest.gender": details.gender || fieldValue.delete(),
-        "personLinkRequest.birthDate": details.birthDate,
-        "personLinkRequest.dlrgBranch": details.dlrgBranch,
-        "personLinkRequest.identityHint": details.identityHint,
-        "personLinkRequest.accountEmail": details.accountEmail,
-        "personLinkRequest.accountName": details.accountName,
-        "personLinkRequest.accountUid": details.accountUid,
-        "personLinkRequest.status": "requested",
-        "personLinkRequest.requestedAt": fieldValue.serverTimestamp(),
-        "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
-        "personLinkRequest.firstCompetition": fieldValue.delete(),
-        "personLinkRequest.lastCompetition": fieldValue.delete(),
-        "personLinkRequest.decidedByUid": fieldValue.delete(),
-        "personLinkRequest.decidedByEmail": fieldValue.delete(),
-        "personLinkRequest.decidedAt": fieldValue.delete(),
-        "personLinkRequest.withdrawnAt": fieldValue.delete(),
-        updatedAt: fieldValue.serverTimestamp()
-      };
+      let requestCacheData;
+      let userCacheData;
+      let updatePayload;
 
-      if (details.gender) {
-        updatePayload.gender = details.gender;
+      if (isUpdatingExistingRequest) {
+        requestCacheData = { ...cachedData.personLinkRequest };
+        userCacheData = {};
+        updatePayload = {
+          "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
+          updatedAt: fieldValue.serverTimestamp()
+        };
+
+        changedFields.forEach((fieldName) => {
+          const value = editableDetails[fieldName];
+
+          if (fieldName === "gender") {
+            updatePayload["personLinkRequest.gender"] = value || fieldValue.delete();
+            if (value) {
+              updatePayload.gender = value;
+              userCacheData.gender = value;
+              requestCacheData.gender = value;
+            } else {
+              delete requestCacheData.gender;
+            }
+            return;
+          }
+
+          updatePayload[`personLinkRequest.${fieldName}`] = value;
+          requestCacheData[fieldName] = value;
+
+          if (fieldName === "birthDate" || fieldName === "dlrgBranch") {
+            updatePayload[fieldName] = value;
+            userCacheData[fieldName] = value;
+          } else if (fieldName === "identityHint") {
+            updatePayload.personLinkIdentityHint = value;
+            userCacheData.personLinkIdentityHint = value;
+          }
+        });
+
+        if (changedFields.some((fieldName) => ["birthDate", "dlrgBranch", "gender"].includes(fieldName))) {
+          updatePayload.profileDetailsUpdatedAt = fieldValue.serverTimestamp();
+        }
+
+        userCacheData.personLinkRequest = requestCacheData;
+      } else {
+        requestCacheData = {
+          ...details,
+          status: "requested"
+        };
+        if (!details.gender) {
+          delete requestCacheData.gender;
+        }
+        userCacheData = {
+          dlrgBranch: details.dlrgBranch,
+          birthDate: details.birthDate,
+          ...(details.gender ? { gender: details.gender } : {}),
+          personLinkIdentityHint: details.identityHint,
+          personLinkStatus: "requested",
+          personLinkRequest: requestCacheData
+        };
+        updatePayload = {
+          dlrgBranch: details.dlrgBranch,
+          birthDate: details.birthDate,
+          personLinkIdentityHint: details.identityHint,
+          profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
+          personLinkStatus: "requested",
+          "personLinkRequest.firstName": details.firstName,
+          "personLinkRequest.lastName": details.lastName,
+          "personLinkRequest.gender": details.gender || fieldValue.delete(),
+          "personLinkRequest.birthDate": details.birthDate,
+          "personLinkRequest.dlrgBranch": details.dlrgBranch,
+          "personLinkRequest.identityHint": details.identityHint,
+          "personLinkRequest.accountEmail": details.accountEmail,
+          "personLinkRequest.accountName": details.accountName,
+          "personLinkRequest.accountUid": details.accountUid,
+          "personLinkRequest.status": "requested",
+          "personLinkRequest.requestedAt": fieldValue.serverTimestamp(),
+          "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
+          "personLinkRequest.firstCompetition": fieldValue.delete(),
+          "personLinkRequest.lastCompetition": fieldValue.delete(),
+          "personLinkRequest.decidedByUid": fieldValue.delete(),
+          "personLinkRequest.decidedByEmail": fieldValue.delete(),
+          "personLinkRequest.decidedAt": fieldValue.delete(),
+          "personLinkRequest.withdrawnAt": fieldValue.delete(),
+          updatedAt: fieldValue.serverTimestamp()
+        };
+
+        if (details.gender) {
+          updatePayload.gender = details.gender;
+        }
       }
 
       await db.collection("users").doc(user.uid).update(updatePayload);
