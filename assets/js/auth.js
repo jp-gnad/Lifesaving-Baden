@@ -634,7 +634,10 @@
       }
 
       loginRedirectStarted = true;
-      await ensureUserDocument(user);
+      await user.getIdToken(true);
+      await user.reload();
+      clearUserDocCache(user.uid);
+      await ensureUserDocument(user, { forceRefresh: true });
       redirectToApp();
     }
 
@@ -1127,9 +1130,18 @@
       }
 
       const updatePayload = getChangedIdentityFields(data, identity);
+      const shouldDeleteConfirmedPendingEmail = Boolean(
+        data?.pendingEmail
+        && identity.email
+        && String(data.pendingEmail).trim().toLowerCase() === identity.email.trim().toLowerCase()
+      );
 
       const shouldDeleteLinkedRequest = isPersonLinked(data)
         && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
+
+      if (shouldDeleteConfirmedPendingEmail) {
+        updatePayload.pendingEmail = fieldValue.delete();
+      }
 
       if (shouldDeleteLinkedRequest) {
         updatePayload.personLinkRequest = fieldValue.delete();
@@ -1148,6 +1160,10 @@
 
         if (shouldDeleteLinkedRequest) {
           delete cacheData.personLinkRequest;
+        }
+
+        if (shouldDeleteConfirmedPendingEmail) {
+          delete cacheData.pendingEmail;
         }
 
         return writeUserDocCache(user.uid, cacheData);
@@ -2968,8 +2984,11 @@
 
     document.querySelectorAll("[data-profile-value]").forEach((element) => {
       const fieldName = element.dataset.profileValue;
+      const value = getProfileFormValue(form, fieldName);
 
-      element.textContent = formatProfileFieldValue(fieldName, getProfileFormValue(form, fieldName));
+      element.textContent = fieldName === "email" && form.dataset.pendingEmail
+        ? `${value} · Bestätigung ausstehend`
+        : formatProfileFieldValue(fieldName, value);
     });
 
     document.querySelectorAll("[data-profile-edit]").forEach((row) => {
@@ -3650,6 +3669,18 @@
       const data = userData || await loadCurrentUserData(user) || {};
       const details = await syncProfileDetailsFromLinkRequest(user, data);
       const nameDetails = getNameDetailsFromData(data, user);
+      const activeEmail = user.email || data.email || "";
+      const pendingEmail = String(data.pendingEmail || "").trim();
+      const hasPendingEmail = Boolean(
+        pendingEmail
+        && pendingEmail.toLowerCase() !== activeEmail.toLowerCase()
+      );
+
+      if (hasPendingEmail) {
+        profileForm.dataset.pendingEmail = pendingEmail;
+      } else {
+        delete profileForm.dataset.pendingEmail;
+      }
 
       if (profileForm.elements.firstName) {
         profileForm.elements.firstName.value = nameDetails.firstName;
@@ -3664,7 +3695,7 @@
       }
 
       if (profileForm.elements.email) {
-        profileForm.elements.email.value = user.email || data.email || "";
+        profileForm.elements.email.value = hasPendingEmail ? pendingEmail : activeEmail;
       }
 
       if (profileForm.elements.dlrgBranch) {
@@ -3724,7 +3755,10 @@
       form.elements.displayName.value = displayName;
     }
 
-    const emailChanged = email.toLowerCase() !== String(user.email || "").toLowerCase();
+    const normalizedEmail = email.toLowerCase();
+    const activeEmail = String(user.email || "").trim().toLowerCase();
+    const pendingEmail = String(readUserDocCache(user.uid)?.pendingEmail || "").trim().toLowerCase();
+    const emailChanged = normalizedEmail !== activeEmail && normalizedEmail !== pendingEmail;
     const displayNameChanged = displayName !== (user.displayName || "");
     const nameDetailsChanged = haveNameDetailsChanged(user, nameDetails);
     const profileDetailsChanged = haveOptionalProfileDetailsChanged(user, optionalProfileDetails);
@@ -3761,7 +3795,7 @@
 
       setProfileMessage(
         emailChanged
-          ? "Name gespeichert. Bitte bestätige die neue E-Mail-Adresse über die gesendete Mail."
+          ? `Bestätigungsmail an ${email} gesendet.`
           : "Kontodaten gespeichert.",
         true
       );
