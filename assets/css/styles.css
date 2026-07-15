@@ -2447,6 +2447,11 @@ span.admin-role-control.is-role-admin {
   width: 100%;
 }
 
+.link-request-page .link-request-form-card {
+  gap: 18px;
+  padding: 22px;
+}
+
 .link-request-page .dashboard-header {
   text-align: center;
 }
@@ -2493,15 +2498,15 @@ span.admin-role-control.is-role-admin {
 .link-request-step {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-top: 8px;
+  gap: 24px;
+  padding-top: 10px;
 }
 
 .link-request-step-heading {
   display: grid;
   width: 100%;
   max-width: 400px;
-  gap: 7px;
+  gap: 10px;
   margin-inline: auto;
   text-align: center;
 }
@@ -2510,15 +2515,15 @@ span.admin-role-control.is-role-admin {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
-  font-size: clamp(1.25rem, 3vw, 1.65rem);
-  line-height: 1.18;
+  font-size: clamp(1.65rem, 4vw, 2rem);
+  line-height: 1.3;
 }
 
 .link-request-step-icon {
-  width: 21px;
-  height: 21px;
+  width: 27px;
+  height: 27px;
   flex: 0 0 auto;
   fill: none;
   stroke: var(--primary);
@@ -2534,21 +2539,22 @@ span.admin-role-control.is-role-admin {
 .link-request-name-fields {
   display: grid;
   width: 100%;
-  max-width: 360px;
+  max-width: 340px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 18px;
   margin-inline: auto;
 }
 
 .link-request-step > label {
   width: 100%;
-  max-width: 360px;
+  max-width: 340px;
   margin-inline: auto;
+  line-height: 1.45;
 }
 
 .link-request-gender-fieldset {
   width: 100%;
-  max-width: 360px;
+  max-width: 340px;
   min-width: 0;
   margin: 0 auto;
   border: 0;
@@ -2635,7 +2641,7 @@ span.admin-role-control.is-role-admin {
 .link-request-step-actions {
   display: flex;
   width: 100%;
-  max-width: 360px;
+  max-width: 340px;
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
@@ -2652,6 +2658,27 @@ span.admin-role-control.is-role-admin {
   border-radius: 6px;
   padding: 6px 11px;
   font-size: 0.86rem;
+}
+
+.link-request-step-form input,
+.link-request-step-form textarea {
+  min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.link-request-step-form textarea {
+  min-height: 88px;
+}
+
+.link-request-step-form input:-webkit-autofill,
+.link-request-step-form input:-webkit-autofill:hover,
+.link-request-step-form input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--bg) inset;
+  transition: background-color 9999s ease-out 0s;
 }
 
 .link-request-summary {
@@ -3515,13 +3542,20 @@ span.admin-role-control.is-role-admin {
 
   .link-request-step {
     min-height: 0;
-    gap: 16px;
-    padding-top: 6px;
+    gap: 22px;
+    padding-top: 8px;
   }
 
   .link-request-name-fields,
   .link-request-gender-options {
+    max-width: 310px;
     grid-template-columns: 1fr;
+  }
+
+  .link-request-step > label,
+  .link-request-gender-fieldset,
+  .link-request-step-actions {
+    max-width: 310px;
   }
 
   .link-request-step-actions {
