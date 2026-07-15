@@ -67,6 +67,8 @@ service cloud.firestore {
             "birthDate",
             "dlrgBranch",
             "identityHint",
+            "identityConfirmed",
+            "identityConfirmedAt",
             "accountEmail",
             "accountName",
             "accountUid",
@@ -86,6 +88,10 @@ service cloud.firestore {
             ))
           && (!request.resource.data.personLinkRequest.keys().hasAny(["gender"])
             || request.resource.data.personLinkRequest.gender in ["maennlich", "weiblich"])
+          && (!request.resource.data.personLinkRequest.keys().hasAny(["identityConfirmed"])
+            || request.resource.data.personLinkRequest.identityConfirmed == true)
+          && (!request.resource.data.personLinkRequest.keys().hasAny(["identityConfirmedAt"])
+            || request.resource.data.personLinkRequest.identityConfirmedAt is timestamp)
           && (request.resource.data.personLinkRequest.status != "requested" || !hasStoredLinkId())
         );
     }

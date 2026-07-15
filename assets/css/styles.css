@@ -2668,6 +2668,15 @@ span.admin-role-control.is-role-admin {
   accent-color: var(--primary);
 }
 
+.setting-form .link-request-confirmation input:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.link-request-step-form[data-preview-mode="true"] .link-request-confirmation {
+  cursor: default;
+}
+
 .link-request-edit-button {
   border: 0;
   background: transparent;

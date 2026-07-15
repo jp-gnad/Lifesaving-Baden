@@ -4686,6 +4686,10 @@
     return Number.isFinite(stepIndex) ? stepIndex : 0;
   }
 
+  function shouldOpenLinkRequestEditor() {
+    return new URLSearchParams(window.location.search).get("edit") === "1";
+  }
+
   function getLinkRequestEditableDetails(form) {
     return {
       firstName: form?.elements.firstName?.value.trim() || "",
@@ -4840,6 +4844,7 @@
     const editButton = summaryStep?.querySelector("[data-link-request-edit]");
     const submitButton = summaryStep?.querySelector('button[type="submit"]');
     const confirmation = summaryStep?.querySelector("[data-link-request-confirmation]");
+    const confirmationInput = confirmation?.querySelector('[name="identityConfirmation"]');
 
     if (!form || !summaryStep || !editButton) {
       return;
@@ -4860,8 +4865,15 @@
     editButton.setAttribute("aria-hidden", String(!isPreview));
 
     if (confirmation) {
-      confirmation.hidden = isPreview;
-      confirmation.setAttribute("aria-hidden", String(isPreview));
+      confirmation.hidden = false;
+      confirmation.setAttribute("aria-hidden", "false");
+    }
+
+    if (confirmationInput) {
+      if (isPreview) {
+        confirmationInput.checked = form.dataset.linkRequestIdentityConfirmed === "true";
+      }
+      confirmationInput.disabled = isPreview;
     }
   }
 
@@ -4926,6 +4938,7 @@
       birthDate: form?.querySelector('[name="birthDate"]'),
       dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
       identityHint: form?.querySelector('[name="identityHint"]'),
+      identityConfirmation: form?.querySelector('[name="identityConfirmation"]'),
       submitButton: form?.querySelector('button[type="submit"]')
     };
   }
@@ -4938,7 +4951,10 @@
     }
 
     controls.form.querySelectorAll("input, textarea, select, button").forEach((control) => {
-      control.disabled = isDisabled;
+      const isPreviewConfirmation = control.name === "identityConfirmation"
+        && controls.form.dataset.previewMode === "true";
+
+      control.disabled = isDisabled || isPreviewConfirmation;
     });
   }
 
@@ -4977,6 +4993,12 @@
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = getLinkRequestIdentityHint(request, data).slice(0, 200);
+        const identityConfirmed = request.identityConfirmed !== false;
+
+        controls.form.dataset.linkRequestIdentityConfirmed = String(identityConfirmed);
+        if (controls.identityConfirmation) {
+          controls.identityConfirmation.checked = identityConfirmed;
+        }
         rememberLinkRequestBaseline(controls.form);
         delete controls.form.dataset.editingExistingRequest;
         setLinkRequestMessage(
@@ -4987,8 +5009,17 @@
             : "Letzter Antrag ist gespeichert.",
           true
         );
-        setLinkRequestPreviewMode(controls.form, true);
-        showLinkRequestStep(controls.form, controls.steps.length - 1, false);
+        if (shouldOpenLinkRequestEditor()) {
+          controls.form.dataset.editingExistingRequest = "true";
+          if (controls.identityConfirmation) {
+            controls.identityConfirmation.checked = false;
+          }
+          setLinkRequestPreviewMode(controls.form, false);
+          showLinkRequestStep(controls.form, 0, false);
+        } else {
+          setLinkRequestPreviewMode(controls.form, true);
+          showLinkRequestStep(controls.form, controls.steps.length - 1, false);
+        }
       } else {
         const nameDetails = getNameDetailsFromData(data, user);
 
@@ -5000,6 +5031,10 @@
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
         controls.identityHint.value = "";
+        delete controls.form.dataset.linkRequestIdentityConfirmed;
+        if (controls.identityConfirmation) {
+          controls.identityConfirmation.checked = false;
+        }
         delete controls.form.dataset.linkRequestBaseline;
         delete controls.form.dataset.editingExistingRequest;
         setLinkRequestPreviewMode(controls.form, false);
@@ -5069,6 +5104,11 @@
       return;
     }
 
+    if (!controls.identityConfirmation?.checked) {
+      setLinkRequestMessage("Bitte bestätige deine Angaben vor dem Absenden.", false);
+      return;
+    }
+
     const fieldValue = window.firebase.firestore.FieldValue;
 
     try {
@@ -5088,9 +5128,12 @@
         requestCacheData = { ...cachedData.personLinkRequest };
         userCacheData = {};
         updatePayload = {
+          "personLinkRequest.identityConfirmed": true,
+          "personLinkRequest.identityConfirmedAt": fieldValue.serverTimestamp(),
           "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
           updatedAt: fieldValue.serverTimestamp()
         };
+        requestCacheData.identityConfirmed = true;
 
         changedFields.forEach((fieldName) => {
           const value = editableDetails[fieldName];
@@ -5127,6 +5170,7 @@
       } else {
         requestCacheData = {
           ...details,
+          identityConfirmed: true,
           status: "requested"
         };
         if (!details.gender) {
@@ -5152,6 +5196,8 @@
           "personLinkRequest.birthDate": details.birthDate,
           "personLinkRequest.dlrgBranch": details.dlrgBranch,
           "personLinkRequest.identityHint": details.identityHint,
+          "personLinkRequest.identityConfirmed": true,
+          "personLinkRequest.identityConfirmedAt": fieldValue.serverTimestamp(),
           "personLinkRequest.accountEmail": details.accountEmail,
           "personLinkRequest.accountName": details.accountName,
           "personLinkRequest.accountUid": details.accountUid,
