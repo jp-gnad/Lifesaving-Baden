@@ -215,18 +215,21 @@
         console.warn("Timer-Rolle konnte nicht geladen werden.", error);
       }
     }
-    const role = normalizedRole(claims.role || userData.role);
+    const claimRole = normalizedRole(claims.role);
+    const dataRole = normalizedRole(userData.role);
     const isAdmin = Boolean(
       claims.admin === true
       || claims.isAdmin === true
-      || role === "admin"
+      || claimRole === "admin"
+      || dataRole === "admin"
       || userData.admin === true
       || userData.isAdmin === true
     );
     const isOrganizer = isAdmin || Boolean(
       claims.organizer === true
       || claims.isOrganizer === true
-      || ["organizer", "organisator"].includes(role)
+      || ["organizer", "organisator"].includes(claimRole)
+      || ["organizer", "organisator"].includes(dataRole)
     );
     authContext = {
       user,
