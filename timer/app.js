@@ -835,6 +835,7 @@ async function renderHome() {
   app.innerHTML = `
     <div class="page-head">
       <h1>Events</h1>
+      <button class="button secondary icon-button" id="copy-overview-link" type="button" aria-label="Link zur Eventübersicht kopieren" title="Link zur Eventübersicht kopieren">${icon("link")}</button>
       ${authContext.isOrganizer ? `<button class="button" id="new-event">${icon("plus")} Neues Event</button>` : ""}
     </div>
     <section class="section event-list-section" aria-label="Events">
@@ -861,6 +862,15 @@ async function renderHome() {
   const dialog = document.querySelector("#event-dialog");
   bindDialogClose(dialog);
   bindKeyboardStableEventDialog(dialog);
+  document.querySelector("#copy-overview-link").addEventListener("click", async () => {
+    const overviewUrl = new URL("#/", window.location.href).href;
+    try {
+      await navigator.clipboard.writeText(overviewUrl);
+      showToast("Link zur Eventübersicht wurde kopiert.");
+    } catch {
+      window.prompt("Link zur Eventübersicht kopieren:", overviewUrl);
+    }
+  });
   document.querySelector("#new-event")?.addEventListener("click", () => openDialog("#event-dialog", { focusField: false }));
   document.querySelector("#event-form").addEventListener("submit", async (event) => {
     event.preventDefault();

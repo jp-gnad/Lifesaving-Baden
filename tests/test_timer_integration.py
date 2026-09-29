@@ -36,9 +36,11 @@ class TimerIntegrationTest(unittest.TestCase):
 
     def test_admin_cannot_be_granted_from_account_ui(self):
         auth = (ROOT / "assets" / "js" / "auth.js").read_text(encoding="utf-8")
+        rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
         role_select_block = auth[auth.index("function createAdminAccountRoleSelect"):]
         role_select_block = role_select_block[: role_select_block.index("function createAdminAccountRoleDisplay")]
         self.assertNotIn('{ value: "admin"', role_select_block)
+        self.assertIn("request.auth.uid != uid", rules)
 
     def test_timer_card_is_on_member_home(self):
         app_html = (ROOT / "app.html").read_text(encoding="utf-8")

@@ -1472,6 +1472,10 @@
       element.classList.toggle("is-hidden", !isAdmin);
     });
 
+    document.querySelectorAll("[data-non-admin-only]").forEach((element) => {
+      element.classList.toggle("is-hidden", isAdmin);
+    });
+
     document.querySelectorAll("[data-organizer-only]").forEach((element) => {
       element.classList.toggle("is-hidden", !isOrganizer);
     });

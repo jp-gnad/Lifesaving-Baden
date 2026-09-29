@@ -507,11 +507,15 @@
               </button>
               <h2 id="settings-account-title">Konto</h2>
             </div>
-            <article class="card danger-zone danger-zone-card">
+            <article class="card danger-zone danger-zone-card is-hidden" data-non-admin-only>
               <h3>Konto löschen</h3>
               <p>Das Konto und die gespeicherten Einstellungen werden entfernt.</p>
               <button class="danger-button" type="button" data-delete-account>Konto löschen</button>
               <p class="form-message" data-delete-message role="status"></p>
+            </article>
+            <article class="card is-hidden" data-admin-only>
+              <h3>Admin-Konto geschützt</h3>
+              <p>Das einzige Admin-Konto kann nicht über die Website gelöscht oder auf eine andere Rolle gesetzt werden.</p>
             </article>
           </section>
 

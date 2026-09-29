@@ -195,7 +195,8 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow update: if (isAdmin() && adminKeepsAdminGrantSafe(uid))
         || (isOwner(uid) && ownerKeepsProtectedFieldsSafe());
-      allow delete: if isAdmin() || isOwner(uid);
+      allow delete: if (isAdmin() && request.auth.uid != uid)
+        || (isOwner(uid) && !isAdmin());
     }
 
     function validTimerEvent(data) {
