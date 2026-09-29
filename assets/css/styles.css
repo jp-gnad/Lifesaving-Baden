@@ -1177,6 +1177,30 @@ body[data-page="app"] .dashboard > * {
   align-content: start;
 }
 
+.timer-app-card {
+  border-color: rgba(60, 156, 255, 0.34);
+  background:
+    linear-gradient(135deg, rgba(60, 156, 255, 0.16), rgba(24, 24, 29, 0.94) 48%),
+    var(--surface);
+}
+
+.timer-app-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timer-app-card-heading img {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+}
+
+.timer-app-card-heading .eyebrow,
+.timer-app-card-heading h2 {
+  margin: 0;
+}
+
 .dashboard-action-card.is-linked {
   border-color: rgba(255, 237, 0, 0.34);
 }

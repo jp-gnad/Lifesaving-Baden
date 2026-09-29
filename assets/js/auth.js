@@ -12,6 +12,21 @@
   }
 
   function redirectToApp() {
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+
+    if (returnTo) {
+      try {
+        const target = new URL(returnTo, window.location.href);
+
+        if (target.origin === window.location.origin) {
+          window.location.href = target.href;
+          return;
+        }
+      } catch (error) {
+        // Invalid return targets fall back to the normal member dashboard.
+      }
+    }
+
     window.location.href = appUrl;
   }
 

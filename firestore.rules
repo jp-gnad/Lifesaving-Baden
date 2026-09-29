@@ -6,6 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function verifiedUser() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
     function isOwner(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -17,10 +21,47 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn()
         && (
-          adminData().role == "admin"
+          (request.auth.token.keys().hasAny(["admin"]) && request.auth.token.admin == true)
+          || (request.auth.token.keys().hasAny(["isAdmin"]) && request.auth.token.isAdmin == true)
+          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role == "admin")
+          || adminData().role == "admin"
           || adminData().role == "Admin"
           || adminData().admin == true
           || adminData().isAdmin == true
+        );
+    }
+
+    function isOrganizer() {
+      return signedIn()
+        && (
+          isAdmin()
+          || (request.auth.token.keys().hasAny(["organizer"]) && request.auth.token.organizer == true)
+          || (request.auth.token.keys().hasAny(["isOrganizer"]) && request.auth.token.isOrganizer == true)
+          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["organizer", "organisator"])
+          || adminData().role == "organizer"
+          || adminData().role == "organisator"
+          || adminData().role == "Organizer"
+          || adminData().role == "Organisator"
+        );
+    }
+
+    function validAccessLevel(level) {
+      return level in ["organizer", "authenticated", "everyone"];
+    }
+
+    function eventData(eventId) {
+      return get(/databases/$(database)/documents/timerEvents/$(eventId)).data;
+    }
+
+    function eventAllows(eventId, field) {
+      let data = eventData(eventId);
+      return isOrganizer()
+        || (
+          data.keys().hasAny([field])
+          && (
+            data[field] == "everyone"
+            || (data[field] == "authenticated" && verifiedUser())
+          )
         );
     }
 
@@ -30,6 +71,12 @@ service cloud.firestore {
         "role",
         "admin",
         "isAdmin",
+        "organizer",
+        "isOrganizer",
+        "organizerSince",
+        "organizerGrantedBy",
+        "adminSince",
+        "adminGrantedBy",
         "personLinkDecision"
       ])
       && ownerKeepsLinkFieldsSafe(changedKeys);
@@ -118,7 +165,16 @@ service cloud.firestore {
 
     function ownerCreatesOnlySportlerAccount() {
       return (!("role" in request.resource.data) || request.resource.data.role == "sportler")
-        && !request.resource.data.keys().hasAny(["admin", "isAdmin"]);
+        && !request.resource.data.keys().hasAny([
+          "admin",
+          "isAdmin",
+          "organizer",
+          "isOrganizer",
+          "organizerSince",
+          "organizerGrantedBy",
+          "adminSince",
+          "adminGrantedBy"
+        ]);
     }
 
     function adminKeepsAdminGrantSafe(uid) {
@@ -140,6 +196,306 @@ service cloud.firestore {
       allow update: if (isAdmin() && adminKeepsAdminGrantSafe(uid))
         || (isOwner(uid) && ownerKeepsProtectedFieldsSafe());
       allow delete: if isAdmin() || isOwner(uid);
+    }
+
+    function validTimerEvent(data) {
+      return data.keys().hasAll([
+          "name",
+          "timerEnabled",
+          "resultsMode",
+          "resultsPauseGeneration",
+          "participantMode",
+          "poolLength",
+          "enabledDisciplines",
+          "timerAccess",
+          "resultsAccess",
+          "participantViewAccess",
+          "participantEditAccess",
+          "resultEditAccess",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "name",
+          "eventDate",
+          "location",
+          "timerEnabled",
+          "resultsMode",
+          "resultsPausedAt",
+          "resultsPauseGeneration",
+          "participantMode",
+          "poolLength",
+          "customPoolLength",
+          "enabledDisciplines",
+          "resultUrl",
+          "timerAccess",
+          "resultsAccess",
+          "participantViewAccess",
+          "participantEditAccess",
+          "resultEditAccess",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.location is string
+        && data.location.size() <= 120
+        && data.timerEnabled is bool
+        && data.resultsMode in ["live", "pause", "stop"]
+        && data.resultsPauseGeneration is int
+        && data.resultsPauseGeneration >= 0
+        && data.participantMode in ["edit", "view", "hidden"]
+        && data.poolLength in ["25", "50", "custom"]
+        && data.enabledDisciplines is list
+        && data.enabledDisciplines.size() > 0
+        && data.resultUrl is string
+        && data.resultUrl.size() <= 500
+        && validAccessLevel(data.timerAccess)
+        && validAccessLevel(data.resultsAccess)
+        && validAccessLevel(data.participantViewAccess)
+        && validAccessLevel(data.participantEditAccess)
+        && validAccessLevel(data.resultEditAccess);
+    }
+
+    function validParticipantData(data) {
+      return data.keys().hasAll([
+          "name",
+          "birthYear",
+          "ageGroup",
+          "gender",
+          "organization",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "name",
+          "birthYear",
+          "ageGroup",
+          "gender",
+          "organization",
+          "sourceDirectoryId",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.birthYear is int
+        && data.birthYear >= 0
+        && data.birthYear <= 99
+        && data.ageGroup is string
+        && data.ageGroup.size() > 0
+        && data.ageGroup.size() <= 40
+        && data.gender in ["male", "female"]
+        && data.organization is string
+        && data.organization.size() > 0
+        && data.organization.size() <= 120;
+    }
+
+    function validParticipantCreate() {
+      return validParticipantData(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validParticipantUpdate() {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return validParticipantData(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && changedKeys.hasOnly([
+          "name",
+          "birthYear",
+          "ageGroup",
+          "gender",
+          "organization",
+          "updatedAt"
+        ]);
+    }
+
+    function validResultPerson(data) {
+      return data.keys().hasAll(["id", "name", "birthYear", "ageGroup", "gender", "organization"])
+        && data.keys().hasOnly(["id", "name", "birthYear", "ageGroup", "gender", "organization"])
+        && data.id is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.birthYear is int
+        && data.birthYear >= 0
+        && data.birthYear <= 99
+        && data.ageGroup is string
+        && data.ageGroup.size() <= 40
+        && data.gender in ["male", "female"]
+        && data.organization is string
+        && data.organization.size() <= 120;
+    }
+
+    function validResultData(data) {
+      return data.keys().hasAll([
+          "discipline",
+          "participantId",
+          "participantIds",
+          "participant",
+          "teamMembers",
+          "segments",
+          "frequencies",
+          "lapGroups",
+          "totalCentiseconds",
+          "officialCentiseconds",
+          "submissionKey",
+          "note",
+          "createdPauseGeneration",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "discipline",
+          "participantId",
+          "participantIds",
+          "participant",
+          "teamMembers",
+          "segments",
+          "frequencies",
+          "lapGroups",
+          "totalCentiseconds",
+          "officialCentiseconds",
+          "submissionKey",
+          "note",
+          "createdPauseGeneration",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.discipline in [
+          "normal",
+          "rescue50",
+          "rescue100",
+          "lifesaver100",
+          "medley100",
+          "superLifesaver200",
+          "obstacle200",
+          "manikinRelay4x25",
+          "rescueTubeRelay4x50",
+          "rescueRelay4x50",
+          "obstacleRelay4x50",
+          "mixedRelay4x50",
+          "lineThrow"
+        ]
+        && data.participantId is string
+        && data.participantIds is list
+        && data.participantIds.size() > 0
+        && data.participantIds.size() <= 4
+        && data.participant is map
+        && validResultPerson(data.participant)
+        && data.teamMembers is list
+        && data.teamMembers.size() <= 4
+        && data.segments is list
+        && data.segments.size() > 0
+        && data.segments.size() <= 20
+        && data.frequencies is list
+        && data.frequencies.size() == data.segments.size()
+        && data.lapGroups is list
+        && data.lapGroups.size() == data.segments.size()
+        && data.totalCentiseconds is int
+        && data.totalCentiseconds > 0
+        && (data.officialCentiseconds == null || data.officialCentiseconds is int)
+        && (data.officialCentiseconds == null || data.officialCentiseconds > 0)
+        && (data.submissionKey == null || data.submissionKey is string)
+        && (data.submissionKey == null || data.submissionKey.size() <= 64)
+        && data.createdPauseGeneration is int
+        && data.note is string
+        && data.note.size() <= 300;
+    }
+
+    function validResultCreate() {
+      let data = request.resource.data;
+      return validResultData(data)
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function validResultUpdate() {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return validResultData(request.resource.data)
+        && request.resource.data.discipline == resource.data.discipline
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.submissionKey == resource.data.submissionKey
+        && request.resource.data.createdPauseGeneration == resource.data.createdPauseGeneration
+        && request.resource.data.updatedAt == request.time
+        && changedKeys.hasOnly([
+          "participantId",
+          "participantIds",
+          "participant",
+          "teamMembers",
+          "segments",
+          "frequencies",
+          "lapGroups",
+          "totalCentiseconds",
+          "officialCentiseconds",
+          "note",
+          "updatedAt"
+        ]);
+    }
+
+    match /timerEvents/{eventId} {
+      allow read: if true;
+      allow create: if isOrganizer()
+        && validTimerEvent(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOrganizer()
+        && validTimerEvent(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOrganizer();
+
+      match /participants/{participantId} {
+        allow read: if eventAllows(eventId, "participantViewAccess")
+          || eventAllows(eventId, "participantEditAccess")
+          || eventAllows(eventId, "timerAccess")
+          || eventAllows(eventId, "resultEditAccess");
+        allow create: if eventAllows(eventId, "participantEditAccess")
+          && validParticipantCreate();
+        allow update: if eventAllows(eventId, "participantEditAccess")
+          && validParticipantUpdate();
+        allow delete: if eventAllows(eventId, "participantEditAccess");
+      }
+
+      match /results/{resultId} {
+        allow get: if isOrganizer()
+          || eventAllows(eventId, "timerAccess")
+          || (
+            eventData(eventId).resultsMode != "stop"
+            && eventAllows(eventId, "resultsAccess")
+            && (
+              eventData(eventId).resultsMode != "pause"
+              || resource.data.createdPauseGeneration != eventData(eventId).resultsPauseGeneration
+            )
+          );
+        allow list: if isOrganizer()
+          || (
+            eventData(eventId).resultsMode != "stop"
+            && eventAllows(eventId, "resultsAccess")
+            && (
+              eventData(eventId).resultsMode != "pause"
+              || resource.data.createdPauseGeneration != eventData(eventId).resultsPauseGeneration
+            )
+          );
+        allow create: if eventData(eventId).timerEnabled == true
+          && eventAllows(eventId, "timerAccess")
+          && validResultCreate();
+        allow update: if eventData(eventId).resultsMode == "live"
+          && eventAllows(eventId, "resultsAccess")
+          && eventAllows(eventId, "resultEditAccess")
+          && validResultUpdate();
+        allow delete: if eventAllows(eventId, "resultsAccess")
+          && eventAllows(eventId, "resultEditAccess");
+      }
+    }
+
+    match /timerParticipantDirectory/{candidateId} {
+      allow read: if isOrganizer();
+      allow write: if false;
     }
   }
 }

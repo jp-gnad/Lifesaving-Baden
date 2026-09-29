@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f7f9fc">
+    <meta name="description" content="Einfache Zeitnahme für den Rettungssport">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Lifesaving Timer</title>
+    <link rel="icon" href="./app-icon-64.png" type="image/png" sizes="64x64">
+    <link rel="apple-touch-icon" href="./app-icon-180.png" sizes="180x180">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="stylesheet" href="./styles.css?v=firebase-access-v1">
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="../assets/js/firebase-config.js?v=timer-firebase-v1"></script>
+    <script defer src="./firestore-api.js?v=firebase-access-v1"></script>
+    <script defer src="./app.js?v=firebase-access-v1"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#/" aria-label="Lifesaving Timer – Startseite">
+        <span class="brand-mark" aria-hidden="true"><img src="./app-icon-192.png" alt=""></span>
+        <span>Lifesaving Timer</span>
+      </a>
+      <a class="portal-link" href="../index.html">Lifesaving Baden</a>
+    </header>
+    <main id="app" class="container" tabindex="-1">
+      <div class="loading">Wird geladen …</div>
+    </main>
+    <button id="offline-sync-status" class="offline-sync-status" type="button" aria-live="polite" hidden>
+      <span class="offline-sync-dot" aria-hidden="true"></span>
+      <span id="offline-sync-text">Ergebnis wartet</span>
+    </button>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div class="portrait-lock" role="alert" aria-live="assertive">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="8" width="24" height="44" rx="5"></rect><path d="M28 14h8M30 46h4M13 28a20 20 0 0 1 7-14m-7 14-5-5m5 5 5-5"></path></svg>
+      <strong>Hochformat</strong><span>Bitte Gerät drehen.</span>
+    </div>
+  </body>
+</html>

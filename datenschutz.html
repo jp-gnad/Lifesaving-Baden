@@ -145,6 +145,17 @@
             späteren Datenbank, die Administration von Rollen und die Vorbereitung persönlicher Sportlerprofile.
           </p>
           <p>
+            Für den Lifesaving Timer werden außerdem Eventdaten, Namen und Nachnamen, zweistellige Jahrgangsanzeigen,
+            Geschlecht, DLRG-Gliederung, Disziplinen, gestoppte Zeiten, Rundenzeiten, Frequenzwerte, Ergebnisnotizen und
+            Mannschaftszuordnungen in Cloud Firestore gespeichert. Eventübersichten und einzelne Events können abhängig
+            von den durch den Organisator festgelegten Zugriffsrechten auch ohne Anmeldung öffentlich abrufbar sein.
+          </p>
+          <p>
+            Organisatoren bestimmen je Event, ob Timer, Ergebnisse und Personendaten nur für Organisatoren, für
+            angemeldete Nutzer oder für alle Besucher verfügbar sind. Öffentliche Eventlinks können von Empfängern
+            weitergegeben werden.
+          </p>
+          <p>
             Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, soweit die Daten für dein Konto und die gewünschte Nutzung
             erforderlich sind. Für freiwillige Angaben gilt Art. 6 Abs. 1 lit. a DSGVO. Für administrative Sicherheit,
             Nachvollziehbarkeit und Missbrauchsvermeidung gilt Art. 6 Abs. 1 lit. f DSGVO.
@@ -171,7 +182,9 @@
           <p>
             Die Website und Firebase können technisch notwendige Speichermechanismen im Browser verwenden, zum Beispiel
             Cookies, Local Storage, Session Storage oder IndexedDB. Diese werden für Login-Status, Sicherheit,
-            Sitzungsverwaltung und eine sparsame Nutzung von Firestore-Lesevorgängen verwendet.
+            Sitzungsverwaltung, Offline-Zwischenspeicherung des Timers und eine sparsame Nutzung von
+            Firestore-Lesevorgängen verwendet. Noch nicht übertragene Timer-Ergebnisse können bis zur erfolgreichen
+            Synchronisierung im Browser gespeichert bleiben.
           </p>
           <p>
             Es werden keine Marketing-Cookies und keine Tracking-Cookies für Werbung eingesetzt.
@@ -211,6 +224,10 @@
             wird. Freiwillige Profilangaben kannst du in den Kontoeinstellungen löschen. Wenn du dein Konto löschst,
             werden die in Firestore gespeicherten Kontodaten und der Firebase-Auth-Zugang gelöscht, soweit dies technisch
             über die Website möglich ist.
+          </p>
+          <p>
+            Timer-Events, Teilnehmer- und Ergebnisdaten bleiben unabhängig von einzelnen Benutzerkonten gespeichert,
+            bis ein Organisator das betreffende Event löscht oder die Daten administrativ entfernt werden.
           </p>
           <p>
             Verknüpfungsanträge werden gelöscht, wenn sie angenommen, abgelehnt oder zurückgezogen wurden. Technische

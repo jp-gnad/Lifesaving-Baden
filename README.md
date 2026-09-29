@@ -1,7 +1,16 @@
 # Lifesaving Baden
 
-Statisches Grundgerüst für eine GitHub-Pages-Website mit Startseite,
-Firebase-Registrierung/Login und einem geschützten Bereich.
+Gemeinsame GitHub-Pages-Website für Lifesaving Baden mit Firebase-Login,
+Mitgliederbereich und integriertem Lifesaving Timer. Die Dateien werden
+vollständig aus diesem Repository veröffentlicht. Firebase Authentication und
+Firestore übernehmen Anmeldung, Rollen und Timer-Daten.
+
+Der Timer ist anschließend unter dem Unterpfad `timer/` erreichbar, zum
+Beispiel:
+
+```text
+https://jp-gnad.github.io/Lifesaving-Baden/timer/
+```
 
 ## Kann GitHub Pages echte Logins?
 
@@ -29,6 +38,18 @@ Das bedeutet:
 |-- app.html
 |-- account-settings.html
 |-- link-request.html
+|-- timer/
+|   |-- index.html
+|   |-- app.js
+|   |-- firestore-api.js
+|   |-- styles.css
+|   `-- sw.js
+|-- firestore.rules
+|-- firebase.json
+|-- firestore.indexes.json
+|-- tools/
+|   |-- build_participant_directory.py
+|   `-- sync_participant_directory.mjs
 |-- assets/
 |   |-- img/
 |   |   |-- auth-pool.jpg
@@ -267,6 +288,86 @@ Danach ist die Seite unter `http://localhost:8080` erreichbar.
 2. In GitHub: `Settings` -> `Pages`.
 3. Als Source den Branch `main` und den Ordner `/root` auswählen.
 4. Speichern. GitHub zeigt danach die öffentliche URL an.
+
+## Integrierter Lifesaving Timer
+
+Der Timer verwendet keine eigene Cloudflare-Datenbank mehr. Events, Personen
+und Ergebnisse liegen in diesen Firestore-Collections:
+
+```text
+timerEvents/{eventId}
+timerEvents/{eventId}/participants/{participantId}
+timerEvents/{eventId}/results/{resultId}
+timerParticipantDirectory/{candidateId}
+```
+
+Die Eventübersicht und direkte Eventlinks sind öffentlich erreichbar. Welche
+Funktionen innerhalb eines Events nutzbar sind, legt ein Organisator in den
+Event-Einstellungen fest:
+
+- nur Organisatoren,
+- alle angemeldeten und bestätigten Nutzer,
+- alle, auch ohne Anmeldung.
+
+Diese Auswahl gibt es getrennt für Timer, Ergebnisanzeige,
+Ergebniskorrekturen, Personenanzeige und Personenbearbeitung. Eventerstellung,
+Eventeinstellungen und Eventlöschung bleiben immer Organisatoren und dem Admin
+vorbehalten. Ein öffentlicher Timerzugriff schließt die zum Stoppen benötigte
+Personenanzeige technisch mit ein.
+
+Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
+Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von
+der Oberfläche.
+
+## Firestore-Regeln veröffentlichen
+
+Nach Änderungen an `firestore.rules` müssen die Regeln einmal in das bereits
+verwendete Firebase-Projekt `lifesaving-baden` veröffentlicht werden. Das ist
+mit dem kostenlosen Firebase-Tarif möglich:
+
+```powershell
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules --project lifesaving-baden
+```
+
+Alternativ kann der Inhalt von `firestore.rules` in der Firebase Console unter
+`Firestore Database -> Rules` eingefügt und veröffentlicht werden. Solange die
+neuen Regeln noch nicht veröffentlicht sind, zeigt der Timer bei Firestore-
+Zugriffen erwartungsgemäß eine fehlende Berechtigung an.
+
+## Admin- und Organisatorrollen
+
+Die Adminrolle kann weiterhin nicht über die Website vergeben werden. Das
+Admin-Konto wird ausschließlich direkt in Firebase gepflegt. Ein Admin kann in
+der Website andere Konten zu Organisatoren, Kader-Sportlern oder Sportlern
+machen, aber keinen weiteren Admin anlegen. Normale Konten können ihre eigenen
+Rollenfelder weder setzen noch verändern.
+
+Organisatoren dürfen alle Timer-Events verwalten. Die Firestore-Regeln prüfen
+die Rolle direkt im geschützten Dokument `users/{uid}`; ein im Browser
+veränderter Text, versteckter Button oder URL-Parameter vergibt keine Rechte.
+
+## Automatische Personenliste
+
+Der Workflow `.github/workflows/sync-participant-directory.yml` aktualisiert
+die importierbare Timer-Personenliste wöchentlich. Dafür werden zwei GitHub-
+Repository-Secrets benötigt:
+
+- `PARTICIPANT_SOURCE_URL`: URL der XLSX-Quelldatei.
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: vollständiges JSON eines ausschließlich
+  hierfür verwendeten Firebase-Servicekontos.
+
+Die globale Importliste ist nur für Organisatoren lesbar. Bereits in ein Event
+übernommene Personen richten sich nach den Zugriffsrechten des Events.
+
+## Umstieg vom früheren Timer-Repository
+
+Das alte Cloudflare-D1-Datenmodell wird nicht automatisch nach Firestore
+übernommen. Vor dem Löschen des Repositorys `Lifesaving-Timer` müssen eventuell
+vorhandene produktive Events und Ergebnisse exportiert und importiert werden.
+Das alte Repository sollte deshalb erst entfernt werden, nachdem der neue
+Timer veröffentlicht, getestet und eine benötigte Datenübernahme abgeschlossen
+ist.
 
 ## Hinweis zu geschützten Inhalten
 
