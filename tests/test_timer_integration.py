@@ -61,6 +61,16 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("watchResults", app)
         self.assertIn("query.onSnapshot", adapter)
 
+    def test_timer_reuses_lifesaving_baden_footer(self):
+        html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
+        styles = (ROOT / "timer" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('class="timer-site-footer"', html)
+        self.assertIn('src="../assets/img/elch-gelb.png"', html)
+        self.assertIn('href="../impressum.html"', html)
+        self.assertIn('href="../datenschutz.html"', html)
+        self.assertIn("body.home-page .timer-site-footer, body.event-page .timer-site-footer", styles)
+        self.assertIn("body.timer-page .timer-site-footer", styles)
+
     def test_timer_results_do_not_write_nested_firestore_arrays(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         self.assertIn("lapGroups.map((laps) => ({ laps: [...laps] }))", adapter)

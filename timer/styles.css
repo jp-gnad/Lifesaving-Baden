@@ -11,6 +11,7 @@
   --danger: #bd2c2c;
   --success: #147a43;
   --radius: 10px;
+  --timer-footer-height: 64px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -119,6 +120,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .timer-account-compact .icon { width: 22px; height: 22px; }
 .timer-account-compact.timer-account-avatar { background: var(--primary); color: #fff; }
 
+.timer-site-footer {
+  min-height: calc(var(--timer-footer-height) + env(safe-area-inset-bottom));
+  padding: 10px max(16px, calc((100vw - 680px) / 2 + 12px)) max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  display: none;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+body.home-page .timer-site-footer, body.event-page .timer-site-footer { position: fixed; right: 0; bottom: 0; left: 0; z-index: 20; height: calc(var(--timer-footer-height) + env(safe-area-inset-bottom)); display: grid; }
+.timer-footer-brand { color: var(--text); display: inline-flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 750; white-space: nowrap; }
+.timer-footer-brand img { width: 32px; height: 32px; object-fit: contain; }
+.timer-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.timer-footer-links a { min-height: 34px; border-radius: 8px; padding: 7px 9px; color: var(--muted); display: inline-flex; align-items: center; font-size: 13px; font-weight: 650; text-decoration: none; }
+.timer-footer-links a:hover { background: var(--surface-alt); color: var(--primary-dark); }
+body.timer-page .timer-site-footer { display: none; }
+
 .container { width: min(680px, calc(100% - 24px)); margin: 0 auto; padding: 18px 0 max(48px, env(safe-area-inset-bottom)); }
 .container:focus { outline: none; }
 
@@ -142,10 +162,12 @@ body.home-page, body.event-page, body.people-page { height: 100dvh; overflow: hi
 body.viewer-overview { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
 body.home-page .site-header, body.event-page .site-header, body.people-page .site-header { height: calc(58px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
 body.viewer-overview .site-header { height: calc(58px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
-.home-page .container, .event-page .container, .people-page .container { height: calc(100dvh - 58px - env(safe-area-inset-top)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+body.home-page .site-header, body.event-page .site-header { position: fixed; top: 0; right: 0; left: 0; z-index: 20; }
+.home-page .container, .event-page .container { position: fixed; top: calc(58px + env(safe-area-inset-top)); bottom: calc(var(--timer-footer-height) + env(safe-area-inset-bottom)); left: 50%; height: auto; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; transform: translateX(-50%); }
+.people-page .container { height: calc(100dvh - 58px - env(safe-area-inset-top)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .viewer-overview .container { height: calc(100dvh - 58px - env(safe-area-inset-top)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .viewer-overview #viewer-overview-head { flex: 0 0 auto; }
-.viewer-overview #results { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.viewer-overview #results { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
 .viewer-overview .result-selection { min-height: 0; align-content: start; }
 .viewer-overview .result-selection-group-rows { min-height: 0; align-content: start; }
 .viewer-overview .result-selection-row { height: 58px; }
@@ -596,7 +618,7 @@ dialog::backdrop { background: rgba(20, 29, 44, .48); }
 
 @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
   html, body { width: 100%; height: 100%; overflow: hidden; }
-  body > .site-header, body > .container, body > .toast, body > .offline-sync-status { display: none !important; }
+  body > .site-header, body > .container, body > .timer-site-footer, body > .toast, body > .offline-sync-status { display: none !important; }
   .portrait-lock { position: fixed; inset: 0; z-index: 10000; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); background: #f7f9fc; color: #172033; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
   .portrait-lock svg { width: 54px; height: 54px; margin-bottom: 5px; fill: none; stroke: #1263df; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   .portrait-lock strong { font-size: 20px; }
@@ -685,16 +707,23 @@ body.timer-page.review-active { position: fixed; inset: 0; width: 100%; height: 
 .timer-page .toast { background: #172033; color: #fff; }
 
 @media (max-width: 430px) {
+  :root { --timer-footer-height: 58px; }
   .site-header { height: 52px; }
   .container { padding-top: 12px; }
   body.home-page .site-header, body.event-page .site-header, body.people-page .site-header, body.viewer-overview .site-header { height: calc(52px + env(safe-area-inset-top)); }
-  .home-page .container, .event-page .container, .people-page .container, .viewer-overview .container { height: calc(100dvh - 52px - env(safe-area-inset-top)); }
+  .home-page .container, .event-page .container { top: calc(52px + env(safe-area-inset-top)); height: auto; }
+  .people-page .container, .viewer-overview .container { height: calc(100dvh - 52px - env(safe-area-inset-top)); }
   h1 { font-size: 24px; }
   .page-head { margin-bottom: 10px; }
   .back { margin-bottom: 7px; font-size: 13px; }
   .brand-mark { width: 32px; height: 32px; }
   .portal-link, .timer-account-trigger-copy { display: none; }
   .header-actions { gap: 4px; }
+  .timer-site-footer { padding-right: 12px; padding-left: 12px; gap: 8px; }
+  .timer-footer-brand { gap: 6px; font-size: 12px; }
+  .timer-footer-brand img { width: 28px; height: 28px; }
+  .timer-footer-links { gap: 0; }
+  .timer-footer-links a { min-height: 30px; padding: 5px 4px; font-size: 11px; }
   .section-head { align-items: center; }
   .section-head .button { min-height: 42px; padding: 8px 11px; }
   .event-action-tile { gap: 11px; padding: 12px; }

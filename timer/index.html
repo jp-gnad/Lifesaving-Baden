@@ -11,13 +11,13 @@
     <link rel="icon" href="./app-icon-64.png" type="image/png" sizes="64x64">
     <link rel="apple-touch-icon" href="./app-icon-180.png" sizes="180x180">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=firebase-access-v4">
+    <link rel="stylesheet" href="./styles.css?v=firebase-access-v5">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="../assets/js/firebase-config.js?v=timer-firebase-v1"></script>
-    <script defer src="./firestore-api.js?v=firebase-access-v4"></script>
-    <script defer src="./app.js?v=firebase-access-v4"></script>
+    <script defer src="./firestore-api.js?v=firebase-access-v5"></script>
+    <script defer src="./app.js?v=firebase-access-v5"></script>
   </head>
   <body>
     <header class="site-header">
@@ -33,6 +33,16 @@
     <main id="app" class="container" tabindex="-1">
       <div class="loading">Wird geladen …</div>
     </main>
+    <footer class="timer-site-footer">
+      <span class="timer-footer-brand">
+        <img src="../assets/img/elch-gelb.png" alt="" aria-hidden="true">
+        Lifesaving Baden
+      </span>
+      <nav class="timer-footer-links" aria-label="Fußnavigation">
+        <a href="../impressum.html">Impressum</a>
+        <a href="../datenschutz.html">Datenschutz</a>
+      </nav>
+    </footer>
     <button id="offline-sync-status" class="offline-sync-status" type="button" aria-live="polite" hidden>
       <span class="offline-sync-dot" aria-hidden="true"></span>
       <span id="offline-sync-text">Ergebnis wartet</span>
