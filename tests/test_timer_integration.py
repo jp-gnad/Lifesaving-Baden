@@ -47,6 +47,11 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('href="timer/"', app_html)
         self.assertIn("Lifesaving Timer", app_html)
 
+    def test_known_club_cap_is_mapped(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('"Cap-Deportivo Sirenas de Catarroja.svg"', app)
+        self.assertIn('"Deportivo Sirenas de Catarroja"', app)
+
     def test_timer_has_account_trigger_and_realtime_results(self):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")

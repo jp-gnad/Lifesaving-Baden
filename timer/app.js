@@ -85,6 +85,7 @@ const organizationCaps = [
   ["Cap-Bermatingen-Markdorf.svg", ["Bermatingen-Markdorf", "Bermatingen", "Markdorf"]],
   ["Cap-Bietigheim-Bissingen.svg", ["Bietigheim-Bissingen", "Bietigheim", "Bissingen"]],
   ["Cap-Bühl-Bühlertal.svg", ["Bühl-Bühlertal", "Bühl", "Bühlertal"]],
+  ["Cap-Deportivo Sirenas de Catarroja.svg", ["Deportivo Sirenas de Catarroja", "Sirenas de Catarroja", "Catarroja"]],
   ["Cap-Ditzingen.svg", ["Ditzingen"]],
   ["Cap-Duisburg-Homberg.svg", ["Duisburg-Homberg", "Homberg"]],
   ["Cap-Durlach.svg", ["Durlach"]],

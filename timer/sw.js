@@ -1,11 +1,11 @@
-const staticCache = "lifesaving-timer-static-firebase-v3";
+const staticCache = "lifesaving-timer-static-firebase-v4";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
   "./index.html",
-  "./styles.css?v=firebase-access-v3",
-  "./app.js?v=firebase-access-v3",
-  "./firestore-api.js?v=firebase-access-v3",
+  "./styles.css?v=firebase-access-v4",
+  "./app.js?v=firebase-access-v4",
+  "./firestore-api.js?v=firebase-access-v4",
   "../assets/js/firebase-config.js?v=timer-firebase-v1",
   "./icons.svg?v=event-settings",
   "./app-icon-64.png",
