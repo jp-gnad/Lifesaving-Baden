@@ -7,6 +7,7 @@ const defaultViewport = viewportMeta.content;
 const timerAccountControl = document.querySelector("#timer-account-control");
 const timerAccountDialog = document.querySelector("#timer-account-dialog");
 const timerAccountLogout = document.querySelector("#timer-account-logout");
+const timerPortalLink = document.querySelector("#timer-portal-link");
 
 const offlineDatabaseName = "lifesaving-timer-offline";
 const offlineDatabaseVersion = 1;
@@ -169,10 +170,11 @@ function timerLoginUrl() {
 
 function timerAccountName(context = currentTimerAuth) {
   const user = context?.user;
-  return String(user?.displayName || user?.email?.split("@")[0] || "Account").trim() || "Account";
+  return String(context?.accountName || user?.displayName || user?.email?.split("@")[0] || "Account").trim() || "Account";
 }
 
 function timerAccountRole(context = currentTimerAuth) {
+  if (context?.roleLabel) return context.roleLabel;
   if (context?.isAdmin) return "Admin";
   if (context?.isOrganizer) return "Organisator";
   return context?.authenticated ? "Sportler" : "Nicht angemeldet";
@@ -185,7 +187,7 @@ function timerAccountAvatar(context = currentTimerAuth) {
 }
 
 function compactAccountTrigger(context = currentTimerAuth) {
-  if (!context?.user) {
+  if (!context?.authenticated) {
     return `<a class="timer-account-compact" href="${escapeHtml(timerLoginUrl())}" aria-label="Anmelden" title="Anmelden">${icon("users")}</a>`;
   }
   return `<button class="timer-account-compact timer-account-avatar" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(timerAccountName(context))} öffnen" title="${escapeHtml(timerAccountName(context))}">${timerAccountAvatar(context)}</button>`;
@@ -193,20 +195,28 @@ function compactAccountTrigger(context = currentTimerAuth) {
 
 function renderTimerAccount(context) {
   currentTimerAuth = context || currentTimerAuth;
+  if (timerPortalLink) {
+    timerPortalLink.setAttribute("href", currentTimerAuth.authenticated ? "../app.html" : "../index.html");
+  }
   if (!timerAccountControl) return;
-  if (!currentTimerAuth.user) {
+  if (!currentTimerAuth.authenticated) {
     timerAccountControl.innerHTML = `<a class="timer-account-trigger timer-account-login" href="${escapeHtml(timerLoginUrl())}">${icon("users")}<span>Anmelden</span></a>`;
   } else {
     const name = timerAccountName(currentTimerAuth);
     timerAccountControl.innerHTML = `<button class="timer-account-trigger" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(name)} öffnen">
-      <span class="timer-account-avatar">${timerAccountAvatar(currentTimerAuth)}</span><span class="timer-account-trigger-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(timerAccountRole(currentTimerAuth))}</small></span>
+      <span class="timer-account-avatar timer-account-avatar-small">${timerAccountAvatar(currentTimerAuth)}</span>
+      <span class="timer-account-attention" aria-hidden="true" ${currentTimerAuth.accountNeedsAttention ? "" : "hidden"}>!</span>
     </button>`;
   }
-  if (!timerAccountDialog || !currentTimerAuth.user) return;
+  if (!timerAccountDialog || !currentTimerAuth.authenticated) return;
   timerAccountDialog.querySelector("[data-timer-account-avatar]").innerHTML = timerAccountAvatar(currentTimerAuth);
   timerAccountDialog.querySelector("[data-timer-account-name]").textContent = timerAccountName(currentTimerAuth);
   timerAccountDialog.querySelector("[data-timer-account-email]").textContent = currentTimerAuth.user.email || "";
-  timerAccountDialog.querySelector("[data-timer-account-role]").textContent = timerAccountRole(currentTimerAuth);
+  const roleElement = timerAccountDialog.querySelector("[data-timer-account-role]");
+  roleElement.textContent = timerAccountRole(currentTimerAuth);
+  roleElement.classList.toggle("is-admin", Boolean(currentTimerAuth.isAdmin));
+  const manageAttention = timerAccountDialog.querySelector("[data-timer-account-manage-attention]");
+  manageAttention.hidden = !currentTimerAuth.accountNeedsAttention;
 }
 
 async function refreshTimerAccount() {
@@ -2762,7 +2772,7 @@ async function renderRoute() {
 document.addEventListener("click", (event) => {
   const accountTrigger = event.target.closest("[data-timer-account-open]");
   if (accountTrigger) {
-    if (currentTimerAuth.user && timerAccountDialog && !timerAccountDialog.open) timerAccountDialog.showModal();
+    if (currentTimerAuth.authenticated && timerAccountDialog && !timerAccountDialog.open) timerAccountDialog.showModal();
     return;
   }
   const backLink = event.target.closest("[data-history-back]");

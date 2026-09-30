@@ -165,7 +165,11 @@
     if (officialCentiseconds !== null && (!Number.isInteger(officialCentiseconds) || officialCentiseconds <= 0)) {
       throw appError("Ungültige offizielle Zeit.");
     }
-    return { segments, lapGroups, frequencies, totalCentiseconds, officialCentiseconds };
+    // Firestore accepts arrays inside map values, but not arrays directly inside
+    // another array. Keep the UI format (number[][]) at the boundary and store
+    // every lap group as a map so offline retries are valid as well.
+    const storedLapGroups = lapGroups.map((laps) => ({ laps: [...laps] }));
+    return { segments, lapGroups: storedLapGroups, frequencies, totalCentiseconds, officialCentiseconds };
   }
 
   if (!window.firebase || !window.firebase.auth || !window.firebase.firestore || !window.isFirebaseConfigured) {
@@ -197,6 +201,9 @@
     isOrganizer: false,
     isAdmin: false,
     role: "guest",
+    roleLabel: "Nicht angemeldet",
+    accountName: "",
+    accountNeedsAttention: false,
   };
   let resolveInitialAuth;
   const initialAuth = new Promise((resolve) => { resolveInitialAuth = resolve; });
@@ -205,6 +212,7 @@
   auth.onAuthStateChanged(async (user) => {
     await persistenceReady;
     let userData = {};
+    let userDataLoaded = false;
     let claims = {};
     if (user) {
       try {
@@ -213,6 +221,7 @@
           user.getIdTokenResult(),
         ]);
         userData = userSnapshot.exists ? userSnapshot.data() || {} : {};
+        userDataLoaded = true;
         claims = tokenResult.claims || {};
       } catch (error) {
         console.warn("Timer-Rolle konnte nicht geladen werden.", error);
@@ -234,12 +243,35 @@
       || ["organizer", "organisator"].includes(claimRole)
       || ["organizer", "organisator"].includes(dataRole)
     );
+    const isKaderAthlete = ["kader-sportler", "kadersportler", "kader"].includes(claimRole)
+      || ["kader-sportler", "kadersportler", "kader"].includes(dataRole);
+    const accountName = [userData.firstName, userData.lastName].filter(Boolean).join(" ")
+      || userData.displayName
+      || user?.displayName
+      || user?.email?.split("@")[0]
+      || "";
+    const isLinked = Boolean(userData.linkedPersonId || userData.personId);
+    const linkRequested = isLinked
+      || userData.personLinkStatus === "requested"
+      || userData.personLinkRequest?.status === "requested";
+    const accountChecklistComplete = linkRequested
+      && isLinked
+      && Boolean(String(userData.dlrgBranch || "").trim())
+      && Boolean(String(userData.birthDate || "").trim())
+      && Boolean(String(userData.gender || "").trim());
+    const authenticated = Boolean(user && (
+      user.emailVerified
+      || user.providerData?.some((provider) => provider.providerId === "google.com")
+    ));
     authContext = {
       user,
-      authenticated: Boolean(user && user.emailVerified),
+      authenticated,
       isOrganizer,
       isAdmin,
-      role: isAdmin ? "admin" : (isOrganizer ? "organizer" : (user ? "authenticated" : "guest")),
+      role: isAdmin ? "admin" : (isOrganizer ? "organizer" : (isKaderAthlete ? "kader-sportler" : (user ? "authenticated" : "guest"))),
+      roleLabel: isAdmin ? "Admin" : (isOrganizer ? "Organisator" : (isKaderAthlete ? "Kader-Sportler" : (user ? "Sportler" : "Nicht angemeldet"))),
+      accountName,
+      accountNeedsAttention: Boolean(user && userDataLoaded && !accountChecklistComplete),
     };
     if (!initialAuthResolved) {
       initialAuthResolved = true;
@@ -367,7 +399,10 @@
       official_centiseconds: data.officialCentiseconds == null ? null : Number(data.officialCentiseconds),
       segments: Array.isArray(data.segments) ? data.segments : [],
       frequencies: Array.isArray(data.frequencies) ? data.frequencies : [],
-      lap_groups: Array.isArray(data.lapGroups) ? data.lapGroups : [],
+      lap_groups: Array.isArray(data.lapGroups) ? data.lapGroups.map((group) => {
+        if (Array.isArray(group)) return group;
+        return Array.isArray(group?.laps) ? group.laps : [];
+      }) : [],
       team_members: Array.isArray(data.teamMembers) ? data.teamMembers.map((member, index) => ({
         id: member.id,
         name: member.name,

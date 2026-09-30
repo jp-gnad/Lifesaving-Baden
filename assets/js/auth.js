@@ -604,6 +604,16 @@
 
   initPasswordVisibilityToggles();
 
+  if (page === "landing" && canUseFirebase()) {
+    initFirebase().onAuthStateChanged((user) => {
+      if (hasVerifiedAccess(user)) {
+        redirectToApp();
+      } else if (user) {
+        redirectToLogin("needsVerification");
+      }
+    });
+  }
+
   if (page === "login") {
     initTabs();
 

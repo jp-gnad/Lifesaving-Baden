@@ -56,6 +56,21 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("watchResults", app)
         self.assertIn("query.onSnapshot", adapter)
 
+    def test_timer_results_do_not_write_nested_firestore_arrays(self):
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        self.assertIn("lapGroups.map((laps) => ({ laps: [...laps] }))", adapter)
+        self.assertIn("Array.isArray(group?.laps) ? group.laps : []", adapter)
+
+    def test_signed_in_landing_and_timer_links_return_to_member_app(self):
+        landing = (ROOT / "index.html").read_text(encoding="utf-8")
+        auth = (ROOT / "assets" / "js" / "auth.js").read_text(encoding="utf-8")
+        timer_html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
+        timer_app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('data-page="landing"', landing)
+        self.assertIn('page === "landing"', auth)
+        self.assertIn('id="timer-portal-link"', timer_html)
+        self.assertIn('currentTimerAuth.authenticated ? "../app.html" : "../index.html"', timer_app)
+
     def test_participant_directory_is_organizer_only(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")

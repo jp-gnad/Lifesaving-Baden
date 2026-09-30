@@ -78,7 +78,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .portal-link:hover { text-decoration: underline; }
 
 .header-actions { display: flex; align-items: center; gap: 12px; }
-.timer-account-control { min-width: 0; }
+.timer-account-control { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
 .timer-account-trigger, .timer-account-compact {
   border: 0;
   background: transparent;
@@ -87,28 +87,37 @@ button, a { -webkit-tap-highlight-color: transparent; }
   text-decoration: none;
   cursor: pointer;
 }
-.timer-account-trigger { min-height: 42px; padding: 3px 5px; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; }
+.timer-account-trigger { position: relative; width: 44px; height: 44px; padding: 0; display: inline-grid; place-items: center; border-radius: 50%; }
 .timer-account-trigger:hover { background: var(--surface-alt); }
-.timer-account-login { padding: 7px 9px; color: var(--primary-dark); font-size: 13px; font-weight: 750; }
+.timer-account-login { width: auto; min-width: 44px; padding: 7px 9px; color: var(--primary-dark); font-size: 13px; font-weight: 750; display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; }
 .timer-account-login .icon { width: 20px; height: 20px; }
-.timer-account-avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; background: #e8f0fc; color: var(--primary-dark); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.timer-account-avatar { flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; }
 .timer-account-avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.timer-account-trigger-copy { min-width: 0; display: grid; text-align: left; line-height: 1.15; }
-.timer-account-trigger-copy strong { max-width: 125px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.timer-account-trigger-copy small { margin-top: 2px; color: var(--muted); font-size: 10px; }
-.timer-account-dialog { width: min(380px, calc(100% - 24px)); }
-.timer-account-dialog-body { display: grid; gap: 16px; }
-.timer-account-profile { display: flex; align-items: center; gap: 12px; }
-.timer-account-profile > div { min-width: 0; display: grid; }
-.timer-account-profile strong, .timer-account-profile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timer-account-profile span { color: var(--muted); font-size: 13px; }
-.timer-account-profile small { margin-top: 3px; color: var(--primary-dark); font-weight: 750; }
-.timer-account-avatar-large { width: 52px; height: 52px; font-size: 17px; }
-.timer-account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.timer-account-actions .button { min-width: 0; padding-right: 8px; padding-left: 8px; }
+.timer-account-avatar-small { width: 38px; height: 38px; font-size: 13px; }
+.timer-account-attention { position: absolute; top: 0; right: 0; width: 18px; height: 18px; place-items: center; border: 2px solid var(--surface); border-radius: 50%; background: #f4b400; color: var(--text); font-size: 11px; font-weight: 800; line-height: 1; }
+.timer-account-attention:not([hidden]) { display: grid; }
+.timer-account-dialog[open] { position: fixed; inset: 82px max(16px, calc((100vw - 680px) / 2 + 12px)) auto auto; width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 112px); margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 24px; overflow: auto; background: var(--surface); color: var(--text); box-shadow: 0 24px 70px rgba(23, 32, 51, .26); display: grid; gap: 16px; }
+.timer-account-dialog::backdrop { background: rgba(23, 32, 51, .42); }
+.timer-account-close { position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: var(--muted); display: grid; place-items: center; font-size: 29px; line-height: 1; cursor: pointer; }
+.timer-account-close:hover { background: var(--surface-alt); color: var(--text); }
+.timer-account-email, .timer-account-name-line { margin: 0; color: var(--muted); text-align: center; }
+.timer-account-email { padding: 0 48px; overflow-wrap: anywhere; font-size: 16px; font-weight: 700; }
+.timer-account-avatar-large { justify-self: center; width: 112px; height: 112px; border: 4px solid var(--text); font-size: 34px; }
+.timer-account-dialog h2 { margin: 0; color: var(--text); font-size: clamp(26px, 6vw, 38px); line-height: 1.12; text-align: center; }
+.timer-account-name-line strong { color: var(--primary-dark); }
+.timer-account-name-line strong.is-admin { color: var(--danger); }
+.timer-account-manage { position: relative; width: 100%; min-height: 50px; padding-inline: 42px; border-color: var(--line); background: transparent; color: var(--muted); }
+.timer-account-manage:hover { background: var(--surface-alt); color: var(--text); }
+.timer-account-manage-attention { position: absolute; top: 50%; right: 14px; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #f4b400; color: var(--text); font-size: 12px; font-weight: 850; line-height: 1; box-shadow: 0 0 0 1px rgba(244, 180, 0, .35); transform: translateY(-50%); }
+.timer-account-manage-attention:not([hidden]) { display: grid; }
+.timer-account-actions { display: grid; grid-template-columns: 1fr; }
+.timer-account-action { min-height: 50px; border: 0; border-radius: 8px; background: var(--bg); color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 750; cursor: pointer; }
+.timer-account-action:hover { background: var(--surface-alt); }
+.timer-account-action:disabled { opacity: .55; cursor: not-allowed; }
+.timer-account-action-icon { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.9; opacity: .84; }
 .timer-account-compact { width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #0a84ff; }
 .timer-account-compact .icon { width: 22px; height: 22px; }
-.timer-account-compact.timer-account-avatar { background: #e8f0fc; color: var(--primary-dark); }
+.timer-account-compact.timer-account-avatar { background: var(--primary); color: #fff; }
 
 .container { width: min(680px, calc(100% - 24px)); margin: 0 auto; padding: 18px 0 max(48px, env(safe-area-inset-bottom)); }
 .container:focus { outline: none; }
