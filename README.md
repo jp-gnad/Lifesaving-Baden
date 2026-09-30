@@ -315,6 +315,12 @@ Eventeinstellungen und Eventlöschung bleiben immer Organisatoren und dem Admin
 vorbehalten. Ein öffentlicher Timerzugriff schließt die zum Stoppen benötigte
 Personenanzeige technisch mit ein.
 
+Der Timer zeigt in der Kopfzeile immer den aktuellen Account beziehungsweise
+für Gäste einen Login-Link. Auch in der kompakten Stoppuhransicht bleibt ein
+Account-Trigger sichtbar. Ergebnisansichten verwenden Firestore-Live-Listener;
+neue, bearbeitete oder gelöschte Ergebnisse erscheinen dadurch ohne manuelles
+Neuladen auf anderen Geräten.
+
 Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
 Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von
 der Oberfläche.
@@ -359,6 +365,9 @@ Repository-Secrets benötigt:
 
 Die globale Importliste ist nur für Organisatoren lesbar. Bereits in ein Event
 übernommene Personen richten sich nach den Zugriffsrechten des Events.
+Wenn die beiden Secrets noch fehlen oder der Workflow noch nicht erfolgreich
+gelaufen ist, meldet der Import ausdrücklich, dass die geschützte Importliste
+noch nicht eingerichtet ist.
 
 ## Umstieg vom früheren Timer-Repository
 

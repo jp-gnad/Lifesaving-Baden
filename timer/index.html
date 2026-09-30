@@ -11,13 +11,13 @@
     <link rel="icon" href="./app-icon-64.png" type="image/png" sizes="64x64">
     <link rel="apple-touch-icon" href="./app-icon-180.png" sizes="180x180">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./styles.css?v=firebase-access-v1">
+    <link rel="stylesheet" href="./styles.css?v=firebase-access-v2">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script defer src="../assets/js/firebase-config.js?v=timer-firebase-v1"></script>
-    <script defer src="./firestore-api.js?v=firebase-access-v1"></script>
-    <script defer src="./app.js?v=firebase-access-v1"></script>
+    <script defer src="./firestore-api.js?v=firebase-access-v2"></script>
+    <script defer src="./app.js?v=firebase-access-v2"></script>
   </head>
   <body>
     <header class="site-header">
@@ -25,7 +25,10 @@
         <span class="brand-mark" aria-hidden="true"><img src="./app-icon-192.png" alt=""></span>
         <span>Lifesaving Timer</span>
       </a>
-      <a class="portal-link" href="../index.html">Lifesaving Baden</a>
+      <div class="header-actions">
+        <a class="portal-link" href="../index.html">Lifesaving Baden</a>
+        <div id="timer-account-control" class="timer-account-control" aria-live="polite"></div>
+      </div>
     </header>
     <main id="app" class="container" tabindex="-1">
       <div class="loading">Wird geladen …</div>
@@ -34,6 +37,28 @@
       <span class="offline-sync-dot" aria-hidden="true"></span>
       <span id="offline-sync-text">Ergebnis wartet</span>
     </button>
+    <dialog id="timer-account-dialog" class="timer-account-dialog">
+      <div class="dialog-body timer-account-dialog-body">
+        <div class="dialog-title-row">
+          <h2>Account</h2>
+          <button type="button" class="button secondary icon-button" data-timer-account-close aria-label="Schließen">
+            <svg class="icon" aria-hidden="true"><use href="./icons.svg?v=event-settings#x"></use></svg>
+          </button>
+        </div>
+        <div class="timer-account-profile">
+          <span class="timer-account-avatar timer-account-avatar-large" data-timer-account-avatar>?</span>
+          <div>
+            <strong data-timer-account-name>Account</strong>
+            <span data-timer-account-email></span>
+            <small data-timer-account-role></small>
+          </div>
+        </div>
+        <div class="timer-account-actions">
+          <a class="button secondary" href="../account-settings.html">Account verwalten</a>
+          <button class="button" id="timer-account-logout" type="button">Abmelden</button>
+        </div>
+      </div>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div class="portrait-lock" role="alert" aria-live="assertive">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="8" width="24" height="44" rx="5"></rect><path d="M28 14h8M30 46h4M13 28a20 20 0 0 1 7-14m-7 14-5-5m5 5 5-5"></path></svg>

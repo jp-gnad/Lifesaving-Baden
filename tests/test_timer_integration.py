@@ -47,6 +47,23 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('href="timer/"', app_html)
         self.assertIn("Lifesaving Timer", app_html)
 
+    def test_timer_has_account_trigger_and_realtime_results(self):
+        html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        self.assertIn('id="timer-account-control"', html)
+        self.assertIn('id="timer-account-dialog"', html)
+        self.assertIn("watchResults", app)
+        self.assertIn("query.onSnapshot", adapter)
+
+    def test_participant_directory_is_organizer_only(self):
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
+        self.assertIn("canImportParticipants: participantMode === \"edit\" && authContext.isOrganizer", adapter)
+        directory_rule = rules[rules.index("match /timerParticipantDirectory/{candidateId}"):]
+        self.assertIn("allow read: if isOrganizer();", directory_rule)
+        self.assertIn("allow write: if false;", directory_rule)
+
 
 if __name__ == "__main__":
     unittest.main()

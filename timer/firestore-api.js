@@ -172,6 +172,8 @@
     window.timerFirestoreApi = {
       request: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
       getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false }),
+      signOut: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
+      watchResults: () => () => {},
     };
     return;
   }
@@ -187,6 +189,7 @@
   const fieldValue = window.firebase.firestore.FieldValue;
   const eventsCollection = db.collection("timerEvents");
   const directoryCollection = db.collection("timerParticipantDirectory");
+  let directoryReadyPromise = null;
 
   let authContext = {
     user: null,
@@ -248,6 +251,10 @@
   async function getAuthContext() {
     await initialAuth;
     return authContext;
+  }
+
+  async function signOut() {
+    await auth.signOut();
   }
 
   function canUseAccess(level) {
@@ -374,6 +381,63 @@
       created_at: timestampText(data.createdAt),
       created_pause_generation: data.createdPauseGeneration ?? null,
     };
+  }
+
+  function visibleResults(snapshot, event) {
+    return snapshot.docs.map(mapResult).filter((result) => (
+      event.results_mode !== "pause"
+      || result.created_pause_generation !== event.results_pause_generation
+    )).sort((left, right) => {
+      const leftTime = left.official_centiseconds ?? left.total_centiseconds;
+      const rightTime = right.official_centiseconds ?? right.total_centiseconds;
+      return leftTime - rightTime || left.created_at.localeCompare(right.created_at);
+    });
+  }
+
+  function watchResults(eventId, onValue, onError = () => {}) {
+    let disposed = false;
+    let unsubscribeResults = () => {};
+    const reportError = (error) => {
+      if (!disposed) onError(translateFirebaseError(error));
+    };
+    const unsubscribeEvent = eventsCollection.doc(eventId).onSnapshot((snapshot) => {
+      if (disposed) return;
+      unsubscribeResults();
+      unsubscribeResults = () => {};
+      if (!snapshot.exists) {
+        onError(appError("Event nicht gefunden.", 404));
+        return;
+      }
+      const event = mapEvent(snapshot);
+      if (!event.can_view_results || event.results_mode === "stop") {
+        onValue({ event, mode: event.results_mode, results: [] });
+        return;
+      }
+      let query = snapshot.ref.collection("results");
+      if (event.results_mode === "pause") {
+        query = query.where("createdPauseGeneration", "!=", event.results_pause_generation);
+      }
+      unsubscribeResults = query.onSnapshot((resultsSnapshot) => {
+        if (!disposed) onValue({ event, mode: event.results_mode, results: visibleResults(resultsSnapshot, event) });
+      }, reportError);
+    }, reportError);
+    return () => {
+      disposed = true;
+      unsubscribeResults();
+      unsubscribeEvent();
+    };
+  }
+
+  function directoryIsReady() {
+    if (!directoryReadyPromise) {
+      directoryReadyPromise = directoryCollection.limit(1).get()
+        .then((snapshot) => !snapshot.empty)
+        .catch((error) => {
+          directoryReadyPromise = null;
+          throw error;
+        });
+    }
+    return directoryReadyPromise;
   }
 
   async function eventSnapshot(eventId) {
@@ -568,12 +632,14 @@
         if (queryText.length > 80) throw appError("Suchbegriff ist zu lang.");
         const eventYear = eventYearOf(event.event_date);
         if (!eventYear) throw appError("Für den Import muss beim Event ein Datum hinterlegt sein.");
-        const [directory, imported] = await Promise.all([
+        const [directory, imported, directoryReady] = await Promise.all([
           directoryCollection.orderBy("searchName").startAt(queryText).endAt(`${queryText}\uf8ff`).limit(10).get(),
           listParticipants(eventId),
+          directoryIsReady(),
         ]);
         const importedIdentities = new Set(imported.map((person) => personIdentity(person.name, person.birth_year, person.gender)));
         return {
+          directoryReady,
           candidates: directory.docs.map((document) => {
             const data = document.data() || {};
             const gender = data.gender === "w" ? "female" : "male";
@@ -766,5 +832,5 @@
     }
   }
 
-  window.timerFirestoreApi = { request, getAuthContext };
+  window.timerFirestoreApi = { request, getAuthContext, signOut, watchResults };
 })();

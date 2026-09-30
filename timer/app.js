@@ -4,6 +4,9 @@ const offlineSyncStatus = document.querySelector("#offline-sync-status");
 const offlineSyncText = document.querySelector("#offline-sync-text");
 const viewportMeta = document.querySelector('meta[name="viewport"]');
 const defaultViewport = viewportMeta.content;
+const timerAccountControl = document.querySelector("#timer-account-control");
+const timerAccountDialog = document.querySelector("#timer-account-dialog");
+const timerAccountLogout = document.querySelector("#timer-account-logout");
 
 const offlineDatabaseName = "lifesaving-timer-offline";
 const offlineDatabaseVersion = 1;
@@ -116,6 +119,8 @@ let dialogReleaseFrame = null;
 let dialogRestoreTimer = null;
 let offlineDatabasePromise = null;
 let offlineSyncPromise = null;
+let routeCleanup = null;
+let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
 
 function icon(name) {
   return `<svg class="icon" aria-hidden="true"><use href="./icons.svg?v=event-settings#${name}"></use></svg>`;
@@ -154,6 +159,59 @@ function personInitials(name = "") {
       ? initial.toLocaleLowerCase("de-DE")
       : initial.toLocaleUpperCase("de-DE");
   }).join("") || "?";
+}
+
+function timerLoginUrl() {
+  const loginUrl = new URL("../login.html", window.location.href);
+  loginUrl.searchParams.set("returnTo", `${window.location.pathname}${window.location.search}${window.location.hash}`);
+  return loginUrl.href;
+}
+
+function timerAccountName(context = currentTimerAuth) {
+  const user = context?.user;
+  return String(user?.displayName || user?.email?.split("@")[0] || "Account").trim() || "Account";
+}
+
+function timerAccountRole(context = currentTimerAuth) {
+  if (context?.isAdmin) return "Admin";
+  if (context?.isOrganizer) return "Organisator";
+  return context?.authenticated ? "Sportler" : "Nicht angemeldet";
+}
+
+function timerAccountAvatar(context = currentTimerAuth) {
+  const user = context?.user;
+  if (user?.photoURL) return `<img src="${escapeHtml(user.photoURL)}" alt="">`;
+  return `<span>${escapeHtml(personInitials(timerAccountName(context)))}</span>`;
+}
+
+function compactAccountTrigger(context = currentTimerAuth) {
+  if (!context?.user) {
+    return `<a class="timer-account-compact" href="${escapeHtml(timerLoginUrl())}" aria-label="Anmelden" title="Anmelden">${icon("users")}</a>`;
+  }
+  return `<button class="timer-account-compact timer-account-avatar" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(timerAccountName(context))} öffnen" title="${escapeHtml(timerAccountName(context))}">${timerAccountAvatar(context)}</button>`;
+}
+
+function renderTimerAccount(context) {
+  currentTimerAuth = context || currentTimerAuth;
+  if (!timerAccountControl) return;
+  if (!currentTimerAuth.user) {
+    timerAccountControl.innerHTML = `<a class="timer-account-trigger timer-account-login" href="${escapeHtml(timerLoginUrl())}">${icon("users")}<span>Anmelden</span></a>`;
+  } else {
+    const name = timerAccountName(currentTimerAuth);
+    timerAccountControl.innerHTML = `<button class="timer-account-trigger" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(name)} öffnen">
+      <span class="timer-account-avatar">${timerAccountAvatar(currentTimerAuth)}</span><span class="timer-account-trigger-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(timerAccountRole(currentTimerAuth))}</small></span>
+    </button>`;
+  }
+  if (!timerAccountDialog || !currentTimerAuth.user) return;
+  timerAccountDialog.querySelector("[data-timer-account-avatar]").innerHTML = timerAccountAvatar(currentTimerAuth);
+  timerAccountDialog.querySelector("[data-timer-account-name]").textContent = timerAccountName(currentTimerAuth);
+  timerAccountDialog.querySelector("[data-timer-account-email]").textContent = currentTimerAuth.user.email || "";
+  timerAccountDialog.querySelector("[data-timer-account-role]").textContent = timerAccountRole(currentTimerAuth);
+}
+
+async function refreshTimerAccount() {
+  if (!window.timerFirestoreApi) return;
+  renderTimerAccount(await window.timerFirestoreApi.getAuthContext());
 }
 
 function birthYearText(value) {
@@ -703,13 +761,11 @@ function setReviewInteractionLock(locked) {
 }
 
 function renderError(error, back = "#/", backText = "Zurück zur Übersicht") {
-  const loginUrl = new URL("../login.html", window.location.href);
-  loginUrl.searchParams.set("returnTo", `${window.location.pathname}${window.location.search}${window.location.hash}`);
   app.innerHTML = `
     <a class="back" href="${back}" data-history-back>${icon("arrow-left")} ${backText}</a>
     <div class="card"><h1>Fehler</h1><p class="lead">${escapeHtml(error.message)}</p>
     <div class="row-actions"><button class="button secondary" id="retry">${icon("refresh")} Erneut versuchen</button>
-    ${error?.status === 403 ? `<a class="button" href="${escapeHtml(loginUrl.href)}">Bei Lifesaving Baden anmelden</a>` : ""}</div></div>`;
+    ${error?.status === 403 ? `<a class="button" href="${escapeHtml(timerLoginUrl())}">Bei Lifesaving Baden anmelden</a>` : ""}</div></div>`;
   document.querySelector("#retry").addEventListener("click", renderRoute);
 }
 
@@ -1168,9 +1224,11 @@ async function renderPeople(id) {
     importSearchNote.textContent = "Suche …";
     importResults.innerHTML = "";
     try {
-      const { candidates } = await api(`/events/${id}/participants/import?q=${encodeURIComponent(searchValue)}`);
+      const { candidates, directoryReady } = await api(`/events/${id}/participants/import?q=${encodeURIComponent(searchValue)}`);
       if (requestId !== importRequest) return;
-      importSearchNote.textContent = candidates.length ? `${candidates.length} Treffer` : "Keine Person gefunden.";
+      importSearchNote.textContent = candidates.length
+        ? `${candidates.length} Treffer`
+        : (directoryReady ? "Keine Person gefunden." : "Die geschützte Importliste ist noch nicht eingerichtet.");
       importResults.innerHTML = candidates.map((candidate) => `<button type="button" class="participant-picker-option import-person-option" data-id="${candidate.id}" ${candidate.alreadyImported ? "disabled" : ""}>
         <span class="participant-picker-main">${personAvatar({ name: candidate.name, gender: candidate.gender, organization: candidate.organization })}<span class="participant-picker-copy">
           <strong>${escapeHtml(candidate.name)} (${birthYearText(candidate.birthYear)})</strong>
@@ -1253,10 +1311,14 @@ async function renderPeople(id) {
 }
 
 async function renderTimer(id) {
-  const { event, participants } = await api(`/events/${id}`);
+  const [{ event, participants }, authContext] = await Promise.all([
+    api(`/events/${id}`),
+    window.timerFirestoreApi.getAuthContext(),
+  ]);
+  currentTimerAuth = authContext;
   if (!eventTimerEnabled(event) || !eventCan(event, "can_use_timer")) {
     setDocumentTitle(`Timer deaktiviert – ${event.name}`);
-    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a></div><div class="card timer-disabled"><h1>${eventTimerEnabled(event) ? "Kein Zugriff" : "Timer deaktiviert"}</h1><p>${eventTimerEnabled(event) ? "Die Event-Einstellungen erlauben die Zeitnahme für dein Konto nicht." : "Der Timer wurde in den Event-Einstellungen ausgeschaltet."}</p></div></div>`;
+    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a><span></span>${compactAccountTrigger(authContext)}</div><div class="card timer-disabled"><h1>${eventTimerEnabled(event) ? "Kein Zugriff" : "Timer deaktiviert"}</h1><p>${eventTimerEnabled(event) ? "Die Event-Einstellungen erlauben die Zeitnahme für dein Konto nicht." : "Der Timer wurde in den Event-Einstellungen ausgeschaltet."}</p></div></div>`;
     setTimerInteractionLock(true);
     return;
   }
@@ -1284,6 +1346,7 @@ async function renderTimer(id) {
       <div class="timer-topbar">
         <a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a>
         <button class="mode-button" id="mode-button" aria-haspopup="dialog"><span><strong id="mode-name">${escapeHtml(disciplines[initialDiscipline].name)}</strong><small id="mode-laps">${disciplines[initialDiscipline].flexible ? "max. " : ""}${disciplines[initialDiscipline].laps} Laps</small></span>${icon("chevron-down")}</button>
+        ${compactAccountTrigger(authContext)}
       </div>
       <section class="card clock-card" aria-label="Stoppuhr">
         <div class="clock-status" id="clock-status">Bereit</div><div class="clock" id="clock" aria-live="off">0:00,00</div>
@@ -1939,8 +2002,9 @@ async function renderTimer(id) {
       try {
         event.currentTarget.disabled = true;
         const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-        await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
+        const synced = await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
         resetTimer();
+        showToast(synced ? "Ergebnis gespeichert und synchronisiert." : "Ergebnis lokal gespeichert. Synchronisierung läuft.");
       } catch (err) {
         review.querySelector("#save-error").textContent = `Ergebnis konnte nicht sicher auf diesem Gerät gespeichert werden: ${err.message}`;
         event.currentTarget.disabled = false;
@@ -2041,13 +2105,15 @@ async function renderTimer(id) {
 }
 
 async function renderViewer(id, initialDiscipline = null, initialGender = null) {
-  const { event, participants } = await api(`/events/${id}`);
+  const eventResponse = await api(`/events/${id}`);
+  let event = eventResponse.event;
+  const participants = eventResponse.participants;
   if (!eventCan(event, "can_view_results")) {
     setDocumentTitle(`Ergebnisse – ${event.name}`);
     app.innerHTML = `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a><div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
-  const resultsMode = eventResultsMode(event);
+  let resultsMode = eventResultsMode(event);
   participants.sort(compareParticipantsByOrganization);
   let eventPdfImage = null;
   let eventPdfImageReady = false;
@@ -2200,7 +2266,10 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
       maleCount: counts.get(`${disciplineId}:male`) || 0,
     })).filter(({ femaleCount, maleCount }) => femaleCount > 0 || maleCount > 0);
     if (!resultSelectionCategory) {
-      resultSelectionCategory = availableDisciplines.some(({ item }) => item.group !== "team") ? "individual" : "team";
+      resultSelectionCategory = availableDisciplines.length > 0
+        && availableDisciplines.every(({ item }) => item.group === "team")
+        ? "team"
+        : "individual";
     }
     const categoryEntries = resultSelectionCategory === "team"
       ? availableDisciplines.filter(({ item }) => item.group === "team")
@@ -2621,10 +2690,43 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
     loadResults();
   });
   await loadResults();
-  if (resultsMode === "live") refreshTimer = setInterval(() => loadResults(true), 60_000);
+  if (typeof window.timerFirestoreApi.watchResults === "function") {
+    routeCleanup = window.timerFirestoreApi.watchResults(id, (data) => {
+      event = data.event || event;
+      resultsMode = eventResultsMode(event);
+      allResults = data.results || [];
+      const liveStatus = document.querySelector("#live-status");
+      const liveNote = liveStatus?.closest(".live-note");
+      if (liveStatus) liveStatus.textContent = resultModeLabel(resultsMode);
+      if (liveNote) liveNote.className = `live-note ${resultsMode}`;
+      refreshButton.disabled = resultsMode !== "live";
+      if (!eventCan(event, "can_view_results")) {
+        selected = null;
+        overviewHead.hidden = false;
+        resultsRoot.innerHTML = `<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
+        return;
+      }
+      if (resultsMode === "stop") {
+        selected = null;
+        overviewHead.hidden = false;
+        document.body.classList.add("viewer-overview");
+        resultsRoot.innerHTML = `<div class="empty result-mode-empty"><strong>Ergebnisse gestoppt</strong><span>Für dieses Event werden derzeit keine Ergebnisse geladen oder angezeigt.</span></div>`;
+        return;
+      }
+      renderContent();
+    }, (error) => {
+      resultsRoot.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    });
+  } else if (resultsMode === "live") {
+    refreshTimer = setInterval(() => loadResults(true), 60_000);
+  }
 }
 
 async function renderRoute() {
+  if (routeCleanup) {
+    routeCleanup();
+    routeCleanup = null;
+  }
   clearInterval(refreshTimer);
   refreshTimer = null;
   clearInterval(cooldownTimer);
@@ -2658,22 +2760,57 @@ async function renderRoute() {
 }
 
 document.addEventListener("click", (event) => {
+  const accountTrigger = event.target.closest("[data-timer-account-open]");
+  if (accountTrigger) {
+    if (currentTimerAuth.user && timerAccountDialog && !timerAccountDialog.open) timerAccountDialog.showModal();
+    return;
+  }
   const backLink = event.target.closest("[data-history-back]");
   if (!backLink) return;
   event.preventDefault();
   if (history.length > 1) history.back();
   else location.href = backLink.href;
 });
+timerAccountDialog?.querySelector("[data-timer-account-close]")?.addEventListener("click", () => timerAccountDialog.close());
+timerAccountDialog?.addEventListener("click", (event) => {
+  if (event.target === timerAccountDialog) timerAccountDialog.close();
+});
+timerAccountLogout?.addEventListener("click", async () => {
+  try {
+    timerAccountLogout.disabled = true;
+    await window.timerFirestoreApi.signOut();
+    timerAccountDialog.close();
+    await refreshTimerAccount();
+    await renderRoute();
+    showToast("Du wurdest abgemeldet.");
+  } catch (error) {
+    showToast(error.message || "Abmelden fehlgeschlagen.");
+  } finally {
+    timerAccountLogout.disabled = false;
+  }
+});
+window.addEventListener("timer-auth-change", () => refreshTimerAccount().catch(() => {}));
 window.addEventListener("hashchange", renderRoute);
 window.addEventListener("online", () => syncPendingResults({ includeBlocked: true }).catch(() => {}));
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncPendingResults({ includeBlocked: true }).catch(() => {});
 });
-offlineSyncStatus?.addEventListener("click", () => syncPendingResults({ includeBlocked: true, notify: true }).catch(() => {}));
+offlineSyncStatus?.addEventListener("click", async () => {
+  try {
+    const synced = await syncPendingResults({ includeBlocked: true, notify: true });
+    if (synced) return;
+    const pending = await getPendingResults();
+    const error = pending.find((record) => record.lastError)?.lastError;
+    showToast(error ? `Synchronisierung fehlgeschlagen: ${error}` : "Synchronisierung ist weiterhin ausstehend.");
+  } catch (error) {
+    showToast(`Synchronisierung fehlgeschlagen: ${error.message}`);
+  }
+});
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 updateOfflineSyncStatus()
   .then(() => syncPendingResults({ includeBlocked: true }))
   .catch(() => {});
+refreshTimerAccount().catch(() => {});
 renderRoute();

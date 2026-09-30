@@ -77,6 +77,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .portal-link:hover { text-decoration: underline; }
 
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.timer-account-control { min-width: 0; }
+.timer-account-trigger, .timer-account-compact {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.timer-account-trigger { min-height: 42px; padding: 3px 5px; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; }
+.timer-account-trigger:hover { background: var(--surface-alt); }
+.timer-account-login { padding: 7px 9px; color: var(--primary-dark); font-size: 13px; font-weight: 750; }
+.timer-account-login .icon { width: 20px; height: 20px; }
+.timer-account-avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; background: #e8f0fc; color: var(--primary-dark); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.timer-account-avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.timer-account-trigger-copy { min-width: 0; display: grid; text-align: left; line-height: 1.15; }
+.timer-account-trigger-copy strong { max-width: 125px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.timer-account-trigger-copy small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.timer-account-dialog { width: min(380px, calc(100% - 24px)); }
+.timer-account-dialog-body { display: grid; gap: 16px; }
+.timer-account-profile { display: flex; align-items: center; gap: 12px; }
+.timer-account-profile > div { min-width: 0; display: grid; }
+.timer-account-profile strong, .timer-account-profile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timer-account-profile span { color: var(--muted); font-size: 13px; }
+.timer-account-profile small { margin-top: 3px; color: var(--primary-dark); font-weight: 750; }
+.timer-account-avatar-large { width: 52px; height: 52px; font-size: 17px; }
+.timer-account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.timer-account-actions .button { min-width: 0; padding-right: 8px; padding-left: 8px; }
+.timer-account-compact { width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #0a84ff; }
+.timer-account-compact .icon { width: 22px; height: 22px; }
+.timer-account-compact.timer-account-avatar { background: #e8f0fc; color: var(--primary-dark); }
+
 .container { width: min(680px, calc(100% - 24px)); margin: 0 auto; padding: 18px 0 max(48px, env(safe-area-inset-bottom)); }
 .container:focus { outline: none; }
 
@@ -573,7 +606,7 @@ body.timer-page.review-active { position: fixed; inset: 0; width: 100%; height: 
 .timer-page .site-header { display: none; }
 .timer-page .container { width: min(430px, 100%); min-height: 100dvh; padding: max(12px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom)); background: #f7f9fc; }
 .timer-page .loading { color: #667085; }
-.timer-page .timer-topbar { grid-template-columns: 44px 1fr; margin-bottom: 0; }
+.timer-page .timer-topbar { grid-template-columns: 44px minmax(0, 1fr) 44px; margin-bottom: 0; }
 .timer-page .timer-topbar > .button { width: 44px; min-height: 44px; height: 44px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #0a84ff; }
 .timer-page .mode-button { min-height: 44px; border: 1px solid #d8dde7; border-radius: 11px; padding: 5px 12px; background: #fff; color: #172033; }
 .timer-page .mode-button small { color: #667085; }
@@ -651,6 +684,8 @@ body.timer-page.review-active { position: fixed; inset: 0; width: 100%; height: 
   .page-head { margin-bottom: 10px; }
   .back { margin-bottom: 7px; font-size: 13px; }
   .brand-mark { width: 32px; height: 32px; }
+  .portal-link, .timer-account-trigger-copy { display: none; }
+  .header-actions { gap: 4px; }
   .section-head { align-items: center; }
   .section-head .button { min-height: 42px; padding: 8px 11px; }
   .event-action-tile { gap: 11px; padding: 12px; }
