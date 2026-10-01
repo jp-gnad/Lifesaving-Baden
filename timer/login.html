@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f7f9fc">
+    <meta name="description" content="Mit Google beim Lifesaving Timer anmelden">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Anmelden – Lifesaving Timer</title>
+    <link rel="icon" href="./app-icon-64.png?v=baden-brand-v1" type="image/png" sizes="64x64">
+    <link rel="apple-touch-icon" href="./app-icon-180.png?v=baden-brand-v1" sizes="180x180">
+    <link rel="manifest" href="./manifest.webmanifest?v=baden-brand-v1">
+    <link rel="stylesheet" href="./styles.css?v=firebase-access-v16">
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script defer src="../assets/js/firebase-config.js?v=timer-firebase-v1"></script>
+    <script defer src="../assets/js/auth.js?v=20261001-ios-pwa-google-v2"></script>
+  </head>
+  <body class="timer-login-page" data-page="login" data-auth-success-url="./#/">
+    <header class="site-header">
+      <a class="brand" href="./#/" aria-label="Zur Lifesaving Timer Eventübersicht">
+        <span class="brand-mark" aria-hidden="true">
+          <img src="./app-icon-192.png?v=baden-brand-v1" alt="">
+        </span>
+        <span>Lifesaving Timer</span>
+      </a>
+    </header>
+
+    <main class="timer-login-main">
+      <section class="timer-login-card" aria-labelledby="timer-login-title">
+        <img class="timer-login-logo" src="./app-icon-192.png?v=baden-brand-v1" alt="" aria-hidden="true">
+        <p class="eyebrow">Lifesaving Baden</p>
+        <h1 id="timer-login-title">Beim Timer anmelden</h1>
+        <p class="timer-login-lead">
+          Melde dich mit deinem Lifesaving-Baden-Konto an. Danach kehrst du automatisch zum Timer zurück.
+        </p>
+
+        <p class="form-error timer-login-message" data-form-message="login" role="status"></p>
+
+        <button class="button timer-google-button" type="button" data-google-login>
+          <span class="timer-google-mark" aria-hidden="true">G</span>
+          Mit Google fortfahren
+        </button>
+
+        <a class="timer-email-login" href="../login.html" data-timer-email-login>
+          Mit E-Mail und Passwort anmelden
+        </a>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const link = document.querySelector("[data-timer-email-login]");
+        const target = new URL("../login.html", window.location.href);
+        const returnTo = new URLSearchParams(window.location.search).get("returnTo") || `${window.location.pathname.replace(/login\.html$/, "")}#/`;
+        target.searchParams.set("returnTo", returnTo);
+        link.href = target.href;
+      })();
+    </script>
+  </body>
+</html>

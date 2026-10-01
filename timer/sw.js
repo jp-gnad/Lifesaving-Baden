@@ -1,11 +1,13 @@
-const staticCache = "lifesaving-timer-static-firebase-v15";
+const staticCache = "lifesaving-timer-static-firebase-v16";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
   "./index.html",
-  "./styles.css?v=firebase-access-v15",
-  "./app.js?v=firebase-access-v15",
-  "./firestore-api.js?v=firebase-access-v15",
+  "./login.html",
+  "./styles.css?v=firebase-access-v16",
+  "./app.js?v=firebase-access-v16",
+  "./firestore-api.js?v=firebase-access-v16",
+  "../assets/js/auth.js?v=20261001-ios-pwa-google-v2",
   "../assets/js/firebase-config.js?v=timer-firebase-v1",
   "../assets/img/elch-gelb.png",
   "./icons.svg?v=event-settings",
@@ -52,7 +54,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, staticCache, new URL("./index.html", baseUrl).href));
+    const fallback = url.pathname.endsWith("/timer/login.html")
+      ? new URL("./login.html", baseUrl).href
+      : new URL("./index.html", baseUrl).href;
+    event.respondWith(networkFirst(request, staticCache, fallback));
     return;
   }
 

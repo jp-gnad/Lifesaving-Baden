@@ -1,6 +1,6 @@
 (function () {
   const page = document.body.dataset.page;
-  const appUrl = "app.html";
+  const appUrl = document.body.dataset.authSuccessUrl || "app.html";
   const loginUrl = "login.html";
 
   function getVerificationRedirectUrl() {
@@ -744,7 +744,7 @@
       setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
     });
 
-    loginForm.addEventListener("submit", async (event) => {
+    loginForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       const button = loginForm.querySelector('button[type="submit"]');
@@ -773,7 +773,7 @@
       }
     });
 
-    registerForm.addEventListener("submit", async (event) => {
+    registerForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       const button = registerForm.querySelector('button[type="submit"]');
@@ -831,7 +831,7 @@
       }
     });
 
-    googleButton.addEventListener("click", async () => {
+    googleButton?.addEventListener("click", async () => {
       try {
         setLoading(googleButton, true, "Google öffnet...");
         await localPersistenceReady;
@@ -844,7 +844,7 @@
       }
     });
 
-    resetPasswordButton.addEventListener("click", async () => {
+    resetPasswordButton?.addEventListener("click", async () => {
       const email = String(new FormData(loginForm).get("email") || "").trim();
 
       if (!email) {
@@ -865,7 +865,7 @@
       }
     });
 
-    resendButton.addEventListener("click", async () => {
+    resendButton?.addEventListener("click", async () => {
       const user = auth.currentUser;
 
       if (!user) {

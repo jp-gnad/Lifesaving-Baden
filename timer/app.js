@@ -161,7 +161,7 @@ function personInitials(name = "") {
 }
 
 function timerLoginUrl() {
-  const loginUrl = new URL("../login.html", window.location.href);
+  const loginUrl = new URL("./login.html", window.location.href);
   loginUrl.searchParams.set("returnTo", `${window.location.pathname}${window.location.search}${window.location.hash}`);
   return loginUrl.href;
 }
