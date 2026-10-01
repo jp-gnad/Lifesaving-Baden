@@ -23,11 +23,10 @@ service cloud.firestore {
         && (
           (request.auth.token.keys().hasAny(["admin"]) && request.auth.token.admin == true)
           || (request.auth.token.keys().hasAny(["isAdmin"]) && request.auth.token.isAdmin == true)
-          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role == "admin")
-          || adminData().role == "admin"
-          || adminData().role == "Admin"
-          || adminData().admin == true
-          || adminData().isAdmin == true
+          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["admin", "Admin", "ADMIN"])
+          || (adminData().keys().hasAny(["role"]) && adminData().role in ["admin", "Admin", "ADMIN"])
+          || (adminData().keys().hasAny(["admin"]) && adminData().admin == true)
+          || (adminData().keys().hasAny(["isAdmin"]) && adminData().isAdmin == true)
         );
     }
 
@@ -37,11 +36,8 @@ service cloud.firestore {
           isAdmin()
           || (request.auth.token.keys().hasAny(["organizer"]) && request.auth.token.organizer == true)
           || (request.auth.token.keys().hasAny(["isOrganizer"]) && request.auth.token.isOrganizer == true)
-          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["organizer", "organisator"])
-          || adminData().role == "organizer"
-          || adminData().role == "organisator"
-          || adminData().role == "Organizer"
-          || adminData().role == "Organisator"
+          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["organizer", "organisator", "Organizer", "Organisator"])
+          || (adminData().keys().hasAny(["role"]) && adminData().role in ["organizer", "organisator", "Organizer", "Organisator"])
         );
     }
 
@@ -51,7 +47,7 @@ service cloud.firestore {
           (request.auth.token.keys().hasAny(["kader"]) && request.auth.token.kader == true)
           || (request.auth.token.keys().hasAny(["isKaderAthlete"]) && request.auth.token.isKaderAthlete == true)
           || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["kader-sportler", "kadersportler", "kader"])
-          || adminData().role in ["kader-sportler", "kadersportler", "kader"]
+          || (adminData().keys().hasAny(["role"]) && adminData().role in ["kader-sportler", "kadersportler", "kader"])
           || (adminData().keys().hasAny(["kader"]) && adminData().kader == true)
           || (adminData().keys().hasAny(["isKaderAthlete"]) && adminData().isKaderAthlete == true)
         );

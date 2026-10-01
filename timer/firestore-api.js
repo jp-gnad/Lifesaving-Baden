@@ -38,7 +38,9 @@
   function translateFirebaseError(error) {
     const code = String(error?.code || "").replace(/^firestore\//, "");
     const messages = {
-      "permission-denied": "Dafür fehlen dir die erforderlichen Rechte.",
+      "permission-denied": authContext.isAdmin
+        ? "Firebase erkennt dein Admin-Konto, aber die veröffentlichten Firestore-Regeln lehnen die Aktion ab. Bitte veröffentliche die aktuellen Regeln erneut."
+        : "Dafür fehlen dir die erforderlichen Rechte.",
       "unauthenticated": "Bitte melde dich zuerst bei Lifesaving Baden an.",
       "unavailable": "Firebase ist gerade nicht erreichbar.",
       "failed-precondition": "Die Datenbank ist für diese Abfrage noch nicht vollständig eingerichtet.",
@@ -827,6 +829,15 @@
 
       throw appError("Nicht gefunden.", 404);
     } catch (error) {
+      const firebaseCode = String(error?.code || "").replace(/^firestore\//, "");
+      if (firebaseCode === "permission-denied" && auth.currentUser && options._authRetry !== true) {
+        try {
+          await auth.currentUser.getIdToken(true);
+          return request(path, { ...options, _authRetry: true });
+        } catch (refreshError) {
+          console.warn("Firebase-Anmeldung konnte nicht aktualisiert werden.", refreshError);
+        }
+      }
       if (error?.status) throw error;
       throw translateFirebaseError(error);
     }

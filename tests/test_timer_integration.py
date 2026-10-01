@@ -109,6 +109,8 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('href="../datenschutz.html"', html)
         self.assertIn("body.home-page .timer-site-footer, body.event-page .timer-site-footer", styles)
         self.assertIn("body.timer-page .timer-site-footer", styles)
+        self.assertIn(".timer-footer-brand:hover, .timer-footer-brand:focus-visible { background: transparent;", styles)
+        self.assertIn(".timer-footer-links a:hover, .timer-footer-links a:focus-visible { background: transparent;", styles)
 
     def test_event_overview_navigation_uses_header_brand(self):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
@@ -135,12 +137,27 @@ class TimerIntegrationTest(unittest.TestCase):
         styles = (ROOT / "timer" / "styles.css").read_text(encoding="utf-8")
 
         self.assertIn('shareUrl.hash = `#/results/${id}`', app)
-        self.assertIn('body: JSON.stringify({ resultsAccess: "everyone" })', app)
+        self.assertIn('event.results_access === "everyone" ? `<button', app)
+        self.assertNotIn('body: JSON.stringify({ resultsAccess: "everyone" })', app)
+        self.assertNotIn('Ergebnisse dieses Events werden dafür auf „Jeder“ gestellt', app)
         self.assertIn('current.page === "results"', app)
         self.assertIn('{ resultsOnly: true }', app)
         self.assertIn('!resultsOnly && eventCan(event, "can_edit_results")', app)
         self.assertIn('body.shared-results-page > .site-header', styles)
         self.assertIn('body.eventDate === undefined ? current.eventDate : body.eventDate', adapter)
+
+    def test_saved_official_results_url_is_linked_in_viewer(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("const officialResultsUrl = safeExternalUrl(event.result_url)", app)
+        self.assertIn("Offizielle Ergebnisse</a>", app)
+        self.assertIn('target="_blank" rel="noopener noreferrer"', app)
+
+    def test_admin_permission_checks_match_client_and_rules(self):
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
+        self.assertIn('adminData().keys().hasAny(["isAdmin"])', rules)
+        self.assertIn('request.auth.token.role in ["admin", "Admin", "ADMIN"]', rules)
+        self.assertIn("await auth.currentUser.getIdToken(true)", adapter)
 
     def test_timer_brand_icons_have_expected_sizes_and_cache_busting(self):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")

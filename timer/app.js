@@ -119,6 +119,15 @@ function escapeHtml(value = "") {
   })[char]);
 }
 
+function safeExternalUrl(value = "") {
+  try {
+    const url = new URL(String(value).trim());
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function normalizedIdentity(value = "") {
   return String(value)
     .normalize("NFD")
@@ -2075,6 +2084,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
   const participants = eventResponse.participants;
   const resultsOnly = options.resultsOnly === true;
   const viewerRoot = `#/${resultsOnly ? "results" : "viewer"}/${id}`;
+  const officialResultsUrl = safeExternalUrl(event.result_url);
   if (!eventCan(event, "can_view_results")) {
     setDocumentTitle(`Ergebnisse – ${event.name}`);
     app.innerHTML = `${resultsOnly ? "" : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
@@ -2098,7 +2108,8 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     <div id="viewer-overview-head" ${selected ? "hidden" : ""}>
     ${resultsOnly ? `<p class="eyebrow shared-results-event-name">${escapeHtml(event.name)}</p>` : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}
     <div class="page-head viewer-page-head"><h1>Ergebnisse</h1>
-      <div class="viewer-refresh">${(event.results_access === "everyone" || eventCan(event, "can_manage_event")) ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
+      <div class="viewer-refresh">${officialResultsUrl ? `<a class="button secondary official-results-link" href="${escapeHtml(officialResultsUrl)}" target="_blank" rel="noopener noreferrer">${icon("link")} Offizielle Ergebnisse</a>` : ""}
+      ${event.results_access === "everyone" ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
       <button class="button secondary icon-button viewer-refresh-button" id="refresh-results" aria-label="Ergebnisse aktualisieren" title="Ergebnisse aktualisieren">${icon("refresh")}</button></div></div></div>
     <div id="results"><div class="loading">Ergebnisse werden geladen …</div></div>
     <dialog id="result-edit-dialog"><form class="dialog-body result-edit-form" id="result-edit-form">
@@ -2155,16 +2166,6 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
   copyResultsLinkButton?.addEventListener("click", async () => {
     try {
       copyResultsLinkButton.disabled = true;
-      if (event.results_access !== "everyone") {
-        if (!eventCan(event, "can_manage_event")) {
-          throw new Error("Nur Organisatoren können Ergebnisse öffentlich freigeben.");
-        }
-        if (!window.confirm("Der Ergebnis-Link soll ohne Anmeldung funktionieren. Ergebnisse dieses Events werden dafür auf „Jeder“ gestellt. Fortfahren?")) {
-          return;
-        }
-        await api(`/events/${id}`, { method: "PATCH", body: JSON.stringify({ resultsAccess: "everyone" }) });
-        event.results_access = "everyone";
-      }
       const shareUrl = new URL(window.location.href);
       shareUrl.hash = `#/results/${id}`;
       try {
