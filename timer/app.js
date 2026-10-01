@@ -45,38 +45,23 @@ function enabledDisciplinesForEvent(event) {
   }
 }
 
-function eventResultsMode(event) {
-  return ['live', 'pause', 'stop'].includes(event?.results_mode) ? event.results_mode : "live";
-}
-
-function eventTimerEnabled(event) {
-  return event?.timer_enabled === undefined || Number(event.timer_enabled) === 1;
-}
-
-function eventParticipantMode(event) {
-  return ['edit', 'view', 'hidden'].includes(event?.participant_mode) ? event.participant_mode : "edit";
-}
-
 function eventCan(event, permission) {
   return event?.[permission] === true;
 }
 
 function accessLabel(value) {
-  if (value === "everyone") return "Alle, auch ohne Anmeldung";
-  if (value === "authenticated") return "Alle angemeldeten Nutzer";
-  return "Nur Organisatoren";
+  if (value === "everyone") return "Jeder";
+  if (value === "kader" || value === "authenticated") return "Nur Kadersportler";
+  return "Gesperrt";
 }
 
 function accessSelect(name, value) {
+  const normalized = value === "organizer" ? "locked" : (value === "authenticated" ? "kader" : value);
   return `<label class="field"><span>Zugriff</span><select name="${name}">
-    <option value="organizer" ${value === "organizer" ? "selected" : ""}>Nur Organisatoren</option>
-    <option value="authenticated" ${value === "authenticated" ? "selected" : ""}>Alle angemeldeten Nutzer</option>
-    <option value="everyone" ${value === "everyone" ? "selected" : ""}>Alle, auch ohne Anmeldung</option>
+    <option value="locked" ${normalized === "locked" ? "selected" : ""}>Gesperrt (nur Admin)</option>
+    <option value="kader" ${normalized === "kader" ? "selected" : ""}>Nur Kadersportler</option>
+    <option value="everyone" ${normalized === "everyone" ? "selected" : ""}>Jeder (auch ohne Anmeldung)</option>
   </select></label>`;
-}
-
-function resultModeLabel(mode) {
-  return mode === "pause" ? "Pause" : (mode === "stop" ? "Stopp" : "Live");
 }
 
 const organizationCaps = [
@@ -879,8 +864,6 @@ async function renderHome() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   events.sort((left, right) => {
-    const liveOrder = Number(eventResultsMode(right) === "live") - Number(eventResultsMode(left) === "live");
-    if (liveOrder) return liveOrder;
     const dateGroup = (event) => !event.event_date ? 2 : (event.event_date >= today ? 0 : 1);
     const groupOrder = dateGroup(left) - dateGroup(right);
     if (groupOrder) return groupOrder;
@@ -900,7 +883,7 @@ async function renderHome() {
     </div>
     <section class="section event-list-section" aria-label="Events">
       ${events.length ? `<div class="stack">${events.map((event) => `
-        <a class="card event-row ${eventResultsMode(event) === "live" ? "live-event" : ""}" href="#/event/${event.id}" aria-label="${escapeHtml(event.name)} öffnen">
+        <a class="card event-row" href="#/event/${event.id}" aria-label="${escapeHtml(event.name)} öffnen">
           <div class="event-row-content">${eventIconMarkup(event, "event-list-icon")}<div class="event-row-copy"><h3>${escapeHtml(event.name)}</h3><div class="event-meta">
             <span class="meta-item">${icon("calendar")} ${escapeHtml(dateText(event.event_date))}</span>
             ${event.location ? `<span class="meta-item">${icon("location")} ${escapeHtml(event.location)}</span>` : ""}
@@ -953,22 +936,19 @@ async function renderHome() {
 
 async function renderEvent(id) {
   const { event, participants } = await api(`/events/${id}`);
-  const timerEnabled = eventTimerEnabled(event);
-  const resultsMode = eventResultsMode(event);
-  const participantMode = eventParticipantMode(event);
   setDocumentTitle(event.name);
   app.innerHTML = `
     <div class="page-head event-page-head"><div><div class="event-title-row">${eventIconMarkup(event, "event-title-icon")}<h1>${escapeHtml(event.name)}</h1><button class="button secondary icon-button" id="copy-event-link" type="button" aria-label="Event-Link kopieren" title="Event-Link kopieren">${icon("link")}</button>${eventCan(event, "can_manage_event") ? `<a class="button secondary icon-button" href="#/settings/${id}" aria-label="Event-Einstellungen" title="Event-Einstellungen">${icon("settings")}</a>` : ""}</div>
       <p class="event-summary">${escapeHtml(dateText(event.event_date))} · ${event.location ? escapeHtml(event.location) : "Kein Ort"} · ${eventCan(event, "can_view_participants") || eventCan(event, "can_use_timer") ? `${participants.length} Personen` : "Personen geschützt"}</p></div>
     </div>
-    <div class="event-action-grid ${participantMode === "hidden" || !eventCan(event, "can_view_participants") ? "people-hidden" : ""}">
-      ${timerEnabled && eventCan(event, "can_use_timer")
+    <div class="event-action-grid ${!eventCan(event, "can_view_participants") ? "people-hidden" : ""}">
+      ${eventCan(event, "can_use_timer")
         ? `<a class="card event-action-tile" href="#/timer/${id}"><span class="event-action-icon">${icon("timer")}</span><strong>Timer</strong></a>`
-        : `<div class="card event-action-tile disabled" aria-disabled="true"><span class="event-action-icon">${icon("timer")}</span><strong>Timer</strong><small>${timerEnabled ? "Kein Zugriff" : "Deaktiviert"}</small></div>`}
-      ${resultsMode === "stop" || !eventCan(event, "can_view_results")
+        : `<div class="card event-action-tile disabled" aria-disabled="true"><span class="event-action-icon">${icon("timer")}</span><strong>Timer</strong><small>Kein Zugriff</small></div>`}
+      ${!eventCan(event, "can_view_results")
         ? `<div class="card event-action-tile disabled" aria-disabled="true"><span class="event-action-icon">${icon("table")}</span><strong>Ergebnisse</strong></div>`
-        : `<a class="card event-action-tile ${resultsMode === "pause" ? "results-paused" : ""}" href="#/viewer/${id}"><span class="event-action-icon">${icon("table")}</span><strong>Ergebnisse</strong></a>`}
-      ${participantMode === "hidden" || !eventCan(event, "can_view_participants") ? "" : `<a class="card event-action-tile" href="#/people/${id}"><span class="event-action-icon">${icon("users")}</span><strong>Personen</strong></a>`}
+        : `<a class="card event-action-tile" href="#/viewer/${id}"><span class="event-action-icon">${icon("table")}</span><strong>Ergebnisse</strong></a>`}
+      ${!eventCan(event, "can_view_participants") ? "" : `<a class="card event-action-tile" href="#/people/${id}"><span class="event-action-icon">${icon("users")}</span><strong>Personen</strong></a>`}
     </div>`;
   document.querySelector("#copy-event-link").addEventListener("click", async () => {
     try {
@@ -983,14 +963,12 @@ async function renderEvent(id) {
 async function renderEventSettings(id, section = null) {
   const { event } = await api(`/events/${id}`);
   if (!eventCan(event, "can_manage_event")) throw new Error("Diese Einstellungen sind nur für Organisatoren verfügbar.");
-  const validSections = new Set(["event", "timer", "results", "people", "access"]);
+  const validSections = new Set(["event", "timer", "results", "access"]);
   const activeSection = validSections.has(section) ? section : null;
   const enabledDisciplineIds = enabledDisciplinesForEvent(event);
   const enabledDisciplines = new Set(enabledDisciplineIds);
-  const resultsMode = eventResultsMode(event);
-  const participantMode = eventParticipantMode(event);
   const poolLength = ['25', '50', 'custom'].includes(event.pool_length) ? event.pool_length : "25";
-  const sectionNames = { event: "Event", timer: "Timer", results: "Ergebnisse", people: "Personen", access: "Zugriffsrechte" };
+  const sectionNames = { event: "Event", timer: "Timer", results: "Ergebnisse", access: "Zugriffsrechte" };
   setDocumentTitle(`${activeSection ? `${sectionNames[activeSection]} – ` : ""}Einstellungen – ${event.name}`);
   const sectionName = sectionNames[activeSection] || "Event-Einstellungen";
   const disciplineFields = disciplineGroups.map((group) => {
@@ -1009,25 +987,9 @@ async function renderEventSettings(id, section = null) {
         <label><input type="radio" name="poolLength" value="custom" ${poolLength === "custom" ? "checked" : ""}><span>Eigene</span></label>
       </div><label class="field custom-pool-length" ${poolLength === "custom" ? "" : "hidden"}><span>Bahnlänge in Metern</span><input id="custom-pool-length" name="customPoolLength" type="number" min="1" max="10000" step="0.01" inputmode="decimal" value="${event.custom_pool_length ?? ""}"></label></div></fieldset>`;
   const sectionMarkup = activeSection === "event" ? eventMarkup
-    : activeSection === "timer" ? `
-      <fieldset class="settings-section"><legend>Status</legend><div class="settings-choice-grid two">
-        <label><input type="radio" name="timerEnabled" value="true" ${eventTimerEnabled(event) ? "checked" : ""}><span>Aktiviert</span></label>
-        <label><input type="radio" name="timerEnabled" value="false" ${eventTimerEnabled(event) ? "" : "checked"}><span>Deaktiviert</span></label>
-      </div></fieldset>
-      <div class="settings-disciplines"><h2>Disziplinen</h2>${disciplineFields}</div>`
-    : activeSection === "results" ? `
-      <fieldset class="settings-section"><legend>Status</legend><div class="settings-choice-grid three results-mode-settings">
-        <label><input type="radio" name="resultsMode" value="live" ${resultsMode === "live" ? "checked" : ""}><span>Live</span></label>
-        <label><input type="radio" name="resultsMode" value="pause" ${resultsMode === "pause" ? "checked" : ""}><span>Pause</span></label>
-        <label><input type="radio" name="resultsMode" value="stop" ${resultsMode === "stop" ? "checked" : ""}><span>Stopp</span></label>
-      </div></fieldset>
-      <fieldset class="settings-section"><legend>Ergebnis-URL</legend><div class="result-url-heading"><span>Link</span><a class="result-source-link" href="https://competition.dlrg.net/de/competitions" target="_blank" rel="noopener noreferrer" aria-label="DLRG Competition öffnen" title="DLRG Competition öffnen">${icon("link")}</a></div><label class="field"><input name="resultUrl" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${escapeHtml(event.result_url || "")}"></label></fieldset>`
-    : activeSection === "people" ? `<fieldset class="settings-section"><legend>Personen</legend><div class="settings-choice-grid three">
-        <label><input type="radio" name="participantMode" value="edit" ${participantMode === "edit" ? "checked" : ""}><span>Bearbeiten</span></label>
-        <label><input type="radio" name="participantMode" value="view" ${participantMode === "view" ? "checked" : ""}><span>Anzeigen</span></label>
-        <label><input type="radio" name="participantMode" value="hidden" ${participantMode === "hidden" ? "checked" : ""}><span>Verbergen</span></label>
-      </div></fieldset>`
-    : `<div class="access-settings-intro"><p>Organisatoren und der Admin haben unabhängig von diesen Einstellungen immer Zugriff.</p></div>
+    : activeSection === "timer" ? `<div class="settings-disciplines"><h2>Disziplinen</h2>${disciplineFields}</div>`
+    : activeSection === "results" ? `<fieldset class="settings-section"><legend>Ergebnis-URL</legend><div class="result-url-heading"><span>Link</span><a class="result-source-link" href="https://competition.dlrg.net/de/competitions" target="_blank" rel="noopener noreferrer" aria-label="DLRG Competition öffnen" title="DLRG Competition öffnen">${icon("link")}</a></div><label class="field"><input name="resultUrl" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${escapeHtml(event.result_url || "")}"></label></fieldset>`
+    : `<div class="access-settings-intro"><p>Der Admin hat immer Zugriff. Organisatoren können die Einstellungen bearbeiten, erhalten aber keinen automatischen Zugriff auf gesperrte Bereiche.</p></div>
       <fieldset class="settings-section"><legend>Timer verwenden</legend>${accessSelect("timerAccess", event.timer_access)}</fieldset>
       <fieldset class="settings-section"><legend>Ergebnisse ansehen</legend>${accessSelect("resultsAccess", event.results_access)}</fieldset>
       <fieldset class="settings-section"><legend>Ergebnisse korrigieren und löschen</legend>${accessSelect("resultEditAccess", event.result_edit_access)}</fieldset>
@@ -1037,9 +999,8 @@ async function renderEventSettings(id, section = null) {
   if (!activeSection) {
     const settingsItems = [
       { id: "event", icon: "calendar", name: "Event", detail: `${dateText(event.event_date)} · ${event.location ? event.location : "Kein Ort"}` },
-      { id: "timer", icon: "timer", name: "Timer", detail: eventTimerEnabled(event) ? "Aktiviert" : "Deaktiviert" },
-      { id: "results", icon: "table", name: "Ergebnisse", detail: resultModeLabel(resultsMode) },
-      { id: "people", icon: "users", name: "Personen", detail: participantMode === "edit" ? "Bearbeiten" : (participantMode === "view" ? "Anzeigen" : "Verbergen") },
+      { id: "timer", icon: "timer", name: "Timer", detail: accessLabel(event.timer_access) },
+      { id: "results", icon: "table", name: "Ergebnisse", detail: event.result_url ? "Ergebnis-Link hinterlegt" : "Kein Ergebnis-Link" },
       { id: "access", icon: "eye", name: "Zugriffsrechte", detail: `Timer: ${accessLabel(event.timer_access)}` },
     ];
     app.innerHTML = `
@@ -1047,7 +1008,7 @@ async function renderEventSettings(id, section = null) {
       <div class="event-settings-form settings-overview-event">
         <nav class="settings-overview" aria-label="Weitere Einstellungsbereiche">${settingsItems.map((item) => `<a class="settings-overview-item" href="#/settings/${id}/${item.id}"><span class="settings-overview-symbol">${icon(item.icon)}</span><span><strong>${item.name}</strong><small>${escapeHtml(item.detail)}</small></span>${icon("arrow-right")}</a>`).join("")}</nav>
         <p class="form-error" id="event-settings-error" role="alert"></p>
-        <button type="button" class="button danger small event-settings-delete" id="delete-event-settings">${icon("trash")} Event löschen</button>
+        <div class="event-settings-actions settings-overview-actions"><a class="button secondary" href="#/event/${id}" data-history-back>Abbrechen</a><button type="button" class="button danger event-settings-delete" id="delete-event-settings">${icon("trash")} Event löschen</button></div>
       </div>`;
   } else {
     app.innerHTML = `
@@ -1079,9 +1040,6 @@ async function renderEventSettings(id, section = null) {
       name: event.name,
       eventDate: event.event_date || "",
       location: event.location || "",
-      timerEnabled: eventTimerEnabled(event),
-      resultsMode,
-      participantMode,
       poolLength,
       customPoolLength: event.custom_pool_length ?? "",
       enabledDisciplines: enabledDisciplineIds,
@@ -1093,9 +1051,8 @@ async function renderEventSettings(id, section = null) {
       resultEditAccess: event.result_edit_access,
     };
     if (activeSection === "event") Object.assign(payload, { name: data.get("name"), eventDate: data.get("eventDate"), location: data.get("location"), poolLength: data.get("poolLength"), customPoolLength: data.get("customPoolLength") });
-    else if (activeSection === "timer") Object.assign(payload, { timerEnabled: data.get("timerEnabled") === "true", enabledDisciplines: data.getAll("enabledDisciplines") });
-    else if (activeSection === "results") Object.assign(payload, { resultsMode: data.get("resultsMode"), resultUrl: data.get("resultUrl") });
-    else if (activeSection === "people") Object.assign(payload, { participantMode: data.get("participantMode") });
+    else if (activeSection === "timer") Object.assign(payload, { enabledDisciplines: data.getAll("enabledDisciplines") });
+    else if (activeSection === "results") Object.assign(payload, { resultUrl: data.get("resultUrl") });
     else Object.assign(payload, {
       timerAccess: data.get("timerAccess"),
       resultsAccess: data.get("resultsAccess"),
@@ -1107,7 +1064,7 @@ async function renderEventSettings(id, section = null) {
       submitButton.disabled = true;
       error.textContent = "";
       await api(`/events/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
-      if (payload.timerEnabled) syncPendingResults({ includeBlocked: true }).catch(() => {});
+      syncPendingResults({ includeBlocked: true }).catch(() => {});
       if (activeSection && history.length > 2) history.go(-2);
       else if (activeSection) location.hash = `#/event/${id}`;
       else if (history.length > 1) history.back();
@@ -1132,13 +1089,12 @@ async function renderEventSettings(id, section = null) {
 
 async function renderPeople(id) {
   const { event, participants } = await api(`/events/${id}`);
-  const participantMode = eventParticipantMode(event);
-  if (participantMode === "hidden" || !eventCan(event, "can_view_participants")) {
+  if (!eventCan(event, "can_view_participants")) {
     setDocumentTitle(`Personen – ${event.name}`);
     app.innerHTML = `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a><div class="empty"><strong>Kein Zugriff auf Personen</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
-  const canEditPeople = participantMode === "edit" && eventCan(event, "can_edit_participants");
+  const canEditPeople = eventCan(event, "can_edit_participants");
   participants.sort(compareParticipantsByOrganization);
   const personCardContent = (person) => `<div class="person-card-content">${personAvatar(person)}<div class="person-card-copy"><div class="person-head"><strong>${escapeHtml(person.name)} (${birthYearText(person.birth_year)})</strong></div>
     <div class="person-details"><span>${escapeHtml(person.organization)} - ${escapeHtml(person.age_group)} - ${person.gender === "male" ? "m" : "w"}</span></div></div></div>`;
@@ -1320,9 +1276,9 @@ async function renderTimer(id) {
     window.timerFirestoreApi.getAuthContext(),
   ]);
   currentTimerAuth = authContext;
-  if (!eventTimerEnabled(event) || !eventCan(event, "can_use_timer")) {
-    setDocumentTitle(`Timer deaktiviert – ${event.name}`);
-    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a></div><div class="card timer-disabled"><h1>${eventTimerEnabled(event) ? "Kein Zugriff" : "Timer deaktiviert"}</h1><p>${eventTimerEnabled(event) ? "Die Event-Einstellungen erlauben die Zeitnahme für dein Konto nicht." : "Der Timer wurde in den Event-Einstellungen ausgeschaltet."}</p></div></div>`;
+  if (!eventCan(event, "can_use_timer")) {
+    setDocumentTitle(`Kein Timer-Zugriff – ${event.name}`);
+    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a></div><div class="card timer-disabled"><h1>Kein Zugriff</h1><p>Die Zugriffsrechte dieses Events erlauben die Zeitnahme für dein Konto nicht.</p></div></div>`;
     setTimerInteractionLock(true);
     return;
   }
@@ -2124,7 +2080,6 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     app.innerHTML = `${resultsOnly ? "" : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
-  let resultsMode = eventResultsMode(event);
   participants.sort(compareParticipantsByOrganization);
   let eventPdfImage = null;
   let eventPdfImageReady = false;
@@ -2143,9 +2098,8 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     <div id="viewer-overview-head" ${selected ? "hidden" : ""}>
     ${resultsOnly ? `<p class="eyebrow shared-results-event-name">${escapeHtml(event.name)}</p>` : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}
     <div class="page-head viewer-page-head"><h1>Ergebnisse</h1>
-      <div class="viewer-refresh"><div class="live-note ${resultsMode}"><span class="live-dot"></span><span id="live-status">${resultModeLabel(resultsMode)}</span></div>
-      ${(event.results_access === "everyone" || eventCan(event, "can_manage_event")) ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
-      <button class="button secondary icon-button viewer-refresh-button" id="refresh-results" aria-label="Ergebnisse aktualisieren" title="Ergebnisse aktualisieren" ${resultsMode === "live" ? "" : "disabled"}>${icon("refresh")}</button></div></div></div>
+      <div class="viewer-refresh">${(event.results_access === "everyone" || eventCan(event, "can_manage_event")) ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
+      <button class="button secondary icon-button viewer-refresh-button" id="refresh-results" aria-label="Ergebnisse aktualisieren" title="Ergebnisse aktualisieren">${icon("refresh")}</button></div></div></div>
     <div id="results"><div class="loading">Ergebnisse werden geladen …</div></div>
     <dialog id="result-edit-dialog"><form class="dialog-body result-edit-form" id="result-edit-form">
       <div class="dialog-title-row"><h2>Ergebnis bearbeiten</h2><button type="button" class="button secondary icon-button" data-close aria-label="Schließen">${icon("x")}</button></div>
@@ -2617,7 +2571,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
             const glued = group.length > 1;
             return `<span class="${glued ? "glued-result-lap" : ""}"><span class="result-lap-label">${escapeHtml(disciplineLapGroupLabel(result.discipline, group))}${Number.isInteger(result.frequencies?.[lap]) ? `<small>${result.frequencies[lap]}/min</small>` : ""}</span><strong>${value === null ? "–" : formatTime(value)}</strong></span>`;
           }).join("")}</div></details>`;
-        const editButton = !resultsOnly && resultsMode === "live" && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${result.id}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
+        const editButton = !resultsOnly && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${result.id}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
         const cardHead = teamMembers.length
           ? `<div class="result-head"><div>${resultIdentity}</div>${editButton}</div>${details}`
           : `<div class="result-head"><div>${resultIdentity}${details}</div>${editButton}</div>`;
@@ -2708,25 +2662,14 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     if (loading) return;
     loading = true;
     try {
-      if (resultsMode === "stop") {
-        selected = null;
-        overviewHead.hidden = false;
-        document.body.classList.add("viewer-overview");
-        resultsRoot.innerHTML = `<div class="empty result-mode-empty"><strong>Ergebnisse gestoppt</strong><span>Für dieses Event werden derzeit keine Ergebnisse geladen oder angezeigt.</span></div>`;
-        document.querySelector("#live-status").textContent = "Stopp";
-        return;
-      }
       const data = await api(`/events/${id}/results`);
       allResults = data.results;
       renderContent();
-      document.querySelector("#live-status").textContent = resultModeLabel(resultsMode);
     } catch (err) {
       if (!silent) resultsRoot.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
-      document.querySelector("#live-status").textContent = resultModeLabel(resultsMode);
     } finally { loading = false; }
   }
   refreshButton.addEventListener("click", () => {
-    if (resultsMode !== "live") return;
     startManualCooldown();
     loadResults();
   });
@@ -2734,31 +2677,18 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
   if (typeof window.timerFirestoreApi.watchResults === "function") {
     routeCleanup = window.timerFirestoreApi.watchResults(id, (data) => {
       event = data.event || event;
-      resultsMode = eventResultsMode(event);
       allResults = data.results || [];
-      const liveStatus = document.querySelector("#live-status");
-      const liveNote = liveStatus?.closest(".live-note");
-      if (liveStatus) liveStatus.textContent = resultModeLabel(resultsMode);
-      if (liveNote) liveNote.className = `live-note ${resultsMode}`;
-      refreshButton.disabled = resultsMode !== "live";
       if (!eventCan(event, "can_view_results")) {
         selected = null;
         overviewHead.hidden = false;
         resultsRoot.innerHTML = `<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
         return;
       }
-      if (resultsMode === "stop") {
-        selected = null;
-        overviewHead.hidden = false;
-        document.body.classList.add("viewer-overview");
-        resultsRoot.innerHTML = `<div class="empty result-mode-empty"><strong>Ergebnisse gestoppt</strong><span>Für dieses Event werden derzeit keine Ergebnisse geladen oder angezeigt.</span></div>`;
-        return;
-      }
       renderContent();
     }, (error) => {
       resultsRoot.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
     });
-  } else if (resultsMode === "live") {
+  } else {
     refreshTimer = setInterval(() => loadResults(true), 60_000);
   }
 }

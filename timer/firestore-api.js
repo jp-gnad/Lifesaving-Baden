@@ -18,13 +18,14 @@
   });
 
   const DEFAULT_DISCIPLINES = Object.keys(DISCIPLINES);
-  const ACCESS_LEVELS = new Set(["organizer", "authenticated", "everyone"]);
+  const ACCESS_LEVELS = new Set(["locked", "kader", "everyone"]);
+  const LEGACY_ACCESS_LEVELS = Object.freeze({ organizer: "locked", authenticated: "kader" });
   const DEFAULT_ACCESS = Object.freeze({
-    timerAccess: "organizer",
+    timerAccess: "locked",
     resultsAccess: "everyone",
     participantViewAccess: "everyone",
-    participantEditAccess: "organizer",
-    resultEditAccess: "organizer",
+    participantEditAccess: "locked",
+    resultEditAccess: "locked",
   });
 
   function appError(message, status = 400, cause = null) {
@@ -97,7 +98,8 @@
   }
 
   function accessLevel(value, fallback) {
-    return ACCESS_LEVELS.has(value) ? value : fallback;
+    const normalized = LEGACY_ACCESS_LEVELS[value] || value;
+    return ACCESS_LEVELS.has(normalized) ? normalized : fallback;
   }
 
   function validatedEventUrl(value) {
@@ -175,7 +177,7 @@
   if (!window.firebase || !window.firebase.auth || !window.firebase.firestore || !window.isFirebaseConfigured) {
     window.timerFirestoreApi = {
       request: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
-      getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false }),
+      getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false, isKaderAthlete: false }),
       signOut: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
       watchResults: () => () => {},
     };
@@ -200,6 +202,7 @@
     authenticated: false,
     isOrganizer: false,
     isAdmin: false,
+    isKaderAthlete: false,
     role: "guest",
     roleLabel: "Nicht angemeldet",
     accountName: "",
@@ -268,6 +271,7 @@
       authenticated,
       isOrganizer,
       isAdmin,
+      isKaderAthlete,
       role: isAdmin ? "admin" : (isOrganizer ? "organizer" : (isKaderAthlete ? "kader-sportler" : (user ? "authenticated" : "guest"))),
       roleLabel: isAdmin ? "Admin" : (isOrganizer ? "Organisator" : (isKaderAthlete ? "Kader-Sportler" : (user ? "Sportler" : "Nicht angemeldet"))),
       accountName,
@@ -290,9 +294,9 @@
   }
 
   function canUseAccess(level) {
-    if (authContext.isOrganizer) return true;
+    if (authContext.isAdmin) return true;
     if (level === "everyone") return true;
-    return level === "authenticated" && authContext.authenticated;
+    return level === "kader" && authContext.isKaderAthlete;
   }
 
   function permissionSet(data) {
@@ -301,9 +305,6 @@
     const participantViewAccess = accessLevel(data.participantViewAccess, DEFAULT_ACCESS.participantViewAccess);
     const participantEditAccess = accessLevel(data.participantEditAccess, DEFAULT_ACCESS.participantEditAccess);
     const resultEditAccess = accessLevel(data.resultEditAccess, DEFAULT_ACCESS.resultEditAccess);
-    const participantMode = ["edit", "view", "hidden"].includes(data.participantMode) ? data.participantMode : "edit";
-    const resultsMode = ["live", "pause", "stop"].includes(data.resultsMode) ? data.resultsMode : "live";
-    const timerEnabled = data.timerEnabled !== false;
     return {
       timerAccess,
       resultsAccess,
@@ -311,16 +312,16 @@
       participantEditAccess,
       resultEditAccess,
       canManageEvent: authContext.isOrganizer,
-      canUseTimer: timerEnabled && canUseAccess(timerAccess),
-      canViewResults: resultsMode !== "stop" && canUseAccess(resultsAccess),
-      canViewParticipants: participantMode !== "hidden" && (
+      canUseTimer: canUseAccess(timerAccess),
+      canViewResults: canUseAccess(resultsAccess),
+      canViewParticipants: (
         canUseAccess(participantViewAccess)
         || canUseAccess(participantEditAccess)
         || canUseAccess(timerAccess)
       ),
-      canEditParticipants: participantMode === "edit" && canUseAccess(participantEditAccess),
-      canImportParticipants: participantMode === "edit" && authContext.isOrganizer,
-      canEditResults: resultsMode === "live" && canUseAccess(resultsAccess) && canUseAccess(resultEditAccess),
+      canEditParticipants: canUseAccess(participantEditAccess),
+      canImportParticipants: authContext.isOrganizer && canUseAccess(participantEditAccess),
+      canEditResults: canUseAccess(resultsAccess) && canUseAccess(resultEditAccess),
     };
   }
 
@@ -334,11 +335,6 @@
       event_date: data.eventDate || null,
       location: data.location || "",
       created_at: timestampText(data.createdAt),
-      timer_enabled: data.timerEnabled === false ? 0 : 1,
-      results_mode: ["live", "pause", "stop"].includes(data.resultsMode) ? data.resultsMode : "live",
-      results_paused_at: timestampText(data.resultsPausedAt) || null,
-      results_pause_generation: Number(data.resultsPauseGeneration) || 0,
-      participant_mode: ["edit", "view", "hidden"].includes(data.participantMode) ? data.participantMode : "edit",
       pool_length: ["25", "50", "custom"].includes(data.poolLength) ? data.poolLength : "25",
       custom_pool_length: data.customPoolLength ?? null,
       enabled_disciplines_json: JSON.stringify(enabledDisciplines),
@@ -414,15 +410,11 @@
       })) : [],
       note: data.note || "",
       created_at: timestampText(data.createdAt),
-      created_pause_generation: data.createdPauseGeneration ?? null,
     };
   }
 
-  function visibleResults(snapshot, event) {
-    return snapshot.docs.map(mapResult).filter((result) => (
-      event.results_mode !== "pause"
-      || result.created_pause_generation !== event.results_pause_generation
-    )).sort((left, right) => {
+  function visibleResults(snapshot) {
+    return snapshot.docs.map(mapResult).sort((left, right) => {
       const leftTime = left.official_centiseconds ?? left.total_centiseconds;
       const rightTime = right.official_centiseconds ?? right.total_centiseconds;
       return leftTime - rightTime || left.created_at.localeCompare(right.created_at);
@@ -444,16 +436,12 @@
         return;
       }
       const event = mapEvent(snapshot);
-      if (!event.can_view_results || event.results_mode === "stop") {
-        onValue({ event, mode: event.results_mode, results: [] });
+      if (!event.can_view_results) {
+        onValue({ event, results: [] });
         return;
       }
-      let query = snapshot.ref.collection("results");
-      if (event.results_mode === "pause") {
-        query = query.where("createdPauseGeneration", "!=", event.results_pause_generation);
-      }
-      unsubscribeResults = query.onSnapshot((resultsSnapshot) => {
-        if (!disposed) onValue({ event, mode: event.results_mode, results: visibleResults(resultsSnapshot, event) });
+      unsubscribeResults = snapshot.ref.collection("results").onSnapshot((resultsSnapshot) => {
+        if (!disposed) onValue({ event, results: visibleResults(resultsSnapshot) });
       }, reportError);
     }, reportError);
     return () => {
@@ -568,11 +556,6 @@
           name: cleanText(body.name, "Eventname"),
           eventDate,
           location: cleanText(body.location, "Ort", 120, false),
-          timerEnabled: true,
-          resultsMode: "live",
-          resultsPausedAt: null,
-          resultsPauseGeneration: 0,
-          participantMode: "edit",
           poolLength: "25",
           customPoolLength: null,
           enabledDisciplines: DEFAULT_DISCIPLINES,
@@ -611,12 +594,6 @@
         const eventDateValue = body.eventDate === undefined ? current.eventDate : body.eventDate;
         const eventDate = eventDateValue ? cleanText(eventDateValue, "Datum", 10) : null;
         if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
-        const timerEnabled = body.timerEnabled === undefined ? current.timerEnabled !== false : body.timerEnabled;
-        if (typeof timerEnabled !== "boolean") throw appError("Ungültiger Timer-Status.");
-        const resultsMode = body.resultsMode === undefined ? current.resultsMode || "live" : body.resultsMode;
-        if (!["live", "pause", "stop"].includes(resultsMode)) throw appError("Ungültiger Ergebnis-Status.");
-        const participantMode = body.participantMode === undefined ? current.participantMode || "edit" : body.participantMode;
-        if (!["edit", "view", "hidden"].includes(participantMode)) throw appError("Ungültige Personen-Einstellung.");
         const poolLength = body.poolLength === undefined ? current.poolLength || "25" : String(body.poolLength);
         if (!["25", "50", "custom"].includes(poolLength)) throw appError("Ungültige Bahnlänge.");
         const customPoolLength = poolLength === "custom"
@@ -626,22 +603,15 @@
           throw appError("Bitte eine gültige benutzerdefinierte Bahnlänge eingeben.");
         }
         const enabledDisciplines = validatedEnabledDisciplines(body.enabledDisciplines, current.enabledDisciplines || DEFAULT_DISCIPLINES);
-        let resultsPauseGeneration = Number(current.resultsPauseGeneration) || 0;
-        let resultsPausedAt = current.resultsPausedAt || null;
-        if (resultsMode === "live") resultsPausedAt = null;
-        if (resultsMode === "pause" && current.resultsMode !== "pause") {
-          resultsPauseGeneration += 1;
-          resultsPausedAt = fieldValue.serverTimestamp();
-        }
         const update = {
           name: cleanText(body.name === undefined ? current.name : body.name, "Eventname"),
           eventDate,
           location: cleanText(body.location === undefined ? current.location : body.location, "Ort", 120, false),
-          timerEnabled,
-          resultsMode,
-          resultsPausedAt,
-          resultsPauseGeneration,
-          participantMode,
+          timerEnabled: fieldValue.delete(),
+          resultsMode: fieldValue.delete(),
+          resultsPausedAt: fieldValue.delete(),
+          resultsPauseGeneration: fieldValue.delete(),
+          participantMode: fieldValue.delete(),
           poolLength,
           customPoolLength,
           enabledDisciplines,
@@ -756,13 +726,8 @@
 
       if (parts[2] === "results" && parts.length === 3 && method === "GET") {
         requirePermission(event, "can_view_results");
-        let resultsQuery = snapshot.ref.collection("results");
-        if (event.results_mode === "pause") {
-          resultsQuery = resultsQuery.where("createdPauseGeneration", "!=", event.results_pause_generation);
-        }
-        const results = await resultsQuery.get();
+        const results = await snapshot.ref.collection("results").get();
         const filtered = results.docs.map(mapResult).filter((result) => {
-          if (event.results_mode === "pause" && result.created_pause_generation === event.results_pause_generation) return false;
           const discipline = url.searchParams.get("discipline");
           const gender = url.searchParams.get("gender");
           return (!discipline || result.discipline === discipline) && (!gender || result.gender === gender);
@@ -771,7 +736,7 @@
           const rightTime = right.official_centiseconds ?? right.total_centiseconds;
           return leftTime - rightTime || left.created_at.localeCompare(right.created_at);
         });
-        return { mode: event.results_mode, results: filtered };
+        return { results: filtered };
       }
 
       async function resultWritePayload(body, existingData = null) {
@@ -831,7 +796,6 @@
         await resultRef.set({
           ...payload,
           submissionKey: body.clientSubmissionId || null,
-          createdPauseGeneration: event.results_mode === "pause" ? event.results_pause_generation : -1,
           createdAt: fieldValue.serverTimestamp(),
           updatedAt: fieldValue.serverTimestamp(),
         });
@@ -848,7 +812,7 @@
         const existing = await resultRef.get();
         if (!existing.exists) throw appError("Ergebnis nicht gefunden.", 404);
         const payload = await resultWritePayload(parseBody(options), existing.data() || {});
-        await resultRef.update({ ...payload, updatedAt: fieldValue.serverTimestamp() });
+        await resultRef.update({ ...payload, createdPauseGeneration: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp() });
         return { ok: true, totalCentiseconds: payload.totalCentiseconds, officialCentiseconds: payload.officialCentiseconds };
       }
 

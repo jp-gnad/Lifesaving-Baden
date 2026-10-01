@@ -30,10 +30,18 @@ class TimerIntegrationTest(unittest.TestCase):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
-        for level in ("organizer", "authenticated", "everyone"):
+        for level in ("locked", "kader", "everyone"):
             self.assertIn(level, app)
             self.assertIn(level, adapter)
             self.assertIn(level, rules)
+        self.assertIn("Gesperrt (nur Admin)", app)
+        self.assertIn("Nur Kadersportler", app)
+        self.assertIn("Jeder (auch ohne Anmeldung)", app)
+        self.assertIn("if (authContext.isAdmin) return true", adapter)
+        self.assertIn('return level === "kader" && authContext.isKaderAthlete', adapter)
+        event_access_rule = rules[rules.index("function eventAllows"):rules.index("function ownerKeepsProtectedFieldsSafe")]
+        self.assertIn("return isAdmin()", event_access_rule)
+        self.assertNotIn("return isOrganizer()", event_access_rule)
 
     def test_admin_cannot_be_granted_from_account_ui(self):
         auth = (ROOT / "assets" / "js" / "auth.js").read_text(encoding="utf-8")
@@ -60,7 +68,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('id="timer-account-control"', html)
         self.assertIn('id="timer-account-dialog"', html)
         self.assertIn("watchResults", app)
-        self.assertIn("query.onSnapshot", adapter)
+        self.assertIn('collection("results").onSnapshot', adapter)
 
     def test_stopwatch_view_has_no_account_trigger(self):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
@@ -78,6 +86,19 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("if (availableGroups.length === 1) renderModeGroup(availableGroups[0].id, { allowBack: false })", timer_renderer)
         self.assertIn('if (!group) return;', timer_renderer)
         self.assertNotIn('if (!group || group.id === "normal") return;', timer_renderer)
+
+    def test_timer_access_replaces_the_old_enabled_status(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
+        settings_renderer = app[app.index("async function renderEventSettings"):app.index("async function renderPeople")]
+        result_rules = rules[rules.index("match /results/{resultId}"):rules.index("match /timerParticipantDirectory")]
+
+        self.assertNotIn('name="timerEnabled"', settings_renderer)
+        self.assertNotIn("eventTimerEnabled", app)
+        self.assertIn("canUseTimer: canUseAccess(timerAccess)", adapter)
+        self.assertNotIn("timer_enabled:", adapter)
+        self.assertNotIn("eventData(eventId).timerEnabled == true", result_rules)
 
     def test_timer_reuses_lifesaving_baden_footer(self):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
@@ -101,10 +122,12 @@ class TimerIntegrationTest(unittest.TestCase):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
         settings_renderer = app[app.index("async function renderEventSettings"):app.index("async function renderPeople")]
 
-        self.assertIn('new Set(["event", "timer", "results", "people", "access"])', settings_renderer)
+        self.assertIn('new Set(["event", "timer", "results", "access"])', settings_renderer)
         self.assertIn('{ id: "event", icon: "calendar", name: "Event"', settings_renderer)
         self.assertIn('activeSection === "event" ? eventMarkup', settings_renderer)
         self.assertIn('if (activeSection === "event") Object.assign(payload', settings_renderer)
+        self.assertIn('class="event-settings-actions settings-overview-actions"', settings_renderer)
+        self.assertIn('href="#/event/${id}" data-history-back>Abbrechen</a>', settings_renderer)
 
     def test_public_results_share_link_is_results_only(self):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
@@ -115,7 +138,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('body: JSON.stringify({ resultsAccess: "everyone" })', app)
         self.assertIn('current.page === "results"', app)
         self.assertIn('{ resultsOnly: true }', app)
-        self.assertIn('!resultsOnly && resultsMode === "live"', app)
+        self.assertIn('!resultsOnly && eventCan(event, "can_edit_results")', app)
         self.assertIn('body.shared-results-page > .site-header', styles)
         self.assertIn('body.eventDate === undefined ? current.eventDate : body.eventDate', adapter)
 
@@ -167,10 +190,23 @@ class TimerIntegrationTest(unittest.TestCase):
     def test_participant_directory_is_organizer_only(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
-        self.assertIn("canImportParticipants: participantMode === \"edit\" && authContext.isOrganizer", adapter)
+        self.assertIn("canImportParticipants: authContext.isOrganizer && canUseAccess(participantEditAccess)", adapter)
         directory_rule = rules[rules.index("match /timerParticipantDirectory/{candidateId}"):]
         self.assertIn("allow read: if isOrganizer();", directory_rule)
         self.assertIn("allow write: if false;", directory_rule)
+
+    def test_legacy_event_statuses_no_longer_control_timer_features(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
+        self.assertNotIn('name="resultsMode"', app)
+        self.assertNotIn('name="participantMode"', app)
+        self.assertNotIn("eventResultsMode", app)
+        self.assertNotIn("eventParticipantMode", app)
+        self.assertNotIn('results_mode:', adapter)
+        self.assertNotIn('participant_mode:', adapter)
+        self.assertNotIn('data.resultsMode in ["live", "pause", "stop"]', rules)
+        self.assertNotIn('data.participantMode in ["edit", "view", "hidden"]', rules)
 
 
 if __name__ == "__main__":

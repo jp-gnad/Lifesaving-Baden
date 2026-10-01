@@ -45,8 +45,20 @@ service cloud.firestore {
         );
     }
 
+    function isKaderAthlete() {
+      return signedIn()
+        && (
+          (request.auth.token.keys().hasAny(["kader"]) && request.auth.token.kader == true)
+          || (request.auth.token.keys().hasAny(["isKaderAthlete"]) && request.auth.token.isKaderAthlete == true)
+          || (request.auth.token.keys().hasAny(["role"]) && request.auth.token.role in ["kader-sportler", "kadersportler", "kader"])
+          || adminData().role in ["kader-sportler", "kadersportler", "kader"]
+          || (adminData().keys().hasAny(["kader"]) && adminData().kader == true)
+          || (adminData().keys().hasAny(["isKaderAthlete"]) && adminData().isKaderAthlete == true)
+        );
+    }
+
     function validAccessLevel(level) {
-      return level in ["organizer", "authenticated", "everyone"];
+      return level in ["locked", "kader", "everyone", "organizer", "authenticated"];
     }
 
     function eventData(eventId) {
@@ -55,12 +67,12 @@ service cloud.firestore {
 
     function eventAllows(eventId, field) {
       let data = eventData(eventId);
-      return isOrganizer()
+      return isAdmin()
         || (
           data.keys().hasAny([field])
           && (
             data[field] == "everyone"
-            || (data[field] == "authenticated" && verifiedUser())
+            || (data[field] in ["kader", "authenticated"] && isKaderAthlete())
           )
         );
     }
@@ -202,10 +214,6 @@ service cloud.firestore {
     function validTimerEvent(data) {
       return data.keys().hasAll([
           "name",
-          "timerEnabled",
-          "resultsMode",
-          "resultsPauseGeneration",
-          "participantMode",
           "poolLength",
           "enabledDisciplines",
           "timerAccess",
@@ -220,11 +228,6 @@ service cloud.firestore {
           "name",
           "eventDate",
           "location",
-          "timerEnabled",
-          "resultsMode",
-          "resultsPausedAt",
-          "resultsPauseGeneration",
-          "participantMode",
           "poolLength",
           "customPoolLength",
           "enabledDisciplines",
@@ -242,11 +245,6 @@ service cloud.firestore {
         && data.name.size() <= 120
         && data.location is string
         && data.location.size() <= 120
-        && data.timerEnabled is bool
-        && data.resultsMode in ["live", "pause", "stop"]
-        && data.resultsPauseGeneration is int
-        && data.resultsPauseGeneration >= 0
-        && data.participantMode in ["edit", "view", "hidden"]
         && data.poolLength in ["25", "50", "custom"]
         && data.enabledDisciplines is list
         && data.enabledDisciplines.size() > 0
@@ -346,7 +344,6 @@ service cloud.firestore {
           "officialCentiseconds",
           "submissionKey",
           "note",
-          "createdPauseGeneration",
           "createdAt",
           "updatedAt"
         ])
@@ -363,7 +360,6 @@ service cloud.firestore {
           "officialCentiseconds",
           "submissionKey",
           "note",
-          "createdPauseGeneration",
           "createdAt",
           "updatedAt"
         ])
@@ -403,7 +399,6 @@ service cloud.firestore {
         && (data.officialCentiseconds == null || data.officialCentiseconds > 0)
         && (data.submissionKey == null || data.submissionKey is string)
         && (data.submissionKey == null || data.submissionKey.size() <= 64)
-        && data.createdPauseGeneration is int
         && data.note is string
         && data.note.size() <= 300;
     }
@@ -421,7 +416,6 @@ service cloud.firestore {
         && request.resource.data.discipline == resource.data.discipline
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.submissionKey == resource.data.submissionKey
-        && request.resource.data.createdPauseGeneration == resource.data.createdPauseGeneration
         && request.resource.data.updatedAt == request.time
         && changedKeys.hasOnly([
           "participantId",
@@ -434,6 +428,7 @@ service cloud.firestore {
           "totalCentiseconds",
           "officialCentiseconds",
           "note",
+          "createdPauseGeneration",
           "updatedAt"
         ]);
     }
@@ -463,30 +458,14 @@ service cloud.firestore {
       }
 
       match /results/{resultId} {
-        allow get: if isOrganizer()
+        allow get: if isAdmin()
           || eventAllows(eventId, "timerAccess")
-          || (
-            eventData(eventId).resultsMode != "stop"
-            && eventAllows(eventId, "resultsAccess")
-            && (
-              eventData(eventId).resultsMode != "pause"
-              || resource.data.createdPauseGeneration != eventData(eventId).resultsPauseGeneration
-            )
-          );
-        allow list: if isOrganizer()
-          || (
-            eventData(eventId).resultsMode != "stop"
-            && eventAllows(eventId, "resultsAccess")
-            && (
-              eventData(eventId).resultsMode != "pause"
-              || resource.data.createdPauseGeneration != eventData(eventId).resultsPauseGeneration
-            )
-          );
-        allow create: if eventData(eventId).timerEnabled == true
-          && eventAllows(eventId, "timerAccess")
+          || eventAllows(eventId, "resultsAccess");
+        allow list: if isAdmin()
+          || eventAllows(eventId, "resultsAccess");
+        allow create: if eventAllows(eventId, "timerAccess")
           && validResultCreate();
-        allow update: if eventData(eventId).resultsMode == "live"
-          && eventAllows(eventId, "resultsAccess")
+        allow update: if eventAllows(eventId, "resultsAccess")
           && eventAllows(eventId, "resultEditAccess")
           && validResultUpdate();
         allow delete: if eventAllows(eventId, "resultsAccess")
