@@ -7,7 +7,7 @@ const defaultViewport = viewportMeta.content;
 const timerAccountControl = document.querySelector("#timer-account-control");
 const timerAccountDialog = document.querySelector("#timer-account-dialog");
 const timerAccountLogout = document.querySelector("#timer-account-logout");
-const timerPortalLink = document.querySelector("#timer-portal-link");
+const timerFooterPortalLink = document.querySelector("#timer-footer-portal-link");
 
 const offlineDatabaseName = "lifesaving-timer-offline";
 const offlineDatabaseVersion = 1;
@@ -187,17 +187,10 @@ function timerAccountAvatar(context = currentTimerAuth) {
   return `<span>${escapeHtml(personInitials(timerAccountName(context)))}</span>`;
 }
 
-function compactAccountTrigger(context = currentTimerAuth) {
-  if (!context?.authenticated) {
-    return `<a class="timer-account-compact" href="${escapeHtml(timerLoginUrl())}" aria-label="Anmelden" title="Anmelden">${icon("users")}</a>`;
-  }
-  return `<button class="timer-account-compact timer-account-avatar" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(timerAccountName(context))} öffnen" title="${escapeHtml(timerAccountName(context))}">${timerAccountAvatar(context)}</button>`;
-}
-
 function renderTimerAccount(context) {
   currentTimerAuth = context || currentTimerAuth;
-  if (timerPortalLink) {
-    timerPortalLink.setAttribute("href", currentTimerAuth.authenticated ? "../app.html" : "../index.html");
+  if (timerFooterPortalLink) {
+    timerFooterPortalLink.setAttribute("href", currentTimerAuth.authenticated ? "../app.html" : "../index.html");
   }
   if (!timerAccountControl) return;
   if (!currentTimerAuth.authenticated) {
@@ -965,7 +958,6 @@ async function renderEvent(id) {
   const participantMode = eventParticipantMode(event);
   setDocumentTitle(event.name);
   app.innerHTML = `
-    <a class="back" href="#/" data-history-back>${icon("arrow-left")} Events</a>
     <div class="page-head event-page-head"><div><div class="event-title-row">${eventIconMarkup(event, "event-title-icon")}<h1>${escapeHtml(event.name)}</h1><button class="button secondary icon-button" id="copy-event-link" type="button" aria-label="Event-Link kopieren" title="Event-Link kopieren">${icon("link")}</button>${eventCan(event, "can_manage_event") ? `<a class="button secondary icon-button" href="#/settings/${id}" aria-label="Event-Einstellungen" title="Event-Einstellungen">${icon("settings")}</a>` : ""}</div>
       <p class="event-summary">${escapeHtml(dateText(event.event_date))} · ${event.location ? escapeHtml(event.location) : "Kein Ort"} · ${eventCan(event, "can_view_participants") || eventCan(event, "can_use_timer") ? `${participants.length} Personen` : "Personen geschützt"}</p></div>
     </div>
@@ -991,15 +983,16 @@ async function renderEvent(id) {
 async function renderEventSettings(id, section = null) {
   const { event } = await api(`/events/${id}`);
   if (!eventCan(event, "can_manage_event")) throw new Error("Diese Einstellungen sind nur für Organisatoren verfügbar.");
-  const validSections = new Set(["timer", "results", "people", "access"]);
+  const validSections = new Set(["event", "timer", "results", "people", "access"]);
   const activeSection = validSections.has(section) ? section : null;
   const enabledDisciplineIds = enabledDisciplinesForEvent(event);
   const enabledDisciplines = new Set(enabledDisciplineIds);
   const resultsMode = eventResultsMode(event);
   const participantMode = eventParticipantMode(event);
   const poolLength = ['25', '50', 'custom'].includes(event.pool_length) ? event.pool_length : "25";
-  setDocumentTitle(`${activeSection ? `${activeSection === "timer" ? "Timer" : activeSection === "results" ? "Ergebnisse" : activeSection === "people" ? "Personen" : "Zugriffsrechte"} – ` : ""}Einstellungen – ${event.name}`);
-  const sectionName = activeSection === "timer" ? "Timer" : activeSection === "results" ? "Ergebnisse" : activeSection === "people" ? "Personen" : "Zugriffsrechte";
+  const sectionNames = { event: "Event", timer: "Timer", results: "Ergebnisse", people: "Personen", access: "Zugriffsrechte" };
+  setDocumentTitle(`${activeSection ? `${sectionNames[activeSection]} – ` : ""}Einstellungen – ${event.name}`);
+  const sectionName = sectionNames[activeSection] || "Event-Einstellungen";
   const disciplineFields = disciplineGroups.map((group) => {
     const entries = Object.entries(disciplines).filter(([, item]) => item.group === group.id);
     return `<fieldset class="settings-section discipline-settings"><legend>${escapeHtml(group.name)}</legend><div class="discipline-settings-list">${entries.map(([disciplineId, item]) => `
@@ -1015,7 +1008,8 @@ async function renderEventSettings(id, section = null) {
         <label><input type="radio" name="poolLength" value="50" ${poolLength === "50" ? "checked" : ""}><span>50 m</span></label>
         <label><input type="radio" name="poolLength" value="custom" ${poolLength === "custom" ? "checked" : ""}><span>Eigene</span></label>
       </div><label class="field custom-pool-length" ${poolLength === "custom" ? "" : "hidden"}><span>Bahnlänge in Metern</span><input id="custom-pool-length" name="customPoolLength" type="number" min="1" max="10000" step="0.01" inputmode="decimal" value="${event.custom_pool_length ?? ""}"></label></div></fieldset>`;
-  const sectionMarkup = activeSection === "timer" ? `
+  const sectionMarkup = activeSection === "event" ? eventMarkup
+    : activeSection === "timer" ? `
       <fieldset class="settings-section"><legend>Status</legend><div class="settings-choice-grid two">
         <label><input type="radio" name="timerEnabled" value="true" ${eventTimerEnabled(event) ? "checked" : ""}><span>Aktiviert</span></label>
         <label><input type="radio" name="timerEnabled" value="false" ${eventTimerEnabled(event) ? "" : "checked"}><span>Deaktiviert</span></label>
@@ -1042,6 +1036,7 @@ async function renderEventSettings(id, section = null) {
 
   if (!activeSection) {
     const settingsItems = [
+      { id: "event", icon: "calendar", name: "Event", detail: `${dateText(event.event_date)} · ${event.location ? event.location : "Kein Ort"}` },
       { id: "timer", icon: "timer", name: "Timer", detail: eventTimerEnabled(event) ? "Aktiviert" : "Deaktiviert" },
       { id: "results", icon: "table", name: "Ergebnisse", detail: resultModeLabel(resultsMode) },
       { id: "people", icon: "users", name: "Personen", detail: participantMode === "edit" ? "Bearbeiten" : (participantMode === "view" ? "Anzeigen" : "Verbergen") },
@@ -1049,13 +1044,11 @@ async function renderEventSettings(id, section = null) {
     ];
     app.innerHTML = `
       <div class="page-head settings-page-head"><h1>Event-Einstellungen</h1></div>
-      <form id="event-settings-form" class="event-settings-form settings-overview-event">
-        ${eventMarkup}
+      <div class="event-settings-form settings-overview-event">
         <nav class="settings-overview" aria-label="Weitere Einstellungsbereiche">${settingsItems.map((item) => `<a class="settings-overview-item" href="#/settings/${id}/${item.id}"><span class="settings-overview-symbol">${icon(item.icon)}</span><span><strong>${item.name}</strong><small>${escapeHtml(item.detail)}</small></span>${icon("arrow-right")}</a>`).join("")}</nav>
         <p class="form-error" id="event-settings-error" role="alert"></p>
-        <div class="event-settings-actions"><a class="button secondary" href="#/event/${id}" data-history-back>Abbrechen</a><button class="button" type="submit">Speichern</button></div>
         <button type="button" class="button danger small event-settings-delete" id="delete-event-settings">${icon("trash")} Event löschen</button>
-      </form>`;
+      </div>`;
   } else {
     app.innerHTML = `
       <div class="page-head settings-page-head"><h1>${sectionName}</h1></div>
@@ -1067,7 +1060,7 @@ async function renderEventSettings(id, section = null) {
   }
 
   const form = document.querySelector("#event-settings-form");
-  if (!activeSection) {
+  if (activeSection === "event") {
     const customPoolField = form.querySelector(".custom-pool-length");
     const customPoolInput = form.querySelector("#custom-pool-length");
     form.querySelectorAll('[name="poolLength"]').forEach((input) => input.addEventListener("change", () => {
@@ -1077,7 +1070,7 @@ async function renderEventSettings(id, section = null) {
     }));
     customPoolInput.required = poolLength === "custom";
   }
-  form.addEventListener("submit", async (submitEvent) => {
+  form?.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const submitButton = submitEvent.submitter;
     const error = document.querySelector("#event-settings-error");
@@ -1099,7 +1092,7 @@ async function renderEventSettings(id, section = null) {
       participantEditAccess: event.participant_edit_access,
       resultEditAccess: event.result_edit_access,
     };
-    if (!activeSection) Object.assign(payload, { name: data.get("name"), eventDate: data.get("eventDate"), location: data.get("location"), poolLength: data.get("poolLength"), customPoolLength: data.get("customPoolLength") });
+    if (activeSection === "event") Object.assign(payload, { name: data.get("name"), eventDate: data.get("eventDate"), location: data.get("location"), poolLength: data.get("poolLength"), customPoolLength: data.get("customPoolLength") });
     else if (activeSection === "timer") Object.assign(payload, { timerEnabled: data.get("timerEnabled") === "true", enabledDisciplines: data.getAll("enabledDisciplines") });
     else if (activeSection === "results") Object.assign(payload, { resultsMode: data.get("resultsMode"), resultUrl: data.get("resultUrl") });
     else if (activeSection === "people") Object.assign(payload, { participantMode: data.get("participantMode") });
@@ -1329,7 +1322,7 @@ async function renderTimer(id) {
   currentTimerAuth = authContext;
   if (!eventTimerEnabled(event) || !eventCan(event, "can_use_timer")) {
     setDocumentTitle(`Timer deaktiviert – ${event.name}`);
-    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a><span></span>${compactAccountTrigger(authContext)}</div><div class="card timer-disabled"><h1>${eventTimerEnabled(event) ? "Kein Zugriff" : "Timer deaktiviert"}</h1><p>${eventTimerEnabled(event) ? "Die Event-Einstellungen erlauben die Zeitnahme für dein Konto nicht." : "Der Timer wurde in den Event-Einstellungen ausgeschaltet."}</p></div></div>`;
+    app.innerHTML = `<div class="timer-shell"><div class="timer-topbar"><a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a></div><div class="card timer-disabled"><h1>${eventTimerEnabled(event) ? "Kein Zugriff" : "Timer deaktiviert"}</h1><p>${eventTimerEnabled(event) ? "Die Event-Einstellungen erlauben die Zeitnahme für dein Konto nicht." : "Der Timer wurde in den Event-Einstellungen ausgeschaltet."}</p></div></div>`;
     setTimerInteractionLock(true);
     return;
   }
@@ -1357,7 +1350,6 @@ async function renderTimer(id) {
       <div class="timer-topbar">
         <a class="button secondary icon-button" href="#/event/${id}" data-history-back aria-label="Eine Ansicht zurück">${icon("arrow-left")}</a>
         <button class="mode-button" id="mode-button" aria-haspopup="dialog"><span><strong id="mode-name">${escapeHtml(disciplines[initialDiscipline].name)}</strong><small id="mode-laps">${disciplines[initialDiscipline].flexible ? "max. " : ""}${disciplines[initialDiscipline].laps} Laps</small></span>${icon("chevron-down")}</button>
-        ${compactAccountTrigger(authContext)}
       </div>
       <section class="card clock-card" aria-label="Stoppuhr">
         <div class="clock-status" id="clock-status">Bereit</div><div class="clock" id="clock" aria-live="off">0:00,00</div>
@@ -1388,13 +1380,17 @@ async function renderTimer(id) {
   const modeCategoryList = document.querySelector("#mode-category-list");
   const modeDisciplineList = document.querySelector("#mode-discipline-list");
 
+  function availableModeGroups() {
+    return disciplineGroups.filter((group) => enabledDisciplineIds.some((disciplineId) => disciplines[disciplineId].group === group.id));
+  }
+
   function renderModeCategories() {
     const selectedGroup = config().group;
     modeTitle.textContent = "Stoppmodus";
     modeBack.hidden = true;
     modeCategoryList.hidden = false;
     modeDisciplineList.hidden = true;
-    modeCategoryList.innerHTML = disciplineGroups.filter((group) => enabledDisciplineIds.some((disciplineId) => disciplines[disciplineId].group === group.id)).map((group) => {
+    modeCategoryList.innerHTML = availableModeGroups().map((group) => {
       const groupDisciplines = enabledDisciplineIds.map((disciplineId) => disciplines[disciplineId]).filter((item) => item.group === group.id);
       const selected = selectedGroup === group.id;
       const isNormal = group.id === "normal";
@@ -1405,18 +1401,18 @@ async function renderTimer(id) {
     }).join("");
   }
 
-  function renderModeGroup(groupId) {
+  function renderModeGroup(groupId, { allowBack = true } = {}) {
     const group = disciplineGroups.find((item) => item.id === groupId);
-    if (!group || group.id === "normal") return;
+    if (!group) return;
     modeTitle.textContent = group.name;
-    modeBack.hidden = false;
+    modeBack.hidden = !allowBack;
     modeCategoryList.hidden = true;
     modeDisciplineList.hidden = false;
     modeDisciplineList.innerHTML = Object.entries(disciplines)
       .filter(([disciplineId, item]) => item.group === groupId && enabledDisciplineIds.includes(disciplineId))
       .map(([disciplineId, item]) => {
         const selected = disciplineId === timer.discipline;
-        return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}"><span><strong>${item.name}</strong><small>${item.laps} Laps</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
+        return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}"><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
       }).join("");
   }
 
@@ -2026,7 +2022,9 @@ async function renderTimer(id) {
 
   bindDialogClose(elements["discipline-dialog"]);
   elements["mode-button"].addEventListener("click", () => {
-    renderModeCategories();
+    const availableGroups = availableModeGroups();
+    if (availableGroups.length === 1) renderModeGroup(availableGroups[0].id, { allowBack: false });
+    else renderModeCategories();
     showDialog(elements["discipline-dialog"], { focusField: false });
   });
   document.querySelector("#close-mode").addEventListener("click", () => elements["discipline-dialog"].close());
@@ -2115,13 +2113,15 @@ async function renderTimer(id) {
   setTimerInteractionLock(true);
 }
 
-async function renderViewer(id, initialDiscipline = null, initialGender = null) {
+async function renderViewer(id, initialDiscipline = null, initialGender = null, options = {}) {
   const eventResponse = await api(`/events/${id}`);
   let event = eventResponse.event;
   const participants = eventResponse.participants;
+  const resultsOnly = options.resultsOnly === true;
+  const viewerRoot = `#/${resultsOnly ? "results" : "viewer"}/${id}`;
   if (!eventCan(event, "can_view_results")) {
     setDocumentTitle(`Ergebnisse – ${event.name}`);
-    app.innerHTML = `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a><div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
+    app.innerHTML = `${resultsOnly ? "" : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
   let resultsMode = eventResultsMode(event);
@@ -2141,9 +2141,10 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
   setDocumentTitle(`Ergebnisse – ${event.name}`);
   app.innerHTML = `
     <div id="viewer-overview-head" ${selected ? "hidden" : ""}>
-    <a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>
+    ${resultsOnly ? `<p class="eyebrow shared-results-event-name">${escapeHtml(event.name)}</p>` : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}
     <div class="page-head viewer-page-head"><h1>Ergebnisse</h1>
       <div class="viewer-refresh"><div class="live-note ${resultsMode}"><span class="live-dot"></span><span id="live-status">${resultModeLabel(resultsMode)}</span></div>
+      ${(event.results_access === "everyone" || eventCan(event, "can_manage_event")) ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
       <button class="button secondary icon-button viewer-refresh-button" id="refresh-results" aria-label="Ergebnisse aktualisieren" title="Ergebnisse aktualisieren" ${resultsMode === "live" ? "" : "disabled"}>${icon("refresh")}</button></div></div></div>
     <div id="results"><div class="loading">Ergebnisse werden geladen …</div></div>
     <dialog id="result-edit-dialog"><form class="dialog-body result-edit-form" id="result-edit-form">
@@ -2167,6 +2168,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
   const overviewHead = document.querySelector("#viewer-overview-head");
   const resultsRoot = document.querySelector("#results");
   const refreshButton = document.querySelector("#refresh-results");
+  const copyResultsLinkButton = document.querySelector("#copy-results-link");
   const resultEditDialog = document.querySelector("#result-edit-dialog");
   const resultEditForm = document.querySelector("#result-edit-form");
   const resultEditFields = document.querySelector("#result-edit-fields");
@@ -2195,6 +2197,34 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
 
   bindDialogClose(resultEditDialog);
   bindDialogClose(resultParticipantPickerDialog);
+
+  copyResultsLinkButton?.addEventListener("click", async () => {
+    try {
+      copyResultsLinkButton.disabled = true;
+      if (event.results_access !== "everyone") {
+        if (!eventCan(event, "can_manage_event")) {
+          throw new Error("Nur Organisatoren können Ergebnisse öffentlich freigeben.");
+        }
+        if (!window.confirm("Der Ergebnis-Link soll ohne Anmeldung funktionieren. Ergebnisse dieses Events werden dafür auf „Jeder“ gestellt. Fortfahren?")) {
+          return;
+        }
+        await api(`/events/${id}`, { method: "PATCH", body: JSON.stringify({ resultsAccess: "everyone" }) });
+        event.results_access = "everyone";
+      }
+      const shareUrl = new URL(window.location.href);
+      shareUrl.hash = `#/results/${id}`;
+      try {
+        await navigator.clipboard.writeText(shareUrl.href);
+        showToast("Öffentlicher Ergebnis-Link wurde kopiert.");
+      } catch {
+        window.prompt("Ergebnis-Link kopieren:", shareUrl.href);
+      }
+    } catch (error) {
+      showToast(error.message || "Ergebnis-Link konnte nicht erstellt werden.");
+    } finally {
+      copyResultsLinkButton.disabled = false;
+    }
+  });
 
   const genderName = (gender) => gender === "female" ? "Weiblich" : (gender === "male" ? "Männlich" : "Mixed");
   const participantName = (person) => `${person.name} (${birthYearText(person.birth_year)})`;
@@ -2309,7 +2339,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
     }));
     resultsRoot.querySelectorAll(".result-choice").forEach((button) => button.addEventListener("click", () => {
       window.scrollTo(0, 0);
-      location.hash = `#/viewer/${id}/${button.dataset.discipline}/${button.dataset.gender}`;
+      location.hash = `${viewerRoot}/${button.dataset.discipline}/${button.dataset.gender}`;
     }));
   }
 
@@ -2587,7 +2617,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
             const glued = group.length > 1;
             return `<span class="${glued ? "glued-result-lap" : ""}"><span class="result-lap-label">${escapeHtml(disciplineLapGroupLabel(result.discipline, group))}${Number.isInteger(result.frequencies?.[lap]) ? `<small>${result.frequencies[lap]}/min</small>` : ""}</span><strong>${value === null ? "–" : formatTime(value)}</strong></span>`;
           }).join("")}</div></details>`;
-        const editButton = resultsMode === "live" && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${result.id}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
+        const editButton = !resultsOnly && resultsMode === "live" && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${result.id}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
         const cardHead = teamMembers.length
           ? `<div class="result-head"><div>${resultIdentity}</div>${editButton}</div>${details}`
           : `<div class="result-head"><div>${resultIdentity}${details}</div>${editButton}</div>`;
@@ -2597,7 +2627,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null) 
         ${expandedDetails}
       </article>`;
       }).join("")}</div>`;
-    resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="#/viewer/${id}" data-history-back>${icon("arrow-left")} Ergebnisse</a>
+    resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="${viewerRoot}" ${resultsOnly ? "" : "data-history-back"}>${icon("arrow-left")} Ergebnisse</a>
       <div class="viewer-list-heading"><div class="viewer-list-title"><p class="eyebrow">${genderName(selected.gender)}</p><h2>${escapeHtml(item.name)}</h2></div>
         <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${eventPdfImageReady ? "" : "disabled"}>PDF</button></div>
       ${results.length ? cardView : `<div class="empty">Noch keine Ergebnisse.</div>`}`;
@@ -2749,7 +2779,8 @@ async function renderRoute() {
   document.body.classList.toggle("home-page", current.page === "home");
   document.body.classList.toggle("event-page", current.page === "event");
   document.body.classList.toggle("people-page", current.page === "people");
-  document.body.classList.toggle("viewer-page", current.page === "viewer");
+  document.body.classList.toggle("viewer-page", current.page === "viewer" || current.page === "results");
+  document.body.classList.toggle("shared-results-page", current.page === "results");
   document.body.classList.toggle("settings-page", current.page === "settings");
   document.body.classList.remove("viewer-overview");
   setReviewInteractionLock(false);
@@ -2762,6 +2793,7 @@ async function renderRoute() {
     if (current.page === "people") return await renderPeople(current.id);
     if (current.page === "timer") return await renderTimer(current.id);
     if (current.page === "viewer") return await renderViewer(current.id, current.discipline, current.gender);
+    if (current.page === "results") return await renderViewer(current.id, current.discipline, current.gender, { resultsOnly: true });
     throw new Error("Diese Seite gibt es nicht.");
   } catch (error) {
     renderError(error);

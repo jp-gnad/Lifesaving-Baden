@@ -264,7 +264,23 @@
       window.firebase.initializeApp(window.firebaseConfig);
     }
 
-    return window.firebase.auth();
+    const auth = window.firebase.auth();
+    ensureLocalAuthPersistence(auth);
+    return auth;
+  }
+
+  let localAuthPersistencePromise = null;
+
+  function ensureLocalAuthPersistence(auth) {
+    if (!localAuthPersistencePromise) {
+      localAuthPersistencePromise = auth
+        .setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
+        .catch((error) => {
+          console.warn("Dauerhafte Firebase-Anmeldung konnte nicht aktiviert werden.", error);
+        });
+    }
+
+    return localAuthPersistencePromise;
   }
 
   const userDocCachePrefix = "lifesaving-baden:user-doc:";
@@ -652,18 +668,51 @@
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
     let loginRedirectStarted = false;
+    let verifiedLoginPromise = null;
+    const localPersistenceReady = ensureLocalAuthPersistence(auth);
 
     async function finishVerifiedLogin(user) {
       if (loginRedirectStarted) {
         return;
       }
 
-      loginRedirectStarted = true;
-      await user.getIdToken(true);
-      await user.reload();
-      clearUserDocCache(user.uid);
-      await ensureUserDocument(user, { forceRefresh: true });
-      redirectToApp();
+      if (verifiedLoginPromise) {
+        return verifiedLoginPromise;
+      }
+
+      verifiedLoginPromise = (async () => {
+        const signedInUser = auth.currentUser || user;
+
+        if (!signedInUser) {
+          return;
+        }
+
+        try {
+          await signedInUser.getIdToken(true);
+          await signedInUser.reload();
+          clearUserDocCache(signedInUser.uid);
+          await ensureUserDocument(signedInUser, { forceRefresh: true });
+        } catch (error) {
+          console.warn("Kontodaten konnten nach dem Login nicht vollständig aktualisiert werden.", error);
+        }
+
+        const activeUser = auth.currentUser || signedInUser;
+
+        if (!hasVerifiedAccess(activeUser)) {
+          showResendButton(true);
+          setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du fortfährst.");
+          return;
+        }
+
+        loginRedirectStarted = true;
+        redirectToApp();
+      })();
+
+      try {
+        await verifiedLoginPromise;
+      } finally {
+        verifiedLoginPromise = null;
+      }
     }
 
     if (params.has("verified")) {
@@ -680,9 +729,13 @@
         return;
       }
 
-      await user.reload();
+      try {
+        await user.reload();
+      } catch (error) {
+        console.warn("Firebase-Anmeldestatus konnte nicht neu geladen werden.", error);
+      }
 
-      if (hasVerifiedAccess(auth.currentUser)) {
+      if (hasVerifiedAccess(auth.currentUser || user)) {
         await finishVerifiedLogin(auth.currentUser || user);
         return;
       }
@@ -701,6 +754,7 @@
 
       try {
         setLoading(button, true, "Login...");
+        await localPersistenceReady;
         const { user } = await auth.signInWithEmailAndPassword(email, password);
 
         await user.reload();
@@ -737,6 +791,7 @@
 
       try {
         setLoading(button, true, "Konto erstellen...");
+        await localPersistenceReady;
         const { user } = await auth.createUserWithEmailAndPassword(email, password);
         let firestoreError = null;
 
@@ -779,6 +834,7 @@
     googleButton.addEventListener("click", async () => {
       try {
         setLoading(googleButton, true, "Google öffnet...");
+        await localPersistenceReady;
         const { user } = await auth.signInWithPopup(googleProvider);
         await finishVerifiedLogin(user);
       } catch (error) {

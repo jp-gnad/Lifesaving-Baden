@@ -608,7 +608,8 @@
         const body = parseBody(options);
         const snapshot = await eventSnapshot(eventId);
         const current = snapshot.data() || {};
-        const eventDate = body.eventDate ? cleanText(body.eventDate, "Datum", 10) : null;
+        const eventDateValue = body.eventDate === undefined ? current.eventDate : body.eventDate;
+        const eventDate = eventDateValue ? cleanText(eventDateValue, "Datum", 10) : null;
         if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
         const timerEnabled = body.timerEnabled === undefined ? current.timerEnabled !== false : body.timerEnabled;
         if (typeof timerEnabled !== "boolean") throw appError("Ungültiger Timer-Status.");

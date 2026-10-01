@@ -1,4 +1,5 @@
 import re
+import struct
 import unittest
 from pathlib import Path
 
@@ -61,6 +62,23 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("watchResults", app)
         self.assertIn("query.onSnapshot", adapter)
 
+    def test_stopwatch_view_has_no_account_trigger(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        timer_renderer = app[app.index("async function renderTimer(id)"):app.index("async function renderViewer")]
+
+        self.assertNotIn("compactAccountTrigger", app)
+        self.assertNotIn("data-timer-account-open", timer_renderer)
+        self.assertNotIn("timer-account-compact", timer_renderer)
+
+    def test_stopwatch_skips_a_single_mode_category(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        timer_renderer = app[app.index("async function renderTimer(id)"):app.index("async function renderViewer")]
+
+        self.assertIn("function availableModeGroups()", timer_renderer)
+        self.assertIn("if (availableGroups.length === 1) renderModeGroup(availableGroups[0].id, { allowBack: false })", timer_renderer)
+        self.assertIn('if (!group) return;', timer_renderer)
+        self.assertNotIn('if (!group || group.id === "normal") return;', timer_renderer)
+
     def test_timer_reuses_lifesaving_baden_footer(self):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
         styles = (ROOT / "timer" / "styles.css").read_text(encoding="utf-8")
@@ -70,6 +88,53 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('href="../datenschutz.html"', html)
         self.assertIn("body.home-page .timer-site-footer, body.event-page .timer-site-footer", styles)
         self.assertIn("body.timer-page .timer-site-footer", styles)
+
+    def test_event_overview_navigation_uses_header_brand(self):
+        html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        event_renderer = app[app.index("async function renderEvent(id)"):app.index("async function renderEventSettings")]
+
+        self.assertIn('class="brand" href="#/"', html)
+        self.assertNotIn('class="back" href="#/"', event_renderer)
+
+    def test_event_settings_have_a_dedicated_event_submenu(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        settings_renderer = app[app.index("async function renderEventSettings"):app.index("async function renderPeople")]
+
+        self.assertIn('new Set(["event", "timer", "results", "people", "access"])', settings_renderer)
+        self.assertIn('{ id: "event", icon: "calendar", name: "Event"', settings_renderer)
+        self.assertIn('activeSection === "event" ? eventMarkup', settings_renderer)
+        self.assertIn('if (activeSection === "event") Object.assign(payload', settings_renderer)
+
+    def test_public_results_share_link_is_results_only(self):
+        app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        styles = (ROOT / "timer" / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('shareUrl.hash = `#/results/${id}`', app)
+        self.assertIn('body: JSON.stringify({ resultsAccess: "everyone" })', app)
+        self.assertIn('current.page === "results"', app)
+        self.assertIn('{ resultsOnly: true }', app)
+        self.assertIn('!resultsOnly && resultsMode === "live"', app)
+        self.assertIn('body.shared-results-page > .site-header', styles)
+        self.assertIn('body.eventDate === undefined ? current.eventDate : body.eventDate', adapter)
+
+    def test_timer_brand_icons_have_expected_sizes_and_cache_busting(self):
+        html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
+        manifest = (ROOT / "timer" / "manifest.webmanifest").read_text(encoding="utf-8")
+        service_worker = (ROOT / "timer" / "sw.js").read_text(encoding="utf-8")
+        expected_sizes = (64, 180, 192, 512, 1024)
+
+        for size in expected_sizes:
+            icon = ROOT / "timer" / f"app-icon-{size}.png"
+            data = icon.read_bytes()
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+            width, height = struct.unpack(">II", data[16:24])
+            self.assertEqual((width, height), (size, size))
+
+        self.assertIn("baden-brand-v1", html)
+        self.assertIn("baden-brand-v1", manifest)
+        self.assertIn("baden-brand-v1", service_worker)
 
     def test_timer_results_do_not_write_nested_firestore_arrays(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
@@ -83,8 +148,21 @@ class TimerIntegrationTest(unittest.TestCase):
         timer_app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
         self.assertIn('data-page="landing"', landing)
         self.assertIn('page === "landing"', auth)
-        self.assertIn('id="timer-portal-link"', timer_html)
-        self.assertIn('currentTimerAuth.authenticated ? "../app.html" : "../index.html"', timer_app)
+        self.assertNotIn('id="timer-portal-link"', timer_html)
+        self.assertIn('id="timer-footer-portal-link"', timer_html)
+        self.assertIn('timerFooterPortalLink.setAttribute("href", currentTimerAuth.authenticated ? "../app.html" : "../index.html")', timer_app)
+
+    def test_mobile_google_login_is_persistent_and_redirect_race_safe(self):
+        auth = (ROOT / "assets" / "js" / "auth.js").read_text(encoding="utf-8")
+        login = (ROOT / "login.html").read_text(encoding="utf-8")
+        app = (ROOT / "app.html").read_text(encoding="utf-8")
+
+        self.assertIn("window.firebase.auth.Auth.Persistence.LOCAL", auth)
+        self.assertIn("const localPersistenceReady = ensureLocalAuthPersistence(auth)", auth)
+        self.assertIn("let verifiedLoginPromise = null", auth)
+        self.assertIn("loginRedirectStarted = true;\n        redirectToApp();", auth)
+        self.assertIn("auth.js?v=20261001-mobile-google-auth", login)
+        self.assertIn("auth.js?v=20261001-mobile-google-auth", app)
 
     def test_participant_directory_is_organizer_only(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
