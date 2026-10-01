@@ -1180,15 +1180,7 @@ body[data-page="app"] .dashboard > * {
 .member-apps {
   position: relative;
   z-index: 1;
-  display: grid;
-  gap: 12px;
   margin-bottom: 28px;
-}
-
-.member-apps h2 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 750;
 }
 
 .member-app-grid {
@@ -1213,11 +1205,10 @@ body[data-page="app"] .dashboard > * {
   width: 68px;
   height: 68px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 17px;
-  background: #f7f9fc;
-  box-shadow: 0 9px 22px rgba(0, 0, 0, 0.24);
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  background: transparent;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
+  transition: filter 160ms ease;
 }
 
 .member-app-icon img {
@@ -1228,12 +1219,7 @@ body[data-page="app"] .dashboard > * {
 }
 
 .member-app:hover .member-app-icon {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.3);
-}
-
-.member-app:hover .member-app-label {
-  color: var(--accent-light);
+  filter: brightness(1.07);
 }
 
 .member-app:focus-visible {
@@ -1250,51 +1236,46 @@ body[data-page="app"] .dashboard > * {
 }
 
 .public-timer-launcher {
-  min-height: 118px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 18px;
+  width: min(250px, 100%);
+  min-height: 68px;
+  justify-self: start;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 9px 11px;
   background: rgba(24, 24, 29, 0.78);
   color: var(--text);
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 24px;
+  grid-template-columns: 48px minmax(0, 1fr) 19px;
   align-items: center;
-  gap: 16px;
+  gap: 11px;
   text-decoration: none;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease;
 }
 
 .public-timer-launcher:hover {
-  border-color: rgba(255, 237, 0, 0.42);
-  background: rgba(31, 31, 36, 0.96);
-  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(30, 30, 35, 0.88);
 }
 
 .public-timer-launcher img {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
-  box-shadow: 0 9px 22px rgba(0, 0, 0, 0.24);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .public-timer-launcher span {
   min-width: 0;
-  display: grid;
-  gap: 5px;
+  display: block;
 }
 
 .public-timer-launcher strong {
   font-size: 1rem;
 }
 
-.public-timer-launcher small {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
 .public-timer-launcher svg {
-  width: 24px;
-  height: 24px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;

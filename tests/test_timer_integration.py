@@ -60,7 +60,13 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('class="member-app" href="timer/#/"', app_html)
         self.assertIn("Lifesaving Timer", app_html)
         self.assertIn('class="member-app-label">Timer</span>', app_html)
+        self.assertNotIn('id="member-apps-title"', app_html)
+        self.assertIn("app-icon-1024.png", app_html)
         self.assertIn(".member-app-icon", styles)
+        member_hover = styles[styles.index(".member-app:hover .member-app-icon"):]
+        member_hover = member_hover[:member_hover.index(".member-app:focus-visible")]
+        self.assertNotIn("transform", member_hover)
+        self.assertNotIn("color", member_hover)
         self.assertNotIn("timer-app-card", app_html)
 
     def test_public_home_links_to_timer_event_overview(self):
@@ -68,6 +74,8 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('id="timer" aria-labelledby="timer-title"', landing)
         self.assertIn('class="public-timer-launcher" href="timer/#/"', landing)
         self.assertIn("Eventübersicht öffnen", landing)
+        self.assertIn("app-icon-1024.png", landing)
+        self.assertIn("min-height: 68px", (ROOT / "assets" / "css" / "styles.css").read_text(encoding="utf-8"))
         self.assertNotIn('id="training"', landing)
 
     def test_known_club_cap_is_mapped(self):
