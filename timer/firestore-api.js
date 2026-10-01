@@ -18,8 +18,7 @@
   });
 
   const DEFAULT_DISCIPLINES = Object.keys(DISCIPLINES);
-  const ACCESS_LEVELS = new Set(["locked", "kader", "everyone"]);
-  const LEGACY_ACCESS_LEVELS = Object.freeze({ organizer: "locked", authenticated: "kader" });
+  const ACCESS_LEVELS = new Set(["everyone", "authenticated", "kader", "organizer", "locked"]);
   const DEFAULT_ACCESS = Object.freeze({
     timerAccess: "locked",
     resultsAccess: "everyone",
@@ -100,8 +99,7 @@
   }
 
   function accessLevel(value, fallback) {
-    const normalized = LEGACY_ACCESS_LEVELS[value] || value;
-    return ACCESS_LEVELS.has(normalized) ? normalized : fallback;
+    return ACCESS_LEVELS.has(value) ? value : fallback;
   }
 
   function validatedEventUrl(value) {
@@ -298,7 +296,9 @@
   function canUseAccess(level) {
     if (authContext.isAdmin) return true;
     if (level === "everyone") return true;
-    return level === "kader" && authContext.isKaderAthlete;
+    if (level === "authenticated") return authContext.authenticated;
+    if (level === "kader") return authContext.isKaderAthlete || authContext.isOrganizer;
+    return level === "organizer" && authContext.isOrganizer;
   }
 
   function permissionSet(data) {

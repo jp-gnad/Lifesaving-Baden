@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Lifesaving Baden - Training, Organisation und geschützter Mitgliederbereich.">
+    <meta name="description" content="Lifesaving Baden – Events, Zeitnahme, Ergebnisse und geschützter Mitgliederbereich.">
     <title>Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-mobile-settings-menu-neutral">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261001-timer-entry-v1">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
@@ -28,17 +28,17 @@
           <span aria-hidden="true"></span>
         </button>
         <div class="nav-links" id="main-nav-links" data-nav-links>
-          <a href="#training">
+          <a href="#timer">
             <span class="nav-link-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M4 18c2 0 2-1.2 4-1.2s2 1.2 4 1.2 2-1.2 4-1.2 2 1.2 4 1.2"></path>
-                <path d="M4 21c2 0 2-1.2 4-1.2s2 1.2 4 1.2 2-1.2 4-1.2 2 1.2 4 1.2"></path>
-                <circle cx="9" cy="7" r="2"></circle>
-                <path d="m11 9 3.5 2.5L18 9"></path>
-                <path d="m13.5 11.5-3 3"></path>
+                <circle cx="12" cy="13" r="8"></circle>
+                <path d="M12 13V9"></path>
+                <path d="M9 2h6"></path>
+                <path d="M12 5V2"></path>
+                <path d="m18 7 1.5-1.5"></path>
               </svg>
             </span>
-            <span>Training</span>
+            <span>Timer</span>
           </a>
           <a href="#termine">
             <span class="nav-link-icon" aria-hidden="true">
@@ -70,7 +70,7 @@
     <main>
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Wasserrettung, Training, Teamarbeit</p>
+          <p class="eyebrow">Wasserrettung, Wettkampf, Teamarbeit</p>
           <h1>Lifesaving Baden</h1>
           <p>
             Ein kompaktes Web-Grundgerüst für Informationen, Termine und einen
@@ -78,30 +78,22 @@
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="login.html">Konto erstellen</a>
-            <a class="button button-secondary" href="#training">Mehr erfahren</a>
+            <a class="button button-secondary" href="#timer">Timer entdecken</a>
           </div>
         </div>
       </section>
 
-      <section class="section-grid" id="training" aria-labelledby="training-title">
-        <div>
-          <p class="eyebrow">Training</p>
-          <h2 id="training-title">Alles Wichtige an einem Ort</h2>
+      <section class="section-grid timer-home-section" id="timer" aria-labelledby="timer-title">
+        <div class="timer-home-copy">
+          <p class="eyebrow">Web-App</p>
+          <h2 id="timer-title">Lifesaving Timer</h2>
+          <p>Events ansehen, Zeiten erfassen und Ergebnisse direkt verfolgen – auch ohne Anmeldung, wenn ein Event öffentlich freigegeben ist.</p>
         </div>
-        <div class="cards">
-          <article class="card">
-            <h3>Trainingsgruppen</h3>
-            <p>Bereiche für Jugend, Aktive und Wettkampf können hier später gepflegt werden.</p>
-          </article>
-          <article class="card">
-            <h3>Mitgliederbereich</h3>
-            <p>Der Login-Flow ist vorbereitet und kann an einen echten Auth-Dienst angebunden werden.</p>
-          </article>
-          <article class="card">
-            <h3>Informationen</h3>
-            <p>Aktuelle Hinweise, Kontaktwege und Dokumente lassen sich als statische Inhalte ergänzen.</p>
-          </article>
-        </div>
+        <a class="public-timer-launcher" href="timer/#/" aria-label="Lifesaving Timer Eventübersicht öffnen">
+          <img src="timer/app-icon-192.png" alt="">
+          <span><strong>Eventübersicht öffnen</strong><small>Zum Lifesaving Timer</small></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+        </a>
       </section>
 
       <section class="info-band" id="termine" aria-labelledby="termine-title">

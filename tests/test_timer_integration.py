@@ -30,15 +30,18 @@ class TimerIntegrationTest(unittest.TestCase):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
-        for level in ("locked", "kader", "everyone"):
+        for level in ("everyone", "authenticated", "kader", "organizer", "locked"):
             self.assertIn(level, app)
             self.assertIn(level, adapter)
             self.assertIn(level, rules)
         self.assertIn("Gesperrt (nur Admin)", app)
-        self.assertIn("Nur Kadersportler", app)
-        self.assertIn("Jeder (auch ohne Anmeldung)", app)
+        self.assertIn("Angemeldete Personen", app)
+        self.assertIn("Kadersportler", app)
+        self.assertIn("Organisatoren", app)
         self.assertIn("if (authContext.isAdmin) return true", adapter)
-        self.assertIn('return level === "kader" && authContext.isKaderAthlete', adapter)
+        self.assertIn('if (level === "authenticated") return authContext.authenticated', adapter)
+        self.assertIn('if (level === "kader") return authContext.isKaderAthlete || authContext.isOrganizer', adapter)
+        self.assertIn('return level === "organizer" && authContext.isOrganizer', adapter)
         event_access_rule = rules[rules.index("function eventAllows"):rules.index("function ownerKeepsProtectedFieldsSafe")]
         self.assertIn("return isAdmin()", event_access_rule)
         self.assertNotIn("return isOrganizer()", event_access_rule)
@@ -53,8 +56,19 @@ class TimerIntegrationTest(unittest.TestCase):
 
     def test_timer_card_is_on_member_home(self):
         app_html = (ROOT / "app.html").read_text(encoding="utf-8")
-        self.assertIn('href="timer/"', app_html)
+        styles = (ROOT / "assets" / "css" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('class="member-app" href="timer/#/"', app_html)
         self.assertIn("Lifesaving Timer", app_html)
+        self.assertIn('class="member-app-label">Timer</span>', app_html)
+        self.assertIn(".member-app-icon", styles)
+        self.assertNotIn("timer-app-card", app_html)
+
+    def test_public_home_links_to_timer_event_overview(self):
+        landing = (ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="timer" aria-labelledby="timer-title"', landing)
+        self.assertIn('class="public-timer-launcher" href="timer/#/"', landing)
+        self.assertIn("Eventübersicht öffnen", landing)
+        self.assertNotIn('id="training"', landing)
 
     def test_known_club_cap_is_mapped(self):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")

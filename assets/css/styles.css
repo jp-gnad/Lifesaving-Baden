@@ -1177,28 +1177,129 @@ body[data-page="app"] .dashboard > * {
   align-content: start;
 }
 
-.timer-app-card {
-  border-color: rgba(60, 156, 255, 0.34);
-  background:
-    linear-gradient(135deg, rgba(60, 156, 255, 0.16), rgba(24, 24, 29, 0.94) 48%),
-    var(--surface);
-}
-
-.timer-app-card-heading {
-  display: flex;
-  align-items: center;
+.member-apps {
+  position: relative;
+  z-index: 1;
+  display: grid;
   gap: 12px;
+  margin-bottom: 28px;
 }
 
-.timer-app-card-heading img {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
-}
-
-.timer-app-card-heading .eyebrow,
-.timer-app-card-heading h2 {
+.member-apps h2 {
   margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.member-app-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.member-app {
+  width: 78px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+}
+
+.member-app-icon {
+  width: 68px;
+  height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 17px;
+  background: #f7f9fc;
+  box-shadow: 0 9px 22px rgba(0, 0, 0, 0.24);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.member-app-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-app:hover .member-app-icon {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.3);
+}
+
+.member-app:hover .member-app-label {
+  color: var(--accent-light);
+}
+
+.member-app:focus-visible {
+  border-radius: 18px;
+  outline: 3px solid rgba(255, 237, 0, 0.3);
+  outline-offset: 5px;
+}
+
+.timer-home-copy p:last-child {
+  max-width: 38ch;
+  margin: 16px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.public-timer-launcher {
+  min-height: 118px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(24, 24, 29, 0.78);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 16px;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.public-timer-launcher:hover {
+  border-color: rgba(255, 237, 0, 0.42);
+  background: rgba(31, 31, 36, 0.96);
+  transform: translateY(-2px);
+}
+
+.public-timer-launcher img {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  box-shadow: 0 9px 22px rgba(0, 0, 0, 0.24);
+}
+
+.public-timer-launcher span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.public-timer-launcher strong {
+  font-size: 1rem;
+}
+
+.public-timer-launcher small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.public-timer-launcher svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .dashboard-action-card.is-linked {

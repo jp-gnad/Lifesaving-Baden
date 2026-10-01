@@ -54,7 +54,7 @@ service cloud.firestore {
     }
 
     function validAccessLevel(level) {
-      return level in ["locked", "kader", "everyone", "organizer", "authenticated"];
+      return level in ["everyone", "authenticated", "kader", "organizer", "locked"];
     }
 
     function eventData(eventId) {
@@ -68,7 +68,9 @@ service cloud.firestore {
           data.keys().hasAny([field])
           && (
             data[field] == "everyone"
-            || (data[field] in ["kader", "authenticated"] && isKaderAthlete())
+            || (data[field] == "authenticated" && verifiedUser())
+            || (data[field] == "kader" && (isKaderAthlete() || isOrganizer()))
+            || (data[field] == "organizer" && isOrganizer())
           )
         );
     }

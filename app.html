@@ -6,7 +6,7 @@
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260713-mobile-settings-menu-neutral">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261001-timer-entry-v1">
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -58,6 +58,16 @@
         <a class="button button-primary" href="link-request.html" data-link-status-action>Jetzt abschließen</a>
       </section>
 
+      <section class="member-apps" aria-labelledby="member-apps-title">
+        <h2 id="member-apps-title">Apps</h2>
+        <div class="member-app-grid">
+          <a class="member-app" href="timer/#/" aria-label="Lifesaving Timer öffnen">
+            <span class="member-app-icon"><img src="timer/app-icon-192.png" alt=""></span>
+            <span class="member-app-label">Timer</span>
+          </a>
+        </div>
+      </section>
+
       <section class="dashboard-grid" aria-label="Mitgliederübersicht">
         <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
           <div class="checklist-heading">
@@ -89,17 +99,6 @@
               <span>Geschlecht hinzufügen</span>
             </li>
           </ul>
-        </article>
-        <article class="card dashboard-action-card timer-app-card">
-          <div class="timer-app-card-heading">
-            <img src="timer/app-icon-192.png" alt="" aria-hidden="true">
-            <div>
-              <p class="eyebrow">Web-App</p>
-              <h2>Lifesaving Timer</h2>
-            </div>
-          </div>
-          <p>Events, Zeitnahme, Personen und Ergebnisse an einem Ort.</p>
-          <a class="button button-primary" href="timer/">Timer öffnen</a>
         </article>
         <article class="card dashboard-action-card is-hidden" data-kader-only>
           <h2>Kaderbereich</h2>

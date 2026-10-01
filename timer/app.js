@@ -51,16 +51,19 @@ function eventCan(event, permission) {
 
 function accessLabel(value) {
   if (value === "everyone") return "Jeder";
-  if (value === "kader" || value === "authenticated") return "Nur Kadersportler";
+  if (value === "authenticated") return "Angemeldete Personen";
+  if (value === "kader") return "Kadersportler";
+  if (value === "organizer") return "Organisatoren";
   return "Gesperrt";
 }
 
 function accessSelect(name, value) {
-  const normalized = value === "organizer" ? "locked" : (value === "authenticated" ? "kader" : value);
   return `<label class="field"><span>Zugriff</span><select name="${name}">
-    <option value="locked" ${normalized === "locked" ? "selected" : ""}>Gesperrt (nur Admin)</option>
-    <option value="kader" ${normalized === "kader" ? "selected" : ""}>Nur Kadersportler</option>
-    <option value="everyone" ${normalized === "everyone" ? "selected" : ""}>Jeder (auch ohne Anmeldung)</option>
+    <option value="everyone" ${value === "everyone" ? "selected" : ""}>Jeder</option>
+    <option value="authenticated" ${value === "authenticated" ? "selected" : ""}>Angemeldete Personen</option>
+    <option value="kader" ${value === "kader" ? "selected" : ""}>Kadersportler</option>
+    <option value="organizer" ${value === "organizer" ? "selected" : ""}>Organisatoren</option>
+    <option value="locked" ${value === "locked" ? "selected" : ""}>Gesperrt (nur Admin)</option>
   </select></label>`;
 }
 
