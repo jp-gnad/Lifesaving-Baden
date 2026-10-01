@@ -228,14 +228,25 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("loginRedirectStarted = true;\n        redirectToApp();", auth)
         self.assertIn('document.body.dataset.authSuccessUrl || "app.html"', auth)
         self.assertIn('googleButton?.addEventListener("click"', auth)
-        self.assertIn("auth.js?v=20261001-ios-pwa-google-v2", login)
-        self.assertIn("auth.js?v=20261001-ios-pwa-google-v2", app)
+        self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", login)
+        self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
+        self.assertIn("auth.js?v=20261001-ios-pwa-google-v3", login)
+        self.assertIn("auth.js?v=20261001-ios-pwa-google-v3", app)
+        self.assertIn("loadFreshUserContext(activeUser)", auth)
+        self.assertIn('userDoc.get({ source: "server" })', auth)
         self.assertIn('data-auth-success-url="./#/"', timer_login)
         self.assertIn("data-google-login", timer_login)
         self.assertNotIn('type="email"', timer_login)
         self.assertNotIn('type="password"', timer_login)
         self.assertIn('new URL("./login.html", window.location.href)', timer_app)
         self.assertIn('"./login.html"', timer_worker)
+
+    def test_timer_waits_for_persistent_auth_and_fresh_role_data(self):
+        adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
+        self.assertIn("Auth.Persistence.LOCAL", adapter)
+        self.assertIn("loadTimerUserIdentity(user)", adapter)
+        self.assertIn('get({ source: "server" })', adapter)
+        self.assertIn("user.getIdTokenResult(attempt === 1)", adapter)
 
     def test_participant_directory_is_organizer_only(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")

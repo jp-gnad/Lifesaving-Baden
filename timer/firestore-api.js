@@ -187,6 +187,11 @@
   if (!window.firebase.apps.length) window.firebase.initializeApp(window.firebaseConfig);
   const auth = window.firebase.auth();
   const db = window.firebase.firestore();
+  const authPersistenceReady = auth
+    .setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
+    .catch((error) => {
+      console.warn("Dauerhafte Timer-Anmeldung konnte nicht aktiviert werden.", error);
+    });
   const persistenceReady = db.enablePersistence({ synchronizeTabs: true }).catch((error) => {
     if (!["failed-precondition", "unimplemented"].includes(String(error?.code || "").replace(/^firestore\//, ""))) {
       console.warn("Firestore-Offlinespeicher konnte nicht aktiviert werden.", error);
@@ -211,25 +216,67 @@
   let resolveInitialAuth;
   const initialAuth = new Promise((resolve) => { resolveInitialAuth = resolve; });
   let initialAuthResolved = false;
+  let authRefreshVersion = 0;
+  let authRetryTimer = null;
 
-  auth.onAuthStateChanged(async (user) => {
-    await persistenceReady;
+  function authRetryDelay(delayMs) {
+    return new Promise((resolve) => window.setTimeout(resolve, delayMs));
+  }
+
+  async function loadTimerUserIdentity(user) {
+    let userData = {};
+    let userDataLoaded = false;
+    let claims = {};
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const snapshotPromise = attempt < 2
+        ? db.collection("users").doc(user.uid).get({ source: "server" })
+        : db.collection("users").doc(user.uid).get();
+      const [snapshotResult, tokenResult] = await Promise.allSettled([
+        snapshotPromise,
+        user.getIdTokenResult(attempt === 1),
+      ]);
+
+      if (snapshotResult.status === "fulfilled") {
+        const snapshot = snapshotResult.value;
+        userData = snapshot.exists ? snapshot.data() || {} : {};
+        userDataLoaded = true;
+      }
+
+      if (tokenResult.status === "fulfilled") {
+        claims = tokenResult.value.claims || {};
+      }
+
+      if (userDataLoaded && tokenResult.status === "fulfilled") {
+        return { userData, userDataLoaded, claims };
+      }
+
+      if (attempt < 2) {
+        await authRetryDelay(450 * (attempt + 1));
+      }
+    }
+
+    return { userData, userDataLoaded, claims };
+  }
+
+  async function refreshTimerAuthContext(user, retryOnMissing = true) {
+    const refreshVersion = ++authRefreshVersion;
+    await Promise.all([authPersistenceReady, persistenceReady]);
     let userData = {};
     let userDataLoaded = false;
     let claims = {};
     if (user) {
       try {
-        const [userSnapshot, tokenResult] = await Promise.all([
-          db.collection("users").doc(user.uid).get(),
-          user.getIdTokenResult(),
-        ]);
-        userData = userSnapshot.exists ? userSnapshot.data() || {} : {};
-        userDataLoaded = true;
-        claims = tokenResult.claims || {};
+        ({ userData, userDataLoaded, claims } = await loadTimerUserIdentity(user));
       } catch (error) {
         console.warn("Timer-Rolle konnte nicht geladen werden.", error);
       }
     }
+
+    if (refreshVersion !== authRefreshVersion) {
+      return;
+    }
+
     const claimRole = normalizedRole(claims.role);
     const dataRole = normalizedRole(userData.role);
     const isAdmin = Boolean(
@@ -282,6 +329,33 @@
       resolveInitialAuth(authContext);
     }
     window.dispatchEvent(new CustomEvent("timer-auth-change", { detail: { ...authContext, user: undefined } }));
+
+    if (user && !userDataLoaded && retryOnMissing) {
+      window.clearTimeout(authRetryTimer);
+      authRetryTimer = window.setTimeout(() => {
+        if (auth.currentUser?.uid === user.uid) {
+          refreshTimerAuthContext(auth.currentUser, false).catch((error) => {
+            console.warn("Timer-Kontodaten konnten nicht erneut geladen werden.", error);
+          });
+        }
+      }, 1400);
+    }
+  }
+
+  auth.onAuthStateChanged((user) => {
+    refreshTimerAuthContext(user).catch((error) => {
+      console.warn("Timer-Anmeldung konnte nicht initialisiert werden.", error);
+      if (!initialAuthResolved) {
+        initialAuthResolved = true;
+        resolveInitialAuth(authContext);
+      }
+    });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && auth.currentUser) {
+      refreshTimerAuthContext(auth.currentUser).catch(() => {});
+    }
   });
 
   async function getAuthContext() {

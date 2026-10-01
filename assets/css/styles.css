@@ -1183,6 +1183,20 @@ body[data-page="app"] .dashboard > * {
   margin-bottom: 28px;
 }
 
+body.auth-context-loading .member-apps,
+body.auth-context-loading [data-account-open] {
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+body.auth-context-loading .member-apps::after {
+  content: "Konto wird geladen …";
+  margin-top: 8px;
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+}
+
 .member-app-grid {
   display: flex;
   flex-wrap: wrap;

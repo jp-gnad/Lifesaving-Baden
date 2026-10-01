@@ -283,6 +283,39 @@
     return localAuthPersistencePromise;
   }
 
+  function waitForRetry(delayMs) {
+    return new Promise((resolve) => window.setTimeout(resolve, delayMs));
+  }
+
+  async function loadFreshUserContext(user) {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await user.getIdToken(attempt < 2);
+        const data = await ensureUserDocument(user, {
+          forceRefresh: true,
+          preferServer: attempt < 2,
+          throwOnError: true
+        });
+
+        if (data) {
+          return data;
+        }
+
+        throw new Error("Kontodaten sind noch nicht verfügbar.");
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < 2) {
+          await waitForRetry(450 * (attempt + 1));
+        }
+      }
+    }
+
+    throw lastError || new Error("Kontodaten konnten nicht geladen werden.");
+  }
+
   const userDocCachePrefix = "lifesaving-baden:user-doc:";
   const userDocCacheTtlMs = 5 * 60 * 1000;
   const pendingUserDocCacheTtlMs = 30 * 1000;
@@ -688,10 +721,9 @@
         }
 
         try {
-          await signedInUser.getIdToken(true);
           await signedInUser.reload();
           clearUserDocCache(signedInUser.uid);
-          await ensureUserDocument(signedInUser, { forceRefresh: true });
+          await loadFreshUserContext(auth.currentUser || signedInUser);
         } catch (error) {
           console.warn("Kontodaten konnten nach dem Login nicht vollständig aktualisiert werden.", error);
         }
@@ -742,6 +774,27 @@
 
       showResendButton(true);
       setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
+    });
+
+    async function resumeLoginAfterGoogleWindow() {
+      if (document.visibilityState === "hidden" || loginRedirectStarted) {
+        return;
+      }
+
+      await localPersistenceReady;
+
+      if (auth.currentUser) {
+        await finishVerifiedLogin(auth.currentUser);
+      }
+    }
+
+    window.addEventListener("pageshow", () => {
+      resumeLoginAfterGoogleWindow().catch(() => {});
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        resumeLoginAfterGoogleWindow().catch(() => {});
+      }
     });
 
     loginForm?.addEventListener("submit", async (event) => {
@@ -995,6 +1048,9 @@
     const accountCloseButton = document.querySelector("[data-account-close]");
     const deleteAccountButton = document.querySelector("[data-delete-account]");
     let settingsLoadedForUser = null;
+    let bootstrapPromise = null;
+    let bootstrapRetryTimer = null;
+    let bootstrapRetryCount = 0;
 
     accountOpenButton?.addEventListener("click", () => openAccountModal());
     accountCloseButton?.addEventListener("click", () => closeAccountModal());
@@ -1012,37 +1068,81 @@
 
     deleteAccountButton?.addEventListener("click", () => deleteCurrentAccount(auth, deleteAccountButton));
 
-    auth.onAuthStateChanged(async (user) => {
+    async function initializeSignedInUser(user) {
       if (!user) {
         redirectToLogin();
         return;
       }
 
-      await user.reload();
-
-      if (!hasVerifiedAccess(auth.currentUser)) {
-        redirectToLogin("needsVerification");
-        return;
+      if (bootstrapPromise) {
+        return bootstrapPromise;
       }
 
-      if (userName) {
-        userName.textContent = getAccountName(auth.currentUser);
-      }
+      bootstrapPromise = (async () => {
+        await ensureLocalAuthPersistence(auth);
 
-      updateAccountProfile(auth.currentUser);
-      fillAccountManagementForms(auth.currentUser);
-      updateGoogleProviderStatus(auth.currentUser);
+        try {
+          await user.reload();
+        } catch (error) {
+          console.warn("Firebase-Konto konnte noch nicht aktualisiert werden.", error);
+        }
 
-      if (settingsLoadedForUser !== auth.currentUser.uid) {
-        const userData = await ensureUserDocument(auth.currentUser);
-        settingsLoadedForUser = auth.currentUser.uid;
-        await initAccountManagement(auth, userData);
-        await initUserSettings(auth, userData);
-        await initLinkStatus(auth, userData);
-        await initLinkManagement(auth, userData);
-        await initAdminStatus(auth, userData);
-        await initLinkRequest(auth, userData);
+        const activeUser = auth.currentUser || user;
+
+        if (!hasVerifiedAccess(activeUser)) {
+          redirectToLogin("needsVerification");
+          return;
+        }
+
+        if (userName) {
+          userName.textContent = getAccountName(activeUser);
+        }
+
+        updateAccountProfile(activeUser);
+        fillAccountManagementForms(activeUser);
+        updateGoogleProviderStatus(activeUser);
+
+        if (settingsLoadedForUser !== activeUser.uid) {
+          const userData = await loadFreshUserContext(activeUser);
+          await initAccountManagement(auth, userData);
+          await initUserSettings(auth, userData);
+          await initLinkStatus(auth, userData);
+          await initLinkManagement(auth, userData);
+          await initAdminStatus(auth, userData);
+          await initLinkRequest(auth, userData);
+          settingsLoadedForUser = activeUser.uid;
+        }
+
+        bootstrapRetryCount = 0;
+        window.clearTimeout(bootstrapRetryTimer);
+        document.body.classList.remove("auth-context-loading");
+      })();
+
+      try {
+        await bootstrapPromise;
+      } catch (error) {
+        console.warn("Kontodaten werden erneut geladen.", error);
+        settingsLoadedForUser = null;
+
+        if (auth.currentUser?.uid === user.uid && bootstrapRetryCount < 3) {
+          bootstrapRetryCount += 1;
+          window.clearTimeout(bootstrapRetryTimer);
+          bootstrapRetryTimer = window.setTimeout(() => {
+            initializeSignedInUser(auth.currentUser).catch(() => {});
+          }, 700 * bootstrapRetryCount);
+        } else {
+          document.body.classList.remove("auth-context-loading");
+          setProfileMessage("Deine Kontodaten konnten noch nicht vollständig geladen werden. Bitte lade die Seite erneut.");
+        }
+      } finally {
+        bootstrapPromise = null;
       }
+    }
+
+    auth.onAuthStateChanged((user) => {
+      initializeSignedInUser(user).catch((error) => {
+        console.warn("Firebase-Konto konnte nicht initialisiert werden.", error);
+      });
     });
 
     logoutButtons.forEach((button) => button.addEventListener("click", async () => {
@@ -1175,7 +1275,9 @@
       let exists = Boolean(data);
 
       if (!data) {
-        const snapshot = await userDoc.get();
+        const snapshot = options.preferServer
+          ? await userDoc.get({ source: "server" })
+          : await userDoc.get();
         exists = snapshot.exists;
         data = snapshot.exists ? snapshot.data() || {} : null;
       }
