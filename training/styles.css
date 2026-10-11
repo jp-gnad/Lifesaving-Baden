@@ -97,11 +97,13 @@ textarea { line-height: 1.5; resize: vertical; min-height: 84px; font-weight: 40
 .stat-value { margin: 0; font-weight: 700; font-size: 1.45rem; letter-spacing: -.03em; }
 .stat-note:empty { display: none; }
 .table-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: .8rem; text-align: left; }
+table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .8rem; text-align: left; }
 th { color: var(--muted); font-weight: 400; font-size: .7rem; }
-th, td { padding: 13px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th, td { padding: 13px 8px; border-bottom: 1px solid var(--line); }
 th:first-child, td:first-child { padding-left: 0; }
-td:first-child { min-width: 100px; white-space: normal; }
+th:first-child { width: 32%; }
+th:nth-child(2) { width: 25%; }
+td { overflow-wrap: anywhere; }
 .athlete-button { border: 0; padding: 3px 0; background: none; text-align: left; color: var(--teal); font-size: .82rem; }
 .chart-panel { margin-top: 18px; }
 .chart-panel > summary { font-size: .85rem; }
@@ -144,4 +146,6 @@ dialog::backdrop { background: rgba(30, 48, 53, .3); }
   .chart-value { display: none; }
   .chart-column span { font-size: .6rem; }
   .entry-top { gap: 12px; }
+  th, td { padding: 13px 5px; font-size: .73rem; }
+  th { font-size: .65rem; }
 }

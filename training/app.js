@@ -48,7 +48,7 @@
 
   function syncDate() {
     const date = $("entry-date").value;
-    const label = date === core.today() ? "Heute" : date.split("-").reverse().join(".");
+    const label = date === core.today() ? "Heute" : date ? date.split("-").reverse().join(".") : "Datum";
     $("date-toggle").textContent = `${label} ⌄`;
     $("date-toggle").setAttribute("aria-label", `${label}, Trainingsdatum ändern`);
   }
@@ -62,6 +62,7 @@
     state.editing = null;
     $("entry-form").reset();
     $("entry-date").value = core.today();
+    $("entry-date").max = core.today();
     $("entry-title").textContent = "Neues Training";
     $("save-entry").textContent = "Speichern";
     $("cancel-edit").hidden = true;
@@ -211,9 +212,10 @@
     table.append(caption);
     const head = node("thead");
     const header = node("tr");
-    ["Sportler", "Meter", "Trainings", "Ø Motivation"].forEach((label) => {
+    ["Sportler", "Meter", "Trainings", "Ø Mot."].forEach((label) => {
       const th = node("th", "", label);
       th.scope = "col";
+      if (label === "Ø Mot.") th.setAttribute("aria-label", "Durchschnittliche Motivation");
       header.append(th);
     });
     head.append(header);
@@ -228,7 +230,7 @@
       button.addEventListener("click", () => { $("analysis-athlete").value = athlete.uid; renderAnalysis(); });
       name.append(button);
       row.append(name);
-      [core.formatMeters(totals.meters), String(totals.count),
+      [core.formatNumber(totals.meters), String(totals.count),
         totals.motivation === null ? "—" : `${core.formatDecimal(totals.motivation)} / 10`]
         .forEach((value) => row.append(node("td", "", value)));
       body.append(row);
@@ -347,6 +349,11 @@
       formMessage(wasEdit ? "Aktualisiert ✓" : "Gespeichert ✓");
       const savedYear = validated.date.slice(0, 4);
       $("diary-month").value = "";
+      if (![...$("year-filter").options].some((option) => option.value === savedYear)) {
+        const option = node("option", "", savedYear);
+        option.value = savedYear;
+        $("year-filter").prepend(option);
+      }
       if ($("year-filter").value !== savedYear) { $("year-filter").value = savedYear; loadYear(); }
     } catch (error) { formMessage(error.message, true); }
     finally {
@@ -384,6 +391,10 @@
   $("entry-motivation").addEventListener("input", syncForm);
   $("entry-text").addEventListener("input", syncForm);
   $("entry-date").addEventListener("change", syncDate);
+  $("entry-date").addEventListener("invalid", () => {
+    $("date-field").hidden = false;
+    $("date-toggle").setAttribute("aria-expanded", "true");
+  });
   $("date-toggle").addEventListener("click", () => {
     $("date-field").hidden = !$("date-field").hidden;
     $("date-toggle").setAttribute("aria-expanded", String(!$("date-field").hidden));

@@ -324,7 +324,7 @@ die App und die Daten anderer Sportler sind dann gesperrt. Bei der Kontolöschun
 werden die eigenen Trainings vor dem Nutzerdokument entfernt.
 
 Organisatoren und Admins erhalten einen Analyse-Tab mit Sportler- und
-Monatsfiltern, Meter-Summen, Trainingsanzahl, aktiven Tagen, durchschnittlicher
+Monatsfiltern, Meter-Summen, Trainingsanzahl, durchschnittlicher
 Motivation, Jahresverlauf und CSV-Export. Der Export enthält keine Tagebuchtexte.
 Sportler ohne Einträge im ausgewählten Jahr werden nicht in der Analyse erfasst.
 Die Auswertung lädt jeweils das ausgewählte Jahr und aktualisiert sich live.
@@ -341,7 +341,7 @@ aktuellen Regeln und Indizes zeigt die App eine entsprechende Fehlermeldung.
 Berechnungen und Eingabeprüfung testen:
 
 ```powershell
-node --test tests/training_core.test.cjs
+node --test tests/training_core.test.cjs tests/training_store.test.cjs
 ```
 
 Die Sicherheitstests benötigen einen lokalen Firestore-Emulator mit den Regeln
