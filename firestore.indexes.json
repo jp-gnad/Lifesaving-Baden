@@ -1,4 +1,15 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "trainingMetrics",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "date", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "trainingNotes",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }, { "fieldPath": "date", "order": "ASCENDING" }]
+    }
+  ],
   "fieldOverrides": []
 }

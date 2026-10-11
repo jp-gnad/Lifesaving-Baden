@@ -87,6 +87,8 @@ service cloud.firestore {
         "organizerGrantedBy",
         "adminSince",
         "adminGrantedBy",
+        "kader",
+        "isKaderAthlete",
         "personLinkDecision"
       ])
       && ownerKeepsLinkFieldsSafe(changedKeys);
@@ -183,7 +185,9 @@ service cloud.firestore {
           "organizerSince",
           "organizerGrantedBy",
           "adminSince",
-          "adminGrantedBy"
+          "adminGrantedBy",
+          "kader",
+          "isKaderAthlete"
         ]);
     }
 
@@ -207,6 +211,102 @@ service cloud.firestore {
         || (isOwner(uid) && ownerKeepsProtectedFieldsSafe());
       allow delete: if (isAdmin() && request.auth.uid != uid)
         || (isOwner(uid) && !isAdmin());
+    }
+
+    function trainingAccess() {
+      return verifiedUser() && (isKaderAthlete() || isOrganizer());
+    }
+
+    function validTrainingCommon(data) {
+      return data.uid == request.auth.uid
+        && data.date is timestamp
+        && data.date == data.date.date()
+        && data.date >= timestamp.date(2000, 1, 1)
+        // Civil training dates can be one UTC day ahead around local midnight.
+        && data.date <= request.time.date() + duration.value(1, "d")
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    function trainingDocumentsMatch(entryId, data) {
+      let metrics = getAfter(/databases/$(database)/documents/trainingMetrics/$(entryId)).data;
+      let notes = getAfter(/databases/$(database)/documents/trainingNotes/$(entryId)).data;
+      return metrics.uid == data.uid && notes.uid == data.uid
+        && metrics.date == data.date && notes.date == data.date
+        && metrics.createdAt == data.createdAt && notes.createdAt == data.createdAt
+        && metrics.updatedAt == data.updatedAt && notes.updatedAt == data.updatedAt;
+    }
+
+    function trainingParentMatches(entryId, data) {
+      let entry = getAfter(/databases/$(database)/documents/trainingEntries/$(entryId)).data;
+      return entry.uid == data.uid && entry.date == data.date
+        && entry.createdAt == data.createdAt && entry.updatedAt == data.updatedAt;
+    }
+
+    function trainingTimesSafeOnUpdate() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validTrainingEntry(data) {
+      return data.keys().hasAll(["uid", "date", "athleteName", "meters", "createdAt", "updatedAt"])
+        && data.keys().hasOnly(["uid", "date", "athleteName", "meters", "createdAt", "updatedAt"])
+        && validTrainingCommon(data)
+        && data.athleteName is string
+        && data.athleteName.size() > 0 && data.athleteName.size() <= 120
+        && data.meters is int && data.meters > 0 && data.meters <= 100000;
+    }
+
+    function validTrainingMetrics(data) {
+      return data.keys().hasAll(["uid", "date", "motivation", "createdAt", "updatedAt"])
+        && data.keys().hasOnly(["uid", "date", "motivation", "createdAt", "updatedAt"])
+        && validTrainingCommon(data)
+        && data.motivation is int && data.motivation >= 1 && data.motivation <= 10;
+    }
+
+    function validTrainingNote(data) {
+      return data.keys().hasAll(["uid", "date", "text", "createdAt", "updatedAt"])
+        && data.keys().hasOnly(["uid", "date", "text", "createdAt", "updatedAt"])
+        && validTrainingCommon(data)
+        && data.text is string && data.text.size() <= 5000;
+    }
+
+    match /trainingEntries/{entryId} {
+      // Owners retain access to their own distances for account-data deletion after a role change.
+      allow read: if trainingAccess() || isOwner(resource.data.uid);
+      allow create: if trainingAccess() && validTrainingEntry(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && trainingDocumentsMatch(entryId, request.resource.data);
+      allow update: if trainingAccess() && isOwner(resource.data.uid)
+        && validTrainingEntry(request.resource.data) && trainingTimesSafeOnUpdate()
+        && trainingDocumentsMatch(entryId, request.resource.data);
+      allow delete: if isOwner(resource.data.uid)
+        && !existsAfter(/databases/$(database)/documents/trainingMetrics/$(entryId))
+        && !existsAfter(/databases/$(database)/documents/trainingNotes/$(entryId));
+    }
+
+    match /trainingMetrics/{entryId} {
+      allow read: if trainingAccess() && (isOwner(resource.data.uid) || isOrganizer());
+      allow create: if trainingAccess() && validTrainingMetrics(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && trainingParentMatches(entryId, request.resource.data);
+      allow update: if trainingAccess() && isOwner(resource.data.uid)
+        && validTrainingMetrics(request.resource.data) && trainingTimesSafeOnUpdate()
+        && trainingParentMatches(entryId, request.resource.data);
+      allow delete: if isOwner(resource.data.uid)
+        && !existsAfter(/databases/$(database)/documents/trainingEntries/$(entryId));
+    }
+
+    match /trainingNotes/{entryId} {
+      allow read: if trainingAccess() && isOwner(resource.data.uid);
+      allow create: if trainingAccess() && validTrainingNote(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && trainingParentMatches(entryId, request.resource.data);
+      allow update: if trainingAccess() && isOwner(resource.data.uid)
+        && validTrainingNote(request.resource.data) && trainingTimesSafeOnUpdate()
+        && trainingParentMatches(entryId, request.resource.data);
+      allow delete: if isOwner(resource.data.uid)
+        && !existsAfter(/databases/$(database)/documents/trainingEntries/$(entryId));
     }
 
     function validTimerEvent(data) {

@@ -1628,6 +1628,10 @@
     return Boolean(
       hasRole(claims?.role, ["kader-sportler", "kadersportler", "kader"])
       || hasRole(data?.role, ["kader-sportler", "kadersportler", "kader"])
+      || claims?.kader === true
+      || claims?.isKaderAthlete === true
+      || data?.kader === true
+      || data?.isKaderAthlete === true
     );
   }
 
@@ -3041,7 +3045,7 @@
     }
 
     const confirmed = window.confirm(
-      "Konto wirklich löschen? Diese Aktion entfernt dein Konto und deine gespeicherten Einstellungen."
+      "Konto wirklich löschen? Diese Aktion entfernt dein Konto, deine gespeicherten Einstellungen und dein Trainingstagebuch."
     );
 
     if (!confirmed) {
@@ -3052,16 +3056,34 @@
       setLoading(deleteButton, true, "Löschen...");
 
       if (window.firebase.firestore) {
-        await window.firebase.firestore().collection("users").doc(user.uid).delete();
+        const db = window.firebase.firestore();
+        await deleteTrainingDataForAccount(db, user.uid);
+        await db.collection("users").doc(user.uid).delete();
       }
 
       clearUserDocCache(user.uid);
       await user.delete();
       redirectToLogin();
     } catch (error) {
-      setDeleteMessage(translateAuthError(error), false);
+      setDeleteMessage(translateProfileSaveError(error), false);
     } finally {
       setLoading(deleteButton, false);
+    }
+  }
+
+  async function deleteTrainingDataForAccount(db, uid) {
+    // Small batches stay below the security-rule document access limit.
+    // The owner query also works after the account has lost its Kader role.
+    while (true) {
+      const entries = await db.collection("trainingEntries").where("uid", "==", uid).limit(4).get({ source: "server" });
+      if (entries.empty) return;
+      const batch = db.batch();
+      entries.docs.forEach((entry) => {
+        ["trainingEntries", "trainingMetrics", "trainingNotes"].forEach((collection) => {
+          batch.delete(db.collection(collection).doc(entry.id));
+        });
+      });
+      await batch.commit();
     }
   }
 

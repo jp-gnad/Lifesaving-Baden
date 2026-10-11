@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Dein Trainingstagebuch bei Lifesaving Baden: Training festhalten, Fortschritt sehen und gemeinsam Meter sammeln.">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f8faf9">
+    <title>Trainingstagebuch · Lifesaving Baden</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="stylesheet" href="styles.css?v=20261011-1">
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+    <script defer src="../assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
+    <script defer src="core.js?v=20261011-1"></script>
+    <script defer src="firestore-api.js?v=20261011-1"></script>
+    <script defer src="app.js?v=20261011-1"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="../app.html" aria-label="Zurück zu Home">
+        <img src="../assets/img/lifesaving-baden-logo.png" alt="">
+        <span>Lifesaving Baden</span>
+      </a>
+      <a class="home-link" href="../app.html"><span aria-hidden="true">←</span> Home</a>
+    </header>
+    <main class="shell">
+      <section class="intro">
+        <div><p class="eyebrow">DEIN TRAINING. DEIN FORTSCHRITT.</p><h1>Trainingstagebuch<span>.</span></h1>
+          <p class="intro-copy">Jeder Meter zählt. Halte fest, was dich weiterbringt.</p></div>
+        <span class="account-chip" id="account-label" hidden></span>
+      </section>
+      <section class="access-panel panel" id="access-panel" aria-live="polite">
+        <img src="icon.svg" alt="" width="64" height="64">
+        <h2 id="access-title">Dein Tagebuch wird geladen</h2>
+        <p id="access-message">Wir prüfen deinen Kader-Zugang.</p>
+        <a class="button primary" id="access-action" href="../app.html" hidden>Zu Home</a>
+      </section>
+      <div id="training-app" hidden>
+        <nav class="tabs" aria-label="Trainingstagebuch">
+          <button class="tab active" type="button" data-view="diary" aria-current="page">Mein Tagebuch</button>
+          <button class="tab" type="button" data-view="ranking">Ranking</button>
+          <button class="tab" type="button" data-view="analysis" id="analysis-tab" hidden>Analyse</button>
+        </nav>
+        <div class="period-bar">
+          <label>Jahr <select id="year-filter" aria-label="Trainingsjahr"></select></label>
+          <p id="sync-status" role="status">Daten werden geladen …</p>
+          <button class="text-button" type="button" id="refresh-data">Aktualisieren</button>
+        </div>
+        <p class="notice error" id="data-error" role="alert" hidden></p>
+        <section id="view-diary" class="view" aria-label="Mein Tagebuch">
+          <div class="stats" id="diary-stats"></div>
+          <div class="diary-grid">
+            <section class="panel entry-panel" aria-labelledby="entry-title">
+              <div class="section-heading"><div><p class="eyebrow">ZEIT FÜR DEINEN RÜCKBLICK</p><h2 id="entry-title">Training eintragen</h2></div><span class="heading-icon" aria-hidden="true">+</span></div>
+              <form id="entry-form">
+                <div class="form-row">
+                  <label for="entry-date">Trainingsdatum<input id="entry-date" name="date" type="date" min="2000-01-01" required></label>
+                  <label for="entry-meters">Geschwommene Meter<span class="input-unit"><input id="entry-meters" name="meters" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="z. B. 3.000" required><span>m</span></span></label>
+                </div>
+                <div class="motivation-field"><label for="entry-motivation">Deine Motivation <output id="motivation-value" for="entry-motivation">7 / 10</output></label>
+                  <input id="entry-motivation" name="motivation" type="range" min="1" max="10" step="1" value="7">
+                  <div class="scale-labels"><span>1 · wenig motiviert</span><span>10 · voll motiviert</span></div>
+                </div>
+                <label for="entry-text">Dein Rückblick <span class="optional">optional</span><textarea id="entry-text" name="text" rows="5" maxlength="5000" placeholder="Wie lief dein Training? Was hat sich gut angefühlt?"></textarea></label>
+                <div class="text-meta"><span>Dieser Text ist nur für dich sichtbar.</span><span id="text-count">0 / 5.000</span></div>
+                <p class="sharing-note">Deine Meter und dein Name erscheinen im Kader-Ranking. Organisatoren können Meter und Motivation auswerten.</p>
+                <p id="form-message" class="form-message" role="status"></p>
+                <div class="form-actions"><button class="button primary" type="submit" id="save-entry">Training speichern <span aria-hidden="true">↗</span></button><button class="text-button" type="button" id="cancel-edit" hidden>Abbrechen</button></div>
+              </form>
+            </section>
+            <section class="panel history-panel" aria-labelledby="history-title">
+              <div class="section-heading"><div><p class="eyebrow">DEINE EINHEITEN</p><h2 id="history-title">Letzte Trainings</h2></div><span class="count-chip" id="history-count">0</span></div>
+              <label class="history-filter">Monat <select id="diary-month"><option value="">Alle Monate</option></select></label>
+              <div id="entry-list" aria-live="polite"><p class="empty-state">Deine Einträge werden geladen …</p></div>
+            </section>
+          </div>
+        </section>
+        <section id="view-ranking" class="view" aria-label="Ranking" hidden>
+          <div class="view-heading"><div><p class="eyebrow">GEMEINSAM METER SAMMELN</p><h2>Wer schwimmt vorne?</h2><p>Alle eingetragenen Meter im gewählten Zeitraum.</p></div></div>
+          <div class="ranking-grid">
+            <section class="panel"><div class="section-heading"><h3>Monatsranking</h3><select id="ranking-month" aria-label="Monat für Monatsranking"></select></div><div id="monthly-ranking"></div></section>
+            <section class="panel"><div class="section-heading"><h3>Jahresranking</h3><span class="count-chip" id="ranking-year"></span></div><div id="yearly-ranking"></div></section>
+          </div>
+          <p class="fine-print">Bei gleicher Meterzahl teilen sich Sportler einen Platz. Tagebuchtexte und Motivation sind im Ranking nicht sichtbar.</p>
+        </section>
+        <section id="view-analysis" class="view" aria-label="Analyse für Organisatoren" hidden>
+          <div class="view-heading"><div><p class="eyebrow">TRAINING IM BLICK</p><h2>Kader-Auswertung</h2><p>Umfang, Regelmäßigkeit und Motivation im gewählten Zeitraum.</p></div><button class="button secondary" type="button" id="export-analysis">CSV exportieren</button></div>
+          <div class="analysis-filters"><label>Sportler<select id="analysis-athlete"><option value="">Alle Sportler</option></select></label><label>Zeitraum<select id="analysis-month"><option value="">Gesamtes Jahr</option></select></label></div>
+          <div class="stats" id="analysis-stats"></div>
+          <section class="panel chart-panel"><div class="section-heading"><h3>Trainingsumfang im Jahresverlauf</h3><span class="subtle">Meter pro Monat</span></div><div id="volume-chart"></div></section>
+          <section class="panel"><div class="section-heading"><h3>Sportler im Überblick</h3><span class="subtle">Für den gewählten Zeitraum</span></div><div class="table-scroll" id="athlete-table"></div></section>
+          <p class="fine-print">Die Auswertung basiert auf selbst eingetragenen Trainings. Private Tagebuchtexte bleiben beim Sportler.</p>
+        </section>
+      </div>
+    </main>
+    <footer class="app-footer"><span>Lifesaving Baden · Trainingstagebuch</span><nav aria-label="Rechtliches"><a href="../impressum.html">Impressum</a><a href="../datenschutz.html">Datenschutz</a></nav></footer>
+    <noscript><p class="notice">Bitte aktiviere JavaScript, um das Trainingstagebuch zu nutzen.</p></noscript>
+    <dialog id="delete-dialog"><h2>Training löschen?</h2><p>Meter, Motivation und Tagebuchtext dieses Trainings werden gelöscht. Das Ranking wird neu berechnet.</p><p id="delete-error" role="alert"></p><div class="form-actions"><button class="button secondary" type="button" id="cancel-delete">Abbrechen</button><button class="button danger" type="button" id="confirm-delete">Training löschen</button></div></dialog>
+  </body>
+</html>
