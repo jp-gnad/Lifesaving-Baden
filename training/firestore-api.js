@@ -4,7 +4,6 @@
   let db;
   let auth;
   let context = null;
-  let authListener = null;
   let stopProfile = null;
   let generation = 0;
 
@@ -26,7 +25,6 @@
   }
 
   async function start(listener) {
-    authListener = listener;
     if (!window.isFirebaseConfigured || !window.firebase?.firestore) {
       listener({ error: "Die Anmeldung konnte nicht geladen werden. Bitte prüfe deine Internetverbindung und lade die Seite erneut." });
       return;
@@ -40,8 +38,10 @@
       const currentGeneration = ++generation;
       stopProfile?.();
       stopProfile = null;
-      context = null;
-      listener({ loading: true });
+      if (!user || context?.uid !== user.uid) {
+        context = null;
+        listener({ loading: true });
+      }
       if (!user) { listener({ signedIn: false }); return; }
       try {
         const token = await user.getIdTokenResult();
@@ -69,7 +69,10 @@
           listener({ error: translated(error).message });
         });
       } catch (error) {
-        if (currentGeneration === generation) listener({ error: translated(error).message });
+        if (currentGeneration === generation) {
+          context = null;
+          listener({ error: translated(error).message });
+        }
       }
     });
   }

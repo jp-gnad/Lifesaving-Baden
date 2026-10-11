@@ -44,7 +44,13 @@
   function syncForm() {
     $("motivation-value").value = `${$("entry-motivation").value} / 10`;
     $("entry-motivation").setAttribute("aria-valuetext", `${$("entry-motivation").value} von 10`);
-    $("text-count").textContent = `${core.formatNumber($("entry-text").value.length)} / 5.000`;
+  }
+
+  function syncDate() {
+    const date = $("entry-date").value;
+    const label = date === core.today() ? "Heute" : date.split("-").reverse().join(".");
+    $("date-toggle").textContent = `${label} ⌄`;
+    $("date-toggle").setAttribute("aria-label", `${label}, Trainingsdatum ändern`);
   }
 
   function formMessage(text, error = false) {
@@ -56,10 +62,13 @@
     state.editing = null;
     $("entry-form").reset();
     $("entry-date").value = core.today();
-    $("entry-title").textContent = "Training eintragen";
-    $("save-entry").textContent = "Training speichern ↗";
+    $("entry-title").textContent = "Neues Training";
+    $("save-entry").textContent = "Speichern";
     $("cancel-edit").hidden = true;
+    $("date-field").hidden = true;
+    $("date-toggle").setAttribute("aria-expanded", "false");
     syncForm();
+    syncDate();
     if (clearMessage) formMessage("");
   }
 
@@ -69,16 +78,6 @@
       element.append(node("p", "stat-label", label), node("p", "stat-value", value), node("p", "stat-note", note));
       return element;
     }));
-  }
-
-  function displayStats(target, entries, scope) {
-    const sum = core.summary(entries);
-    stats(target, [
-      ["Geschwommene Meter", core.formatMeters(sum.meters), scope],
-      ["Trainings", core.formatNumber(sum.count), `${sum.days} aktive Trainingstage`],
-      ["Ø Motivation", sum.motivation === null ? "—" : `${core.formatDecimal(sum.motivation)} / 10`, "Durchschnitt deiner Einträge"],
-      ["Ø Trainingsumfang", core.formatMeters(Math.round(sum.averageMeters)), "Pro Trainingseinheit"]
-    ]);
   }
 
   function ownEntries() { return state.entries.filter((entry) => entry.uid === state.identity?.uid); }
@@ -92,33 +91,37 @@
     $("entry-motivation").value = entry.motivation;
     $("entry-text").value = entry.text;
     $("entry-title").textContent = "Training bearbeiten";
-    $("save-entry").textContent = "Änderungen speichern";
+    $("save-entry").textContent = "Speichern";
     $("cancel-edit").hidden = false;
     formMessage("");
     syncForm();
-    $("entry-title").scrollIntoView({ behavior: "smooth", block: "center" });
-    $("entry-date").focus({ preventScroll: true });
+    syncDate();
+    setView("diary");
+    $("entry-meters").focus({ preventScroll: true });
   }
 
   function renderDiary() {
     const entries = core.inPeriod(ownEntries(), period($("diary-month").value))
       .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    displayStats($("diary-stats"), entries, $("diary-month").value ? `${monthNames[Number($("diary-month").value) - 1]} ${$("year-filter").value}` : `Im Jahr ${$("year-filter").value}`);
+    $("history-total").textContent = core.formatMeters(core.summary(entries).meters);
     $("history-count").textContent = String(entries.length);
-    $("history-title").textContent = `Deine Trainings · ${$("year-filter").value}`;
+    $("history-title").textContent = "Deine Trainings";
     if (!entries.length) {
-      empty($("entry-list"), state.loading ? "Trainings werden geladen" : "Dein nächster Schritt beginnt hier", state.loading ? "Einen Moment bitte." : "Trage dein erstes Training ein oder wähle einen anderen Zeitraum.");
+      empty($("entry-list"), state.loading ? "Wird geladen …" : "Noch keine Trainings", "");
       return;
     }
     $("entry-list").replaceChildren(...entries.map((entry) => {
-      const article = node("article", "entry");
-      const top = node("div", "entry-top");
+      const article = node("details", "entry");
+      const top = node("summary", "entry-top");
       const date = node("time", "entry-date", new Intl.DateTimeFormat("de-DE", {
-        weekday: "short", day: "2-digit", month: "long", timeZone: "UTC"
+        day: "2-digit", month: "short", timeZone: "UTC"
       }).format(new Date(`${entry.date}T00:00:00Z`)));
       date.dateTime = entry.date;
-      top.append(date, node("span", "entry-meters", core.formatMeters(entry.meters)));
-      article.append(top, node("p", "entry-motivation", `Motivation ${entry.motivation} / 10`));
+      const motivation = node("span", "entry-motivation", `${entry.motivation}/10`);
+      motivation.title = "Motivation";
+      motivation.setAttribute("aria-label", `Motivation ${entry.motivation} von 10`);
+      top.append(date, node("span", "entry-meters", core.formatMeters(entry.meters)), motivation);
+      article.append(top);
       if (entry.text) article.append(node("p", "entry-text", entry.text));
       const actions = node("div", "entry-actions");
       const edit = node("button", "text-button", "Bearbeiten");
@@ -143,14 +146,13 @@
 
   function renderRankingList(target, entries) {
     const ranked = core.ranking(entries);
-    if (!ranked.length) { empty(target, "Die Bahn ist noch frei", "Für diesen Zeitraum wurde noch kein Training eingetragen."); return; }
+    if (!ranked.length) { empty(target, "Noch keine Trainings", ""); return; }
     const list = node("div", "rank-list");
     list.setAttribute("role", "list");
     ranked.forEach((athlete) => {
       const row = node("div", `rank-row${athlete.uid === state.identity.uid ? " is-me" : ""}`);
       row.setAttribute("role", "listitem");
       const name = node("div", "rank-name", `${athlete.name}${athlete.uid === state.identity.uid ? " · Du" : ""}`);
-      name.append(node("small", "", `${athlete.count} ${athlete.count === 1 ? "Training" : "Trainings"}`));
       row.append(node("span", "rank-number", String(athlete.rank)), name, node("span", "rank-distance", core.formatMeters(athlete.meters)));
       list.append(row);
     });
@@ -182,10 +184,9 @@
     const entries = analysisEntries();
     const sum = core.summary(entries);
     stats($("analysis-stats"), [
-      ["Trainingsumfang", core.formatMeters(sum.meters), "Im gewählten Zeitraum"],
-      ["Trainings", core.formatNumber(sum.count), `${new Set(entries.map((entry) => entry.uid)).size} aktive Sportler`],
-      ["Ø Motivation", sum.motivation === null ? "—" : `${core.formatDecimal(sum.motivation)} / 10`, "Durchschnitt aller Einträge"],
-      ["Ø Trainingsumfang", core.formatMeters(Math.round(sum.averageMeters)), "Pro Trainingseinheit"]
+      ["Meter", core.formatMeters(sum.meters), ""],
+      ["Trainings", core.formatNumber(sum.count), ""],
+      ["Ø Motivation", sum.motivation === null ? "—" : `${core.formatDecimal(sum.motivation)} / 10`, ""]
     ]);
     const yearEntries = state.entries.filter((entry) => !$("analysis-athlete").value || entry.uid === $("analysis-athlete").value);
     const months = core.monthly(yearEntries, $("year-filter").value);
@@ -203,14 +204,14 @@
     });
     $("volume-chart").replaceChildren(chart);
     $("export-analysis").disabled = state.loading || !entries.length;
-    if (!entries.length) { empty($("athlete-table"), "Noch keine Daten", "Wähle einen anderen Zeitraum oder Sportler."); return; }
+    if (!entries.length) { empty($("athlete-table"), "Noch keine Daten", ""); return; }
     const table = node("table");
     const caption = node("caption", "", "Trainingsauswertung nach Sportler");
     caption.hidden = true;
     table.append(caption);
     const head = node("thead");
     const header = node("tr");
-    ["Sportler", "Meter", "Trainings", "Trainingstage", "Ø Motivation", "Letztes Training"].forEach((label) => {
+    ["Sportler", "Meter", "Trainings", "Ø Motivation"].forEach((label) => {
       const th = node("th", "", label);
       th.scope = "col";
       header.append(th);
@@ -227,9 +228,8 @@
       button.addEventListener("click", () => { $("analysis-athlete").value = athlete.uid; renderAnalysis(); });
       name.append(button);
       row.append(name);
-      [core.formatMeters(totals.meters), String(totals.count), String(totals.days),
-        totals.motivation === null ? "—" : `${core.formatDecimal(totals.motivation)} / 10`,
-        athleteEntries.map((entry) => entry.date).sort().at(-1).split("-").reverse().join(".")]
+      [core.formatMeters(totals.meters), String(totals.count),
+        totals.motivation === null ? "—" : `${core.formatDecimal(totals.motivation)} / 10`]
         .forEach((value) => row.append(node("td", "", value)));
       body.append(row);
     });
@@ -251,7 +251,8 @@
       if (tab.dataset.view === view) tab.setAttribute("aria-current", "page");
       else tab.removeAttribute("aria-current");
     });
-    ["diary", "ranking", "analysis"].forEach((name) => { $(`view-${name}`).hidden = name !== view; });
+    ["diary", "history", "ranking", "analysis"].forEach((name) => { $(`view-${name}`).hidden = name !== view; });
+    $("period-bar").hidden = view === "diary";
   }
 
   function loadYear() {
@@ -259,22 +260,21 @@
     state.stop = null;
     state.entries = [];
     state.loading = true;
-    $("data-error").hidden = true;
-    $("sync-status").textContent = "Daten werden geladen …";
-    $("entry-form").querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = true; });
+    $("data-error-shell").hidden = true;
+    $("sync-status").hidden = false;
+    $("sync-status").textContent = "Wird geladen …";
     render();
     state.stop = store.watchYear($("year-filter").value, (entries) => {
       state.entries = entries;
       state.loading = false;
-      $("sync-status").textContent = "Auf dem aktuellen Stand";
-      $("data-error").hidden = true;
-      if (!state.busy) $("entry-form").querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = false; });
+      $("sync-status").hidden = true;
+      $("data-error-shell").hidden = true;
       render();
     }, (error) => {
       state.loading = false;
       $("data-error").textContent = error.message;
-      $("data-error").hidden = false;
-      $("sync-status").textContent = "Daten konnten nicht geladen werden";
+      $("data-error-shell").hidden = false;
+      $("sync-status").hidden = true;
       $("export-analysis").disabled = true;
     });
   }
@@ -297,27 +297,27 @@
       $("access-panel").hidden = false;
       $("access-action").hidden = Boolean(identity.loading);
       if (identity.loading) {
-        $("access-title").textContent = "Dein Tagebuch wird geladen";
-        $("access-message").textContent = "Wir prüfen deinen Kader-Zugang.";
+        $("access-title").textContent = "Wird geladen …";
+        $("access-message").textContent = "Zugang wird geprüft.";
       } else if (identity.error) {
         $("access-title").textContent = "Verbindung nicht möglich";
         $("access-message").textContent = identity.error;
       } else if (!identity.signedIn || !identity.verified) {
         $("access-title").textContent = "Melde dich an";
-        $("access-message").textContent = "Für dein Trainingstagebuch brauchst du ein bestätigtes Konto mit Kader-Zugang.";
+        $("access-message").textContent = "Bitte nutze dein bestätigtes Kader-Konto.";
         const target = new URL("../login.html", window.location.href);
         target.searchParams.set("returnTo", window.location.href);
         $("access-action").href = target.href;
         $("access-action").textContent = "Zur Anmeldung";
       } else {
         $("access-title").textContent = "Für den Kader reserviert";
-        $("access-message").textContent = "Das Trainingstagebuch ist für Kader-Sportler, Organisatoren und Admins verfügbar.";
+        $("access-message").textContent = "Zugang ab Kader-Sportler.";
         $("access-action").href = "../app.html";
         $("access-action").textContent = "Zu Home";
       }
       return;
     }
-    $("account-label").textContent = `${identity.name} · ${identity.label}`;
+    $("account-label").textContent = identity.name;
     $("account-label").hidden = false;
     $("access-panel").hidden = true;
     $("training-app").hidden = false;
@@ -328,7 +328,7 @@
 
   $("entry-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (state.busy || state.loading || !state.identity?.allowed) return;
+    if (state.busy || !state.identity?.allowed) return;
     const fields = { date: $("entry-date").value, meters: $("entry-meters").value,
       motivation: $("entry-motivation").value, text: $("entry-text").value };
     let validated;
@@ -336,22 +336,24 @@
     catch (error) { formMessage(error.message, true); return; }
     const wasEdit = Boolean(state.editing);
     state.busy = true;
+    $("date-toggle").disabled = true;
     $("entry-form").querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = true; });
-    $("save-entry").textContent = "Wird gespeichert …";
+    $("save-entry").textContent = "Speichert …";
     renderDiary();
     try {
       await store.saveEntry(validated, state.editing);
       if (!state.identity?.allowed) return;
       resetForm(false);
-      formMessage(wasEdit ? "Dein Training wurde aktualisiert." : "Dein Training ist gespeichert.");
+      formMessage(wasEdit ? "Aktualisiert ✓" : "Gespeichert ✓");
       const savedYear = validated.date.slice(0, 4);
       $("diary-month").value = "";
       if ($("year-filter").value !== savedYear) { $("year-filter").value = savedYear; loadYear(); }
     } catch (error) { formMessage(error.message, true); }
     finally {
       state.busy = false;
-      $("entry-form").querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = state.loading; });
-      $("save-entry").textContent = state.editing ? "Änderungen speichern" : "Training speichern ↗";
+      $("date-toggle").disabled = false;
+      $("entry-form").querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = false; });
+      $("save-entry").textContent = "Speichern";
       renderDiary();
     }
   });
@@ -366,7 +368,7 @@
       await store.deleteEntry(entry);
       if (state.editing?.id === entry.id) resetForm();
       $("delete-dialog").close();
-      formMessage("Das Training wurde gelöscht.");
+      formMessage("Gelöscht ✓");
       state.deleting = null;
     } catch (error) { $("delete-error").textContent = error.message; }
     finally {
@@ -381,9 +383,16 @@
   $("cancel-edit").addEventListener("click", () => resetForm());
   $("entry-motivation").addEventListener("input", syncForm);
   $("entry-text").addEventListener("input", syncForm);
+  $("entry-date").addEventListener("change", syncDate);
+  $("date-toggle").addEventListener("click", () => {
+    $("date-field").hidden = !$("date-field").hidden;
+    $("date-toggle").setAttribute("aria-expanded", String(!$("date-field").hidden));
+    if (!$("date-field").hidden) $("entry-date").focus();
+  });
   document.querySelectorAll("[data-view]").forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
   $("year-filter").addEventListener("change", loadYear);
   $("refresh-data").addEventListener("click", loadYear);
+  $("retry-data").addEventListener("click", loadYear);
   $("diary-month").addEventListener("change", renderDiary);
   $("ranking-month").addEventListener("change", renderRankings);
   $("analysis-athlete").addEventListener("change", renderAnalysis);

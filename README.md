@@ -289,6 +289,73 @@ Danach ist die Seite unter `http://localhost:8080` erreichbar.
 3. Als Source den Branch `main` und den Ordner `/root` auswählen.
 4. Speichern. GitHub zeigt danach die öffentliche URL an.
 
+## Trainingstagebuch
+
+Das Trainingstagebuch ist unter `training/` erreichbar. Auf der Mitglieder-Home
+erscheint die App für bestätigte Konten mit Kader-, Organisator- oder Adminrechten.
+Normale Sportler erhalten keinen Zugang. Die Firestore-Regeln schützen die Daten
+auch bei direktem Aufruf der URL.
+
+Ein Training enthält ein Trainingsdatum, eine ganze Meterzahl (1–100.000 m),
+Motivation auf einer Skala von 1 bis 10 und einen optionalen Tagebuchtext
+(bis 5.000 Zeichen). Mehrere Einheiten pro Tag und nachträgliche Einträge sind
+möglich. Eigene Trainings können bearbeitet und vollständig gelöscht werden.
+Die App startet direkt mit dem kurzen Eingabeformular; das Datum ist auf heute
+voreingestellt. Vergangene Einträge stehen separat unter `Verlauf`. Die Eingabe
+ist bereits während des Ladens von Verlauf und Rankings möglich.
+Monats- und Jahresrankings summieren die Meter je Firebase UID; gleiche
+Meterzahlen erhalten denselben Platz. Die Kalenderauswahl nutzt Europe/Berlin.
+
+Die Daten sind in drei Collections mit derselben Eintrags-ID aufgeteilt:
+
+```text
+trainingEntries/{entryId}   # UID, Anzeigename, Datum, Meter, Zeitstempel
+trainingMetrics/{entryId}   # UID, Datum, Motivation, Zeitstempel
+trainingNotes/{entryId}     # UID, Datum, privater Tagebuchtext, Zeitstempel
+```
+
+Kader-Konten sehen Namen und Meter im Ranking. Motivation ist für den jeweiligen
+Sportler sowie für Organisatoren und Admins lesbar. Tagebuchtexte bleiben
+ausschließlich beim jeweiligen Sportler, auch Admins haben keinen Lesezugriff.
+Eintrag, Motivation und Text werden atomar gespeichert, geändert und gelöscht;
+die Regeln prüfen übereinstimmende Eigentümer, Datumswerte und Zeitstempel.
+Eigene Meter bleiben nach einer Rollenänderung für die Kontolöschung lesbar;
+die App und die Daten anderer Sportler sind dann gesperrt. Bei der Kontolöschung
+werden die eigenen Trainings vor dem Nutzerdokument entfernt.
+
+Organisatoren und Admins erhalten einen Analyse-Tab mit Sportler- und
+Monatsfiltern, Meter-Summen, Trainingsanzahl, aktiven Tagen, durchschnittlicher
+Motivation, Jahresverlauf und CSV-Export. Der Export enthält keine Tagebuchtexte.
+Sportler ohne Einträge im ausgewählten Jahr werden nicht in der Analyse erfasst.
+Die Auswertung lädt jeweils das ausgewählte Jahr und aktualisiert sich live.
+
+Für die Inbetriebnahme müssen Regeln **und Indizes** veröffentlicht werden:
+
+```powershell
+npx firebase-tools deploy --only firestore --project lifesaving-baden
+```
+
+Die Webdateien werden wie bisher über GitHub Pages veröffentlicht. Ohne die
+aktuellen Regeln und Indizes zeigt die App eine entsprechende Fehlermeldung.
+
+Berechnungen und Eingabeprüfung testen:
+
+```powershell
+node --test tests/training_core.test.cjs
+```
+
+Die Sicherheitstests benötigen einen lokalen Firestore-Emulator mit den Regeln
+aus diesem Repository, das Projekt `demo-training` und eine aktuelle Java-Laufzeit:
+
+```powershell
+npx firebase-tools emulators:start --only firestore --project demo-training
+$env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080'
+node --test tests/training_rules.test.cjs
+```
+
+Die Tests verwenden ausschließlich synthetische Konten im lokalen Emulator und
+prüfen Zugriff, Rollenvergabe, Textprivatsphäre, Eingaben und atomare Änderungen.
+
 ## Integrierter Lifesaving Timer
 
 Der Timer verwendet keine eigene Cloudflare-Datenbank mehr. Events, Personen
