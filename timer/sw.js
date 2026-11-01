@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v18";
+const staticCache = "lifesaving-timer-static-firebase-v19";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -7,7 +7,7 @@ const relativeAppShell = [
   "./styles.css?v=firebase-access-v16",
   "./app.js?v=firebase-access-v18",
   "./firestore-api.js?v=firebase-access-v18",
-  "../assets/js/auth-core.js?v=20261101-shared-login-v1",
+  "../assets/js/auth-core.js?v=20261101-ios-return-v2",
   "../assets/js/firebase-config.js?v=timer-firebase-v1",
   "../assets/img/elch-gelb.png",
   "./icons.svg?v=event-settings",
@@ -18,6 +18,8 @@ const relativeAppShell = [
   "./manifest.webmanifest?v=baden-brand-v1",
 ];
 const appShell = relativeAppShell.map((path) => new URL(path, baseUrl).href);
+const authScripts = ["../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/firebase-config.js"]
+  .map((path) => new URL(path, baseUrl).href);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(staticCache).then((cache) => cache.addAll(appShell)));
@@ -52,6 +54,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  const scriptUrl = new URL(url.href);
+  scriptUrl.search = "";
+  if (authScripts.includes(scriptUrl.href)) {
+    event.respondWith(networkFirst(request, staticCache));
+    return;
+  }
 
   if (request.mode === "navigate") {
     const fallback = url.pathname.endsWith("/timer/login.html")

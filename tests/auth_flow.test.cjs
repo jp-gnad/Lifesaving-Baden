@@ -211,6 +211,117 @@ test("Google uses the same login flow and returns to the exact timer event", asy
   assert.equal(h.counts.reads, 0);
 });
 
+test("Google auth events complete the login even while the popup promise is still pending", async () => {
+  const gate = deferred();
+  const h = harness();
+  const user = h.prepareUser({ uid: "google", providerData: [{ providerId: "google.com" }] });
+  h.auth.signInWithPopup = () => gate.promise;
+  h.login();
+  const clicked = h.element("[data-google-login]").handlers.click();
+  await new Promise(setImmediate);
+  h.auth.currentUser = user;
+  h.callbacks.auth(user);
+  await new Promise(setImmediate);
+  const redirectsBeforePopupSettled = h.counts.redirects.length;
+  gate.resolve({ user });
+  await clicked;
+  assert.equal(redirectsBeforePopupSettled, 1);
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("returning to the app recovers a Google session without waiting for the popup result", async () => {
+  const gate = deferred();
+  const h = harness();
+  const user = h.prepareUser({ uid: "google", providerData: [{ providerId: "google.com" }] });
+  h.auth.signInWithPopup = () => gate.promise;
+  h.login();
+  const clicked = h.element("[data-google-login]").handlers.click();
+  await new Promise(setImmediate);
+  h.auth.currentUser = user;
+  h.callbacks.visibilitychange();
+  await new Promise(setImmediate);
+  const redirectsBeforePopupSettled = h.counts.redirects.length;
+  gate.resolve({ user });
+  await clicked;
+  assert.equal(redirectsBeforePopupSettled, 1);
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("a closed-popup error still completes an already delivered Google session", async () => {
+  const h = harness();
+  h.auth.signInWithPopup = async () => {
+    h.auth.currentUser = h.prepareUser({ uid: "google", providerData: [{ providerId: "google.com" }] });
+    throw { code: "auth/popup-closed-by-user" };
+  };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirects.length, 1);
+  assert.equal(h.element('[data-form-message="login"]').textContent, "");
+  assert.equal(h.element("[data-google-login]").disabled, true);
+});
+
+test("a closed popup with no session shows its safe error code and allows retrying", async () => {
+  const h = harness();
+  h.window.navigator = { standalone: true };
+  h.auth.signInWithPopup = async () => { throw { code: "auth/popup-closed-by-user", message: "sensitive-details" }; };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirects.length, 0);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+  assert.match(h.element('[data-form-message="login"]').textContent, /Google-Fenster/);
+  const details = h.element("[data-login-error-details]");
+  assert.equal(details.hidden, false);
+  assert.match(details.textContent, /auth\/popup-closed-by-user/);
+  assert.match(details.textContent, /Web-App/);
+  assert.doesNotMatch(details.textContent, /sensitive-details/);
+});
+
+test("the Google popup is opened synchronously from the click after persistence preparation", async () => {
+  const h = harness({ user: { uid: "google", providerData: [{ providerId: "google.com" }] } });
+  let opened = false;
+  h.auth.signInWithPopup = () => { opened = true; return Promise.resolve({ user: h.auth.currentUser }); };
+  h.login();
+  await new Promise(setImmediate);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+  const clicked = h.element("[data-google-login]").handlers.click();
+  assert.equal(opened, true);
+  await clicked;
+});
+
+test("a page restart during Google login reports a missing app session without storing account details", async () => {
+  const h = harness();
+  h.window.sessionStorage.setItem("lifesaving-baden:google-login-started", String(Date.now()));
+  h.login();
+  h.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-session-missing/);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+});
+
+test("a page restart restores an existing Google session and redirects once", async () => {
+  const h = harness({ user: { uid: "google", providerData: [{ providerId: "google.com" }] } });
+  h.window.sessionStorage.setItem("lifesaving-baden:google-login-started", String(Date.now()));
+  h.login();
+  h.callbacks.auth(h.auth.currentUser);
+  h.callbacks.pageshow();
+  await new Promise(setImmediate);
+  assert.equal(h.counts.redirects.length, 1);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+});
+
+test("Google errors do not erase local storage or sign out a valid account", async () => {
+  const h = harness();
+  h.window.sessionStorage.setItem("unrelated", "keep");
+  let signOuts = 0;
+  h.auth.signOut = async () => { signOuts += 1; };
+  h.auth.signInWithPopup = async () => { throw { code: "auth/network-request-failed" }; };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(signOuts, 0);
+  assert.equal(h.window.sessionStorage.getItem("unrelated"), "keep");
+});
+
 test("registration preserves first/last names for deferred initialization without a database SDK", async () => {
   const h = harness({ user: { uid: "new", emailVerified: false } });
   delete h.window.firebase.firestore;
@@ -363,4 +474,40 @@ test("the installed timer's navigation scope includes the shared login and origi
   const scope = new URL(manifest.scope, base).href;
   assert.ok(new URL(manifest.start_url, base).href.startsWith(scope));
   assert.ok(new URL("../login.html", base).href.startsWith(scope));
+});
+
+test("the timer service worker refreshes auth scripts before using cached copies", async () => {
+  const callbacks = {};
+  let networkRequests = 0;
+  let cacheWrites = 0;
+  const fresh = { ok: true, clone() { return this; } };
+  const cache = { async put() { cacheWrites += 1; }, async match() { throw new Error("Unexpected cache-first auth load"); } };
+  const context = vm.createContext({
+    URL,
+    self: { location: new URL("https://example.test/club/timer/sw.js"), addEventListener(type, fn) { callbacks[type] = fn; } },
+    caches: { async open() { return cache; }, async match() { throw new Error("Unexpected global cached auth script"); } },
+    async fetch() { networkRequests += 1; return fresh; },
+  });
+  vm.runInContext(source("timer/sw.js"), context);
+  let response;
+  callbacks.fetch({ request: { method: "GET", mode: "cors", url: "https://example.test/club/assets/js/auth-core.js?v=latest" }, respondWith(value) { response = value; } });
+  assert.equal(await response, fresh);
+  assert.equal(networkRequests, 1);
+  assert.equal(cacheWrites, 1);
+});
+
+test("the timer service worker retains its auth script fallback when offline", async () => {
+  const callbacks = {};
+  const cached = { ok: true };
+  const cache = { async match() { return cached; } };
+  const context = vm.createContext({
+    URL,
+    self: { location: new URL("https://example.test/club/timer/sw.js"), addEventListener(type, fn) { callbacks[type] = fn; } },
+    caches: { async open() { return cache; } },
+    async fetch() { throw new Error("offline"); },
+  });
+  vm.runInContext(source("timer/sw.js"), context);
+  let response;
+  callbacks.fetch({ request: { method: "GET", mode: "cors", url: "https://example.test/club/assets/js/auth-core.js?v=latest" }, respondWith(value) { response = value; } });
+  assert.equal(await response, cached);
 });

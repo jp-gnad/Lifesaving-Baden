@@ -120,6 +120,19 @@ node --test tests/auth_flow.test.cjs
 python -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
+Beim Google-Login werden Firebase-Anmeldeereignisse und die Rückkehr in die
+App auch während eines offenen Google-Fensters verarbeitet. Ein noch wartendes
+oder bereits geschlossenes Fenster blockiert so keine vorhandene Sitzung.
+Die Timer-App lädt gemeinsame Auth-Skripte bevorzugt aus dem Netz und greift
+bei fehlender Verbindung auf ihren Cache zurück.
+
+Falls die iPhone-Web-App nach der Kontoauswahl auf der Loginseite bleibt,
+zeigt sie bei einem erkannten Fehler den Anmeldecode, die geladene Version und
+den App-/Browsermodus. Ein kurzfristiger Eintrag in `sessionStorage` erkennt
+auch einen Seitenneustart während der Anmeldung; er enthält nur den Startzeitpunkt,
+keine Kontodaten oder Tokens. Diese Angaben helfen, eine fehlende Firebase-Sitzung
+von einem Fehler bei der Rückkehr aus dem Google-Fenster zu unterscheiden.
+
 Gespeicherte Felder:
 
 - `uid`: Firebase UID des Kontos.

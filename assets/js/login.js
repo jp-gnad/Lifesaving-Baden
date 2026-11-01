@@ -1,5 +1,21 @@
 (function () {
   "use strict";
+  const loginVersion = new URL(document.currentScript.src).searchParams.get("v") || "development";
+  const googleAttemptKey = "lifesaving-baden:google-login-started";
+
+  function hasPendingGoogleReturn() {
+    try {
+      const started = Number(window.sessionStorage?.getItem(googleAttemptKey));
+      return started > 0 && Date.now() - started < 10 * 60 * 1000;
+    } catch { return false; }
+  }
+
+  function rememberGoogleAttempt(pending) {
+    try {
+      if (pending) window.sessionStorage?.setItem(googleAttemptKey, String(Date.now()));
+      else window.sessionStorage?.removeItem(googleAttemptKey);
+    } catch { /* Login remains usable when session storage is unavailable. */ }
+  }
   const {
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
     rememberRegistrationName, normalizeNamePart, formatFullName,
@@ -86,8 +102,18 @@
     let loginRedirectStarted = false;
     let verifiedLoginPromise = null;
     let verifiedLoginUid = null;
-    let authActionPending = false;
+    let authAction = null;
+    let checkingGoogleReturn = hasPendingGoogleReturn();
     const localPersistenceReady = ensureLocalAuthPersistence(auth);
+    // Prepare persistence before enabling the button, so the popup opens directly in the click gesture.
+    googleButton.disabled = true;
+    localPersistenceReady.then(() => {
+      if (!checkingGoogleReturn && !authAction && !verifiedLoginPromise) googleButton.disabled = false;
+    });
+    if (checkingGoogleReturn) {
+      setLoading(googleButton, true, "Anmeldung prüfen...");
+      setMessage("login", "Die App wurde während der Google-Anmeldung neu geladen. Deine Anmeldung wird geprüft.");
+    }
 
     async function finishVerifiedLogin(user) {
       if (loginRedirectStarted || !isCurrentUser(user)) {
@@ -100,17 +126,20 @@
 
       verifiedLoginUid = user.uid;
       const pending = (async () => {
+        if (authAction === "google" || checkingGoogleReturn) setLoading(googleButton, true, "Anmeldung prüfen...");
         await localPersistenceReady;
         const activeUser = await reloadUser(user);
         if (!isCurrentUser(activeUser)) return;
 
         if (!hasVerifiedAccess(activeUser)) {
+          if (!authAction) setLoading(googleButton, false);
           showResendButton(true);
           setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du fortfährst.");
           return;
         }
 
         loginRedirectStarted = true;
+        rememberGoogleAttempt(false);
         redirectToApp();
       })();
       verifiedLoginPromise = pending;
@@ -123,7 +152,19 @@
     }
 
     function showLoginError(error) {
-      if (error?.code !== "auth/user-mismatch") setMessage("login", translateAuthError(error));
+      if (loginRedirectStarted || error?.code === "auth/user-mismatch") return;
+      if (!authAction) setLoading(googleButton, false);
+      const code = /^(auth|app)\/[a-z0-9-]+$/.test(error?.code || "") ? error.code : "app/unknown-login-error";
+      const message = code === "app/google-session-missing"
+        ? "Die Google-Anmeldung ist in dieser Web-App noch nicht angekommen. Bitte versuche es erneut."
+        : translateAuthError(error);
+      setMessage("login", message);
+      const details = document.querySelector("[data-login-error-details]");
+      if (details) {
+        const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
+        details.hidden = false;
+        details.textContent = `Anmeldecode: ${code} · Version: ${loginVersion} · ${standalone ? "Web-App" : "Browser"}`;
+      }
     }
 
     if (params.has("verified")) {
@@ -137,14 +178,23 @@
     auth.onAuthStateChanged((user) => {
       if (!user) {
         showResendButton(false);
+        if (checkingGoogleReturn) {
+          checkingGoogleReturn = false;
+          rememberGoogleAttempt(false);
+          setLoading(googleButton, false);
+          showLoginError({ code: "app/google-session-missing" });
+        }
         return;
       }
 
-      if (!authActionPending) finishVerifiedLogin(user).catch(showLoginError);
+      // A Google popup can remain pending (or reject) after Firebase has delivered the session.
+      // Only registration must finish writing the name and sending verification before resuming.
+      if (authAction !== "register") finishVerifiedLogin(user).catch(showLoginError);
+      checkingGoogleReturn = false;
     });
 
     async function resumeLoginAfterGoogleWindow() {
-      if (document.visibilityState === "hidden" || loginRedirectStarted || authActionPending) {
+      if (document.visibilityState === "hidden" || loginRedirectStarted || authAction === "register") {
         return;
       }
 
@@ -166,8 +216,8 @@
 
     loginForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (authActionPending) return;
-      authActionPending = true;
+      if (authAction) return;
+      authAction = "login";
 
       const button = loginForm.querySelector('button[type="submit"]');
       const formData = new FormData(loginForm);
@@ -183,14 +233,14 @@
       } catch (error) {
         setMessage("login", translateAuthError(error));
       } finally {
-        authActionPending = false;
+        authAction = null;
         setLoading(button, false);
       }
     });
 
     registerForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (authActionPending) return;
+      if (authAction) return;
 
       const button = registerForm.querySelector('button[type="submit"]');
       const formData = new FormData(registerForm);
@@ -206,7 +256,7 @@
       }
 
       try {
-        authActionPending = true;
+        authAction = "register";
         setLoading(button, true, "Konto erstellen...");
         await localPersistenceReady;
         const { user } = await auth.createUserWithEmailAndPassword(email, password);
@@ -228,24 +278,34 @@
       } catch (error) {
         setMessage("register", translateAuthError(error));
       } finally {
-        authActionPending = false;
+        authAction = null;
         setLoading(button, false);
       }
     });
 
     googleButton?.addEventListener("click", async () => {
-      if (authActionPending) return;
-      authActionPending = true;
+      if (authAction) return;
+      authAction = "google";
+      rememberGoogleAttempt(true);
+      const details = document.querySelector("[data-login-error-details]");
+      if (details) details.hidden = true;
+      setMessage("login", "");
       try {
         setLoading(googleButton, true, "Google öffnet...");
-        await localPersistenceReady;
         const { user } = await auth.signInWithPopup(googleProvider);
         await finishVerifiedLogin(user);
+        if (!loginRedirectStarted && !isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
       } catch (error) {
-        setMessage("login", translateAuthError(error));
+        // Some iOS returns report a closed popup even though Auth already holds the Google session.
+        let failure = error;
+        if (!loginRedirectStarted && auth.currentUser?.providerData?.some((provider) => provider.providerId === "google.com")) {
+          try { await finishVerifiedLogin(auth.currentUser); } catch (sessionError) { failure = sessionError; }
+        }
+        showLoginError(failure);
       } finally {
-        authActionPending = false;
-        setLoading(googleButton, false);
+        authAction = null;
+        rememberGoogleAttempt(false);
+        if (!loginRedirectStarted) setLoading(googleButton, false);
       }
     });
 

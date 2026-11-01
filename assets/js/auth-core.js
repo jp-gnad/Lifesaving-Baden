@@ -198,7 +198,11 @@
       "auth/network-request-failed": "Firebase ist gerade nicht erreichbar.",
       "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
       "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
-      "auth/popup-closed-by-user": "Google-Login wurde abgebrochen.",
+      "auth/popup-closed-by-user": "Das Google-Fenster wurde geschlossen, bevor die Anmeldung in dieser App angekommen ist. Bitte versuche es erneut.",
+      "auth/cancelled-popup-request": "Eine andere Google-Anmeldung wurde geöffnet. Bitte verwende nur ein Anmeldefenster.",
+      "auth/web-storage-unsupported": "Der Anmeldespeicher ist in dieser Web-App nicht verfügbar. Bitte teste die Anmeldung im Browser.",
+      "auth/operation-not-supported-in-this-environment": "Die Google-Anmeldung wird in diesem App-Fenster nicht unterstützt. Bitte teste sie im Browser.",
+      "auth/user-token-expired": "Die gespeicherte Sitzung ist abgelaufen. Bitte melde dich erneut an.",
       "auth/provider-already-linked": "Dieses Konto ist bereits mit diesem Anbieter verbunden.",
       "auth/requires-recent-login": "Bitte melde dich neu an und versuche es direkt danach erneut.",
       "auth/too-many-requests": "Zu viele Versuche. Bitte später erneut probieren.",
@@ -210,7 +214,7 @@
       "auth/wrong-password": "E-Mail oder Passwort stimmt nicht."
     };
 
-    return messages[error.code] || "Der Login ist fehlgeschlagen. Bitte prüfe die Eingaben.";
+    return messages[error?.code] || "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.";
   }
 
   function normalizeNamePart(value) {
