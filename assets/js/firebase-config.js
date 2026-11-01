@@ -7,6 +7,9 @@ window.firebaseConfig = {
   appId: "1:1084669838363:web:8b44530d5b8f0cf88024be"
 };
 
+// Public OAuth client ID for direct Google sign-in; never put a client secret here.
+window.googleSignInClientId = "1084669838363-gtpsm0uqi59u2b0j5ccmgu1l09b4209s.apps.googleusercontent.com";
+
 const firebasePlaceholderValues = [
   "PASTE_API_KEY_HERE",
   "PASTE_PROJECT_ID.firebaseapp.com",

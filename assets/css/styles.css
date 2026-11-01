@@ -978,6 +978,18 @@ body[data-page="app"] .dashboard > * {
   display: none;
 }
 
+[data-google-login][hidden],
+.google-identity[hidden] {
+  display: none;
+}
+
+.google-identity:not([hidden]) {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+  min-height: 44px;
+}
+
 .auth-aside {
   position: relative;
   isolation: isolate;

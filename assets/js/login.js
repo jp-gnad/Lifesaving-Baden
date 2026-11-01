@@ -16,6 +16,8 @@
     google: "Google-Anmeldung gestartet", redirect: "Google-Weiterleitung gestartet",
     popup_result: "Google-Fenster hat ein Ergebnis geliefert", unavailable: "Firebase-Anmeldung nicht verfügbar",
     error: "Anmeldefehler", popup_error: "Google-Fenster meldet",
+    identity_ready: "Direkte Google-Anmeldung bereit", identity_result: "Google-Anmeldenachweis empfangen",
+    credential_start: "Firebase-Anmeldung mit Google-Nachweis gestartet", credential_result: "Firebase hat die Google-Anmeldung übernommen",
   });
   let diagnosticEvents = [];
   let diagnosticSequence = 0;
@@ -25,6 +27,37 @@
   let diagnosticPersistence = "wird vorbereitet";
   let diagnosticErrorCode = "keiner";
   let diagnosticGoogleMethod = "Popup";
+  let googleIdentityLoading = null;
+
+  function loadGoogleIdentity() {
+    const available = () => window.google?.accounts?.id;
+    if (available()?.initialize && available()?.renderButton) return Promise.resolve(available());
+    if (!googleIdentityLoading) {
+      googleIdentityLoading = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client?hl=de";
+        script.async = true;
+        let settled = false;
+        const finish = (failed) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          if (failed || !available()?.initialize || !available()?.renderButton) {
+            script.remove();
+            reject({ code: "app/google-library-unavailable" });
+          } else resolve(available());
+        };
+        const timeout = window.setTimeout(() => finish(true), 15000);
+        script.addEventListener("load", () => finish(false), { once: true });
+        script.addEventListener("error", () => finish(true), { once: true });
+        document.head.appendChild(script);
+      }).catch((error) => {
+        googleIdentityLoading = null;
+        throw error;
+      });
+    }
+    return googleIdentityLoading;
+  }
 
   function safeErrorCode(error) {
     return /^(auth|app)\/[a-z0-9-]+$/.test(error?.code || "") ? error.code : "app/unknown-login-error";
@@ -175,6 +208,7 @@
     const loginForm = document.querySelector('[data-auth-form="login"]');
     const registerForm = document.querySelector('[data-auth-form="register"]');
     const googleButton = document.querySelector("[data-google-login]");
+    const googleIdentityButton = document.querySelector("[data-google-identity]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
     const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
@@ -188,11 +222,16 @@
     let authAction = null;
     let checkingGoogleReturn = hasPendingGoogleReturn();
     const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
-    // Redirect sign-in needs same-origin helpers; cross-origin GitHub Pages keeps its existing popup flow.
+    // Redirect needs same-origin helpers. Installed GitHub Pages apps use Google directly instead.
     const useRedirect = Boolean(standalone && window.firebaseConfig?.authDomain
       && window.location.origin === `https://${window.firebaseConfig.authDomain}`);
+    const useDirectGoogle = Boolean(standalone && /\.github\.io$/.test(window.location.hostname)
+      && window.googleSignInClientId && !useRedirect);
+    let directGoogleReady = false;
+    let directGoogleLoading = null;
+    let directGoogleAttempt = false;
     let redirectResultPending = useRedirect;
-    diagnosticGoogleMethod = useRedirect ? "Weiterleitung auf derselben Domain" : "Popup";
+    diagnosticGoogleMethod = useDirectGoogle ? "Google direkt → Firebase" : useRedirect ? "Weiterleitung auf derselben Domain" : "Popup";
     diagnosticAuth = auth;
     const localPersistenceReady = ensureLocalAuthPersistence(auth);
     // Prepare persistence before enabling the button, so the popup opens directly in the click gesture.
@@ -200,7 +239,7 @@
     localPersistenceReady.then((persistent) => {
       diagnosticPersistence = persistent ? "dauerhaft verfügbar" : "nicht dauerhaft verfügbar";
       recordDiagnostic("persistence");
-      if (!checkingGoogleReturn && !authAction && !verifiedLoginPromise && !redirectResultPending) googleButton.disabled = false;
+      if (!useDirectGoogle && !checkingGoogleReturn && !authAction && !verifiedLoginPromise && !redirectResultPending) googleButton.disabled = false;
     });
     if (checkingGoogleReturn) {
       setLoading(googleButton, true, "Anmeldung prüfen...");
@@ -264,6 +303,91 @@
         details.textContent = `Anmeldecode: ${code} · Version: ${loginVersion} · ${standalone ? "Web-App" : "Browser"}`;
       }
     }
+
+    function showDirectGoogleButton() {
+      if (!useDirectGoogle) return;
+      googleIdentityButton.hidden = !directGoogleReady;
+      googleButton.hidden = directGoogleReady;
+    }
+
+    function startDirectGoogle() {
+      if (authAction || loginRedirectStarted) return;
+      // The provider owns the popup; cancellation must not leave our forms locked.
+      directGoogleAttempt = true;
+      diagnosticErrorCode = "keiner";
+      rememberGoogleAttempt(true);
+      recordDiagnostic("google");
+      showTab("login");
+      const details = document.querySelector("[data-login-error-details]");
+      if (details) details.hidden = true;
+      setMessage("login", "Google öffnet … Bitte wähle dein Konto. Du kannst den Google-Button bei Bedarf erneut verwenden.");
+    }
+
+    async function receiveGoogleCredential(response) {
+      if (!directGoogleAttempt || authAction || loginRedirectStarted) return;
+      directGoogleAttempt = false;
+      authAction = "google";
+      googleIdentityButton.hidden = true;
+      googleButton.hidden = false;
+      setLoading(googleButton, true, "Anmeldung prüfen...");
+      setMessage("login", "");
+      try {
+        if (typeof response?.credential !== "string" || !response.credential) throw { code: "app/google-credential-missing" };
+        recordDiagnostic("identity_result");
+        await localPersistenceReady;
+        // Firebase validates the Google ID token. Never log or persist the credential ourselves.
+        const credential = window.firebase.auth.GoogleAuthProvider.credential(response.credential);
+        recordDiagnostic("credential_start");
+        const { user } = await auth.signInWithCredential(credential);
+        recordDiagnostic("credential_result");
+        await finishVerifiedLogin(user);
+      } catch (error) {
+        showLoginError(error);
+      } finally {
+        authAction = null;
+        rememberGoogleAttempt(false);
+        if (!loginRedirectStarted) {
+          setLoading(googleButton, false);
+          showDirectGoogleButton();
+        }
+      }
+    }
+
+    function prepareDirectGoogle() {
+      if (directGoogleReady || directGoogleLoading || loginRedirectStarted) return directGoogleLoading;
+      setLoading(googleButton, true, "Google laden...");
+      directGoogleLoading = (async () => {
+        try {
+          const identity = await loadGoogleIdentity();
+          await localPersistenceReady;
+          if (loginRedirectStarted) return;
+          identity.initialize({
+            client_id: window.googleSignInClientId,
+            callback: receiveGoogleCredential,
+            auto_select: false,
+            ux_mode: "popup",
+          });
+          identity.renderButton(googleIdentityButton, {
+            type: "standard", theme: "filled_black", size: "large", text: "continue_with",
+            shape: "rectangular", locale: "de",
+            width: Math.min(400, googleButton.clientWidth || 300),
+            click_listener: startDirectGoogle,
+          });
+          directGoogleReady = true;
+          setLoading(googleButton, false);
+          showDirectGoogleButton();
+          recordDiagnostic("identity_ready");
+        } catch (error) {
+          setLoading(googleButton, false);
+          showLoginError(error);
+        } finally {
+          directGoogleLoading = null;
+        }
+      })();
+      return directGoogleLoading;
+    }
+
+    if (useDirectGoogle) prepareDirectGoogle();
 
     if (params.has("verified")) {
       setMessage("login", "E-Mail bestätigt. Du kannst jetzt den Login nutzen.", true);
@@ -346,6 +470,7 @@
     loginForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (authAction) return;
+      directGoogleAttempt = false;
       authAction = "login";
 
       const button = loginForm.querySelector('button[type="submit"]');
@@ -385,6 +510,7 @@
       }
 
       try {
+        directGoogleAttempt = false;
         authAction = "register";
         setLoading(button, true, "Konto erstellen...");
         await localPersistenceReady;
@@ -414,6 +540,14 @@
 
     googleButton?.addEventListener("click", async () => {
       if (authAction || redirectResultPending) return;
+      if (useDirectGoogle) {
+        diagnosticErrorCode = "keiner";
+        setMessage("login", "");
+        const details = document.querySelector("[data-login-error-details]");
+        if (details) details.hidden = true;
+        await prepareDirectGoogle();
+        return;
+      }
       authAction = "google";
       let redirectStarted = false;
       diagnosticErrorCode = "keiner";

@@ -137,18 +137,55 @@ node --test tests/auth_flow.test.cjs
 python -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
-### Vorbereiteter App-Login über Firebase Hosting
+### Google-Login in der installierten GitHub-Web-App
 
-Das iPhone-Protokoll zeigt nach der Google-Kontoauswahl einen neuen Loginseitenstart
-ohne Firebase-Sitzung. Ein verlorener Popup-/Fensterkontext ist damit plausibel;
-die genaue Ursache auf dem Gerät ist noch nicht abschließend bestätigt.
+Auf dem betroffenen iPhone scheitert der Firebase-Popup-Ablauf in der installierten
+GitHub-Web-App mit `auth/network-request-failed`, bevor die Seite neu startet.
+Safari funktioniert, ebenso die installierte Firebase-Hosting-Variante. Eine Kopie
+unter einem anderen Repository-Pfad auf derselben GitHub-Domain hat nicht geholfen.
+Die konkret fehlschlagende Anfrage beziehungsweise interne SDK-Verbindung ist
+damit noch nicht bestimmt.
+
+Installierte Apps unter einer `*.github.io`-Domain verwenden deshalb mit
+konfigurierter `window.googleSignInClientId` Google Identity Services direkt.
+Das Google-Skript wird nur in diesem Modus geladen. Googles eigener dunkler Button
+öffnet die Kontoauswahl; es gibt kein One Tap und keine automatische Kontoauswahl.
+Der ID-Token wird ausschließlich an `GoogleAuthProvider.credential` und
+`signInWithCredential` übergeben. Firebase validiert ihn und stellt die Sitzung
+für das bestehende Konto aus; der anschließende Profil-/Rollenablauf bleibt gleich.
+Der Anwendungscode schreibt den Google-Nachweis weder in URLs noch in den
+Diagnoseverlauf oder einen eigenen Browserspeicher.
+
+Die öffentliche Web-Client-ID liegt getrennt von der Firebase-Konfiguration in
+`assets/js/firebase-config.js`. Sie ist kein Client-Secret. Einmalig im bestehenden
+Google-Cloud-Projekt `lifesaving-baden` unter `Google Auth Platform → Clients`
+den passenden OAuth-Web-Client öffnen und unter `Authorized JavaScript origins`
+den Eintrag `https://jp-gnad.github.io` ergänzen, falls er fehlt. Kein Repository-
+Pfad und kein abschließender Schrägstrich gehören in diesen Eintrag. Die Adresse
+gilt damit für `Lifesaving-Baden` und `Lifesaving-Test`. Die vorhandenen Redirect-URIs
+und die Firebase-Einstellungen bleiben erhalten. Auch die Firebase-Freigabe der
+GitHub-Domain unter `Authentication → Settings → Authorized domains` bleibt nötig.
+
+Nach dem Push auf GitHub die installierte App neu laden. Die Anmeldehilfe muss
+`Loginversion: 20261101-google-direct-v6` und
+`Google-Verfahren: Google direkt → Firebase` zeigen. Die neuen Ereignisse
+unterscheiden das Empfangen des Google-Nachweises vom Firebase-Austausch. Die
+automatisierten Tests prüfen die Übergabe, Fehlerbehandlung und bestehenden
+Anmeldewege; den Erfolg auf dem betroffenen iPhone müssen wir noch prüfen.
+
+Ein abgebrochenes Google-Fenster sperrt die Formulare nicht. Bei einem Ladefehler
+kann derselbe Google-Button das Skript erneut laden. Nach einem Fehler beim
+Firebase-Austausch erscheint Googles Button wieder; es gibt keinen automatischen
+Rückfall auf den auf diesem Gerät fehlschlagenden Firebase-Popup-Ablauf.
+
+### Zusätzlich vorbereiteter App-Login über Firebase Hosting
 
 Für einen Ablauf, der Seitenneustarts ausdrücklich unterstützt, ist zusätzlich
 Firebase Hosting vorbereitet. Auf `https://lifesaving-baden.firebaseapp.com/`
 haben Website und die bereits konfigurierte Auth-Domain denselben Ursprung.
 Eine installierte Web-App auf genau dieser Domain verwendet deshalb
 `signInWithRedirect` und wertet nach der Rückkehr `getRedirectResult` aus.
-Browser und GitHub-Pages-Installationen behalten den bisherigen Popup-Ablauf.
+Normale Browser behalten den bisherigen Firebase-Popup-Ablauf.
 Es gibt keine automatische Umleitung von GitHub Pages zur neuen Domain.
 
 Lokal bauen und prüfen:
@@ -170,8 +207,8 @@ npx firebase-tools deploy --only hosting --project lifesaving-baden
 Der Hosting-Predeploy-Schritt baut `dist/` automatisch neu. Dieser Befehl ersetzt
 die bisherige Website des Standard-Hosting-Sites in diesem Firebase-Projekt;
 er veröffentlicht keine Firestore-Regeln und löscht keine Datenbankdaten.
-Die eigentliche iPhone-Anmeldung muss anschließend auf der Firebase-Adresse
-geprüft werden. Dafür die App von dieser Adresse zum Home-Bildschirm hinzufügen.
+Der Nutzer hat die iPhone-Anmeldung mit der veröffentlichten Firebase-Variante
+erfolgreich geprüft. Neue Versionen müssen dort separat veröffentlicht werden.
 Bestehende Konten, Rollen und Daten werden im selben Firebase-Projekt verwendet.
 
 Das gleichnamige Hosting-Site und die Freigabe der Firebase-Domain in Authentication

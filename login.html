@@ -12,13 +12,13 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-login-trace-v5">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-google-direct-v6">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
-    <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth-core.js?v=20261101-login-trace-v5"></script>
-    <script defer src="assets/js/login.js?v=20261101-login-trace-v5"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-google-direct-v6"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-google-direct-v6"></script>
+    <script defer src="assets/js/login.js?v=20261101-google-direct-v6"></script>
   </head>
   <body data-page="login">
     <header class="site-header">
@@ -149,9 +149,11 @@
           Mit Google fortfahren
         </button>
 
+        <div class="google-identity" data-google-identity hidden></div>
+
         <details class="auth-note login-diagnostics" data-login-diagnostics>
           <summary>Anmeldehilfe</summary>
-          <p data-login-diagnostics-output>Loginversion: 20261101-login-trace-v5
+          <p data-login-diagnostics-output>Loginversion: 20261101-google-direct-v6
 Status: Anmeldeskript noch nicht gestartet.</p>
           <button class="inline-action" type="button" data-login-diagnostics-copy>Status kopieren</button>
           <p data-login-diagnostics-copy-status role="status"></p>

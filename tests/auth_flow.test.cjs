@@ -113,6 +113,43 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   };
 }
 
+function directGoogleHarness(options = {}) {
+  const h = harness({ url: "https://jp-gnad.github.io/Lifesaving-Baden/login.html?returnTo=timer%2F%23%2Fevent%2F42", ...options });
+  h.window.navigator = { standalone: true };
+  h.window.googleSignInClientId = "public-client.apps.googleusercontent.com";
+  h.window.localStorage = localStore();
+  const identity = { initializations: [], renders: [], scripts: [], timers: new Map(), credentials: [] };
+  h.window.google = { accounts: { id: {
+    initialize(config) { identity.initializations.push(config); },
+    renderButton(host, config) { identity.renders.push({ host, config }); },
+  } } };
+  h.window.firebase.auth.GoogleAuthProvider.credential = (idToken) => ({ idToken });
+  h.auth.signInWithPopup = () => { throw new Error("Firebase popup must not be used by direct Google sign-in"); };
+  h.auth.signInWithCredential = async (credential) => {
+    identity.credentials.push(credential);
+    const user = h.prepareUser({ uid: "existing-admin", providerData: [{ providerId: "google.com" }] });
+    h.auth.currentUser = user;
+    h.callbacks.auth(user);
+    return { user };
+  };
+  h.document.createElement = () => {
+    const script = h.element(`script-${identity.scripts.length}`);
+    script.remove = () => { script.removed = true; };
+    return script;
+  };
+  h.document.head = { appendChild(script) { identity.scripts.push(script); } };
+  let timerSequence = 0;
+  h.window.setTimeout = (callback, delay) => {
+    const id = ++timerSequence;
+    identity.timers.set(id, { callback, delay });
+    return id;
+  };
+  h.window.clearTimeout = (id) => identity.timers.delete(id);
+  identity.click = () => identity.renders.at(-1).config.click_listener();
+  identity.receive = (response) => identity.initializations.at(-1).callback(response);
+  return { ...h, identity };
+}
+
 test("session persistence and overlapping user reloads run once", async () => {
   const gate = deferred();
   let reloads = 0;
@@ -517,6 +554,167 @@ test("cross-origin standalone installations keep the working popup path", async 
   assert.equal(h.counts.redirectStarts, 0);
   assert.equal(h.counts.redirectResults, 0);
   assert.equal(h.counts.redirects.length, 1);
+});
+
+test("direct Google sign-in exchanges the credential once, preserves the account and exact timer return, and logs no token", async () => {
+  const h = directGoogleHarness();
+  const privateToken = "private-google-id-token";
+  h.login();
+  await new Promise(setImmediate);
+  assert.equal(h.identity.initializations.length, 1);
+  assert.equal(h.identity.initializations[0].client_id, h.window.googleSignInClientId);
+  assert.equal(h.identity.initializations[0].auto_select, false);
+  assert.equal(h.identity.renders[0].config.theme, "filled_black");
+  assert.equal(h.element("[data-google-login]").hidden, true);
+  h.identity.click();
+  const first = h.identity.receive({ credential: privateToken });
+  const duplicate = h.identity.receive({ credential: privateToken });
+  await Promise.all([first, duplicate]);
+  assert.equal(h.identity.credentials.length, 1);
+  assert.equal(h.identity.credentials[0].idToken, privateToken);
+  assert.equal(h.auth.currentUser.uid, "existing-admin");
+  assert.deepEqual(h.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/timer/#/event/42"]);
+  assert.equal(h.counts.reads, 0);
+  assert.equal(h.counts.writes.length, 0);
+  assert.equal(h.counts.redirectStarts, 0);
+  const output = h.element("[data-login-diagnostics-output]").textContent;
+  assert.match(output, /Google-Verfahren: Google direkt → Firebase/);
+  assert.match(output, /Google-Anmeldenachweis empfangen/);
+  assert.match(output, /Firebase hat die Google-Anmeldung übernommen/);
+  assert.doesNotMatch(output, /private-google-id-token|existing-admin/);
+  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-google-id-token|existing-admin/);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+});
+
+test("direct sign-in is selected under a renamed GitHub project but not in Safari or the same-origin Firebase app", async () => {
+  const renamed = directGoogleHarness({ url: "https://jp-gnad.github.io/Lifesaving-Test/login.html" });
+  renamed.login();
+  await new Promise(setImmediate);
+  assert.equal(renamed.identity.initializations.length, 1);
+  for (const url of ["https://jp-gnad.github.io/Lifesaving-Baden/login.html", "https://lifesaving-baden.firebaseapp.com/login.html"]) {
+    const h = directGoogleHarness({ url });
+    if (url.includes("github.io")) {
+      h.window.navigator.standalone = false;
+      let popups = 0;
+      h.auth.signInWithPopup = async () => { popups += 1; return { user: null }; };
+      h.login();
+      await h.element("[data-google-login]").handlers.click();
+      assert.equal(popups, 1);
+    } else {
+      h.login();
+      await new Promise(setImmediate);
+      await h.element("[data-google-login]").handlers.click();
+      assert.equal(h.counts.redirectStarts, 1);
+    }
+    assert.equal(h.identity.initializations.length, 0);
+    assert.equal(h.identity.scripts.length, 0);
+  }
+});
+
+test("the direct Google button waits for persistence before it accepts credentials", async () => {
+  const h = directGoogleHarness();
+  const ready = deferred();
+  h.auth.setPersistence = () => ready.promise;
+  h.login();
+  await new Promise(setImmediate);
+  assert.equal(h.identity.renders.length, 0);
+  assert.equal(h.element("[data-google-login]").disabled, true);
+  ready.resolve();
+  await new Promise(setImmediate);
+  assert.equal(h.identity.renders.length, 1);
+  h.identity.click();
+  await h.identity.receive({ credential: "synthetic-token" });
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("a cancelled direct Google window allows retrying and does not lock password login or accept a late credential", async () => {
+  const h = directGoogleHarness();
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  h.identity.click();
+  assert.equal(h.element("[data-google-identity]").hidden, false);
+  const passwordGate = deferred();
+  h.auth.signInWithEmailAndPassword = () => passwordGate.promise;
+  const passwordLogin = h.submit("login");
+  await h.identity.receive({ credential: "late-token" });
+  assert.equal(h.identity.credentials.length, 0);
+  const user = h.prepareUser({ uid: "password-user", emailVerified: true });
+  h.auth.currentUser = user;
+  passwordGate.resolve({ user });
+  await passwordLogin;
+  assert.equal(h.counts.redirects.length, 1);
+  await h.identity.receive({ credential: "later-token" });
+  assert.equal(h.identity.credentials.length, 0);
+});
+
+test("a failed Firebase credential exchange offers another direct attempt and strips private error details", async () => {
+  const h = directGoogleHarness();
+  const exchange = h.auth.signInWithCredential;
+  h.auth.signInWithCredential = async () => {
+    throw { code: "auth/network-request-failed", message: "private-error-token", customData: { credential: "private-id-token" } };
+  };
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  await h.identity.receive({ credential: "private-id-token" });
+  assert.equal(h.counts.redirects.length, 0);
+  assert.equal(h.element("[data-google-identity]").hidden, false);
+  assert.equal(h.element("[data-google-login]").hidden, true);
+  assert.match(h.element("[data-login-error-details]").textContent, /auth\/network-request-failed/);
+  assert.doesNotMatch(h.element("[data-login-diagnostics-output]").textContent, /private-error-token|private-id-token/);
+  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-error-token|private-id-token/);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  h.auth.signInWithCredential = exchange;
+  h.identity.click();
+  await h.identity.receive({ credential: "retry-token" });
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("a missing Google credential is rejected before calling Firebase and the button remains usable", async () => {
+  const h = directGoogleHarness();
+  h.login();
+  await new Promise(setImmediate);
+  // A credential without a button click is not allowed to replace the current account.
+  await h.identity.receive({ credential: "unsolicited-token" });
+  assert.equal(h.identity.credentials.length, 0);
+  h.identity.click();
+  await h.identity.receive({});
+  assert.equal(h.identity.credentials.length, 0);
+  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-credential-missing/);
+  assert.equal(h.element("[data-google-identity]").hidden, false);
+});
+
+test("Google client loading is bounded, retryable, and does not lock the email forms", async () => {
+  for (const failure of ["error", "timeout", "incomplete-load"]) {
+    const h = directGoogleHarness();
+    const google = h.window.google;
+    delete h.window.google;
+    h.login();
+    await new Promise(setImmediate);
+    const concurrent = h.element("[data-google-login]").handlers.click();
+    assert.equal(h.identity.scripts.length, 1);
+    assert.equal(h.identity.scripts[0].src, "https://accounts.google.com/gsi/client?hl=de");
+    if (failure === "timeout") {
+      const timer = [...h.identity.timers.values()][0];
+      assert.equal(timer.delay, 15000);
+      timer.callback();
+    } else h.identity.scripts[0].handlers[failure === "error" ? "error" : "load"]();
+    await concurrent;
+    assert.equal(h.identity.scripts[0].removed, true);
+    assert.equal(h.identity.timers.size, 0);
+    assert.equal(h.element("[data-google-login]").disabled, false);
+    assert.match(h.element("[data-login-error-details]").textContent, /app\/google-library-unavailable/);
+    const retry = h.element("[data-google-login]").handlers.click();
+    assert.equal(h.identity.scripts.length, 2);
+    h.window.google = google;
+    h.identity.scripts[1].handlers.load();
+    await retry;
+    assert.equal(h.identity.renders.length, 1);
+    assert.equal(h.identity.timers.size, 0);
+    assert.equal(h.element("[data-google-identity]").hidden, false);
+    assert.equal(h.element("[data-login-error-details]").hidden, true);
+  }
 });
 
 test("registration preserves first/last names for deferred initialization without a database SDK", async () => {
