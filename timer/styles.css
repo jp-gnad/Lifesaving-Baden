@@ -42,6 +42,9 @@ button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   height: 58px;
   padding-right: max(16px, calc((100vw - 680px) / 2 + 12px));
   padding-left: max(16px, calc((100vw - 680px) / 2 + 12px));
@@ -53,7 +56,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .site-header.is-scrolled {
-  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 32px -6px rgba(0, 0, 0, 0.12);
 }
 
 .brand {
@@ -162,7 +165,7 @@ body.home-page, body.event-page, body.people-page { height: 100dvh; overflow: hi
 body.viewer-overview { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
 body.home-page .site-header, body.event-page .site-header, body.people-page .site-header { height: calc(58px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
 body.viewer-overview .site-header { height: calc(58px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
-body.home-page .site-header, body.event-page .site-header { position: fixed; top: 0; right: 0; left: 0; z-index: 20; }
+body.home-page .site-header, body.event-page .site-header { position: fixed; right: 0; left: 0; }
 .home-page .container, .event-page .container { position: fixed; top: calc(58px + env(safe-area-inset-top)); bottom: calc(var(--timer-footer-height) + env(safe-area-inset-bottom)); left: 50%; height: auto; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 12px; transform: translateX(-50%); }
 .people-page .container { height: calc(100dvh - 58px - env(safe-area-inset-top)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .viewer-overview .container { height: calc(100dvh - 58px - env(safe-area-inset-top)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(12px, env(safe-area-inset-bottom)); }

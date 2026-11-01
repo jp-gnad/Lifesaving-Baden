@@ -118,7 +118,7 @@ input {
 }
 
 .site-header.is-scrolled {
-  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 32px -6px rgba(0, 0, 0, 0.2);
 }
 
 .brand {
