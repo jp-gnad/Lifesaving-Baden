@@ -124,6 +124,12 @@
             Anmeldehilfe weder protokolliert noch separat gespeichert.
           </p>
           <p>
+            Damit die Anmeldung einen Seitenneustart übersteht, wird der Google-Anmeldenachweis vorübergehend im
+            Sitzungsspeicher derselben Web-App gehalten. Diese Übergabe ist zwei Minuten lang nutzbar und wird nach
+            Abschluss oder einem endgültigen Fehler gelöscht. Abgelaufene Einträge werden durch einen aktiven
+            Ablauf-Timer beziehungsweise beim nächsten Zugriff verworfen. Der Nachweis wird nicht in die URL geschrieben.
+          </p>
+          <p>
             Zweck ist die sichere Anmeldung, Kontoverwaltung, E-Mail-Bestätigung und Missbrauchsvermeidung. Rechtsgrundlage
             ist Art. 6 Abs. 1 lit. b DSGVO für die Bereitstellung des Kontos und Art. 6 Abs. 1 lit. f DSGVO für Sicherheit
             und Missbrauchsschutz.

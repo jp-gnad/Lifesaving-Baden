@@ -24,6 +24,9 @@
     credential_retry: "Firebase-Übergabe wird nach Verbindungsfehler erneut versucht", credential_error: "Firebase-Übergabe fehlgeschlagen",
     network_type: "Firebase meldet Browser-Fehlertyp: TypeError", network_abort: "Firebase meldet Browser-Fehlertyp: AbortError",
     network_other: "Firebase meldet Browser-Fehlertyp: NetworkError", network_unspecified: "Firebase liefert keinen weiteren Browser-Fehlertyp",
+    handoff_saved: "Google-Übergabe kurzzeitig im Sitzungsspeicher gesichert", handoff_navigation: "Loginseite für die Google-Übergabe neu gestartet",
+    handoff_resume: "Google-Übergabe nach Seitenstart wieder aufgenommen", handoff_kept: "Google-Übergabe bleibt für die nächste Seite erhalten",
+    handoff_unavailable: "Google-Übergabespeicher nicht verfügbar; Anmeldung nur auf dieser Seite",
   });
   let diagnosticEvents = [];
   let diagnosticSequence = 0;
@@ -90,6 +93,7 @@
     const output = document.querySelector("[data-login-diagnostics-output]");
     if (!output) return "";
     const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
+    const traceStart = diagnosticEvents[0]?.time || Date.now();
     const text = [
       `Loginversion: ${loginVersion}`,
       `Firebase-Version: ${window.firebase?.SDK_VERSION || "unbekannt"}`,
@@ -104,8 +108,8 @@
       `Sitzungsspeicher: ${diagnosticPersistence}`,
       `Firebase-Sitzung: ${diagnosticAuth?.currentUser ? "vorhanden" : "keine"}`,
       `Letzter Fehlercode: ${diagnosticErrorCode}`,
-      "Ablauf (maximal 10 Minuten):", ...diagnosticEvents.map((entry) =>
-        `[Seite ${entry.page}] ${diagnosticLabels[entry.id]}${entry.code ? `: ${entry.code}` : ""}`),
+      "Ablauf (maximal 10 Minuten; Sekunden seit erstem angezeigten Ereignis):", ...diagnosticEvents.map((entry) =>
+        `[Seite ${entry.page}] +${((entry.time - traceStart) / 1000).toFixed(1)} s: ${diagnosticLabels[entry.id]}${entry.code ? `: ${entry.code}` : ""}`),
     ].join("\n");
     output.textContent = text;
     return text;
@@ -234,6 +238,10 @@
       && window.location.origin === `https://${window.firebaseConfig.authDomain}`);
     const useDirectGoogle = Boolean(standalone && /\.github\.io$/.test(window.location.hostname)
       && window.googleSignInClientId && !useRedirect);
+    const googleHandoff = window.LifesavingGoogleHandoff;
+    let googleHandoffPending = Boolean(useDirectGoogle && googleHandoff?.read());
+    let googleHandoffProcessing = false;
+    let loginPageLeaving = false;
     let directGoogleReady = false;
     let directGoogleLoading = null;
     let directGoogleAttempt = false;
@@ -320,6 +328,7 @@
 
     function startDirectGoogle() {
       if (authAction || loginRedirectStarted) return;
+      googleHandoff?.clear();
       // The provider owns the popup; cancellation must not leave our forms locked.
       directGoogleAttempt = true;
       diagnosticErrorCode = "keiner";
@@ -368,9 +377,11 @@
       recordDiagnostic(label);
     }
 
-    async function receiveGoogleCredential(response) {
-      if (!directGoogleAttempt || authAction || loginRedirectStarted) return;
+    async function receiveGoogleCredential(response, resuming = false) {
+      if ((!resuming && !directGoogleAttempt) || authAction || loginRedirectStarted) return;
       directGoogleAttempt = false;
+      googleHandoffProcessing = true;
+      let navigating = false;
       authAction = "google";
       googleIdentityButton.hidden = true;
       googleButton.hidden = false;
@@ -378,35 +389,79 @@
       setMessage("login", "");
       try {
         if (typeof response?.credential !== "string" || !response.credential) throw { code: "app/google-credential-missing" };
-        recordDiagnostic("identity_result");
-        recordDiagnostic(document.visibilityState === "hidden" ? "identity_hidden" : "identity_visible");
+        if (resuming) recordDiagnostic("handoff_resume");
+        else {
+          recordDiagnostic("identity_result");
+          recordDiagnostic(document.visibilityState === "hidden" ? "identity_hidden" : "identity_visible");
+          if (googleHandoff?.save(response.credential)) {
+            googleHandoffPending = true;
+            recordDiagnostic("handoff_saved");
+            rememberGoogleAttempt(true);
+            recordDiagnostic("handoff_navigation");
+            // Keep the proof in this tab's session storage, never in the URL.
+            window.location.replace(window.location.href);
+            navigating = true;
+            return;
+          }
+          recordDiagnostic("handoff_unavailable");
+        }
         await localPersistenceReady;
-        // Firebase validates the Google ID token. Never log or persist the credential ourselves.
+        // Firebase validates the Google ID token; diagnostics never receive it.
         const credential = window.firebase.auth.GoogleAuthProvider.credential(response.credential);
         const result = await withRetry(async (attempt) => {
+          if (loginPageLeaving) return null;
           if (attempt) {
             recordDiagnostic("credential_retry");
             setLoading(googleButton, true, "Verbindung erneut prüfen...");
           }
           await waitForGoogleForeground();
-          if (loginRedirectStarted) return null;
+          if (loginRedirectStarted || loginPageLeaving) return null;
+          if (resuming && !googleHandoff.takeAttempt()) throw { code: "app/google-handoff-unavailable" };
           recordDiagnostic("credential_start");
           try { return await auth.signInWithCredential(credential); }
           catch (error) { recordCredentialFailure(error); throw error; }
-        }, (error) => error?.code === "auth/network-request-failed");
+        }, (error) => !loginPageLeaving && error?.code === "auth/network-request-failed");
         if (!result) return;
+        googleHandoff?.clear();
+        googleHandoffPending = false;
         recordDiagnostic("credential_result");
         await finishVerifiedLogin(result.user);
       } catch (error) {
-        showLoginError(error);
+        if (!loginPageLeaving) showLoginError(error);
       } finally {
-        authAction = null;
-        rememberGoogleAttempt(false);
-        if (!loginRedirectStarted) {
-          setLoading(googleButton, false);
-          showDirectGoogleButton();
+        googleHandoffProcessing = false;
+        if (!navigating) {
+          authAction = null;
+          if (loginPageLeaving && googleHandoffPending) recordDiagnostic("handoff_kept");
+          else {
+            googleHandoff?.clear();
+            googleHandoffPending = false;
+            checkingGoogleReturn = false;
+            rememberGoogleAttempt(false);
+            if (!loginRedirectStarted) {
+              setLoading(googleButton, false);
+              showDirectGoogleButton();
+              if (!directGoogleReady) prepareDirectGoogle();
+            }
+          }
         }
       }
+    }
+
+    function resumeGoogleHandoff() {
+      if (!googleHandoffPending || googleHandoffProcessing || loginRedirectStarted) return;
+      const pending = googleHandoff.read();
+      if (!pending) {
+        googleHandoffPending = false;
+        authAction = null;
+        checkingGoogleReturn = false;
+        rememberGoogleAttempt(false);
+        showLoginError({ code: "app/google-handoff-unavailable" });
+        prepareDirectGoogle();
+        return;
+      }
+      authAction = null;
+      receiveGoogleCredential({ credential: pending.token }, true);
     }
 
     function prepareDirectGoogle() {
@@ -419,7 +474,7 @@
           if (loginRedirectStarted) return;
           identity.initialize({
             client_id: window.googleSignInClientId,
-            callback: receiveGoogleCredential,
+            callback: (response) => receiveGoogleCredential(response),
             auto_select: false,
             ux_mode: "popup",
           });
@@ -443,7 +498,7 @@
       return directGoogleLoading;
     }
 
-    if (useDirectGoogle) prepareDirectGoogle();
+    if (useDirectGoogle && !googleHandoffPending) prepareDirectGoogle();
 
     if (params.has("verified")) {
       setMessage("login", "E-Mail bestätigt. Du kannst jetzt den Login nutzen.", true);
@@ -455,7 +510,7 @@
 
     auth.onAuthStateChanged((user) => {
       recordDiagnostic(user ? "user" : "guest");
-      if (redirectResultPending) return;
+      if (redirectResultPending || googleHandoffPending) return;
       if (!user) {
         showResendButton(false);
         if (checkingGoogleReturn) {
@@ -499,8 +554,10 @@
       })();
     }
 
+    if (googleHandoffPending) resumeGoogleHandoff();
+
     async function resumeLoginAfterGoogleWindow() {
-      if (document.visibilityState === "hidden" || loginRedirectStarted || authAction === "register" || redirectResultPending) {
+      if (document.visibilityState === "hidden" || loginRedirectStarted || authAction === "register" || redirectResultPending || googleHandoffPending) {
         return;
       }
 
@@ -512,11 +569,16 @@
     }
 
     window.addEventListener("pageshow", (event) => {
+      loginPageLeaving = false;
       recordDiagnostic(event?.persisted ? "restored" : "shown");
       resumeGoogleForeground();
+      if (event?.persisted) resumeGoogleHandoff();
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
-    window.addEventListener("pagehide", () => recordDiagnostic("pagehide"));
+    window.addEventListener("pagehide", () => {
+      loginPageLeaving = true;
+      recordDiagnostic("pagehide");
+    });
     document.addEventListener("visibilitychange", () => {
       recordDiagnostic(document.visibilityState === "visible" ? "visible" : "hidden");
       if (document.visibilityState === "visible") {
@@ -529,6 +591,8 @@
       event.preventDefault();
       if (authAction) return;
       directGoogleAttempt = false;
+      googleHandoff?.clear();
+      rememberGoogleAttempt(false);
       authAction = "login";
 
       const button = loginForm.querySelector('button[type="submit"]');
@@ -569,6 +633,8 @@
 
       try {
         directGoogleAttempt = false;
+        googleHandoff?.clear();
+        rememberGoogleAttempt(false);
         authAction = "register";
         setLoading(button, true, "Konto erstellen...");
         await localPersistenceReady;

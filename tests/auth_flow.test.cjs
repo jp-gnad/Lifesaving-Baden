@@ -108,15 +108,29 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   } });
   vm.runInContext(source("assets/js/auth-core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
-    login() { vm.runInContext(source("assets/js/login.js"), context); },
+    login() {
+      if (!window.LifesavingGoogleHandoff) vm.runInContext(source("assets/js/google-handoff.js"), context);
+      vm.runInContext(source("assets/js/login.js"), context);
+    },
     submit: (form) => element(`[data-auth-form="${form}"]`).handlers.submit({ preventDefault() {} }),
   };
 }
 
 function directGoogleHarness(options = {}) {
-  const h = harness({ url: "https://jp-gnad.github.io/Lifesaving-Baden/login.html?returnTo=timer%2F%23%2Fevent%2F42", ...options });
+  // Most tests exercise the in-memory fallback without navigating a VM.
+  // Handoff tests explicitly enable the session-storage path and create a second page.
+  const { handoff = false, ...harnessOptions } = options;
+  const h = harness({ url: "https://jp-gnad.github.io/Lifesaving-Baden/login.html?returnTo=timer%2F%23%2Fevent%2F42", ...harnessOptions });
   h.window.navigator = { standalone: true };
   h.window.googleSignInClientId = "public-client.apps.googleusercontent.com";
+  h.window.firebaseConfig.projectId = "lifesaving-baden";
+  if (!handoff) {
+    const set = h.window.sessionStorage.setItem;
+    h.window.sessionStorage.setItem = (key, value) => {
+      if (key === "lifesaving-baden:google-handoff-v1") throw new Error("Handoff storage blocked");
+      set(key, value);
+    };
+  }
   h.window.localStorage = localStore();
   const identity = { initializations: [], renders: [], scripts: [], timers: new Map(), credentials: [] };
   h.window.google = { accounts: { id: {
@@ -141,7 +155,7 @@ function directGoogleHarness(options = {}) {
   let timerSequence = 0;
   h.window.setTimeout = (callback, delay) => {
     const id = ++timerSequence;
-    if (delay === 15000) identity.timers.set(id, { callback, delay });
+    if (delay >= 15000) identity.timers.set(id, { callback, delay });
     else { h.counts.delays.push(delay); queueMicrotask(callback); }
     return id;
   };
@@ -586,6 +600,201 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.doesNotMatch(output, /private-google-id-token|existing-admin/);
   assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-google-id-token|existing-admin/);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+});
+
+function continuedGooglePage(previous, options = {}) {
+  const next = directGoogleHarness({ handoff: true, ...options });
+  next.window.sessionStorage = previous.window.sessionStorage;
+  next.window.localStorage = previous.window.localStorage;
+  return next;
+}
+
+test("Google handoff saves a short-lived proof before navigating, then signs in on the new page without another Google popup", async () => {
+  const first = directGoogleHarness({ handoff: true });
+  first.login();
+  await new Promise(setImmediate);
+  first.identity.click();
+  first.document.visibilityState = "hidden";
+  await first.identity.receive({ credential: "private-handoff-token" });
+  assert.equal(first.identity.credentials.length, 0);
+  assert.deepEqual(first.counts.redirects, [first.window.location.href]);
+  const saved = JSON.parse(first.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"));
+  assert.equal(saved.token, "private-handoff-token");
+  assert.equal(saved.attempts, 0);
+  const originalTime = saved.createdAt;
+  first.callbacks.pagehide();
+
+  const next = continuedGooglePage(first);
+  next.login();
+  next.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(next.identity.initializations.length, 0);
+  assert.equal(next.identity.credentials.length, 1);
+  assert.equal(next.identity.credentials[0].idToken, "private-handoff-token");
+  assert.equal(next.auth.currentUser.uid, "existing-admin");
+  assert.equal(next.counts.reads, 0);
+  assert.equal(next.counts.writes.length, 0);
+  assert.deepEqual(next.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/timer/#/event/42"]);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  assert.equal(next.identity.timers.size, 0);
+  const output = next.element("[data-login-diagnostics-output]").textContent;
+  assert.match(output, /nach Seitenstart wieder aufgenommen/);
+  assert.doesNotMatch(output, /private-handoff-token|app\/google-session-missing/);
+  assert.doesNotMatch(next.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-handoff-token/);
+  assert.ok(Date.now() - originalTime < 120000);
+});
+
+test("an interrupted credential request survives the next automatic navigation but caps attempts across all pages", async () => {
+  let previous = directGoogleHarness({ handoff: true });
+  previous.login();
+  await new Promise(setImmediate);
+  previous.identity.click();
+  await previous.identity.receive({ credential: "private-recoverable-token" });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const next = continuedGooglePage(previous);
+    let calls = 0;
+    next.auth.signInWithCredential = async () => {
+      calls += 1;
+      next.callbacks.pagehide();
+      next.document.visibilityState = "hidden";
+      throw { code: "auth/network-request-failed" };
+    };
+    next.login();
+    next.callbacks.auth(null);
+    await new Promise(setImmediate);
+    assert.equal(calls, 1);
+    assert.equal(JSON.parse(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1")).attempts, attempt);
+    assert.match(next.element("[data-login-diagnostics-output]").textContent, /bleibt für die nächste Seite erhalten/);
+    previous = next;
+  }
+  const last = continuedGooglePage(previous);
+  last.login();
+  last.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(last.identity.credentials.length, 0);
+  assert.equal(last.counts.redirects.length, 0);
+  assert.equal(last.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
+  assert.equal(last.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  assert.match(last.element("[data-login-error-details]").textContent, /app\/google-handoff-unavailable/);
+  assert.equal(last.element("[data-google-identity]").hidden, false);
+});
+
+test("a request interrupted by a page change can complete on the following page with the same account", async () => {
+  const first = directGoogleHarness({ handoff: true });
+  first.login();
+  await new Promise(setImmediate);
+  first.identity.click();
+  await first.identity.receive({ credential: "recoverable-token" });
+  const interrupted = continuedGooglePage(first);
+  interrupted.auth.signInWithCredential = async () => {
+    interrupted.callbacks.pagehide();
+    throw { code: "auth/network-request-failed" };
+  };
+  interrupted.login();
+  await new Promise(setImmediate);
+  const next = continuedGooglePage(interrupted);
+  next.login();
+  next.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(next.auth.currentUser.uid, "existing-admin");
+  assert.equal(next.identity.credentials.length, 1);
+  assert.equal(next.counts.redirects.length, 1);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
+});
+
+test("navigation after a network failure preserves the proof while an old retry timer is suspended", async () => {
+  const first = directGoogleHarness({ handoff: true });
+  first.login();
+  await new Promise(setImmediate);
+  first.identity.click();
+  await first.identity.receive({ credential: "suspended-retry-token" });
+  const interrupted = continuedGooglePage(first);
+  const schedule = interrupted.window.setTimeout;
+  const retries = [];
+  interrupted.window.setTimeout = (callback, delay) => {
+    if (delay === 450) { retries.push(callback); return 9999; }
+    return schedule(callback, delay);
+  };
+  let calls = 0;
+  interrupted.auth.signInWithCredential = async () => { calls += 1; throw { code: "auth/network-request-failed" }; };
+  interrupted.login();
+  await new Promise(setImmediate);
+  assert.equal(calls, 1);
+  assert.equal(retries.length, 1);
+  interrupted.callbacks.pagehide();
+  interrupted.document.visibilityState = "hidden";
+  const next = continuedGooglePage(interrupted);
+  next.login();
+  next.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(next.counts.redirects.length, 1);
+  retries[0]();
+  await new Promise(setImmediate);
+  assert.equal(calls, 1);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
+  assert.equal(interrupted.counts.redirects.length, 0);
+});
+
+test("invalid, expired, future-dated, or differently configured handoffs are cleared without a Firebase request", async () => {
+  for (const change of [
+    { createdAt: Date.now() - 120001 }, { createdAt: Date.now() + 60000 },
+    { clientId: "different-client.apps.googleusercontent.com" }, { projectId: "different-project" },
+    { attempts: -1 }, { attempts: 4 }, { token: "" }, { token: "x".repeat(16385) },
+  ]) {
+    const first = directGoogleHarness({ handoff: true });
+    first.login();
+    await new Promise(setImmediate);
+    first.identity.click();
+    await first.identity.receive({ credential: "private-expired-token" });
+    const key = "lifesaving-baden:google-handoff-v1";
+    const saved = JSON.parse(first.window.sessionStorage.getItem(key));
+    first.window.sessionStorage.setItem(key, JSON.stringify({ ...saved, ...change }));
+    const next = continuedGooglePage(first);
+    next.login();
+    next.callbacks.auth(null);
+    await new Promise(setImmediate);
+    assert.equal(next.identity.credentials.length, 0);
+    assert.equal(next.counts.redirects.length, 0);
+    assert.equal(next.window.sessionStorage.getItem(key), undefined);
+    assert.doesNotMatch(next.element("[data-login-diagnostics-output]").textContent, /private-expired-token/);
+  }
+});
+
+test("an active page expires its pending Google proof without extending the deadline", async () => {
+  const h = directGoogleHarness({ handoff: true });
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  await h.identity.receive({ credential: "private-expiring-token" });
+  const key = "lifesaving-baden:google-handoff-v1";
+  const createdAt = JSON.parse(h.window.sessionStorage.getItem(key)).createdAt;
+  const timer = [...h.identity.timers.values()][0];
+  h.context.handoffTestTime = createdAt + 120001;
+  vm.runInContext("Date.now = () => handoffTestTime", h.context);
+  timer.callback();
+  assert.equal(h.window.sessionStorage.getItem(key), undefined);
+  assert.equal(h.identity.timers.size, 0);
+  assert.equal(h.identity.credentials.length, 0);
+});
+
+test("a permanent handoff error clears the proof and offers Google login again", async () => {
+  const first = directGoogleHarness({ handoff: true });
+  first.login();
+  await new Promise(setImmediate);
+  first.identity.click();
+  await first.identity.receive({ credential: "private-invalid-token" });
+  const next = continuedGooglePage(first);
+  let calls = 0;
+  next.auth.signInWithCredential = async () => { calls += 1; throw { code: "auth/invalid-credential" }; };
+  next.login();
+  next.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(calls, 1);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
+  assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  assert.match(next.element("[data-login-error-details]").textContent, /auth\/invalid-credential/);
+  assert.equal(next.element("[data-google-identity]").hidden, false);
 });
 
 test("direct sign-in is selected under a renamed GitHub project but not in Safari or the same-origin Firebase app", async () => {

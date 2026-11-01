@@ -154,7 +154,8 @@ Der ID-Token wird ausschließlich an `GoogleAuthProvider.credential` und
 `signInWithCredential` übergeben. Firebase validiert ihn und stellt die Sitzung
 für das bestehende Konto aus; der anschließende Profil-/Rollenablauf bleibt gleich.
 Der Anwendungscode schreibt den Google-Nachweis weder in URLs noch in den
-Diagnoseverlauf oder einen eigenen Browserspeicher.
+Diagnoseverlauf. Für den Seitenwechsel wird er kurzzeitig in `sessionStorage`
+derselben App gehalten; siehe den folgenden Abschnitt.
 
 Die öffentliche Web-Client-ID liegt getrennt von der Firebase-Konfiguration in
 `assets/js/firebase-config.js`. Sie ist kein Client-Secret. Einmalig im bestehenden
@@ -167,7 +168,7 @@ und die Firebase-Einstellungen bleiben erhalten. Auch die Firebase-Freigabe der
 GitHub-Domain unter `Authentication → Settings → Authorized domains` bleibt nötig.
 
 Nach dem Push auf GitHub die installierte App neu laden. Die Anmeldehilfe muss
-`Loginversion: 20261101-google-foreground-v7` und
+`Loginversion: 20261101-google-handoff-v8` und
 `Google-Verfahren: Google direkt → Firebase` zeigen. Die neuen Ereignisse
 unterscheiden das Empfangen des Google-Nachweises vom Firebase-Austausch. Die
 automatisierten Tests prüfen die Übergabe, Fehlerbehandlung und bestehenden
@@ -185,9 +186,38 @@ Hinweis auf den Zeitpunkt der Rückkehr, noch kein Beweis für die genaue Ursach
 Die aktuelle Version wartet vor jedem Austausch auf eine sichtbare Seite und
 einen nächsten Animationsframe. Nur `auth/network-request-failed` erlaubt bis zu
 zwei Wiederholungen mit kurzen Pausen; andere Anmeldefehler werden sofort
-angezeigt. Der Google-Nachweis bleibt während des Wartens ausschließlich im
-Arbeitsspeicher. Eine inzwischen abgeschlossene Anmeldung verhindert eine
+angezeigt. Eine inzwischen abgeschlossene Anmeldung verhindert eine
 verspätete weitere Übergabe.
+
+Der v7-Gerätetest bestätigt einen empfangenen Google-Nachweis und einen
+Firebase-Aufruf im Vordergrund. Trotzdem meldet der Browser einen `TypeError`;
+anschließend startet die Loginseite automatisch neu, noch bevor der erste
+Wiederholungsversuch sichtbar wird. Der Nutzer bestätigt außerdem, dass der
+Passwort-Login in derselben installierten GitHub-Web-App funktioniert. Bloßes
+Warten auf Sichtbarkeit reicht deshalb nicht aus.
+
+`assets/js/google-handoff.js` sichert für die direkte Google-Anmeldung den
+Nachweis unter einem eigenen `sessionStorage`-Schlüssel. Nach dem Google-Callback
+wird die identische Login-URL ohne Tokenparameter neu geladen. Erst die neue
+Seite übernimmt die Übergabe an Firebase; es ist keine weitere Kontoauswahl
+nötig. Der zunächst leere Firebase-Sitzungszustand dieser neuen Seite wird
+während der Fortsetzung nicht als fehlgeschlagene Anmeldung ausgegeben.
+
+Die Übergabe enthält den Google-ID-Token, die öffentliche Client-ID, die
+Firebase-Projekt-ID, den Empfangszeitpunkt und einen Versuchszähler. Sie ist
+höchstens zwei Minuten nutzbar und erlaubt insgesamt drei Austauschversuche,
+auch über mehrere Seitenneustarts. Nach erfolgreicher Firebase-Übernahme,
+endgültigem Fehler oder einem Wechsel zur Passwortanmeldung wird sie gelöscht.
+Ein Ablauf-Timer und die Prüfung bei jedem Zugriff verwerfen abgelaufene Daten;
+wenn iOS eine Seite anhält, kann die Bereinigung erst beim nächsten Ausführen
+erfolgen. Der Google-ID-Token selbst wird weiterhin von Firebase validiert.
+Andere Projekte/Client-IDs und ungültige Übergaben werden verworfen.
+
+Die verlassene Seite darf einen noch benötigten Übergabestatus nicht löschen
+oder weitere Austauschversuche starten. Bei blockiertem Sitzungsspeicher bleibt
+die bisherige Verarbeitung im Arbeitsspeicher nutzbar, kann aber einen
+Seitenneustart weiterhin nicht überstehen. Der Diagnoseverlauf enthält nur
+feste Statusmeldungen zur Sicherung und Wiederaufnahme, niemals den Token.
 
 Die Diagnose hält die tatsächliche Sichtbarkeit beim Empfang, das Warten auf
 den Vordergrund und fehlgeschlagene beziehungsweise wiederholte Übergaben fest.
@@ -242,6 +272,8 @@ den App-/Browsermodus. Unter dem Google-Button lässt sich außerdem die
 `Anmeldehilfe` aufklappen und über `Status kopieren` weitergeben. Sie zeigt auch
 bei ausbleibenden Fehlermeldungen die Firebase-Version, die Speicherverfügbarkeit,
 ob Firebase eine Sitzung erkennt und die letzten 40 Ablaufereignisse.
+Relative Sekundenangaben machen die Dauer zwischen Fehler und Seitenwechsel
+sichtbar; sie beziehen sich auf den ersten noch angezeigten Eintrag.
 Die Verlaufsspur liegt zusätzlich unter einem eigenen Schlüssel in `localStorage`,
 damit ein Seitenneustart den ursprünglichen Google-Klick nicht aus der Diagnose
 entfernt. Einzelne Seitenausführungen erhalten zufällige lokale Kennzeichnungen;

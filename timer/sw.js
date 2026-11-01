@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v25";
+const staticCache = "lifesaving-timer-static-firebase-v26";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -7,8 +7,8 @@ const relativeAppShell = [
   "./styles.css?v=firebase-access-v16",
   "./app.js?v=firebase-access-v18",
   "./firestore-api.js?v=firebase-access-v18",
-  "../assets/js/auth-core.js?v=20261101-google-foreground-v7",
-  "../assets/js/firebase-config.js?v=20261101-google-foreground-v7",
+  "../assets/js/auth-core.js?v=20261101-google-handoff-v8",
+  "../assets/js/firebase-config.js?v=20261101-google-handoff-v8",
   "../assets/img/elch-gelb.png",
   "./icons.svg?v=event-settings",
   "./app-icon-64.png?v=baden-brand-v1",
@@ -19,7 +19,7 @@ const relativeAppShell = [
   "../manifest.webmanifest?v=20261101-project-app-v1",
 ];
 const appShell = relativeAppShell.map((path) => new URL(path, baseUrl).href);
-const authScripts = ["../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/firebase-config.js"]
+const authScripts = ["../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/google-handoff.js", "../assets/js/firebase-config.js"]
   .map((path) => new URL(path, baseUrl).href);
 
 self.addEventListener("install", (event) => {
