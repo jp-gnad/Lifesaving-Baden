@@ -426,7 +426,8 @@ h3 {
 }
 
 .auth-panel .button {
-  min-height: 42px;
+  min-height: 40px;
+  padding-block: 8px;
 }
 
 .button-google .google-logo {
@@ -3976,12 +3977,16 @@ body.auth-context-loading .member-apps::after {
 
   body[data-page="login"] .auth-form input,
   body[data-page="login"] .auth-panel .button {
-    min-height: 52px;
+    min-height: 40px;
   }
 
   body[data-page="login"] .auth-form input {
-    padding: 14px;
+    padding: 8px 14px;
     background: var(--surface);
+  }
+
+  body[data-page="login"] .auth-form .password-field input {
+    padding-right: 48px;
   }
 
   body[data-page="login"] .auth-form .form-message:empty {
