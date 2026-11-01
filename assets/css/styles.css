@@ -4011,11 +4011,10 @@ body.auth-context-loading .member-apps::after {
 
 
 @media (min-width: 1200px) {
-  body[data-page="login"] {
+  body[data-page="login"] .auth-screen {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
     height: 100dvh;
-    min-height: 100dvh;
   }
 
   body[data-page="login"] .auth-layout {
