@@ -134,6 +134,7 @@ Die Login-Abläufe lassen sich ohne echte Konten oder Firebase-Zugriffe prüfen:
 
 ```powershell
 node --test tests/auth_flow.test.cjs
+node --test tests/event_overview.test.cjs
 python -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
@@ -418,6 +419,14 @@ Danach ist die Seite unter `http://localhost:8080` erreichbar.
 4. Speichern. GitHub zeigt danach die öffentliche URL an.
 
 ## Integrierter Lifesaving Timer
+
+Die Eventübersicht hat die Tabs `Aktuell` und `Vergangene`. Ein Wettkampf wird
+ab dem vierten Kalendertag nach seinem Datum unter `Vergangene` angezeigt:
+Ein Event vom 1. Januar wechselt am 5. Januar um 00:00 Uhr nach lokaler Zeit.
+Events ohne Datum bleiben unter `Aktuell`. Die Einordnung wird beim Öffnen,
+beim Tageswechsel und bei der Rückkehr in die App neu berechnet; dafür werden
+keine Eventdaten in Firestore verändert. Die kompakten Eventkarten behalten
+ihre bisherigen Icongrößen.
 
 Der Timer verwendet keine eigene Cloudflare-Datenbank mehr. Events, Personen
 und Ergebnisse liegen in diesen Firestore-Collections:

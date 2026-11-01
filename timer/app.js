@@ -110,6 +110,7 @@ let dialogRestoreTimer = null;
 let offlineDatabasePromise = null;
 let offlineSyncPromise = null;
 let routeCleanup = null;
+let eventListTab = "current";
 let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
 
 function icon(name) {
@@ -461,6 +462,16 @@ function route() {
 function dateText(value) {
   if (!value) return "Kein Datum";
   return new Intl.DateTimeFormat("de-DE", { dateStyle: "long" }).format(new Date(`${value}T12:00:00`));
+}
+
+function isPastEvent(event, now = new Date()) {
+  const value = event?.event_date;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const eventDay = Date.parse(`${value}T00:00:00Z`);
+  if (!Number.isFinite(eventDay) || new Date(eventDay).toISOString().slice(0, 10) !== value) return false;
+  // Compare local calendar dates, so daylight-saving changes do not shift the cutoff.
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return today - eventDay >= 4 * 24 * 60 * 60 * 1000;
 }
 
 function formatTime(centiseconds) {
@@ -878,36 +889,17 @@ async function renderHome() {
     api("/events"),
     window.timerFirestoreApi.getAuthContext(),
   ]);
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  events.sort((left, right) => {
-    const dateGroup = (event) => !event.event_date ? 2 : (event.event_date >= today ? 0 : 1);
-    const groupOrder = dateGroup(left) - dateGroup(right);
-    if (groupOrder) return groupOrder;
-    if (left.event_date && right.event_date) {
-      const dateOrder = left.event_date >= today
-        ? left.event_date.localeCompare(right.event_date)
-        : right.event_date.localeCompare(left.event_date);
-      if (dateOrder) return dateOrder;
-    }
-    return String(right.created_at || "").localeCompare(String(left.created_at || ""));
-  });
   app.innerHTML = `
     <div class="page-head">
       <h1>Events</h1>
       <button class="button secondary icon-button" id="copy-overview-link" type="button" aria-label="Link zur Eventübersicht kopieren" title="Link zur Eventübersicht kopieren">${icon("link")}</button>
       ${authContext.isOrganizer ? `<button class="button" id="new-event">${icon("plus")} Neues Event</button>` : ""}
     </div>
-    <section class="section event-list-section" aria-label="Events">
-      ${events.length ? `<div class="stack">${events.map((event) => `
-        <a class="card event-row" href="#/event/${event.id}" aria-label="${escapeHtml(event.name)} öffnen">
-          <div class="event-row-content">${eventIconMarkup(event, "event-list-icon")}<div class="event-row-copy"><h3>${escapeHtml(event.name)}</h3><div class="event-meta">
-            <span class="meta-item">${icon("calendar")} ${escapeHtml(dateText(event.event_date))}</span>
-            ${event.location ? `<span class="meta-item">${icon("location")} ${escapeHtml(event.location)}</span>` : ""}
-          </div></div></div>
-          <span class="event-row-arrow">${icon("arrow-right")}</span>
-        </a>`).join("")}</div>` : `<div class="empty">Noch kein Event vorhanden.${authContext.isOrganizer ? " Lege das erste Event an." : ""}</div>`}
-    </section>
+    <div class="event-tabs" role="tablist" aria-label="Events nach Datum">
+      <button type="button" id="events-current-tab" role="tab" data-event-tab="current" aria-controls="event-list">Aktuell</button>
+      <button type="button" id="events-past-tab" role="tab" data-event-tab="past" aria-controls="event-list">Vergangene</button>
+    </div>
+    <section class="section event-list-section" id="event-list" role="tabpanel" tabindex="0"></section>
     <dialog id="event-dialog"><form class="dialog-body" id="event-form">
       <h2>Neues Event</h2>
       <div class="form-grid">
@@ -918,6 +910,77 @@ async function renderHome() {
       <p class="form-error" id="event-error" role="alert"></p>
       <div class="form-actions"><button type="button" class="button secondary" data-close>Abbrechen</button><button class="button">Event anlegen</button></div>
     </form></dialog>`;
+
+  const eventList = document.querySelector("#event-list");
+  const eventTabs = [...document.querySelectorAll("[data-event-tab]")];
+  const renderEventList = () => {
+    const now = new Date();
+    const past = eventListTab === "past";
+    const visibleEvents = events.filter((event) => isPastEvent(event, now) === past);
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    visibleEvents.sort((left, right) => {
+      const dateGroup = (event) => !event.event_date ? 2 : (event.event_date >= today ? 0 : 1);
+      const groupOrder = dateGroup(left) - dateGroup(right);
+      if (groupOrder) return groupOrder;
+      if (left.event_date && right.event_date) {
+        const dateOrder = left.event_date >= today
+          ? left.event_date.localeCompare(right.event_date)
+          : right.event_date.localeCompare(left.event_date);
+        if (dateOrder) return dateOrder;
+      }
+      return String(right.created_at || "").localeCompare(String(left.created_at || ""));
+    });
+    eventTabs.forEach((button) => {
+      const active = button.dataset.eventTab === eventListTab;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    eventList.setAttribute("aria-labelledby", `events-${eventListTab}-tab`);
+    eventList.innerHTML = visibleEvents.length ? `<div class="stack">${visibleEvents.map((event) => `
+        <a class="card event-row" href="#/event/${event.id}" aria-label="${escapeHtml(event.name)} öffnen">
+          <div class="event-row-content">${eventIconMarkup(event, "event-list-icon")}<div class="event-row-copy"><h3>${escapeHtml(event.name)}</h3><div class="event-meta">
+            <span class="meta-item">${icon("calendar")} ${escapeHtml(dateText(event.event_date))}</span>
+            ${event.location ? `<span class="meta-item">${icon("location")} ${escapeHtml(event.location)}</span>` : ""}
+          </div></div></div>
+          <span class="event-row-arrow">${icon("arrow-right")}</span>
+        </a>`).join("")}</div>` : `<div class="empty">${!events.length
+      ? `Noch kein Event vorhanden.${authContext.isOrganizer ? " Lege das erste Event an." : ""}`
+      : past ? "Noch keine vergangenen Events vorhanden." : "Keine aktuellen Events vorhanden."}</div>`;
+  };
+  eventTabs.forEach((button, index) => {
+    const select = () => {
+      eventListTab = button.dataset.eventTab;
+      eventList.scrollTop = 0;
+      renderEventList();
+    };
+    button.addEventListener("click", select);
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const target = event.key === "Home" ? 0 : event.key === "End" ? eventTabs.length - 1
+        : (index + (event.key === "ArrowRight" ? 1 : -1) + eventTabs.length) % eventTabs.length;
+      eventTabs[target].click();
+      eventTabs[target].focus();
+    });
+  });
+  let midnightTimer;
+  const refreshEventDates = () => {
+    renderEventList();
+    clearTimeout(midnightTimer);
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    midnightTimer = setTimeout(refreshEventDates, midnight.getTime() - now.getTime() + 50);
+  };
+  const resumeEventDates = () => {
+    if (document.visibilityState === "visible") refreshEventDates();
+  };
+  document.addEventListener("visibilitychange", resumeEventDates);
+  routeCleanup = () => {
+    clearTimeout(midnightTimer);
+    document.removeEventListener("visibilitychange", resumeEventDates);
+  };
+  refreshEventDates();
 
   const dialog = document.querySelector("#event-dialog");
   bindDialogClose(dialog);
