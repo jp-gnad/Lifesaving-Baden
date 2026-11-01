@@ -426,7 +426,7 @@ h3 {
 }
 
 .auth-panel .button {
-  min-height: 40px;
+  min-height: 44px;
   padding-block: 8px;
 }
 
@@ -899,7 +899,7 @@ body[data-page="app"] .dashboard > * {
 
 .auth-form input {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px 11px;
@@ -3977,7 +3977,7 @@ body.auth-context-loading .member-apps::after {
 
   body[data-page="login"] .auth-form input,
   body[data-page="login"] .auth-panel .button {
-    min-height: 40px;
+    min-height: 44px;
   }
 
   body[data-page="login"] .auth-form input {
