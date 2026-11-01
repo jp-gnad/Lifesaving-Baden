@@ -1593,6 +1593,9 @@ test("returning from the password step preserves the email and clears the passwo
   h.auth.signInWithEmailAndPassword = async () => { requests++; };
   h.login();
   await h.submit("login");
+  const summary = h.element("[data-login-email-summary]");
+  assert.equal(summary.hidden, false);
+  assert.equal(summary.textContent, "für anna@example.test");
   h.password.value = "synthetic-password";
   h.element("[data-change-email]").handlers.click();
   assert.equal(h.form.classList.contains("is-email-step"), true);
@@ -1600,5 +1603,7 @@ test("returning from the password step preserves the email and clears the passwo
   assert.equal(h.email.focused, true);
   assert.equal(h.password.value, "");
   assert.equal(h.password.required, false);
+  assert.equal(summary.hidden, true);
+  assert.equal(summary.textContent, "");
   assert.equal(requests, 0);
 });

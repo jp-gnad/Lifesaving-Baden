@@ -811,6 +811,13 @@ body[data-page="app"] .dashboard > * {
   line-height: 1.08;
 }
 
+.auth-selected-email {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .auth-panel .button,
 .auth-panel .inline-action,
 .auth-panel .auth-divider strong {
@@ -3888,9 +3895,13 @@ body.auth-context-loading .member-apps::after {
     display: inline;
   }
 
-  body[data-page="login"] .auth-panel h1 {
+  body[data-page="login"] .auth-heading {
     order: 0;
-    margin: 0 0 8px;
+    margin-bottom: 8px;
+  }
+
+  body[data-page="login"] .auth-panel h1 {
+    margin: 0;
     font-size: 2.2rem;
     line-height: 1.15;
   }
