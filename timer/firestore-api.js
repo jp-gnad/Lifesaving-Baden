@@ -18,7 +18,7 @@
   });
 
   const DEFAULT_DISCIPLINES = Object.keys(DISCIPLINES);
-  const ACCESS_LEVELS = new Set(["everyone", "authenticated", "kader", "organizer", "locked"]);
+  const ACCESS_LEVELS = new Set(["everyone", "authenticated", "athlete", "trainer", "organizer", "locked"]);
   const DEFAULT_ACCESS = Object.freeze({
     timerAccess: "locked",
     resultsAccess: "everyone",
@@ -95,6 +95,7 @@
   }
 
   function accessLevel(value, fallback) {
+    if (value === "kader") value = "athlete";
     return ACCESS_LEVELS.has(value) ? value : fallback;
   }
 
@@ -173,7 +174,7 @@
   if (!window.LifesavingAuth || !window.firebase || !window.firebase.auth || !window.firebase.firestore || !window.isFirebaseConfigured) {
     window.timerFirestoreApi = {
       request: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
-      getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false, isKaderAthlete: false }),
+      getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false, isAthlete: false, isTrainer: false }),
       signOut: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
       watchResults: () => () => {},
     };
@@ -199,7 +200,7 @@
     authenticated: false,
     isOrganizer: false,
     isAdmin: false,
-    isKaderAthlete: false,
+    isAthlete: false, isTrainer: false,
     role: "guest",
     roleLabel: "Nicht angemeldet",
     accountName: "",
@@ -230,7 +231,7 @@
       return;
     }
 
-    const { isAdmin, isOrganizer, isKaderAthlete, label } = getAccountRole(userData, claims);
+    const { value, isAdmin, isOrganizer, isTrainer, isAthlete, label } = getAccountRole(userData, claims);
     const accountName = [userData.firstName, userData.lastName].filter(Boolean).join(" ")
       || userData.displayName
       || user?.displayName
@@ -251,12 +252,13 @@
       authenticated,
       isOrganizer,
       isAdmin,
-      isKaderAthlete,
-      role: isAdmin ? "admin" : (isOrganizer ? "organizer" : (isKaderAthlete ? "kader-sportler" : (user ? "authenticated" : "guest"))),
+      isAthlete,
+      isTrainer,
+      role: user ? value : "guest",
       roleLabel: user ? label : "Nicht angemeldet",
       authError,
       accountName,
-      accountNeedsAttention: Boolean(user && userDataLoaded && !accountChecklistComplete),
+      accountNeedsAttention: Boolean(user && userDataLoaded && !isAdmin && !accountChecklistComplete),
     };
     if (!initialAuthResolved) {
       initialAuthResolved = true;
@@ -295,7 +297,8 @@
     if (authContext.isAdmin) return true;
     if (level === "everyone") return true;
     if (level === "authenticated") return authContext.authenticated;
-    if (level === "kader") return authContext.isKaderAthlete || authContext.isOrganizer;
+    if (level === "athlete") return authContext.isAthlete;
+    if (level === "trainer") return authContext.isTrainer;
     return level === "organizer" && authContext.isOrganizer;
   }
 

@@ -51,8 +51,9 @@ function eventCan(event, permission) {
 
 function accessLabel(value) {
   if (value === "everyone") return "Jeder";
-  if (value === "authenticated") return "Angemeldete Personen";
-  if (value === "kader") return "Kadersportler";
+  if (value === "authenticated") return "Standard und höher";
+  if (value === "athlete") return "Sportler und höher";
+  if (value === "trainer") return "Trainer und höher";
   if (value === "organizer") return "Organisatoren";
   return "Gesperrt";
 }
@@ -60,8 +61,9 @@ function accessLabel(value) {
 function accessSelect(name, value) {
   return `<label class="field"><span>Zugriff</span><select name="${name}">
     <option value="everyone" ${value === "everyone" ? "selected" : ""}>Jeder</option>
-    <option value="authenticated" ${value === "authenticated" ? "selected" : ""}>Angemeldete Personen</option>
-    <option value="kader" ${value === "kader" ? "selected" : ""}>Kadersportler</option>
+    <option value="authenticated" ${value === "authenticated" ? "selected" : ""}>Standard und höher</option>
+    <option value="athlete" ${value === "athlete" ? "selected" : ""}>Sportler und höher</option>
+    <option value="trainer" ${value === "trainer" ? "selected" : ""}>Trainer und höher</option>
     <option value="organizer" ${value === "organizer" ? "selected" : ""}>Organisatoren</option>
     <option value="locked" ${value === "locked" ? "selected" : ""}>Gesperrt (nur Admin)</option>
   </select></label>`;
@@ -176,7 +178,7 @@ function timerAccountRole(context = currentTimerAuth) {
   if (context?.roleLabel) return context.roleLabel;
   if (context?.isAdmin) return "Admin";
   if (context?.isOrganizer) return "Organisator";
-  return context?.authenticated ? "Sportler" : "Nicht angemeldet";
+  return context?.authenticated ? "Standard" : "Nicht angemeldet";
 }
 
 function timerAccountAvatar(context = currentTimerAuth) {
@@ -211,7 +213,9 @@ function renderTimerAccount(context) {
   timerAccountDialog.querySelector("[data-timer-account-email]").textContent = currentTimerAuth.user.email || "";
   const roleElement = timerAccountDialog.querySelector("[data-timer-account-role]");
   roleElement.textContent = timerAccountRole(currentTimerAuth);
-  roleElement.classList.toggle("is-admin", Boolean(currentTimerAuth.isAdmin));
+  ["admin", "organizer", "trainer", "athlete", "standard"].forEach((role) => {
+    roleElement.classList.toggle(`is-role-${role}`, currentTimerAuth.role === role);
+  });
   const manageAttention = timerAccountDialog.querySelector("[data-timer-account-manage-attention]");
   manageAttention.hidden = !currentTimerAuth.accountNeedsAttention;
 }

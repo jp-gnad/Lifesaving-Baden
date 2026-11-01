@@ -30,20 +30,20 @@ class TimerIntegrationTest(unittest.TestCase):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
-        for level in ("everyone", "authenticated", "kader", "organizer", "locked"):
+        for level in ("everyone", "authenticated", "athlete", "trainer", "organizer", "locked"):
             self.assertIn(level, app)
             self.assertIn(level, adapter)
             self.assertIn(level, rules)
         self.assertIn("Gesperrt (nur Admin)", app)
-        self.assertIn("Angemeldete Personen", app)
-        self.assertIn("Kadersportler", app)
+        self.assertIn("Standard und höher", app)
+        self.assertIn("Sportler und höher", app)
         self.assertIn("Organisatoren", app)
         self.assertIn("if (authContext.isAdmin) return true", adapter)
         self.assertIn('if (level === "authenticated") return authContext.authenticated', adapter)
-        self.assertIn('if (level === "kader") return authContext.isKaderAthlete || authContext.isOrganizer', adapter)
+        self.assertIn('if (level === "athlete") return authContext.isAthlete', adapter)
         self.assertIn('return level === "organizer" && authContext.isOrganizer', adapter)
         event_access_rule = rules[rules.index("function eventAllows"):rules.index("function ownerKeepsProtectedFieldsSafe")]
-        self.assertIn("return isAdmin()", event_access_rule)
+        self.assertIn("return rank == 5", event_access_rule)
         self.assertNotIn("return isOrganizer()", event_access_rule)
 
     def test_admin_cannot_be_granted_from_account_ui(self):
@@ -178,8 +178,8 @@ class TimerIntegrationTest(unittest.TestCase):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
         core = (ROOT / "assets" / "js" / "auth-core.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
-        self.assertIn('adminData().keys().hasAny(["isAdmin"])', rules)
-        self.assertIn('request.auth.token.role in ["admin", "Admin", "ADMIN"]', rules)
+        self.assertIn('data.get("isAdmin", false) == true', rules)
+        self.assertIn('adminAccount(request.auth.token)', rules)
         self.assertIn("getAccountRole(userData, claims)", adapter)
         self.assertIn("user.getIdTokenResult(attempt === 0)", core)
 
@@ -233,10 +233,10 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('googleButton?.addEventListener("click"', controller)
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", login)
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
-        self.assertIn("login.js?v=20261101-login-clean-v9", login)
-        self.assertIn("auth.js?v=20261101-login-clean-v9", app)
-        self.assertIn("auth-core.js?v=20261101-login-clean-v9", login)
-        self.assertIn("auth-core.js?v=20261101-login-clean-v9", app)
+        self.assertIn("login.js?v=20261101-roles-v10", login)
+        self.assertIn("auth.js?v=20261101-roles-v10", app)
+        self.assertIn("auth-core.js?v=20261101-roles-v10", login)
+        self.assertIn("auth-core.js?v=20261101-roles-v10", app)
         self.assertIn("loadFreshUserContext(activeUser)", auth)
         self.assertIn('ref.get({ source: "server" })', core)
         self.assertNotIn("loadFreshUserContext", controller)
@@ -245,7 +245,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("window.location.replace(target.href)", timer_login)
         self.assertIn('new URL("../login.html", window.location.href)', timer_app)
         self.assertIn('"./login.html"', timer_worker)
-        self.assertIn("auth-core.js?v=20261101-login-clean-v9", timer_worker)
+        self.assertIn("auth-core.js?v=20261101-roles-v10", timer_worker)
 
     def test_timer_waits_for_persistent_auth_and_fresh_role_data(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")

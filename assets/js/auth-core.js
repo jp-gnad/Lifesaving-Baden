@@ -92,7 +92,7 @@
       uid: user.uid, email: user.email || "", ...name,
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
-      role: "sportler", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
+      role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
     };
     // Recheck inside the transaction so another tab's role/profile is never overwritten.
     return window.firebase.firestore().runTransaction(async (transaction) => {
@@ -117,7 +117,8 @@
         });
         const [snapshot, token] = await Promise.all([snapshotPromise, user.getIdTokenResult(attempt === 0)]);
         requireCurrentUser(user);
-        const userData = snapshot.exists ? snapshot.data() || {} : await createAccountDocument(user, ref);
+        const userData = snapshot.exists ? snapshot.data() || {}
+          : isAdminAccount({}, token.claims) ? {} : await createAccountDocument(user, ref);
         requireCurrentUser(user);
         clearRegistrationName(user.uid);
         return { userData, claims: token.claims || {} };
@@ -197,6 +198,7 @@
       "auth/invalid-credential": "E-Mail oder Passwort stimmt nicht.",
       "auth/invalid-email": "Bitte gib eine gültige E-Mail-Adresse ein.",
       "auth/network-request-failed": "Die Verbindung für die Anmeldung ist fehlgeschlagen oder hat zu lange gedauert. Bitte versuche es erneut.",
+      "app/admin-account-readonly": "Admin-Konten können nur manuell in Firebase bearbeitet werden.",
       "app/google-library-unavailable": "Die Google-Anmeldung konnte nicht geladen werden. Bitte versuche es über den Google-Button erneut.",
       "app/google-credential-missing": "Google hat keinen Anmeldenachweis zurückgegeben. Bitte versuche es erneut.",
       "app/google-session-missing": "Die Google-Anmeldung ist in dieser Web-App noch nicht angekommen. Bitte versuche es erneut.",
@@ -293,33 +295,26 @@
   }
 
   function getDefaultAccountRole() {
-    return {
-      isAdmin: false,
-      isOrganizer: false,
-      isKaderAthlete: false,
-      hasKaderAccess: false,
-      label: "Sportler"
-    };
+    return getAccountRole({}, {});
   }
 
   function getAccountRole(data, claims) {
     const isAdmin = isAdminAccount(data, claims);
-    const isOrganizer = isAdmin || isOrganizerAccount(data, claims);
-    const isKaderRole = isKaderAthleteAccount(data, claims);
-    const isKaderAthlete = !isOrganizer && isKaderRole;
-    const hasKaderAccess = isAdmin || isOrganizer || isKaderRole;
-
-    return {
-      isAdmin,
-      isOrganizer,
-      isKaderAthlete,
-      hasKaderAccess,
-      label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : isKaderAthlete ? "Kader-Sportler" : "Sportler"
-    };
+    const roles = [normalizeRole(data?.role), normalizeRole(claims?.role)];
+    const isOrganizer = isAdmin || roles.includes("organizer")
+      || claims?.organizer === true || claims?.isOrganizer === true;
+    const isTrainer = isOrganizer || roles.includes("trainer");
+    const isAthlete = isTrainer || roles.includes("athlete")
+      || claims?.kader === true || claims?.isKaderAthlete === true
+      || data?.kader === true || data?.isKaderAthlete === true;
+    const value = isAdmin ? "admin" : isOrganizer ? "organizer" : isTrainer ? "trainer" : isAthlete ? "athlete" : "standard";
+    const labels = { admin: "Admin", organizer: "Organisator", trainer: "Trainer", athlete: "Sportler", standard: "Standard" };
+    return { value, isAdmin, isOrganizer, isTrainer, isAthlete, label: labels[value] };
   }
 
   function normalizeRole(value) {
-    return String(value || "").trim().toLowerCase();
+    const role = String(value || "").trim().toLowerCase();
+    return ({ organisator: "organizer", "kader-sportler": "athlete", kadersportler: "athlete", kader: "athlete", sportler: "standard" })[role] || role;
   }
 
   function hasRole(value, acceptedRoles) {
@@ -334,26 +329,6 @@
       || hasRole(data?.role, ["admin"])
       || data?.isAdmin === true
       || data?.admin === true
-    );
-  }
-
-  function isOrganizerAccount(data, claims) {
-    return Boolean(
-      claims?.organizer === true
-      || claims?.isOrganizer === true
-      || hasRole(claims?.role, ["organizer", "organisator"])
-      || hasRole(data?.role, ["organizer", "organisator"])
-    );
-  }
-
-  function isKaderAthleteAccount(data, claims) {
-    return Boolean(
-      hasRole(claims?.role, ["kader-sportler", "kadersportler", "kader"])
-      || hasRole(data?.role, ["kader-sportler", "kadersportler", "kader"])
-      || claims?.kader === true
-      || claims?.isKaderAthlete === true
-      || data?.kader === true
-      || data?.isKaderAthlete === true
     );
   }
 
@@ -393,7 +368,7 @@
     initFirebase, ensureLocalAuthPersistence, isCurrentUser, requireCurrentUser, reloadUser, hasVerifiedAccess,
     isTransientError, withRetry, loadUserContext, rememberRegistrationName,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
-    getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount, isOrganizerAccount, isKaderAthleteAccount,
+    getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount,
     getSafeReturnUrl, getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin,
     setMessage, setLoading, translateAuthError, initPasswordVisibilityToggles,
   });

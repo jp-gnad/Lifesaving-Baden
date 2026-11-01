@@ -202,10 +202,10 @@ test("shared roles accept claims and stored role aliases consistently", () => {
   for (const [data, claims, expected] of [
     [{ role: "ADMIN" }, {}, "Admin"], [{}, { isAdmin: true }, "Admin"],
     [{ role: "organisator" }, {}, "Organisator"], [{}, { isOrganizer: true }, "Organisator"],
-    [{ kader: true }, {}, "Kader-Sportler"], [{}, { isKaderAthlete: true }, "Kader-Sportler"],
-    [{ role: "kadersportler" }, {}, "Kader-Sportler"], [{}, {}, "Sportler"],
+    [{ kader: true }, {}, "Sportler"], [{}, { isKaderAthlete: true }, "Sportler"],
+    [{ role: "kadersportler" }, {}, "Sportler"], [{}, {}, "Standard"],
   ]) assert.equal(h.core.getAccountRole(data, claims).label, expected);
-  assert.equal(h.core.getAccountRole({ role: "admin" }, {}).hasKaderAccess, true);
+  assert.equal(h.core.getAccountRole({ role: "admin" }, {}).isAthlete, true);
 });
 
 test("unverified password accounts are blocked while verified and Google accounts can continue", () => {
@@ -980,7 +980,7 @@ test("password reset keeps the timer return target", async () => {
   assert.equal(new URL(h.counts.reset.options.url).searchParams.get("returnTo"), "https://example.test/club/timer/#/");
 });
 
-test("new account documents preserve registration names and start with the sportler role", async () => {
+test("new account documents preserve registration names and start with the standard role", async () => {
   const h = harness({ user: { uid: "new", displayName: "Anna Maria von Baden" }, stored: null });
   h.core.rememberRegistrationName("new", { firstName: "Anna Maria", lastName: "von Baden", displayName: "Anna Maria von Baden" });
   const [first, second] = await Promise.all([h.core.loadUserContext(h.auth.currentUser), h.core.loadUserContext(h.auth.currentUser)]);
@@ -989,7 +989,7 @@ test("new account documents preserve registration names and start with the sport
   assert.equal(h.counts.writes.length, 1);
   assert.equal(first.userData.firstName, "Anna Maria");
   assert.equal(first.userData.lastName, "von Baden");
-  assert.equal(first.userData.role, "sportler");
+  assert.equal(first.userData.role, "standard");
   assert.deepEqual(h.counts.tokens, [true]);
 });
 
@@ -1083,15 +1083,15 @@ test("timer initialization uses the shared Kader role and clears it on logout", 
   h.callbacks.auth(h.auth.currentUser);
   const context = await h.window.timerFirestoreApi.getAuthContext();
   assert.equal(context.authenticated, true);
-  assert.equal(context.isKaderAthlete, true);
-  assert.equal(context.roleLabel, "Kader-Sportler");
+  assert.equal(context.isAthlete, true);
+  assert.equal(context.roleLabel, "Sportler");
   assert.deepEqual(h.counts.tokens, [true]);
   assert.equal(h.counts.reads, 1);
   await h.window.timerFirestoreApi.signOut();
   await new Promise(setImmediate);
   const signedOut = await h.window.timerFirestoreApi.getAuthContext();
   assert.equal(signedOut.authenticated, false);
-  assert.equal(signedOut.isKaderAthlete, false);
+  assert.equal(signedOut.isAthlete, false);
 });
 
 test("timer permanent errors are visible and do not schedule another attempt", async () => {
@@ -1147,4 +1147,115 @@ test("the timer service worker retains its auth script fallback when offline", a
   let response;
   callbacks.fetch({ request: { method: "GET", mode: "cors", url: "https://example.test/club/assets/js/auth-core.js?v=latest" }, respondWith(value) { response = value; } });
   assert.equal(await response, cached);
+});
+
+
+function memberFunctions(h) {
+  h.document.querySelector = () => null;
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { requireEditableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  return h.window.memberTest;
+}
+
+test("the five canonical roles form the expected hierarchy and retain legacy privileges", () => {
+  const h = harness();
+  const roles = ["standard", "athlete", "trainer", "organizer", "admin"];
+  for (const [index, value] of roles.entries()) {
+    for (const [data, claims] of [[{ role: value }, {}], [{}, { role: value.toUpperCase() }]]) {
+      const role = h.core.getAccountRole(data, claims);
+      assert.equal(role.value, value);
+      assert.equal(role.isAthlete, index >= 1);
+      assert.equal(role.isTrainer, index >= 2);
+      assert.equal(role.isOrganizer, index >= 3);
+      assert.equal(role.isAdmin, index === 4);
+    }
+  }
+  assert.equal(h.core.getAccountRole({ role: "sportler" }, {}).value, "standard");
+  assert.equal(h.core.getAccountRole({ role: "kader-sportler" }, {}).value, "athlete");
+  assert.equal(h.core.getAccountRole({ role: "standard", kader: true }, {}).value, "athlete");
+  assert.equal(h.core.getAccountRole({ role: "trainer", kader: true }, {}).value, "trainer");
+  assert.equal(h.core.getAccountRole({ role: "trainer" }, { organizer: true }).value, "organizer");
+});
+
+test("admin context loading never synchronizes Auth or Firestore profile fields", async () => {
+  for (const [stored, claims] of [[{ role: "admin" }, {}], [{ admin: true }, {}], [{ isAdmin: true }, {}], [{ role: "standard" }, { admin: true }]]) {
+    let authWrites = 0;
+    const h = harness({ user: { uid: "admin", displayName: "Auth Name", updateProfile: async () => { authWrites++; } }, stored, token: async () => ({ claims }) });
+    const functions = memberFunctions(h);
+    const context = await functions.loadFreshUserContext(h.auth.currentUser);
+    assert.equal(h.core.getAccountRole(context.userData, context.claims).isAdmin, true);
+    assert.equal(authWrites, 0);
+    assert.equal(h.counts.writes.length, 0);
+    await assert.rejects(functions.requireEditableAccount(h.auth.currentUser), { code: "app/admin-account-readonly" });
+  }
+});
+
+test("an admin claim with no account document does not create or initialize a profile", async () => {
+  const h = harness({ user: { uid: "admin" }, stored: null, token: async () => ({ claims: { isAdmin: true } }) });
+  const context = await h.core.loadUserContext(h.auth.currentUser);
+  assert.equal(h.core.getAccountRole(context.userData, context.claims).isAdmin, true);
+  assert.equal(h.counts.writes.length, 0);
+});
+
+test("current-account mutation guard rechecks roles and permits non-admin profile edits", async () => {
+  let stored = { role: "trainer" };
+  const h = harness({ user: { uid: "u" }, read: async () => ({ exists: true, data: () => stored }) });
+  const functions = memberFunctions(h);
+  await functions.requireEditableAccount(h.auth.currentUser);
+  stored = { role: "admin" };
+  await assert.rejects(functions.requireEditableAccount(h.auth.currentUser), { code: "app/admin-account-readonly" });
+});
+
+test("timer permissions match every role threshold and keep management away from trainers", async () => {
+  for (const [rank, role] of ["standard", "athlete", "trainer", "organizer", "admin"].entries()) {
+    const h = harness({ url: "https://example.test/club/timer/", user: { uid: role, emailVerified: true }, stored: { role } });
+    vm.runInContext(source("timer/firestore-api.js").replace(/\}\)\(\);\s*$/, "window.timerPermissionTest = permissionSet;})();"), h.context);
+    h.callbacks.auth(h.auth.currentUser);
+    const context = await h.window.timerFirestoreApi.getAuthContext();
+    assert.equal(context.role, role);
+    for (const [level, threshold] of [["everyone", 0], ["authenticated", 0], ["athlete", 1], ["kader", 1], ["trainer", 2], ["organizer", 3], ["locked", 4]]) {
+      const permissions = h.window.timerPermissionTest({ timerAccess: level, resultsAccess: level, participantViewAccess: level, participantEditAccess: level, resultEditAccess: level });
+      for (const key of ["canUseTimer", "canViewResults", "canViewParticipants", "canEditParticipants", "canEditResults"]) assert.equal(permissions[key], rank >= threshold, `${role} / ${level} / ${key}`);
+      assert.equal(permissions.canManageEvent, rank >= 3);
+      assert.equal(permissions.canImportParticipants, rank >= 3 && rank >= threshold);
+    }
+  }
+});
+
+
+test("admin account cards expose no editors or request actions while other roles keep their controls", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  h.document.createElement = (tagName) => ({
+    tagName, dataset: {}, children: [], classList: { toggle() {} },
+    append(...children) { this.children.push(...children); },
+    setAttribute() {},
+  });
+  const all = (element) => [element, ...element.children.flatMap(all)];
+  for (const role of ["admin", "organizer", "trainer", "athlete", "standard"]) {
+    const card = functions.createAdminAccountCard({ uid: role, data: { role, personLinkStatus: "requested", personLinkRequest: { status: "requested" } } });
+    const nodes = all(card);
+    const select = nodes.find((node) => node.tagName === "select");
+    if (role === "admin") {
+      assert.equal(select, undefined);
+      assert.equal(nodes.some((node) => node.tagName === "input"), false);
+      for (const action of ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction", "adminAccountIssueAction"]) {
+        assert.equal(nodes.some((node) => action in node.dataset), false);
+      }
+    } else {
+      assert.deepEqual(select.children.map((option) => option.value), ["organizer", "trainer", "athlete", "standard"]);
+      assert.equal(nodes.some((node) => "adminAccountEdit" in node.dataset), true);
+    }
+  }
+});
+
+test("admin settings actions cannot unlink providers, replace Google credentials or delete the account", async () => {
+  let mutations = 0;
+  const user = { uid: "admin", emailVerified: true, providerData: [{ providerId: "password" }, { providerId: "google.com" }],
+    unlink: async () => { mutations++; }, linkWithPopup: async () => { mutations++; }, delete: async () => { mutations++; } };
+  const h = harness({ user, stored: { role: "admin" } });
+  h.window.confirm = () => true;
+  const functions = memberFunctions(h);
+  for (const action of ["manageGoogleAccount", "unlinkGoogleAccount", "unlinkPasswordAccount", "deleteCurrentAccount"]) await functions[action](h.auth, null);
+  assert.equal(mutations, 0);
+  assert.equal(h.counts.writes.length, 0);
 });

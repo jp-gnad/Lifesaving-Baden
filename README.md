@@ -127,7 +127,7 @@ höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
 
 Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
 wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue
-Konten erhalten dabei die Rolle `sportler`; eine Transaktion verhindert das
+Konten erhalten dabei die Rolle `standard`; eine Transaktion verhindert das
 Überschreiben eines bereits vorhandenen Profils aus einem anderen Tab.
 
 Die Login-Abläufe lassen sich ohne echte Konten oder Firebase-Zugriffe prüfen:
@@ -137,6 +137,16 @@ node --test tests/auth_flow.test.cjs
 node --test tests/event_overview.test.cjs
 python -B -m unittest discover -s tests -p 'test_*.py'
 ```
+
+Die Berechtigungen lassen sich zusätzlich mit Java 21 und dem lokalen Firestore-Emulator prüfen:
+
+```powershell
+npm.cmd install --no-save --package-lock=false @firebase/rules-unit-testing@5 firebase@12.19.0
+npx.cmd firebase-tools emulators:exec --only firestore --project demo-lifesaving-baden "node --test tests/firestore_rules.test.cjs"
+```
+
+Der feste Demo-Projektname und die lokale Host-Prüfung im Test verhindern Zugriffe
+auf Produktionsdaten. Ohne gestarteten Emulator wird dieser Test übersprungen.
 
 ### Google-Login in der installierten GitHub-Web-App
 
@@ -247,8 +257,7 @@ Gespeicherte Felder:
 - `createdAt`, `updatedAt`, `lastSignInAt`: technische Zeitstempel.
 - `dlrgBranch`: freiwillige DLRG-Gliederung aus den Kontoeinstellungen.
 - `birthDate`: freiwilliges Geburtsdatum aus den Kontoeinstellungen.
-- `role`: Rolle des Kontos. Neue Konten erhalten automatisch `sportler`.
-  Manuell vergebene Werte sind z. B. `organizer`, `organisator` oder `admin`.
+- `role`: `standard`, `athlete`, `trainer`, `organizer` oder `admin`. Neue Konten erhalten `standard`.
 - `isAdmin` / `admin`: optionale Admin-Markierung als Boolean.
 - `personLinkStatus`: Status des beantragten Personenabgleichs.
 - `personLinkRequest`: Antrag mit Vorname, Nachname, Geburtsdatum,
@@ -258,107 +267,44 @@ Gespeicherte Felder:
 2. `Create database` wählen.
 3. `Production mode` nutzen.
 4. Eine Region auswählen, idealerweise eine EU-Region, falls verfügbar.
-5. Unter `Rules` diese Regeln veröffentlichen:
+5. Unter `Rules` den vollständigen Inhalt von [`firestore.rules`](firestore.rules) einfügen und veröffentlichen. Diese Datei ist die einzige Vorlage für die Regeln, einschließlich der Timer-Berechtigungen.
 
-```js
-rules_version = '2';
+## Rollen und Admin-Schutz
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
+| Anzeige | Gespeicherter Wert | Rechte |
+| --- | --- | --- |
+| Standard | `standard` | Grundzugriff und Event-Freigabe für angemeldete Nutzer |
+| Sportler | `athlete` | zusätzlich Freigabe „Sportler und höher“ |
+| Trainer (grün) | `trainer` | zusätzlich Freigabe „Trainer und höher“ |
+| Organisator | `organizer` | zusätzlich Freigabe „Organisatoren“, Eventverwaltung und Teilnehmerimport |
+| Admin | `admin` | alle Event-Freigaben, Verwaltung anderer Konten |
 
-    function elevatedRoleFields() {
-      return [
-        'isOrganizer',
-        'organizer',
-        'organizerSince',
-        'organizerGrantedBy',
-        'isAdmin',
-        'admin',
-        'adminSince',
-        'adminGrantedBy'
-      ];
-    }
+Bestehende Konten müssen nicht umgeschrieben werden: `sportler` bedeutet jetzt
+Standard; `kader-sportler`, `kadersportler`, `kader` und die alten Kader-Markierungen
+bedeuten Sportler. `organisator` bleibt ein Alias für Organisator. Alte Event-Freigaben
+mit `kader` entsprechen „Sportler und höher“. Neue Änderungen speichern die Werte
+oben. Bei einer Rollenänderung werden alte Kader-Markierungen entfernt.
 
-    function isSportlerRole() {
-      return request.resource.data.keys().hasAll(['role'])
-        && request.resource.data.role == 'sportler';
-    }
+Admins können andere Nicht-Admin-Konten zu Standard, Sportler, Trainer oder
+Organisator machen. Admin-Konten sind in der Web-App vollständig schreibgeschützt,
+auch bei Profil, Anmeldeanbietern, Verknüpfungen und Löschung. Automatische
+Profilabgleiche überspringen Admin-Konten. Die Firestore-Regeln sperren Änderungen
+und Löschungen an Admin-Dokumenten auch für andere Admins. Eine Adminrolle kann
+nicht über die Web-App vergeben werden.
 
-    function roleIsSafeOnCreate() {
-      return !request.resource.data.keys().hasAny(['role']) || isSportlerRole();
-    }
-
-    function roleUnchangedOrDefaulted() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
-        || (!resource.data.keys().hasAny(['role']) && isSportlerRole());
-    }
-
-    function noElevatedRoleFieldsInNewDoc() {
-      return !request.resource.data.keys().hasAny(elevatedRoleFields());
-    }
-
-    function elevatedRoleFieldsUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(elevatedRoleFields());
-    }
-
-    match /users/{userId} {
-      allow read, delete: if isOwner(userId);
-      allow create: if isOwner(userId)
-        && noElevatedRoleFieldsInNewDoc()
-        && roleIsSafeOnCreate();
-      allow update: if isOwner(userId)
-        && elevatedRoleFieldsUnchanged()
-        && roleUnchangedOrDefaulted();
-    }
-  }
-}
-```
-
-Damit kann jeder eingeloggte Nutzer nur sein eigenes Einstellungsdokument
-lesen und ändern. Nutzer dürfen `role: "sportler"` automatisch anlegen, aber
-keine höheren Rollen wie `organizer` oder `admin` selbst setzen oder ändern.
-
-## Rollen: Sportler, Organisator, Admin
-
-Die Website kennt aktuell drei Rollen. Neue Konten sind automatisch `Sportler`,
-solange in Firestore kein Rollenfeld gesetzt ist. `Organisator` wird manuell
-vergeben. `Admin` ist die höchste Rolle und zählt automatisch auch als
-Organisator.
-
-Aktuell erkennt die Website Organisatorrechte über eines dieser Merkmale:
-
-- Firestore-Feld `role: "organizer"` oder `role: "organisator"` im Dokument
-  `users/{uid}`
-- später optional Firebase Auth Custom Claim `organizer: true` oder
-  `isOrganizer: true`
-
-Aktuell erkennt die Website Adminrechte über eines dieser Merkmale:
-
-- Firestore-Feld `role: "admin"` im Dokument `users/{uid}`
-- Firestore-Feld `isAdmin: true` oder `admin: true` im Dokument `users/{uid}`
-- später optional Firebase Auth Custom Claim `admin: true` oder `isAdmin: true`
-
-So vergibst du aktuell eine Rolle:
-
-1. In Firebase `Authentication` öffnen.
-2. Das gewünschte Konto in der Nutzerliste anklicken.
-3. Die `User UID` kopieren.
-4. In `Firestore Database` zur Collection `users` gehen.
-5. Das Dokument mit genau dieser UID öffnen oder erstellen.
-6. Für Organisator: Feld `role` als String mit Wert `organizer` hinzufügen.
-7. Für Admin: Feld `role` als String mit Wert `admin` hinzufügen.
-8. Website neu laden oder neu einloggen.
-
-Für echte spätere Admin-Funktionen sind Firebase Auth Custom Claims sicherer.
-Diese können nicht direkt von GitHub Pages gesetzt werden, sondern brauchen
-Admin SDK, Cloud Functions oder ein kleines Backend.
+Admin-Konten werden ausschließlich manuell in der Firebase Console gepflegt:
+Authentication für Anmeldedaten und Firestore `users/{uid}` für Kontodaten/Rolle.
+Bei Admins muss auch das Kontodokument `role: "admin"`, `admin: true` oder
+`isAdmin: true` enthalten, damit andere Konten den Admin-Schutz erkennen.
+Vorhandene Auth Custom Claims bleiben wirksam und müssen gegebenenfalls separat
+über eine privilegierte Admin-Umgebung geändert werden; die Web-App kann sie nicht
+ändern. Eigene Profiländerungen eines nur über Claims erkannten Admins sind ebenfalls
+gesperrt. Firebase-Auth-Profilaktionen werden durch die Web-App gesperrt, nicht durch
+Firestore-Regeln.
 
 ## Kontoverwaltung
 
-In den Kontoeinstellungen kann ein eingeloggter Nutzer Name und E-Mail-Adresse
+In den Kontoeinstellungen kann ein eingeloggter Nutzer ohne Adminrolle Name und E-Mail-Adresse
 ändern. Die Firebase UID bleibt dabei gleich, das Konto geht also nicht
 verloren. Bei einer neuen E-Mail-Adresse sendet Firebase eine
 Bestätigungs-Mail an die neue Adresse.
@@ -442,9 +388,12 @@ Die Eventübersicht und direkte Eventlinks sind öffentlich erreichbar. Welche
 Funktionen innerhalb eines Events nutzbar sind, legt ein Organisator in den
 Event-Einstellungen fest:
 
-- nur Organisatoren,
-- alle angemeldeten und bestätigten Nutzer,
-- alle, auch ohne Anmeldung.
+- gesperrt (nur Admin),
+- Organisatoren,
+- Trainer und höher,
+- Sportler und höher,
+- Standard und höher (angemeldet und bestätigt),
+- jeder, auch ohne Anmeldung.
 
 Diese Auswahl gibt es getrennt für Timer, Ergebnisanzeige,
 Ergebniskorrekturen, Personenanzeige und Personenbearbeitung. Eventerstellung,
@@ -482,7 +431,7 @@ Zugriffen erwartungsgemäß eine fehlende Berechtigung an.
 
 Die Adminrolle kann weiterhin nicht über die Website vergeben werden. Das
 Admin-Konto wird ausschließlich direkt in Firebase gepflegt. Ein Admin kann in
-der Website andere Konten zu Organisatoren, Kader-Sportlern oder Sportlern
+der Website andere Konten zu Organisatoren, Trainern, Sportlern oder Standard-Nutzern
 machen, aber keinen weiteren Admin anlegen. Normale Konten können ihre eigenen
 Rollenfelder weder setzen noch verändern.
 

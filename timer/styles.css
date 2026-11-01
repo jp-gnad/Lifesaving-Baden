@@ -98,7 +98,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .timer-account-avatar-large { justify-self: center; width: 112px; height: 112px; border: 4px solid var(--text); font-size: 34px; }
 .timer-account-dialog h2 { margin: 0; color: var(--text); font-size: clamp(26px, 6vw, 38px); line-height: 1.12; text-align: center; }
 .timer-account-name-line strong { color: var(--primary-dark); }
-.timer-account-name-line strong.is-admin { color: var(--danger); }
+.timer-account-name-line strong.is-role-admin { color: var(--danger); }
+.timer-account-name-line strong.is-role-organizer { color: rgb(60, 156, 255); }
+.timer-account-name-line strong.is-role-trainer { color: rgb(28, 191, 105); }
+.timer-account-name-line strong.is-role-athlete { color: rgb(255, 237, 0); }
 .timer-account-manage { position: relative; width: 100%; min-height: 50px; padding-inline: 42px; border-color: var(--line); background: transparent; color: var(--muted); }
 .timer-account-manage:hover { background: var(--surface-alt); color: var(--text); }
 .timer-account-manage-attention { position: absolute; top: 50%; right: 14px; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #f4b400; color: var(--text); font-size: 12px; font-weight: 850; line-height: 1; box-shadow: 0 0 0 1px rgba(244, 180, 0, .35); transform: translateY(-50%); }

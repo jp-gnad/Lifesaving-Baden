@@ -12,14 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260715-link-request-withdraw-action">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-roles-v10">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
-    <script defer src="assets/js/firebase-config.js?v=20261101-login-clean-v9"></script>
-    <script defer src="assets/js/auth-core.js?v=20261101-login-clean-v9"></script>
-    <script defer src="assets/js/auth.js?v=20261101-login-clean-v9"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-roles-v10"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-roles-v10"></script>
+    <script defer src="assets/js/auth.js?v=20261101-roles-v10"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -91,7 +91,8 @@
             </div>
           </div>
 
-          <form class="setting-form link-request-step-form" data-link-request-form data-current-step="0">
+          <p class="card is-hidden" data-admin-only>Admin-Konten können nur manuell in Firebase bearbeitet werden.</p>
+          <form class="setting-form link-request-step-form" data-account-editable data-link-request-form data-current-step="0">
             <section class="link-request-step" data-link-request-step data-step-label="Persönliche Angaben">
               <div class="link-request-step-heading">
                 <h3 tabindex="-1">
@@ -304,7 +305,7 @@
         </div>
 
         <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
-        <p class="account-name-line account-role-line">Status: <strong data-account-role>Sportler</strong></p>
+        <p class="account-name-line account-role-line">Status: <strong data-account-role>Standard</strong></p>
 
         <a class="button button-secondary account-manage" href="account-settings.html">
           <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
