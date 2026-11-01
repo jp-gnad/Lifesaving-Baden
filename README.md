@@ -190,7 +190,16 @@ zeigt sie bei einem erkannten Fehler den Anmeldecode, die geladene Version und
 den App-/Browsermodus. Unter dem Google-Button lässt sich außerdem die
 `Anmeldehilfe` aufklappen und über `Status kopieren` weitergeben. Sie zeigt auch
 bei ausbleibenden Fehlermeldungen die Firebase-Version, die Speicherverfügbarkeit,
-ob Firebase eine Sitzung erkennt und die letzten zehn Ablaufereignisse.
+ob Firebase eine Sitzung erkennt und die letzten 24 Ablaufereignisse.
+Die Verlaufsspur liegt zusätzlich unter einem eigenen Schlüssel in `localStorage`,
+damit ein Seitenneustart den ursprünglichen Google-Klick nicht aus der Diagnose
+entfernt. Einzelne Seitenausführungen erhalten zufällige lokale Kennzeichnungen;
+diese identifizieren weder ein Konto noch ein Gerät. Navigationsart, ein vorhandener
+Fensteröffner und der beim Seitenstart vorgefundene Startmarker helfen, einen
+Seitenneustart von einem anderen Fenster-/Speicherkontext zu unterscheiden.
+Einträge, die älter als zehn Minuten sind, werden beim nächsten Zugriff verworfen.
+Wenn der lokale Speicher blockiert ist, funktioniert die Diagnose weiterhin im
+Arbeitsspeicher und blockiert keine Anmeldung.
 Die Angaben enthalten keine E-Mail-Adresse, Nutzer-ID, Tokens oder rohen
 Fehlermeldungen und werden erst durch den Kopierbutton in die Zwischenablage
 übernommen; es erfolgt kein automatischer Versand.

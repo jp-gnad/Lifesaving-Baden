@@ -11,6 +11,14 @@ const deferred = () => {
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
 };
+const localStore = () => {
+  const values = new Map();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: (key) => values.delete(key),
+  };
+};
 
 function harness({ url = "https://example.test/club/login.html", user = null, stored = { role: "sportler" }, read, token, transactionData } = {}) {
   const counts = { persistence: 0, reads: 0, tokens: [], writes: [], delays: [], redirects: [], redirectResults: 0, redirectStarts: 0, warnings: [], events: [] };
@@ -350,6 +358,7 @@ test("login help exposes pending Google events without collecting account detail
 
 test("copying login help excludes the account identifier, email, and raw Firebase errors", async () => {
   const h = harness({ user: { uid: "private-uid", email: "private@example.test", emailVerified: false } });
+  h.window.localStorage = localStore();
   let copied;
   h.window.navigator = { clipboard: { async writeText(text) { copied = text; } } };
   h.auth.signInWithPopup = async () => { throw { code: "auth/network-request-failed", message: "private-access-token" }; };
@@ -359,6 +368,79 @@ test("copying login help excludes the account identifier, email, and raw Firebas
   assert.match(copied, /auth\/network-request-failed/);
   assert.match(copied, /Firebase-Sitzung: vorhanden/);
   assert.doesNotMatch(copied, /private-uid|private@example\.test|private-access-token/);
+  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-uid|private@example\.test|private-access-token/);
+});
+
+test("the diagnostic trace preserves the Google click across a page restart without sharing sessionStorage", async () => {
+  const storage = localStore();
+  const first = harness();
+  first.window.localStorage = storage;
+  const gate = deferred();
+  first.auth.signInWithPopup = () => gate.promise;
+  first.login();
+  const clicked = first.element("[data-google-login]").handlers.click();
+  await new Promise(setImmediate);
+  const before = first.element("[data-login-diagnostics-output]").textContent;
+  const second = harness();
+  second.window.localStorage = storage;
+  second.window.performance = { getEntriesByType: () => [{ type: "reload" }] };
+  second.login();
+  second.callbacks.auth(null);
+  await new Promise(setImmediate);
+  const after = second.element("[data-login-diagnostics-output]").textContent;
+  gate.resolve({ user: null });
+  await clicked;
+  assert.match(before, /Lokaler Diagnoseverlauf: gespeichert/);
+  assert.match(after, /Google-Anmeldung gestartet/);
+  assert.match(after, /Navigationsart: reload/);
+  assert.match(after, /Google-Startmarker bei Seitenstart: keiner/);
+  const labels = new Set([...after.matchAll(/\[Seite ([a-z0-9]{8})\]/g)].map((match) => match[1]));
+  assert.equal(labels.size, 2);
+});
+
+test("an isolated storage context cannot inherit the first window's Google trace", async () => {
+  const first = harness();
+  first.window.localStorage = localStore();
+  const gate = deferred();
+  first.auth.signInWithPopup = () => gate.promise;
+  first.login();
+  const clicked = first.element("[data-google-login]").handlers.click();
+  const second = harness();
+  second.window.localStorage = localStore();
+  second.window.opener = {};
+  second.login();
+  await new Promise(setImmediate);
+  const after = second.element("[data-login-diagnostics-output]").textContent;
+  gate.resolve({ user: null });
+  await clicked;
+  assert.doesNotMatch(after, /Google-Anmeldung gestartet/);
+  assert.match(after, /Fensteröffner: vorhanden/);
+  assert.match(after, /Lokaler Diagnoseverlauf: gespeichert/);
+});
+
+test("blocked local trace storage does not block authentication", async () => {
+  const h = harness({ user: { uid: "u", providerData: [{ providerId: "google.com" }] } });
+  Object.defineProperty(h.window, "localStorage", { get() { throw new Error("blocked"); } });
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirects.length, 1);
+  assert.match(h.element("[data-login-diagnostics-output]").textContent, /nur aktuelle Seite/);
+});
+
+test("old and unrecognized trace data is discarded, including extra private fields", async () => {
+  const h = harness();
+  h.window.localStorage = localStore();
+  const time = Date.now();
+  h.window.localStorage.setItem("lifesaving-baden:login-trace-v1", JSON.stringify({ entries: [
+    { id: "google", page: "abcdefgh", seq: 1, time: time - 11 * 60 * 1000 },
+    { id: "private-account@example.test", page: "abcdefgh", seq: 2, time },
+    { id: "start", page: "abcdefgh", seq: 3, time, message: "private-access-token" },
+  ] }));
+  h.login();
+  await new Promise(setImmediate);
+  const output = h.element("[data-login-diagnostics-output]").textContent;
+  assert.doesNotMatch(output, /Google-Anmeldung gestartet|private-account|private-access-token/);
+  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-account|private-access-token/);
 });
 
 test("login help identifies a persistence failure while keeping the login usable", async () => {

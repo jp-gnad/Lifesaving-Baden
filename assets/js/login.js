@@ -2,7 +2,25 @@
   "use strict";
   const loginVersion = new URL(document.currentScript.src).searchParams.get("v") || "development";
   const googleAttemptKey = "lifesaving-baden:google-login-started";
-  const diagnosticEvents = [];
+  const traceKey = "lifesaving-baden:login-trace-v1";
+  const traceTtl = 10 * 60 * 1000;
+  // This labels a page execution, never an account or a device.
+  const pageLabel = Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+  const diagnosticLabels = Object.freeze({
+    start: "Anmeldeskript gestartet", shown: "Loginseite angezeigt", restored: "Loginseite aus Verlauf wiederhergestellt",
+    pagehide: "Loginseite verlassen oder ausgeblendet", visible: "App wieder sichtbar", hidden: "App ausgeblendet",
+    persistence: "Sitzungsspeicher geprüft", profile: "Firebase-Konto aktualisiert",
+    complete: "Anmeldung abgeschlossen; Weiterleitung gestartet", user: "Firebase-Anmeldeereignis: Sitzung vorhanden",
+    guest: "Firebase-Anmeldeereignis: keine Sitzung", redirect_check: "Google-Rückgabe nach Seitenstart wird geprüft",
+    redirect_result: "Google-Weiterleitung hat ein Ergebnis geliefert", redirect_empty: "Keine ausstehende Google-Rückgabe",
+    google: "Google-Anmeldung gestartet", redirect: "Google-Weiterleitung gestartet",
+    popup_result: "Google-Fenster hat ein Ergebnis geliefert", unavailable: "Firebase-Anmeldung nicht verfügbar",
+    error: "Anmeldefehler", popup_error: "Google-Fenster meldet",
+  });
+  let diagnosticEvents = [];
+  let diagnosticSequence = 0;
+  let diagnosticTraceStorage = "noch nicht geprüft";
+  const initialGoogleMarker = hasPendingGoogleReturn();
   let diagnosticAuth = null;
   let diagnosticPersistence = "wird vorbereitet";
   let diagnosticErrorCode = "keiner";
@@ -10,6 +28,23 @@
 
   function safeErrorCode(error) {
     return /^(auth|app)\/[a-z0-9-]+$/.test(error?.code || "") ? error.code : "app/unknown-login-error";
+  }
+
+  function readTrace() {
+    try {
+      const data = JSON.parse(window.localStorage?.getItem(traceKey) || "null");
+      if (!Array.isArray(data?.entries)) return [];
+      return data.entries.filter((entry) => entry && Object.hasOwn(diagnosticLabels, entry.id)
+        && /^[a-z0-9]{8}$/.test(entry.page) && Number.isInteger(entry.seq) && entry.seq > 0
+        && Number.isFinite(entry.time) && Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl
+        && (entry.code === undefined || /^(auth|app)\/[a-z0-9-]+$/.test(entry.code)))
+        .slice(-24).map(({ id, page, seq, time, code }) => ({ id, page, seq, time, ...(code ? { code } : {}) }));
+    } catch { return []; }
+  }
+
+  function navigationType() {
+    const type = window.performance?.getEntriesByType?.("navigation")?.[0]?.type;
+    return ["navigate", "reload", "back_forward", "prerender"].includes(type) ? type : "unbekannt";
   }
 
   function refreshDiagnostics() {
@@ -21,18 +56,33 @@
       `Firebase-Version: ${window.firebase?.SDK_VERSION || "unbekannt"}`,
       `Modus: ${standalone ? "Web-App" : "Browser"}`,
       `Google-Verfahren: ${diagnosticGoogleMethod}`,
+      `Aktuelle Seite: ${pageLabel}`,
+      `Navigationsart: ${navigationType()}`,
+      `Fensteröffner: ${window.opener ? "vorhanden" : "keiner"}`,
+      `Google-Startmarker bei Seitenstart: ${initialGoogleMarker ? "vorhanden" : "keiner"}`,
+      `Lokaler Diagnoseverlauf: ${diagnosticTraceStorage}`,
       `Sitzungsspeicher: ${diagnosticPersistence}`,
       `Firebase-Sitzung: ${diagnosticAuth?.currentUser ? "vorhanden" : "keine"}`,
       `Letzter Fehlercode: ${diagnosticErrorCode}`,
-      "Ablauf:", ...diagnosticEvents,
+      "Ablauf (maximal 10 Minuten):", ...diagnosticEvents.map((entry) =>
+        `[Seite ${entry.page}] ${diagnosticLabels[entry.id]}${entry.code ? `: ${entry.code}` : ""}`),
     ].join("\n");
     output.textContent = text;
     return text;
   }
 
-  function recordDiagnostic(event) {
-    diagnosticEvents.push(event);
-    if (diagnosticEvents.length > 10) diagnosticEvents.shift();
+  function recordDiagnostic(id, code) {
+    const current = { id, page: pageLabel, seq: ++diagnosticSequence, time: Date.now(), ...(code ? { code } : {}) };
+    const merged = new Map([...readTrace(), ...diagnosticEvents, current]
+      .filter((entry) => Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl)
+      .map((entry) => [`${entry.page}:${entry.seq}`, entry]));
+    diagnosticEvents = [...merged.values()].sort((a, b) => a.time - b.time).slice(-24);
+    try {
+      if (!window.localStorage) throw new Error("Storage unavailable");
+      const serialized = JSON.stringify({ entries: diagnosticEvents });
+      window.localStorage.setItem(traceKey, serialized);
+      diagnosticTraceStorage = window.localStorage.getItem(traceKey) === serialized ? "gespeichert" : "nicht verfügbar";
+    } catch { diagnosticTraceStorage = "nicht verfügbar (nur aktuelle Seite)"; }
     refreshDiagnostics();
   }
 
@@ -149,7 +199,7 @@
     googleButton.disabled = true;
     localPersistenceReady.then((persistent) => {
       diagnosticPersistence = persistent ? "dauerhaft verfügbar" : "nicht dauerhaft verfügbar";
-      recordDiagnostic("Sitzungsspeicher geprüft");
+      recordDiagnostic("persistence");
       if (!checkingGoogleReturn && !authAction && !verifiedLoginPromise && !redirectResultPending) googleButton.disabled = false;
     });
     if (checkingGoogleReturn) {
@@ -173,7 +223,7 @@
         if (authAction === "google" || checkingGoogleReturn) setLoading(googleButton, true, "Anmeldung prüfen...");
         await localPersistenceReady;
         const activeUser = await reloadUser(user);
-        recordDiagnostic("Firebase-Konto aktualisiert");
+        recordDiagnostic("profile");
         if (!isCurrentUser(activeUser)) return;
 
         if (!hasVerifiedAccess(activeUser)) {
@@ -184,7 +234,7 @@
         }
 
         loginRedirectStarted = true;
-        recordDiagnostic("Anmeldung abgeschlossen; Weiterleitung gestartet");
+        recordDiagnostic("complete");
         rememberGoogleAttempt(false);
         redirectToApp();
       })();
@@ -202,7 +252,7 @@
       if (!authAction) setLoading(googleButton, false);
       const code = safeErrorCode(error);
       diagnosticErrorCode = code;
-      recordDiagnostic(`Anmeldefehler: ${code}`);
+      recordDiagnostic("error", code);
       const message = code === "app/google-session-missing"
         ? "Die Google-Anmeldung ist in dieser Web-App noch nicht angekommen. Bitte versuche es erneut."
         : translateAuthError(error);
@@ -224,7 +274,7 @@
     }
 
     auth.onAuthStateChanged((user) => {
-      recordDiagnostic(`Firebase-Anmeldeereignis: ${user ? "Sitzung vorhanden" : "keine Sitzung"}`);
+      recordDiagnostic(user ? "user" : "guest");
       if (redirectResultPending) return;
       if (!user) {
         showResendButton(false);
@@ -247,9 +297,9 @@
       (async () => {
         try {
           await localPersistenceReady;
-          recordDiagnostic("Google-Rückgabe nach Seitenstart wird geprüft");
+          recordDiagnostic("redirect_check");
           const result = await auth.getRedirectResult();
-          recordDiagnostic(result?.user ? "Google-Weiterleitung hat ein Ergebnis geliefert" : "Keine ausstehende Google-Rückgabe");
+          recordDiagnostic(result?.user ? "redirect_result" : "redirect_empty");
           redirectResultPending = false;
           const user = result?.user || auth.currentUser;
           if (user) {
@@ -281,13 +331,13 @@
       }
     }
 
-    window.addEventListener("pageshow", () => {
-      recordDiagnostic("Loginseite angezeigt");
+    window.addEventListener("pageshow", (event) => {
+      recordDiagnostic(event?.persisted ? "restored" : "shown");
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
-    window.addEventListener("pagehide", () => recordDiagnostic("Loginseite verlassen oder ausgeblendet"));
+    window.addEventListener("pagehide", () => recordDiagnostic("pagehide"));
     document.addEventListener("visibilitychange", () => {
-      recordDiagnostic(document.visibilityState === "visible" ? "App wieder sichtbar" : "App ausgeblendet");
+      recordDiagnostic(document.visibilityState === "visible" ? "visible" : "hidden");
       if (document.visibilityState === "visible") {
         resumeLoginAfterGoogleWindow().catch(showLoginError);
       }
@@ -367,7 +417,7 @@
       authAction = "google";
       let redirectStarted = false;
       diagnosticErrorCode = "keiner";
-      recordDiagnostic("Google-Anmeldung gestartet");
+      recordDiagnostic("google");
       rememberGoogleAttempt(true);
       const details = document.querySelector("[data-login-error-details]");
       if (details) details.hidden = true;
@@ -376,18 +426,18 @@
         setLoading(googleButton, true, "Google öffnet...");
         if (useRedirect) {
           await localPersistenceReady;
-          recordDiagnostic("Google-Weiterleitung gestartet");
+          recordDiagnostic("redirect");
           redirectStarted = true;
           await auth.signInWithRedirect(googleProvider);
           return;
         }
         const { user } = await auth.signInWithPopup(googleProvider);
-        recordDiagnostic("Google-Fenster hat ein Ergebnis geliefert");
+        recordDiagnostic("popup_result");
         await finishVerifiedLogin(user);
         if (!loginRedirectStarted && !isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
       } catch (error) {
         redirectStarted = false;
-        recordDiagnostic(`Google-Fenster meldet: ${safeErrorCode(error)}`);
+        recordDiagnostic("popup_error", safeErrorCode(error));
         // Some iOS returns report a closed popup even though Auth already holds the Google session.
         let failure = error;
         if (!loginRedirectStarted && auth.currentUser?.providerData?.some((provider) => provider.providerId === "google.com")) {
@@ -449,7 +499,7 @@
 
   initPasswordVisibilityToggles();
   initTabs();
-  recordDiagnostic("Anmeldeskript gestartet");
+  recordDiagnostic("start");
   document.querySelector("[data-login-diagnostics]")?.addEventListener("toggle", refreshDiagnostics);
   document.querySelector("[data-login-diagnostics-copy]")?.addEventListener("click", async () => {
     const text = refreshDiagnostics();
@@ -462,7 +512,7 @@
     }
   });
   if (!canUseFirebase()) {
-    recordDiagnostic("Firebase-Anmeldung nicht verfügbar");
+    recordDiagnostic("unavailable");
     return;
   }
   const auth = initFirebase();
