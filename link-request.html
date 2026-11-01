@@ -12,7 +12,8 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20260711-checklist-gender"></script>
-    <script defer src="assets/js/auth.js?v=20261001-ios-pwa-google-v3"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-shared-login-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261101-shared-login-v1"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -50,6 +51,7 @@
     </header>
 
     <main class="dashboard link-request-page">
+      <p class="form-message" data-auth-error role="alert" hidden></p>
       <section class="dashboard-header">
         <p class="eyebrow">Verknüpfungsantrag</p>
         <h1>Konto verknüpfen</h1>

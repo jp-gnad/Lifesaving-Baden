@@ -96,10 +96,29 @@ Domains freigegeben werden, auf denen die Website wirklich laufen soll.
 
 ## Firestore für Nutzereinstellungen
 
-Der Mitgliederbereich legt direkt nach der Kontoerstellung oder beim ersten
-Google-Login ein Nutzerdokument in Firestore unter `users/{uid}` an. Dadurch
-tauchen neue Konten sofort in Firestore auf, auch wenn noch keine Einstellung
-geändert wurde.
+Website und Timer verwenden dieselbe dunkle Loginseite unter `login.html`.
+Der Parameter `returnTo` führt nach der Anmeldung zum ursprünglichen Bereich
+zurück; externe Ziele und Login-Schleifen werden verworfen. Die bisherige URL
+`timer/login.html` leitet zur gemeinsamen Anmeldung weiter.
+Der Navigationsbereich der installierten Timer-App umfasst deshalb auch die
+gemeinsame Anmeldung; ihre Startseite bleibt die Timerübersicht.
+
+`assets/js/login.js` enthält Anmeldung, Registrierung und Passwort-Zurücksetzen.
+`assets/js/auth.js` verwaltet den Mitglieder- und Kontobereich. Beide und der
+Timer nutzen `assets/js/auth-core.js` für dauerhafte Sitzungen, Rollen und
+höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
+
+Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
+wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue
+Konten erhalten dabei die Rolle `sportler`; eine Transaktion verhindert das
+Überschreiben eines bereits vorhandenen Profils aus einem anderen Tab.
+
+Die Login-Abläufe lassen sich ohne echte Konten oder Firebase-Zugriffe prüfen:
+
+```powershell
+node --test tests/auth_flow.test.cjs
+python -B -m unittest discover -s tests -p 'test_*.py'
+```
 
 Gespeicherte Felder:
 

@@ -161,7 +161,7 @@ function personInitials(name = "") {
 }
 
 function timerLoginUrl() {
-  const loginUrl = new URL("./login.html", window.location.href);
+  const loginUrl = new URL("../login.html", window.location.href);
   loginUrl.searchParams.set("returnTo", `${window.location.pathname}${window.location.search}${window.location.hash}`);
   return loginUrl.href;
 }
@@ -186,6 +186,11 @@ function timerAccountAvatar(context = currentTimerAuth) {
 
 function renderTimerAccount(context) {
   currentTimerAuth = context || currentTimerAuth;
+  const authError = document.querySelector("[data-timer-auth-error]");
+  if (authError) {
+    authError.hidden = !currentTimerAuth.authError;
+    authError.textContent = currentTimerAuth.authError || "";
+  }
   if (timerFooterPortalLink) {
     timerFooterPortalLink.setAttribute("href", currentTimerAuth.authenticated ? "../app.html" : "../index.html");
   }

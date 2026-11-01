@@ -58,10 +58,6 @@
     return text;
   }
 
-  function normalizedRole(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
   function normalizedPersonName(value = "") {
     return String(value)
       .normalize("NFD")
@@ -174,7 +170,7 @@
     return { segments, lapGroups: storedLapGroups, frequencies, totalCentiseconds, officialCentiseconds };
   }
 
-  if (!window.firebase || !window.firebase.auth || !window.firebase.firestore || !window.isFirebaseConfigured) {
+  if (!window.LifesavingAuth || !window.firebase || !window.firebase.auth || !window.firebase.firestore || !window.isFirebaseConfigured) {
     window.timerFirestoreApi = {
       request: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
       getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false, isKaderAthlete: false }),
@@ -184,14 +180,10 @@
     return;
   }
 
-  if (!window.firebase.apps.length) window.firebase.initializeApp(window.firebaseConfig);
-  const auth = window.firebase.auth();
+  const { initFirebase, ensureLocalAuthPersistence, loadUserContext, getAccountRole, hasVerifiedAccess } = window.LifesavingAuth;
+  const auth = initFirebase();
   const db = window.firebase.firestore();
-  const authPersistenceReady = auth
-    .setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
-    .catch((error) => {
-      console.warn("Dauerhafte Timer-Anmeldung konnte nicht aktiviert werden.", error);
-    });
+  const authPersistenceReady = ensureLocalAuthPersistence(auth);
   const persistenceReady = db.enablePersistence({ synchronizeTabs: true }).catch((error) => {
     if (!["failed-precondition", "unimplemented"].includes(String(error?.code || "").replace(/^firestore\//, ""))) {
       console.warn("Firestore-Offlinespeicher konnte nicht aktiviert werden.", error);
@@ -217,59 +209,20 @@
   const initialAuth = new Promise((resolve) => { resolveInitialAuth = resolve; });
   let initialAuthResolved = false;
   let authRefreshVersion = 0;
-  let authRetryTimer = null;
-
-  function authRetryDelay(delayMs) {
-    return new Promise((resolve) => window.setTimeout(resolve, delayMs));
-  }
-
-  async function loadTimerUserIdentity(user) {
-    let userData = {};
-    let userDataLoaded = false;
-    let claims = {};
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const snapshotPromise = attempt < 2
-        ? db.collection("users").doc(user.uid).get({ source: "server" })
-        : db.collection("users").doc(user.uid).get();
-      const [snapshotResult, tokenResult] = await Promise.allSettled([
-        snapshotPromise,
-        user.getIdTokenResult(attempt === 1),
-      ]);
-
-      if (snapshotResult.status === "fulfilled") {
-        const snapshot = snapshotResult.value;
-        userData = snapshot.exists ? snapshot.data() || {} : {};
-        userDataLoaded = true;
-      }
-
-      if (tokenResult.status === "fulfilled") {
-        claims = tokenResult.value.claims || {};
-      }
-
-      if (userDataLoaded && tokenResult.status === "fulfilled") {
-        return { userData, userDataLoaded, claims };
-      }
-
-      if (attempt < 2) {
-        await authRetryDelay(450 * (attempt + 1));
-      }
-    }
-
-    return { userData, userDataLoaded, claims };
-  }
-
-  async function refreshTimerAuthContext(user, retryOnMissing = true) {
+  async function refreshTimerAuthContext(user) {
     const refreshVersion = ++authRefreshVersion;
     await Promise.all([authPersistenceReady, persistenceReady]);
     let userData = {};
     let userDataLoaded = false;
     let claims = {};
+    let authError = "";
     if (user) {
       try {
-        ({ userData, userDataLoaded, claims } = await loadTimerUserIdentity(user));
+        ({ userData, claims } = await loadUserContext(user));
+        userDataLoaded = true;
       } catch (error) {
         console.warn("Timer-Rolle konnte nicht geladen werden.", error);
+        authError = `${translateFirebaseError(error).message} Bitte lade die Seite erneut.`;
       }
     }
 
@@ -277,24 +230,7 @@
       return;
     }
 
-    const claimRole = normalizedRole(claims.role);
-    const dataRole = normalizedRole(userData.role);
-    const isAdmin = Boolean(
-      claims.admin === true
-      || claims.isAdmin === true
-      || claimRole === "admin"
-      || dataRole === "admin"
-      || userData.admin === true
-      || userData.isAdmin === true
-    );
-    const isOrganizer = isAdmin || Boolean(
-      claims.organizer === true
-      || claims.isOrganizer === true
-      || ["organizer", "organisator"].includes(claimRole)
-      || ["organizer", "organisator"].includes(dataRole)
-    );
-    const isKaderAthlete = ["kader-sportler", "kadersportler", "kader"].includes(claimRole)
-      || ["kader-sportler", "kadersportler", "kader"].includes(dataRole);
+    const { isAdmin, isOrganizer, isKaderAthlete, label } = getAccountRole(userData, claims);
     const accountName = [userData.firstName, userData.lastName].filter(Boolean).join(" ")
       || userData.displayName
       || user?.displayName
@@ -309,10 +245,7 @@
       && Boolean(String(userData.dlrgBranch || "").trim())
       && Boolean(String(userData.birthDate || "").trim())
       && Boolean(String(userData.gender || "").trim());
-    const authenticated = Boolean(user && (
-      user.emailVerified
-      || user.providerData?.some((provider) => provider.providerId === "google.com")
-    ));
+    const authenticated = hasVerifiedAccess(user);
     authContext = {
       user,
       authenticated,
@@ -320,7 +253,8 @@
       isAdmin,
       isKaderAthlete,
       role: isAdmin ? "admin" : (isOrganizer ? "organizer" : (isKaderAthlete ? "kader-sportler" : (user ? "authenticated" : "guest"))),
-      roleLabel: isAdmin ? "Admin" : (isOrganizer ? "Organisator" : (isKaderAthlete ? "Kader-Sportler" : (user ? "Sportler" : "Nicht angemeldet"))),
+      roleLabel: user ? label : "Nicht angemeldet",
+      authError,
       accountName,
       accountNeedsAttention: Boolean(user && userDataLoaded && !accountChecklistComplete),
     };
@@ -330,16 +264,6 @@
     }
     window.dispatchEvent(new CustomEvent("timer-auth-change", { detail: { ...authContext, user: undefined } }));
 
-    if (user && !userDataLoaded && retryOnMissing) {
-      window.clearTimeout(authRetryTimer);
-      authRetryTimer = window.setTimeout(() => {
-        if (auth.currentUser?.uid === user.uid) {
-          refreshTimerAuthContext(auth.currentUser, false).catch((error) => {
-            console.warn("Timer-Kontodaten konnten nicht erneut geladen werden.", error);
-          });
-        }
-      }, 1400);
-    }
   }
 
   auth.onAuthStateChanged((user) => {
@@ -903,15 +827,6 @@
 
       throw appError("Nicht gefunden.", 404);
     } catch (error) {
-      const firebaseCode = String(error?.code || "").replace(/^firestore\//, "");
-      if (firebaseCode === "permission-denied" && auth.currentUser && options._authRetry !== true) {
-        try {
-          await auth.currentUser.getIdToken(true);
-          return request(path, { ...options, _authRetry: true });
-        } catch (refreshError) {
-          console.warn("Firebase-Anmeldung konnte nicht aktualisiert werden.", refreshError);
-        }
-      }
       if (error?.status) throw error;
       throw translateFirebaseError(error);
     }

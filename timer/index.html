@@ -16,8 +16,9 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="../assets/js/firebase-config.js?v=timer-firebase-v1"></script>
-    <script defer src="./firestore-api.js?v=firebase-access-v17"></script>
-    <script defer src="./app.js?v=firebase-access-v17"></script>
+    <script defer src="../assets/js/auth-core.js?v=20261101-shared-login-v1"></script>
+    <script defer src="./firestore-api.js?v=firebase-access-v18"></script>
+    <script defer src="./app.js?v=firebase-access-v18"></script>
   </head>
   <body>
     <header class="site-header">
@@ -29,6 +30,7 @@
         <div id="timer-account-control" class="timer-account-control" aria-live="polite"></div>
       </div>
     </header>
+    <p class="form-error container" data-timer-auth-error role="alert" hidden></p>
     <main id="app" class="container" tabindex="-1">
       <div class="loading">Wird geladen …</div>
     </main>

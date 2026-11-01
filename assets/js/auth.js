@@ -1,120 +1,11 @@
 (function () {
   const page = document.body.dataset.page;
-  const appUrl = document.body.dataset.authSuccessUrl || "app.html";
-  const loginUrl = "login.html";
-
-  function getVerificationRedirectUrl() {
-    return new URL("login.html?verified=1", window.location.href).href;
-  }
-
-  function getLoginRedirectUrl() {
-    return new URL("login.html", window.location.href).href;
-  }
-
-  function redirectToApp() {
-    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-
-    if (returnTo) {
-      try {
-        const target = new URL(returnTo, window.location.href);
-
-        if (target.origin === window.location.origin) {
-          window.location.href = target.href;
-          return;
-        }
-      } catch (error) {
-        // Invalid return targets fall back to the normal member dashboard.
-      }
-    }
-
-    window.location.href = appUrl;
-  }
-
-  function redirectToLogin(reason) {
-    const target = new URL(loginUrl, window.location.href);
-
-    if (reason) {
-      target.searchParams.set(reason, "1");
-    }
-
-    window.location.href = target.href;
-  }
-
-  function setMessage(type, text, isSuccess) {
-    const message = document.querySelector(`[data-form-message="${type}"]`);
-
-    if (!message) {
-      return;
-    }
-
-    message.textContent = text;
-    message.classList.toggle("success", Boolean(isSuccess));
-  }
-
-  function setLoading(button, isLoading, loadingLabel) {
-    if (!button) {
-      return;
-    }
-
-    if (!button.dataset.defaultHtml) {
-      button.dataset.defaultHtml = button.innerHTML;
-    }
-
-    button.disabled = isLoading;
-    button.innerHTML = isLoading ? loadingLabel : button.dataset.defaultHtml;
-  }
-
-  function showTab(tabName) {
-    document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-      const isActive = tab.dataset.authTab === tabName;
-      tab.classList.toggle("is-active", isActive);
-      tab.setAttribute("aria-selected", String(isActive));
-    });
-
-    document.querySelectorAll("[data-auth-form]").forEach((form) => {
-      form.classList.toggle("is-hidden", form.dataset.authForm !== tabName);
-    });
-  }
-
-  function initTabs() {
-    document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-      tab.addEventListener("click", () => showTab(tab.dataset.authTab));
-    });
-  }
-
-  function showResendButton(show) {
-    const resendButton = document.querySelector("[data-resend-verification]");
-
-    if (resendButton) {
-      resendButton.classList.toggle("is-hidden", !show);
-    }
-  }
-
-  function translateAuthError(error) {
-    const messages = {
-      "auth/email-already-in-use": "Diese E-Mail ist bereits registriert.",
-      "auth/account-exists-with-different-credential": "Diese E-Mail ist bereits mit einer anderen Login-Methode registriert.",
-      "auth/credential-already-in-use": "Dieses Google-Konto ist bereits mit einem anderen Konto verbunden.",
-      "auth/invalid-credential": "E-Mail oder Passwort stimmt nicht.",
-      "auth/invalid-email": "Bitte gib eine gültige E-Mail-Adresse ein.",
-      "auth/network-request-failed": "Firebase ist gerade nicht erreichbar.",
-      "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
-      "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
-      "auth/popup-closed-by-user": "Google-Login wurde abgebrochen.",
-      "auth/provider-already-linked": "Dieses Konto ist bereits mit diesem Anbieter verbunden.",
-      "auth/requires-recent-login": "Bitte melde dich neu an und versuche es direkt danach erneut.",
-      "auth/too-many-requests": "Zu viele Versuche. Bitte später erneut probieren.",
-      "auth/unauthorized-domain": "Diese Domain ist in Firebase noch nicht freigegeben.",
-      "auth/user-disabled": "Dieses Konto wurde deaktiviert.",
-      "auth/user-mismatch": "Die erneute Anmeldung gehört nicht zu diesem Konto.",
-      "auth/user-not-found": "E-Mail oder Passwort stimmt nicht.",
-      "auth/weak-password": "Das Passwort muss mindestens 6 Zeichen haben.",
-      "auth/wrong-password": "E-Mail oder Passwort stimmt nicht."
-    };
-
-    return messages[error.code] || "Der Login ist fehlgeschlagen. Bitte prüfe die Eingaben.";
-  }
-
+  const {
+    initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
+    normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
+    getDefaultAccountRole, getAccountRole, isAdminAccount, isOrganizerAccount, isKaderAthleteAccount,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
+  } = window.LifesavingAuth;
   function translateFirestoreError(error) {
     const messages = {
       "permission-denied": "Firestore-Regeln erlauben diese Aktion noch nicht.",
@@ -220,100 +111,10 @@
     message.classList.toggle("success", Boolean(isSuccess));
   }
 
-  function disableAuthControls() {
-    document
-      .querySelectorAll('[data-auth-form] button, [data-google-login], [data-resend-verification], [data-reset-password]')
-      .forEach((button) => {
-        button.disabled = true;
-      });
-  }
-
-  function canUseFirebase() {
-    if (window.location.protocol === "file:") {
-      setMessage(
-        "login",
-        "Bitte öffne die Seite über GitHub Pages oder einen lokalen HTTP-Server, nicht per Doppelklick als Datei."
-      );
-      disableAuthControls();
-      return false;
-    }
-
-    if (!window.isFirebaseConfigured) {
-      setMessage(
-        "login",
-        "Firebase ist noch nicht konfiguriert. Prüfe assets/js/firebase-config.js."
-      );
-      disableAuthControls();
-      return false;
-    }
-
-    if (!window.firebase || !window.firebase.auth) {
-      setMessage(
-        "login",
-        "Firebase konnte nicht geladen werden. Prüfe Internetverbindung, Browser-Blocker oder die Firebase-Skripte."
-      );
-      disableAuthControls();
-      return false;
-    }
-
-    return true;
-  }
-
-  function initFirebase() {
-    if (!window.firebase.apps.length) {
-      window.firebase.initializeApp(window.firebaseConfig);
-    }
-
-    const auth = window.firebase.auth();
-    ensureLocalAuthPersistence(auth);
-    return auth;
-  }
-
-  let localAuthPersistencePromise = null;
-
-  function ensureLocalAuthPersistence(auth) {
-    if (!localAuthPersistencePromise) {
-      localAuthPersistencePromise = auth
-        .setPersistence(window.firebase.auth.Auth.Persistence.LOCAL)
-        .catch((error) => {
-          console.warn("Dauerhafte Firebase-Anmeldung konnte nicht aktiviert werden.", error);
-        });
-    }
-
-    return localAuthPersistencePromise;
-  }
-
-  function waitForRetry(delayMs) {
-    return new Promise((resolve) => window.setTimeout(resolve, delayMs));
-  }
-
   async function loadFreshUserContext(user) {
-    let lastError = null;
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        await user.getIdToken(attempt < 2);
-        const data = await ensureUserDocument(user, {
-          forceRefresh: true,
-          preferServer: attempt < 2,
-          throwOnError: true
-        });
-
-        if (data) {
-          return data;
-        }
-
-        throw new Error("Kontodaten sind noch nicht verfügbar.");
-      } catch (error) {
-        lastError = error;
-
-        if (attempt < 2) {
-          await waitForRetry(450 * (attempt + 1));
-        }
-      }
-    }
-
-    throw lastError || new Error("Kontodaten konnten nicht geladen werden.");
+    const { userData, claims } = await loadUserContext(user);
+    const data = await withRetry(() => synchronizeUserDocument(user, userData));
+    return { userData: data, claims };
   }
 
   const userDocCachePrefix = "lifesaving-baden:user-doc:";
@@ -476,76 +277,6 @@
     return first.every((value) => second.includes(value));
   }
 
-  function normalizeNamePart(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function formatFullName(firstName, lastName) {
-    return [normalizeNamePart(firstName), normalizeNamePart(lastName)]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-  }
-
-  function splitDisplayNameIntoNameParts(displayName) {
-    const normalizedName = normalizeNamePart(displayName);
-
-    if (!normalizedName) {
-      return {
-        firstName: "",
-        lastName: ""
-      };
-    }
-
-    const parts = normalizedName.split(" ");
-
-    if (parts.length === 1) {
-      return {
-        firstName: parts[0],
-        lastName: ""
-      };
-    }
-
-    return {
-      firstName: parts[0],
-      lastName: parts.slice(1).join(" ")
-    };
-  }
-
-  function normalizeNameDetails(details = {}) {
-    const firstName = normalizeNamePart(details.firstName);
-    const lastName = normalizeNamePart(details.lastName);
-    const displayName = firstName && lastName
-      ? formatFullName(firstName, lastName)
-      : normalizeNamePart(details.displayName) || formatFullName(firstName, lastName);
-
-    return {
-      firstName,
-      lastName,
-      displayName
-    };
-  }
-
-  function getNameDetailsFromData(data = {}, user = null) {
-    const storedFirstName = normalizeNamePart(data?.firstName);
-    const storedLastName = normalizeNamePart(data?.lastName);
-
-    if (storedFirstName || storedLastName) {
-      return normalizeNameDetails({
-        firstName: storedFirstName,
-        lastName: storedLastName,
-        displayName: data?.displayName || user?.displayName || ""
-      });
-    }
-
-    const sourceName = normalizeNamePart(data?.displayName || user?.displayName || "");
-
-    return normalizeNameDetails({
-      ...splitDisplayNameIntoNameParts(sourceName),
-      displayName: sourceName
-    });
-  }
-
   function formatSortableName(data = {}, user = null) {
     const nameDetails = getNameDetailsFromData(data, user);
 
@@ -619,41 +350,9 @@
     return changes;
   }
 
-  function initPasswordVisibilityToggles() {
-    document.querySelectorAll("[data-password-toggle]").forEach((button) => {
-      if (button.dataset.listenerAttached) {
-        return;
-      }
-
-      const field = button.closest(".password-field");
-      const input = field?.querySelector('input[type="password"], input[type="text"]');
-
-      if (!input) {
-        return;
-      }
-
-      button.dataset.listenerAttached = "true";
-
-      function setVisible(isVisible) {
-        input.type = isVisible ? "text" : "password";
-        button.setAttribute("aria-pressed", String(isVisible));
-        button.setAttribute("aria-label", isVisible ? "Passwort ausblenden" : "Passwort anzeigen");
-        button.title = isVisible ? "Passwort ausblenden" : "Passwort anzeigen";
-      }
-
-      button.addEventListener("click", () => {
-        const isVisible = input.type === "password";
-        setVisible(isVisible);
-        input.focus({ preventScroll: true });
-      });
-
-      setVisible(false);
-    });
-  }
-
   initPasswordVisibilityToggles();
 
-  if (page === "landing" && canUseFirebase()) {
+  if (page === "landing" && window.isFirebaseConfigured && window.firebase?.auth) {
     initFirebase().onAuthStateChanged((user) => {
       if (hasVerifiedAccess(user)) {
         redirectToApp();
@@ -661,23 +360,6 @@
         redirectToLogin("needsVerification");
       }
     });
-  }
-
-  if (page === "login") {
-    initTabs();
-
-    if (!canUseFirebase()) {
-      return;
-    }
-
-    const auth = initFirebase();
-    const googleProvider = new window.firebase.auth.GoogleAuthProvider();
-
-    googleProvider.setCustomParameters({
-      prompt: "select_account"
-    });
-
-    initLoginPage(auth, googleProvider);
   }
 
   if (page === "app" || page === "settings" || page === "link-request") {
@@ -691,253 +373,6 @@
 
   if (page === "settings") {
     initSettingsMenu();
-  }
-
-  function initLoginPage(auth, googleProvider) {
-    const params = new URLSearchParams(window.location.search);
-    const loginForm = document.querySelector('[data-auth-form="login"]');
-    const registerForm = document.querySelector('[data-auth-form="register"]');
-    const googleButton = document.querySelector("[data-google-login]");
-    const resendButton = document.querySelector("[data-resend-verification]");
-    const resetPasswordButton = document.querySelector("[data-reset-password]");
-    let loginRedirectStarted = false;
-    let verifiedLoginPromise = null;
-    const localPersistenceReady = ensureLocalAuthPersistence(auth);
-
-    async function finishVerifiedLogin(user) {
-      if (loginRedirectStarted) {
-        return;
-      }
-
-      if (verifiedLoginPromise) {
-        return verifiedLoginPromise;
-      }
-
-      verifiedLoginPromise = (async () => {
-        const signedInUser = auth.currentUser || user;
-
-        if (!signedInUser) {
-          return;
-        }
-
-        try {
-          await signedInUser.reload();
-          clearUserDocCache(signedInUser.uid);
-          await loadFreshUserContext(auth.currentUser || signedInUser);
-        } catch (error) {
-          console.warn("Kontodaten konnten nach dem Login nicht vollständig aktualisiert werden.", error);
-        }
-
-        const activeUser = auth.currentUser || signedInUser;
-
-        if (!hasVerifiedAccess(activeUser)) {
-          showResendButton(true);
-          setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du fortfährst.");
-          return;
-        }
-
-        loginRedirectStarted = true;
-        redirectToApp();
-      })();
-
-      try {
-        await verifiedLoginPromise;
-      } finally {
-        verifiedLoginPromise = null;
-      }
-    }
-
-    if (params.has("verified")) {
-      setMessage("login", "E-Mail bestätigt. Du kannst jetzt den Login nutzen.", true);
-    }
-
-    if (params.has("needsVerification")) {
-      setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse.");
-    }
-
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        showResendButton(false);
-        return;
-      }
-
-      try {
-        await user.reload();
-      } catch (error) {
-        console.warn("Firebase-Anmeldestatus konnte nicht neu geladen werden.", error);
-      }
-
-      if (hasVerifiedAccess(auth.currentUser || user)) {
-        await finishVerifiedLogin(auth.currentUser || user);
-        return;
-      }
-
-      showResendButton(true);
-      setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
-    });
-
-    async function resumeLoginAfterGoogleWindow() {
-      if (document.visibilityState === "hidden" || loginRedirectStarted) {
-        return;
-      }
-
-      await localPersistenceReady;
-
-      if (auth.currentUser) {
-        await finishVerifiedLogin(auth.currentUser);
-      }
-    }
-
-    window.addEventListener("pageshow", () => {
-      resumeLoginAfterGoogleWindow().catch(() => {});
-    });
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        resumeLoginAfterGoogleWindow().catch(() => {});
-      }
-    });
-
-    loginForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      const button = loginForm.querySelector('button[type="submit"]');
-      const formData = new FormData(loginForm);
-      const email = String(formData.get("email") || "").trim();
-      const password = String(formData.get("password") || "");
-
-      try {
-        setLoading(button, true, "Login...");
-        await localPersistenceReady;
-        const { user } = await auth.signInWithEmailAndPassword(email, password);
-
-        await user.reload();
-
-        if (!hasVerifiedAccess(auth.currentUser)) {
-          showResendButton(true);
-          setMessage("login", "Bitte bestätige deine E-Mail-Adresse, bevor du fortfährst.");
-          return;
-        }
-
-        await finishVerifiedLogin(auth.currentUser || user);
-      } catch (error) {
-        setMessage("login", translateAuthError(error));
-      } finally {
-        setLoading(button, false);
-      }
-    });
-
-    registerForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      const button = registerForm.querySelector('button[type="submit"]');
-      const formData = new FormData(registerForm);
-      const firstName = normalizeNamePart(formData.get("firstName"));
-      const lastName = normalizeNamePart(formData.get("lastName"));
-      const displayName = formatFullName(firstName, lastName);
-      const email = String(formData.get("email") || "").trim();
-      const password = String(formData.get("password") || "");
-
-      if (!firstName || !lastName) {
-        setMessage("register", "Bitte gib Vorname und Nachname an.");
-        return;
-      }
-
-      try {
-        setLoading(button, true, "Konto erstellen...");
-        await localPersistenceReady;
-        const { user } = await auth.createUserWithEmailAndPassword(email, password);
-        let firestoreError = null;
-
-        await user.updateProfile({ displayName });
-
-        try {
-          await ensureUserDocument(auth.currentUser || user, {
-            throwOnError: true,
-            nameDetails: {
-              firstName,
-              lastName,
-              displayName
-            }
-          });
-        } catch (error) {
-          firestoreError = error;
-        }
-
-        await user.sendEmailVerification({
-          url: getVerificationRedirectUrl()
-        });
-
-        showTab("login");
-        showResendButton(true);
-        setMessage(
-          "login",
-          firestoreError
-            ? `Konto erstellt, aber der Firestore-Eintrag fehlt noch: ${translateFirestoreError(firestoreError)}`
-            : "Konto erstellt. Bitte bestätige deine E-Mail-Adresse. Danach schließen wir die Kontokonfiguration ab.",
-          !firestoreError
-        );
-        registerForm.reset();
-      } catch (error) {
-        setMessage("register", translateAuthError(error));
-      } finally {
-        setLoading(button, false);
-      }
-    });
-
-    googleButton?.addEventListener("click", async () => {
-      try {
-        setLoading(googleButton, true, "Google öffnet...");
-        await localPersistenceReady;
-        const { user } = await auth.signInWithPopup(googleProvider);
-        await finishVerifiedLogin(user);
-      } catch (error) {
-        setMessage("login", translateAuthError(error));
-      } finally {
-        setLoading(googleButton, false);
-      }
-    });
-
-    resetPasswordButton?.addEventListener("click", async () => {
-      const email = String(new FormData(loginForm).get("email") || "").trim();
-
-      if (!email) {
-        setMessage("login", "Bitte gib zuerst deine E-Mail-Adresse ein.");
-        return;
-      }
-
-      try {
-        setLoading(resetPasswordButton, true, "Sende...");
-        await auth.sendPasswordResetEmail(email, {
-          url: getLoginRedirectUrl()
-        });
-        setMessage("login", "Passwort-E-Mail wurde gesendet. Bitte prüfe dein Postfach.", true);
-      } catch (error) {
-        setMessage("login", translateAuthError(error));
-      } finally {
-        setLoading(resetPasswordButton, false);
-      }
-    });
-
-    resendButton?.addEventListener("click", async () => {
-      const user = auth.currentUser;
-
-      if (!user) {
-        setMessage("login", "Logge dich zuerst ein, um die Mail erneut zu senden.");
-        return;
-      }
-
-      try {
-        setLoading(resendButton, true, "Sende...");
-        await user.sendEmailVerification({
-          url: getVerificationRedirectUrl()
-        });
-        setMessage("login", "Bestätigungs-Mail wurde erneut gesendet.", true);
-      } catch (error) {
-        setMessage("login", translateAuthError(error));
-      } finally {
-        setLoading(resendButton, false);
-      }
-    });
   }
 
   function initSettingsMenu() {
@@ -1049,8 +484,7 @@
     const deleteAccountButton = document.querySelector("[data-delete-account]");
     let settingsLoadedForUser = null;
     let bootstrapPromise = null;
-    let bootstrapRetryTimer = null;
-    let bootstrapRetryCount = 0;
+    let bootstrapUid = null;
 
     accountOpenButton?.addEventListener("click", () => openAccountModal());
     accountCloseButton?.addEventListener("click", () => closeAccountModal());
@@ -1074,20 +508,15 @@
         return;
       }
 
-      if (bootstrapPromise) {
+      if (bootstrapPromise && bootstrapUid === user.uid) {
         return bootstrapPromise;
       }
 
-      bootstrapPromise = (async () => {
+      bootstrapUid = user.uid;
+      const pending = (async () => {
         await ensureLocalAuthPersistence(auth);
-
-        try {
-          await user.reload();
-        } catch (error) {
-          console.warn("Firebase-Konto konnte noch nicht aktualisiert werden.", error);
-        }
-
-        const activeUser = auth.currentUser || user;
+        const activeUser = await reloadUser(user);
+        if (!isCurrentUser(activeUser)) return;
 
         if (!hasVerifiedAccess(activeUser)) {
           redirectToLogin("needsVerification");
@@ -1103,39 +532,33 @@
         updateGoogleProviderStatus(activeUser);
 
         if (settingsLoadedForUser !== activeUser.uid) {
-          const userData = await loadFreshUserContext(activeUser);
-          await initAccountManagement(auth, userData);
-          await initUserSettings(auth, userData);
-          await initLinkStatus(auth, userData);
-          await initLinkManagement(auth, userData);
-          await initAdminStatus(auth, userData);
-          await initLinkRequest(auth, userData);
+          const { userData, claims } = await loadFreshUserContext(activeUser);
+          for (const initialize of [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest]) {
+            if (!isCurrentUser(activeUser)) return;
+            await initialize(auth, userData, claims);
+          }
+          if (!isCurrentUser(activeUser)) return;
           settingsLoadedForUser = activeUser.uid;
         }
 
-        bootstrapRetryCount = 0;
-        window.clearTimeout(bootstrapRetryTimer);
         document.body.classList.remove("auth-context-loading");
       })();
+      bootstrapPromise = pending;
 
       try {
-        await bootstrapPromise;
+        await pending;
       } catch (error) {
-        console.warn("Kontodaten werden erneut geladen.", error);
+        if (!isCurrentUser(user)) return;
+        console.warn("Kontodaten konnten nicht geladen werden.", error);
         settingsLoadedForUser = null;
-
-        if (auth.currentUser?.uid === user.uid && bootstrapRetryCount < 3) {
-          bootstrapRetryCount += 1;
-          window.clearTimeout(bootstrapRetryTimer);
-          bootstrapRetryTimer = window.setTimeout(() => {
-            initializeSignedInUser(auth.currentUser).catch(() => {});
-          }, 700 * bootstrapRetryCount);
-        } else {
-          document.body.classList.remove("auth-context-loading");
-          setProfileMessage("Deine Kontodaten konnten noch nicht vollständig geladen werden. Bitte lade die Seite erneut.");
+        document.body.classList.remove("auth-context-loading");
+        const message = document.querySelector("[data-auth-error]");
+        if (message) {
+          message.hidden = false;
+          message.textContent = `${translateProfileSaveError(error)} Bitte lade die Seite erneut.`;
         }
       } finally {
-        bootstrapPromise = null;
+        if (bootstrapPromise === pending) bootstrapPromise = null;
       }
     }
 
@@ -1261,106 +684,66 @@
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
   }
 
-  async function ensureUserDocument(user, options = {}) {
-    if (!user || !window.firebase.firestore) {
-      return null;
-    }
-
+  async function synchronizeUserDocument(user, data) {
+    requireCurrentUser(user);
     const db = window.firebase.firestore();
     const fieldValue = window.firebase.firestore.FieldValue;
     const userDoc = db.collection("users").doc(user.uid);
 
-    try {
-      let data = options.forceRefresh ? null : readUserDocCache(user.uid);
-      let exists = Boolean(data);
+    const nameDetails = normalizeNameDetails(getNameDetailsFromData(data, user));
 
-      if (!data) {
-        const snapshot = options.preferServer
-          ? await userDoc.get({ source: "server" })
-          : await userDoc.get();
-        exists = snapshot.exists;
-        data = snapshot.exists ? snapshot.data() || {} : null;
+    if (nameDetails.displayName && nameDetails.displayName !== (user.displayName || "")) {
+      try {
+        await user.updateProfile({ displayName: nameDetails.displayName });
+      } catch (error) {
+        console.warn("Firebase Auth-Anzeigename konnte nicht aktualisiert werden.", error);
       }
+    }
 
-      const nameDetails = normalizeNameDetails(options.nameDetails || getNameDetailsFromData(data || {}, user));
+    const identity = getUserIdentityData(user, { nameDetails });
 
-      if (nameDetails.displayName && nameDetails.displayName !== (user.displayName || "")) {
-        try {
-          await user.updateProfile({ displayName: nameDetails.displayName });
-        } catch (error) {
-          console.warn("Firebase Auth-Anzeigename konnte nicht aktualisiert werden.", error);
-        }
-      }
+    requireCurrentUser(user);
+    const updatePayload = getChangedIdentityFields(data, identity);
+    const shouldDeleteConfirmedPendingEmail = Boolean(
+      data?.pendingEmail
+      && identity.email
+      && String(data.pendingEmail).trim().toLowerCase() === identity.email.trim().toLowerCase()
+    );
 
-      const identity = getUserIdentityData(user, { nameDetails });
+    const shouldDeleteLinkedRequest = isPersonLinked(data)
+      && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
 
-      if (!exists) {
-        const cacheData = {
-          ...identity,
-          role: "sportler",
-          keepPersonalDataUntilRevoked: true,
-          privateProfile: false,
-          publicProfile: true
-        };
+    if (shouldDeleteConfirmedPendingEmail) {
+      updatePayload.pendingEmail = fieldValue.delete();
+    }
 
-        await userDoc.set({
-          ...cacheData,
-          updatedAt: fieldValue.serverTimestamp(),
-          createdAt: fieldValue.serverTimestamp(),
-          lastSignInAt: fieldValue.serverTimestamp()
-        });
-        return writeUserDocCache(user.uid, cacheData);
-      }
+    if (shouldDeleteLinkedRequest) {
+      updatePayload.personLinkRequest = fieldValue.delete();
+    }
 
-      const updatePayload = getChangedIdentityFields(data, identity);
-      const shouldDeleteConfirmedPendingEmail = Boolean(
-        data?.pendingEmail
-        && identity.email
-        && String(data.pendingEmail).trim().toLowerCase() === identity.email.trim().toLowerCase()
-      );
+    if (Object.keys(updatePayload).length) {
+      await userDoc.set({
+        ...updatePayload,
+        updatedAt: fieldValue.serverTimestamp()
+      }, { merge: true });
 
-      const shouldDeleteLinkedRequest = isPersonLinked(data)
-        && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
-
-      if (shouldDeleteConfirmedPendingEmail) {
-        updatePayload.pendingEmail = fieldValue.delete();
-      }
+      const cacheData = {
+        ...data,
+        ...getChangedIdentityFields(data, identity)
+      };
 
       if (shouldDeleteLinkedRequest) {
-        updatePayload.personLinkRequest = fieldValue.delete();
+        delete cacheData.personLinkRequest;
       }
 
-      if (Object.keys(updatePayload).length) {
-        await userDoc.set({
-          ...updatePayload,
-          updatedAt: fieldValue.serverTimestamp()
-        }, { merge: true });
-
-        const cacheData = {
-          ...data,
-          ...getChangedIdentityFields(data, identity)
-        };
-
-        if (shouldDeleteLinkedRequest) {
-          delete cacheData.personLinkRequest;
-        }
-
-        if (shouldDeleteConfirmedPendingEmail) {
-          delete cacheData.pendingEmail;
-        }
-
-        return writeUserDocCache(user.uid, cacheData);
+      if (shouldDeleteConfirmedPendingEmail) {
+        delete cacheData.pendingEmail;
       }
 
-      return writeUserDocCache(user.uid, data);
-    } catch (error) {
-      if (options.throwOnError) {
-        throw error;
-      }
-
-      console.warn("Firestore-Nutzerdokument konnte nicht angelegt oder aktualisiert werden.", error);
-      return null;
+      return writeUserDocCache(user.uid, cacheData);
     }
+
+    return writeUserDocCache(user.uid, data);
   }
 
   async function initLinkStatus(auth, userData) {
@@ -1549,7 +932,7 @@
     updateAccountChecklist(data);
   }
 
-  async function initAdminStatus(auth, userData) {
+  async function initAdminStatus(auth, userData, claims = {}) {
     const user = auth.currentUser;
 
     if (!user) {
@@ -1558,8 +941,6 @@
     }
 
     try {
-      const tokenResult = await user.getIdTokenResult();
-      const claims = tokenResult.claims || {};
       const data = userData || await loadCurrentUserData(user) || {};
       const role = getAccountRole(data, claims);
 
@@ -1568,71 +949,6 @@
     } catch (error) {
       updateRoleUi(getDefaultAccountRole());
     }
-  }
-
-  function getDefaultAccountRole() {
-    return {
-      isAdmin: false,
-      isOrganizer: false,
-      isKaderAthlete: false,
-      hasKaderAccess: false,
-      label: "Sportler"
-    };
-  }
-
-  function getAccountRole(data, claims) {
-    const isAdmin = isAdminAccount(data, claims);
-    const isOrganizer = isAdmin || isOrganizerAccount(data, claims);
-    const isKaderRole = isKaderAthleteAccount(data, claims);
-    const isKaderAthlete = !isOrganizer && isKaderRole;
-    const hasKaderAccess = isAdmin || isOrganizer || isKaderRole;
-
-    return {
-      isAdmin,
-      isOrganizer,
-      isKaderAthlete,
-      hasKaderAccess,
-      label: isAdmin ? "Admin" : isOrganizer ? "Organisator" : isKaderAthlete ? "Kader-Sportler" : "Sportler"
-    };
-  }
-
-  function normalizeRole(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function hasRole(value, acceptedRoles) {
-    return acceptedRoles.includes(normalizeRole(value));
-  }
-
-  function isAdminAccount(data, claims) {
-    return Boolean(
-      claims?.admin === true
-      || claims?.isAdmin === true
-      || hasRole(claims?.role, ["admin"])
-      || hasRole(data?.role, ["admin"])
-      || data?.isAdmin === true
-      || data?.admin === true
-    );
-  }
-
-  function isOrganizerAccount(data, claims) {
-    return Boolean(
-      claims?.organizer === true
-      || claims?.isOrganizer === true
-      || hasRole(claims?.role, ["organizer", "organisator"])
-      || hasRole(data?.role, ["organizer", "organisator"])
-    );
-  }
-
-  function isKaderAthleteAccount(data, claims) {
-    return Boolean(
-      hasRole(claims?.role, ["kader-sportler", "kadersportler", "kader"])
-      || hasRole(data?.role, ["kader-sportler", "kadersportler", "kader"])
-      || claims?.kader === true
-      || claims?.isKaderAthlete === true
-      || data?.kader === true
-      || data?.isKaderAthlete === true
-    );
   }
 
   function updateRoleUi(role) {
@@ -3075,10 +2391,6 @@
 
   function hasProvider(user, providerId) {
     return getProviderIds(user).includes(providerId);
-  }
-
-  function hasVerifiedAccess(user) {
-    return Boolean(user?.emailVerified || (user && hasProvider(user, "google.com")));
   }
 
   const profileFieldConfig = {

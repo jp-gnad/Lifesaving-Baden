@@ -2,7 +2,7 @@
   "name": "Lifesaving Timer",
   "short_name": "Lifesaving Timer",
   "start_url": "./",
-  "scope": "./",
+  "scope": "../",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f7f9fc",
