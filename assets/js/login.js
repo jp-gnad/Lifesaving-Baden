@@ -111,9 +111,16 @@
     const mobileQuery = window.matchMedia?.("(max-width: 600px)");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
+    const loginButton = loginForm?.querySelector('button[type="submit"]');
     let passwordStep = false;
+    let emailSubmissionPending = false;
+
+    function updateEmailButton() {
+      if (loginButton) loginButton.disabled = emailSubmissionPending || !String(new FormData(loginForm).get("email") || "").trim();
+    }
 
     function updateEmailStep() {
+      updateEmailButton();
       const emailStep = !passwordStep;
       loginForm?.classList.toggle("is-email-step", emailStep);
       if (emailInput) emailInput.placeholder = mobileQuery?.matches ? "Deine E-Mail" : "";
@@ -124,12 +131,14 @@
     }
 
     emailInput?.addEventListener("input", () => {
-      if (!passwordStep) return;
-      passwordStep = false;
-      passwordInput.value = "";
-      setMessage("login", "");
+      if (passwordStep) {
+        passwordStep = false;
+        passwordInput.value = "";
+        setMessage("login", "");
+      }
       updateEmailStep();
     });
+    emailInput?.addEventListener("change", updateEmailButton);
     mobileQuery?.addEventListener("change", updateEmailStep);
     updateEmailStep();
     const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
@@ -427,6 +436,7 @@
     }
 
     window.addEventListener("pageshow", (event) => {
+      updateEmailButton();
       loginPageLeaving = false;
       resumeGoogleForeground();
       if (event?.persisted) resumeGoogleHandoff();
@@ -444,7 +454,9 @@
 
     loginForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (authAction) return;
+      const formData = new FormData(loginForm);
+      const email = String(formData.get("email") || "").trim();
+      if (authAction || !email) return;
       directGoogleAttempt = false;
       googleHandoff?.clear();
       rememberGoogleAttempt(false);
@@ -456,9 +468,8 @@
       }
       authAction = "login";
 
-      const button = loginForm.querySelector('button[type="submit"]');
-      const formData = new FormData(loginForm);
-      const email = String(formData.get("email") || "").trim();
+      const button = loginButton;
+      emailSubmissionPending = true;
       const password = String(formData.get("password") || "");
       setMessage("login", "");
 
@@ -493,6 +504,8 @@
       } finally {
         authAction = null;
         setLoading(button, false);
+        emailSubmissionPending = false;
+        updateEmailButton();
       }
     });
 

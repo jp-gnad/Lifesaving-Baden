@@ -36,6 +36,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     });
     return elements.get(key);
   }
+  element('[data-auth-form="login"]').fields = { email: "test@example.test", password: "synthetic-password" };
   const ref = { async get(options) {
     counts.reads += 1;
     if (read) return read(options, counts.reads);
@@ -1549,4 +1550,38 @@ test("desktop password entry stays hidden until the email has been submitted", a
   assert.equal(h.form.classList.contains("is-email-step"), false);
   assert.equal(h.password.required, true);
   assert.equal(h.password.focused, true);
+});
+
+
+test("the email submit button is disabled for blank input and stays disabled when cleared during a request", async () => {
+  const h = mobileEmailHarness();
+  h.email.value = "";
+  const button = h.form.querySelector('button[type="submit"]');
+  const gate = deferred();
+  let requests = 0;
+  h.auth.signInWithEmailAndPassword = () => { requests++; return gate.promise; };
+  h.login();
+  assert.equal(button.disabled, true);
+  await h.submit("login");
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(requests, 0);
+  h.email.value = "   ";
+  h.email.handlers.input();
+  assert.equal(button.disabled, true);
+  h.email.value = "anna@example.test";
+  h.email.handlers.input();
+  assert.equal(button.disabled, false);
+  await h.submit("login");
+  h.password.value = "synthetic-password";
+  const pending = h.submit("login");
+  assert.equal(button.disabled, true);
+  h.email.value = "";
+  h.email.handlers.input();
+  gate.resolve({ user: null });
+  await pending;
+  assert.equal(requests, 1);
+  assert.equal(button.disabled, true);
+  h.email.value = "anna@example.test";
+  h.email.handlers.change();
+  assert.equal(button.disabled, false);
 });
