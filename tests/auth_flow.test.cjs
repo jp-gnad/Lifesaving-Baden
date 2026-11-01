@@ -32,6 +32,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
       addEventListener(type, handler) { this.handlers[type] = handler; },
       querySelector() { return element(`${key}:button`); },
       reset() { this.wasReset = true; },
+      focus() { this.focused = true; },
     });
     return elements.get(key);
   }
@@ -113,6 +114,11 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
       vm.runInContext(source("assets/js/login.js"), context);
     },
     submit: (form) => element(`[data-auth-form="${form}"]`).handlers.submit({ preventDefault() {} }),
+    async submitPassword() {
+      const form = element('[data-auth-form="login"]');
+      if (!form.querySelector('input[name="password"]').required) await form.handlers.submit({ preventDefault() {} });
+      return form.handlers.submit({ preventDefault() {} });
+    },
   };
 }
 
@@ -236,7 +242,7 @@ test("parallel auth events and email submission redirect once without any Firest
   delete h.window.firebase.firestore;
   h.login();
   h.callbacks.auth(h.auth.currentUser);
-  const submitted = h.submit("login");
+  const submitted = h.submitPassword();
   gate.resolve();
   await submitted;
   assert.equal(reloads, 1);
@@ -247,7 +253,7 @@ test("parallel auth events and email submission redirect once without any Firest
 test("an unverified account can complete email verification after returning to the page", async () => {
   const h = harness({ user: { uid: "u", emailVerified: false } });
   h.login();
-  await h.submit("login");
+  await h.submitPassword();
   assert.equal(h.counts.redirects.length, 0);
   assert.match(h.element('[data-form-message="login"]').textContent, /bestätige/);
   h.auth.currentUser.emailVerified = true;
@@ -260,7 +266,7 @@ test("logout during an outstanding login reload prevents stale redirection", asy
   const gate = deferred();
   const h = harness({ user: { uid: "u", emailVerified: true, reload: () => gate.promise } });
   h.login();
-  const submitted = h.submit("login");
+  const submitted = h.submitPassword();
   await new Promise(setImmediate);
   h.auth.currentUser = null;
   h.callbacks.auth(null);
@@ -879,7 +885,7 @@ test("a cancelled direct Google window allows retrying and does not lock passwor
   assert.equal(h.element("[data-google-identity]").hidden, false);
   const passwordGate = deferred();
   h.auth.signInWithEmailAndPassword = () => passwordGate.promise;
-  const passwordLogin = h.submit("login");
+  const passwordLogin = h.submitPassword();
   await h.identity.receive({ credential: "late-token" });
   assert.equal(h.identity.credentials.length, 0);
   const user = h.prepareUser({ uid: "password-user", emailVerified: true });
@@ -959,13 +965,14 @@ test("Google client loading is bounded, retryable, and does not lock the email f
   }
 });
 
-test("registration preserves first/last names for deferred initialization without a database SDK", async () => {
+test("desktop registration uses the shared login form and sends verification without a database SDK", async () => {
   const h = harness({ user: { uid: "new", emailVerified: false } });
   delete h.window.firebase.firestore;
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
   h.login();
-  h.element('[data-auth-form="register"]').fields = { firstName: "Anna Maria", lastName: "von Baden", email: "test@example.test", password: "synthetic-password" };
-  await h.submit("register");
-  assert.equal(h.auth.currentUser.displayName, "Anna Maria von Baden");
+  h.element('[data-auth-form="login"]').fields = { email: "test@example.test", password: "synthetic-password" };
+  await h.submitPassword();
+  assert.equal(h.auth.currentUser.uid, "new");
   assert.equal(h.counts.reads, 0);
   assert.equal(h.counts.redirects.length, 0);
   assert.equal(new URL(h.counts.verification.url).searchParams.get("verified"), "1");
@@ -1377,4 +1384,169 @@ test("role refreshes preserve profile photos, names and email in cards for every
   assert.equal(photo.classList.contains("is-hidden"), true);
   assert.equal(initials.classList.contains("is-hidden"), false);
   assert.equal(initials.textContent, "AB");
+});
+
+
+function mobileEmailHarness(options = {}) {
+  const h = harness(options);
+  const form = h.element('[data-auth-form="login"]');
+  const email = h.element("mobile-email-input");
+  const password = h.element("mobile-password-input");
+  const button = h.element("mobile-submit");
+  const classes = new Set();
+  form.classList = { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }, contains: (name) => classes.has(name) };
+  email.value = "anna@example.test";
+  password.value = "";
+  password.focus = () => { password.focused = true; };
+  form.querySelector = (selector) => selector === 'input[name="email"]' ? email : selector === 'input[name="password"]' ? password : button;
+  Object.defineProperties(form.fields, { email: { get: () => email.value }, password: { get: () => password.value } });
+  const mobile = { matches: true, addEventListener(type, fn) { this.changed = fn; } };
+  h.window.matchMedia = (query) => query === "(max-width: 600px)" ? mobile : { matches: false };
+  return { ...h, form, email, password, mobile };
+}
+
+test("mobile email entry reveals the required password only after continuing and resets when the address changes", async () => {
+  let requests = 0;
+  const h = mobileEmailHarness();
+  h.auth.signInWithEmailAndPassword = async () => { requests++; };
+  h.login();
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.password.required, false);
+  assert.equal(h.email.placeholder, "Deine E-Mail");
+  await h.submit("login");
+  assert.equal(requests, 0);
+  assert.equal(h.form.classList.contains("is-email-step"), false);
+  assert.equal(h.password.required, true);
+  assert.equal(h.password.focused, true);
+  h.password.value = "test-password";
+  h.email.value = "andere@example.test";
+  h.email.handlers.input();
+  assert.equal(h.password.value, "");
+  assert.equal(h.password.required, false);
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  h.mobile.matches = false;
+  h.mobile.changed();
+  assert.equal(h.password.required, false);
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.email.placeholder, "");
+});
+
+test("mobile existing-account sign-in preserves the account and exact return route without registering", async () => {
+  const h = mobileEmailHarness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2Fevent%2F42", user: { uid: "existing-admin", emailVerified: true } });
+  let registrations = 0;
+  const credentials = [];
+  h.auth.createUserWithEmailAndPassword = async () => { registrations++; };
+  h.auth.signInWithEmailAndPassword = async (...values) => { credentials.push(values); h.callbacks.auth(h.auth.currentUser); return { user: h.auth.currentUser }; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "existing-password";
+  await h.submit("login");
+  assert.deepEqual(credentials, [["anna@example.test", "existing-password"]]);
+  assert.equal(registrations, 0);
+  assert.equal(h.auth.currentUser.uid, "existing-admin");
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/timer/#/event/42"]);
+  assert.equal(h.counts.writes.length, 0);
+});
+
+test("mobile new accounts wait for email verification and preserve the original return route", async () => {
+  const h = mobileEmailHarness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2Fevent%2F42" });
+  const verification = deferred();
+  let verificationSettings;
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  const user = h.prepareUser({ uid: "new", emailVerified: false, sendEmailVerification: async (settings) => { verificationSettings = settings; await verification.promise; } });
+  h.auth.createUserWithEmailAndPassword = async () => { h.auth.currentUser = user; h.callbacks.auth(user); return { user }; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "new-password";
+  const submitted = h.submit("login");
+  await new Promise(setImmediate);
+  assert.equal(h.counts.redirects.length, 0);
+  assert.equal(new URL(verificationSettings.url).searchParams.get("returnTo"), "https://example.test/club/timer/#/event/42");
+  verification.resolve();
+  await submitted;
+  assert.equal(h.counts.redirects.length, 0);
+  assert.match(h.element('[data-form-message="login"]').textContent, /Konto erstellt.*bestätige/);
+  assert.equal(h.password.value, "");
+  assert.equal(h.counts.writes.length, 0);
+  user.emailVerified = true;
+  h.callbacks.visibilitychange();
+  await new Promise(setImmediate);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/timer/#/event/42"]);
+});
+
+test("an existing address with an incorrect mobile password is never replaced or sent a verification email", async () => {
+  const h = mobileEmailHarness();
+  let registrations = 0;
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  h.auth.createUserWithEmailAndPassword = async () => { registrations++; throw { code: "auth/email-already-in-use" }; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "wrong-password";
+  await h.submit("login");
+  assert.equal(registrations, 1);
+  assert.equal(h.auth.currentUser, null);
+  assert.match(h.element('[data-form-message="login"]').textContent, /E-Mail oder Passwort stimmt nicht/);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.counts.redirects.length, 0);
+  assert.equal(h.counts.writes.length, 0);
+});
+
+test("mobile transient and known-account errors never attempt account creation; desktop wrong passwords stay rejected", async () => {
+  for (const code of ["auth/network-request-failed", "auth/too-many-requests", "auth/user-disabled", "auth/wrong-password"]) {
+    const h = mobileEmailHarness();
+    let registrations = 0;
+    h.auth.signInWithEmailAndPassword = async () => { throw { code }; };
+    h.auth.createUserWithEmailAndPassword = async () => { registrations++; };
+    h.login();
+    await h.submit("login");
+    h.password.value = "test-password";
+    await h.submit("login");
+    assert.equal(registrations, 0, code);
+    assert.equal(h.counts.redirects.length, 0);
+  }
+  const desktop = harness();
+  desktop.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  desktop.auth.createUserWithEmailAndPassword = async () => { throw { code: "auth/email-already-in-use" }; };
+  desktop.login();
+  await desktop.submitPassword();
+  assert.match(desktop.element('[data-form-message="login"]').textContent, /E-Mail oder Passwort stimmt nicht/);
+});
+
+
+test("a mobile verification mail failure keeps the new account unverified and offers sending the mail again", async () => {
+  const h = mobileEmailHarness();
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/user-not-found" }; };
+  let sends = 0;
+  const user = h.prepareUser({ uid: "new", emailVerified: false, sendEmailVerification: async () => {
+    sends++;
+    if (sends === 1) throw { code: "auth/network-request-failed" };
+  } });
+  h.auth.createUserWithEmailAndPassword = async () => { h.auth.currentUser = user; h.callbacks.auth(user); return { user }; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "new-password";
+  await h.submit("login");
+  assert.equal(h.auth.currentUser.uid, "new");
+  assert.equal(h.counts.redirects.length, 0);
+  assert.match(h.element('[data-form-message="login"]').textContent, /Verbindung/);
+  await h.element("[data-resend-verification]").handlers.click();
+  assert.equal(sends, 2);
+  assert.equal(h.counts.redirects.length, 0);
+  assert.match(h.element('[data-form-message="login"]').textContent, /erneut gesendet/);
+});
+
+
+test("desktop password entry stays hidden until the email has been submitted", async () => {
+  const h = mobileEmailHarness();
+  h.mobile.matches = false;
+  let requests = 0;
+  h.auth.signInWithEmailAndPassword = async () => { requests++; };
+  h.login();
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.password.required, false);
+  await h.submit("login");
+  assert.equal(requests, 0);
+  assert.equal(h.form.classList.contains("is-email-step"), false);
+  assert.equal(h.password.required, true);
+  assert.equal(h.password.focused, true);
 });

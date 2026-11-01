@@ -51,27 +51,8 @@
   }
   const {
     initFirebase, ensureLocalAuthPersistence, reloadUser, withRetry, isCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
-    rememberRegistrationName, normalizeNamePart, formatFullName,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, setMessage, setLoading, translateAuthError,
   } = window.LifesavingAuth;
-
-  function showTab(tabName) {
-    document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-      const isActive = tab.dataset.authTab === tabName;
-      tab.classList.toggle("is-active", isActive);
-      tab.setAttribute("aria-selected", String(isActive));
-    });
-
-    document.querySelectorAll("[data-auth-form]").forEach((form) => {
-      form.classList.toggle("is-hidden", form.dataset.authForm !== tabName);
-    });
-  }
-
-  function initTabs() {
-    document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-      tab.addEventListener("click", () => showTab(tab.dataset.authTab));
-    });
-  }
 
   function showResendButton(show) {
     const resendButton = document.querySelector("[data-resend-verification]");
@@ -123,11 +104,34 @@
   function initLoginPage(auth, googleProvider) {
     const params = new URLSearchParams(window.location.search);
     const loginForm = document.querySelector('[data-auth-form="login"]');
-    const registerForm = document.querySelector('[data-auth-form="register"]');
     const googleButton = document.querySelector("[data-google-login]");
     const googleIdentityButton = document.querySelector("[data-google-identity]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
+    const mobileQuery = window.matchMedia?.("(max-width: 600px)");
+    const emailInput = loginForm?.querySelector('input[name="email"]');
+    const passwordInput = loginForm?.querySelector('input[name="password"]');
+    let passwordStep = false;
+
+    function updateEmailStep() {
+      const emailStep = !passwordStep;
+      loginForm?.classList.toggle("is-email-step", emailStep);
+      if (emailInput) emailInput.placeholder = mobileQuery?.matches ? "Deine E-Mail" : "";
+      if (passwordInput) {
+        passwordInput.required = !emailStep;
+        passwordInput.placeholder = mobileQuery?.matches ? "Dein Passwort" : "";
+      }
+    }
+
+    emailInput?.addEventListener("input", () => {
+      if (!passwordStep) return;
+      passwordStep = false;
+      passwordInput.value = "";
+      setMessage("login", "");
+      updateEmailStep();
+    });
+    mobileQuery?.addEventListener("change", updateEmailStep);
+    updateEmailStep();
     const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
     if (returnTo.pathname.includes("/timer/")) {
       document.querySelector("[data-login-context]").textContent =
@@ -220,7 +224,6 @@
       // The provider owns the popup; cancellation must not leave our forms locked.
       directGoogleAttempt = true;
       rememberGoogleAttempt(true);
-      showTab("login");
       setMessage("login", "Google öffnet … Bitte wähle dein Konto. Du kannst den Google-Button bei Bedarf erneut verwenden.");
     }
 
@@ -337,8 +340,9 @@
             ux_mode: "popup",
           });
           identity.renderButton(googleIdentityButton, {
-            type: "standard", theme: "filled_black", size: "large", text: "continue_with",
-            shape: "rectangular", locale: "de",
+            type: "standard", theme: "filled_black", size: "large",
+            text: mobileQuery?.matches ? "signin_with" : "continue_with",
+            shape: "rectangular", locale: "de", logo_alignment: "left",
             width: Math.min(400, googleButton.clientWidth || 300),
             click_listener: startDirectGoogle,
           });
@@ -444,69 +448,48 @@
       directGoogleAttempt = false;
       googleHandoff?.clear();
       rememberGoogleAttempt(false);
+      if (!passwordStep) {
+        passwordStep = true;
+        updateEmailStep();
+        passwordInput?.focus();
+        return;
+      }
       authAction = "login";
 
       const button = loginForm.querySelector('button[type="submit"]');
       const formData = new FormData(loginForm);
       const email = String(formData.get("email") || "").trim();
       const password = String(formData.get("password") || "");
+      setMessage("login", "");
 
       try {
-        setLoading(button, true, "Login...");
+        setLoading(button, true, "Anmelden...");
         await localPersistenceReady;
-        const { user } = await auth.signInWithEmailAndPassword(email, password);
-
-        await finishVerifiedLogin(user);
+        let result;
+        try {
+          result = await auth.signInWithEmailAndPassword(email, password);
+        } catch (error) {
+          if (!["auth/user-not-found", "auth/invalid-credential", "auth/invalid-login-credentials"].includes(error?.code)) throw error;
+          // Email enumeration protection prevents an email-only account lookup.
+          authAction = "register";
+          try {
+            result = await auth.createUserWithEmailAndPassword(email, password);
+          } catch (registrationError) {
+            if (registrationError?.code === "auth/email-already-in-use") throw { code: "auth/invalid-credential" };
+            throw registrationError;
+          }
+          if (!isCurrentUser(result.user)) return;
+          showResendButton(true);
+          await result.user.sendEmailVerification({ url: getVerificationRedirectUrl() });
+          passwordInput.value = "";
+          passwordStep = false;
+          updateEmailStep();
+          setMessage("login", "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link in deinem Postfach. Danach kannst du dich anmelden.", true);
+          return;
+        }
+        await finishVerifiedLogin(result.user);
       } catch (error) {
         setMessage("login", translateAuthError(error));
-      } finally {
-        authAction = null;
-        setLoading(button, false);
-      }
-    });
-
-    registerForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (authAction) return;
-
-      const button = registerForm.querySelector('button[type="submit"]');
-      const formData = new FormData(registerForm);
-      const firstName = normalizeNamePart(formData.get("firstName"));
-      const lastName = normalizeNamePart(formData.get("lastName"));
-      const displayName = formatFullName(firstName, lastName);
-      const email = String(formData.get("email") || "").trim();
-      const password = String(formData.get("password") || "");
-
-      if (!firstName || !lastName) {
-        setMessage("register", "Bitte gib Vorname und Nachname an.");
-        return;
-      }
-
-      try {
-        directGoogleAttempt = false;
-        googleHandoff?.clear();
-        rememberGoogleAttempt(false);
-        authAction = "register";
-        setLoading(button, true, "Konto erstellen...");
-        await localPersistenceReady;
-        const { user } = await auth.createUserWithEmailAndPassword(email, password);
-        rememberRegistrationName(user.uid, { firstName, lastName, displayName });
-        await user.updateProfile({ displayName });
-
-        await user.sendEmailVerification({
-          url: getVerificationRedirectUrl()
-        });
-
-        showTab("login");
-        showResendButton(true);
-        setMessage(
-          "login",
-          "Konto erstellt. Bitte bestätige deine E-Mail-Adresse. Danach schließen wir die Kontokonfiguration ab.",
-          true
-        );
-        registerForm.reset();
-      } catch (error) {
-        setMessage("register", translateAuthError(error));
       } finally {
         authAction = null;
         setLoading(button, false);
@@ -597,7 +580,6 @@
 
 
   initPasswordVisibilityToggles();
-  initTabs();
   if (!canUseFirebase()) {
     return;
   }

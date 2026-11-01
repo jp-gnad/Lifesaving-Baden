@@ -125,6 +125,16 @@ App-Bereich gilt für die eigenen Seiten auf derselben Domain.
 Timer nutzen `assets/js/auth-core.js` für dauerhafte Sitzungen, Rollen und
 höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
 
+Auf allen Bildschirmgrößen bleibt das Passwort zunächst verborgen und erscheint
+erst nach Eingabe der E-Mail und Klick auf „Anmelden“. Auf Handys bis 600 px steht
+der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet; neue
+E-Mail-Konten werden angelegt und müssen die Bestätigungsmail öffnen. Weil
+Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabprüfung
+liefert, wird erst nach Eingabe des Passworts zwischen Anmeldung und Registrierung
+unterschieden. Bestehende Konten werden bei falschem Passwort nicht verändert.
+Auch am Desktop gibt es ein gemeinsames Formular ohne Umschaltung zwischen Login
+und Registrierung. Neue Konten können ihren Namen in den Einstellungen ergänzen.
+
 Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
 wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue
 Konten erhalten dabei die Rolle `standard`; eine Transaktion verhindert das
@@ -149,6 +159,10 @@ Der feste Demo-Projektname und die lokale Host-Prüfung im Test verhindern Zugri
 auf Produktionsdaten. Ohne gestarteten Emulator wird dieser Test übersprungen.
 
 ### Google-Login in der installierten GitHub-Web-App
+
+Das lokale Button-Logo `assets/img/google-g.png` ist das unveränderte Original aus
+[Googles offiziellen Branding-Richtlinien](https://developers.google.com/identity/branding-guidelines).
+
 
 Installierte Apps unter einer `*.github.io`-Domain verwenden mit konfigurierter
 `window.googleSignInClientId` Google Identity Services direkt. Das Google-Skript
