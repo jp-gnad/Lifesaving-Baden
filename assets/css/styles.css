@@ -804,6 +804,11 @@ body[data-page="app"] .dashboard > * {
   padding: clamp(18px, 3vw, 26px);
 }
 
+.auth-panel .button,
+.auth-panel .auth-form input {
+  border-radius: 5px;
+}
+
 .auth-panel h1 {
   font-weight: 500;
   max-width: 15ch;
@@ -3973,31 +3978,28 @@ body.auth-context-loading .member-apps::after {
 
 @media (min-width: 1200px) {
   body[data-page="login"] {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100dvh;
     min-height: 100dvh;
   }
 
-  body[data-page="login"] .site-header,
-  body[data-page="login"] .site-footer {
-    flex-shrink: 0;
-  }
-
   body[data-page="login"] .auth-layout {
-    flex: 1 0 auto;
     grid-template-columns: minmax(0, 1fr);
     place-items: center;
     min-height: 0;
-    padding: 48px 32px;
+    overflow: auto;
+    scrollbar-gutter: stable both-edges;
+    padding: 16px 32px;
     background: url("../img/auth-pool.jpg") center 48% / cover no-repeat;
   }
 
   body[data-page="login"] .auth-panel {
-    max-width: 480px;
+    max-width: 440px;
     margin: 0;
     padding: 36px;
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 14px;
+    border-radius: 8px;
     background: rgba(24, 24, 29, 0.84);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(8px);

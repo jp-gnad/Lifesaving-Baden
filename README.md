@@ -137,7 +137,9 @@ unterschieden. Bestehende Konten werden bei falschem Passwort nicht verändert.
 Auch am Desktop gibt es ein gemeinsames Formular ohne Umschaltung zwischen Login
 und Registrierung. Ab 1200 px liegt derselbe kompakte Anmeldekasten mittig mit
 leicht transparentem Hintergrund vor dem durchgehenden Schwimmbadfoto zwischen
-Header und Footer. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
+Header und Footer. Die Bildfläche bleibt bei wechselnder Formularhöhe unverändert;
+der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
+Formularbereich. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
 Neue Konten können ihren Namen in den Einstellungen ergänzen.
 
 Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
