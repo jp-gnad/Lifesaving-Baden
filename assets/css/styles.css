@@ -4024,7 +4024,8 @@ body.auth-context-loading .member-apps::after {
     overflow: auto;
     scrollbar-gutter: stable both-edges;
     padding: 16px 32px;
-    background: url("../img/auth-pool.jpg?v=20261102-start") center top / cover no-repeat fixed;
+    /* Keep the 3:2 photo scale independent of the scrollable form height. */
+    background: url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
   }
 
   body[data-page="login"] .auth-panel {

@@ -140,7 +140,7 @@ leicht transparentem Hintergrund vor dem durchgehenden Schwimmbadfoto zwischen
 Header und Footer. Der Hintergrund reicht bis zum unteren Bildschirmrand; der
 Footer folgt darunter und ist durch Scrollen erreichbar. Die Bildfläche bleibt
 bei wechselnder Formularhöhe unverändert;
-das Bild ist am Browserfenster oben verankert, der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
+Bild und Kasten scrollen gemeinsam, der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
 Formularbereich. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
 Neue Konten können ihren Namen in den Einstellungen ergänzen.
 
