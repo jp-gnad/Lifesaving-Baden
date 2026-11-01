@@ -1,41 +1,9 @@
 (function () {
   "use strict";
-  const loginVersion = new URL(document.currentScript.src).searchParams.get("v") || "development";
   const googleAttemptKey = "lifesaving-baden:google-login-started";
-  const traceKey = "lifesaving-baden:login-trace-v1";
-  const traceTtl = 10 * 60 * 1000;
-  const traceLimit = 40;
-  // This labels a page execution, never an account or a device.
-  const pageLabel = Math.random().toString(36).slice(2, 10).padEnd(8, "0");
-  const diagnosticLabels = Object.freeze({
-    start: "Anmeldeskript gestartet", shown: "Loginseite angezeigt", restored: "Loginseite aus Verlauf wiederhergestellt",
-    pagehide: "Loginseite verlassen oder ausgeblendet", visible: "App wieder sichtbar", hidden: "App ausgeblendet",
-    persistence: "Sitzungsspeicher geprüft", profile: "Firebase-Konto aktualisiert",
-    complete: "Anmeldung abgeschlossen; Weiterleitung gestartet", user: "Firebase-Anmeldeereignis: Sitzung vorhanden",
-    guest: "Firebase-Anmeldeereignis: keine Sitzung", redirect_check: "Google-Rückgabe nach Seitenstart wird geprüft",
-    redirect_result: "Google-Weiterleitung hat ein Ergebnis geliefert", redirect_empty: "Keine ausstehende Google-Rückgabe",
-    google: "Google-Anmeldung gestartet", redirect: "Google-Weiterleitung gestartet",
-    popup_result: "Google-Fenster hat ein Ergebnis geliefert", unavailable: "Firebase-Anmeldung nicht verfügbar",
-    error: "Anmeldefehler", popup_error: "Google-Fenster meldet",
-    identity_ready: "Direkte Google-Anmeldung bereit", identity_result: "Google-Anmeldenachweis empfangen",
-    credential_start: "Firebase-Anmeldung mit Google-Nachweis gestartet", credential_result: "Firebase hat die Google-Anmeldung übernommen",
-    identity_hidden: "App beim Google-Nachweis: ausgeblendet", identity_visible: "App beim Google-Nachweis: sichtbar",
-    foreground_wait: "Firebase-Übergabe wartet auf die sichtbare App", foreground_ready: "App für Firebase-Übergabe im Vordergrund",
-    credential_retry: "Firebase-Übergabe wird nach Verbindungsfehler erneut versucht", credential_error: "Firebase-Übergabe fehlgeschlagen",
-    network_type: "Firebase meldet Browser-Fehlertyp: TypeError", network_abort: "Firebase meldet Browser-Fehlertyp: AbortError",
-    network_other: "Firebase meldet Browser-Fehlertyp: NetworkError", network_unspecified: "Firebase liefert keinen weiteren Browser-Fehlertyp",
-    handoff_saved: "Google-Übergabe kurzzeitig im Sitzungsspeicher gesichert", handoff_navigation: "Loginseite für die Google-Übergabe neu gestartet",
-    handoff_resume: "Google-Übergabe nach Seitenstart wieder aufgenommen", handoff_kept: "Google-Übergabe bleibt für die nächste Seite erhalten",
-    handoff_unavailable: "Google-Übergabespeicher nicht verfügbar; Anmeldung nur auf dieser Seite",
-  });
-  let diagnosticEvents = [];
-  let diagnosticSequence = 0;
-  let diagnosticTraceStorage = "noch nicht geprüft";
-  const initialGoogleMarker = hasPendingGoogleReturn();
-  let diagnosticAuth = null;
-  let diagnosticPersistence = "wird vorbereitet";
-  let diagnosticErrorCode = "keiner";
-  let diagnosticGoogleMethod = "Popup";
+  // Remove only the retired support trace; keep all account and handoff storage.
+  try { window.localStorage?.removeItem("lifesaving-baden:login-trace-v1"); }
+  catch { /* Login remains usable when local storage is blocked. */ }
   let googleIdentityLoading = null;
 
   function loadGoogleIdentity() {
@@ -66,68 +34,6 @@
       });
     }
     return googleIdentityLoading;
-  }
-
-  function safeErrorCode(error) {
-    return /^(auth|app)\/[a-z0-9-]+$/.test(error?.code || "") ? error.code : "app/unknown-login-error";
-  }
-
-  function readTrace() {
-    try {
-      const data = JSON.parse(window.localStorage?.getItem(traceKey) || "null");
-      if (!Array.isArray(data?.entries)) return [];
-      return data.entries.filter((entry) => entry && Object.hasOwn(diagnosticLabels, entry.id)
-        && /^[a-z0-9]{8}$/.test(entry.page) && Number.isInteger(entry.seq) && entry.seq > 0
-        && Number.isFinite(entry.time) && Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl
-        && (entry.code === undefined || /^(auth|app)\/[a-z0-9-]+$/.test(entry.code)))
-        .slice(-traceLimit).map(({ id, page, seq, time, code }) => ({ id, page, seq, time, ...(code ? { code } : {}) }));
-    } catch { return []; }
-  }
-
-  function navigationType() {
-    const type = window.performance?.getEntriesByType?.("navigation")?.[0]?.type;
-    return ["navigate", "reload", "back_forward", "prerender"].includes(type) ? type : "unbekannt";
-  }
-
-  function refreshDiagnostics() {
-    const output = document.querySelector("[data-login-diagnostics-output]");
-    if (!output) return "";
-    const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
-    const traceStart = diagnosticEvents[0]?.time || Date.now();
-    const text = [
-      `Loginversion: ${loginVersion}`,
-      `Firebase-Version: ${window.firebase?.SDK_VERSION || "unbekannt"}`,
-      `Modus: ${standalone ? "Web-App" : "Browser"}`,
-      `Sichtbarkeit jetzt: ${document.visibilityState === "hidden" ? "ausgeblendet" : "sichtbar"}`,
-      `Google-Verfahren: ${diagnosticGoogleMethod}`,
-      `Aktuelle Seite: ${pageLabel}`,
-      `Navigationsart: ${navigationType()}`,
-      `Fensteröffner: ${window.opener ? "vorhanden" : "keiner"}`,
-      `Google-Startmarker bei Seitenstart: ${initialGoogleMarker ? "vorhanden" : "keiner"}`,
-      `Lokaler Diagnoseverlauf: ${diagnosticTraceStorage}`,
-      `Sitzungsspeicher: ${diagnosticPersistence}`,
-      `Firebase-Sitzung: ${diagnosticAuth?.currentUser ? "vorhanden" : "keine"}`,
-      `Letzter Fehlercode: ${diagnosticErrorCode}`,
-      "Ablauf (maximal 10 Minuten; Sekunden seit erstem angezeigten Ereignis):", ...diagnosticEvents.map((entry) =>
-        `[Seite ${entry.page}] +${((entry.time - traceStart) / 1000).toFixed(1)} s: ${diagnosticLabels[entry.id]}${entry.code ? `: ${entry.code}` : ""}`),
-    ].join("\n");
-    output.textContent = text;
-    return text;
-  }
-
-  function recordDiagnostic(id, code) {
-    const current = { id, page: pageLabel, seq: ++diagnosticSequence, time: Date.now(), ...(code ? { code } : {}) };
-    const merged = new Map([...readTrace(), ...diagnosticEvents, current]
-      .filter((entry) => Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl)
-      .map((entry) => [`${entry.page}:${entry.seq}`, entry]));
-    diagnosticEvents = [...merged.values()].sort((a, b) => a.time - b.time).slice(-traceLimit);
-    try {
-      if (!window.localStorage) throw new Error("Storage unavailable");
-      const serialized = JSON.stringify({ entries: diagnosticEvents });
-      window.localStorage.setItem(traceKey, serialized);
-      diagnosticTraceStorage = window.localStorage.getItem(traceKey) === serialized ? "gespeichert" : "nicht verfügbar";
-    } catch { diagnosticTraceStorage = "nicht verfügbar (nur aktuelle Seite)"; }
-    refreshDiagnostics();
   }
 
   function hasPendingGoogleReturn() {
@@ -247,14 +153,10 @@
     let directGoogleAttempt = false;
     let googleForegroundWaiter = null;
     let redirectResultPending = useRedirect;
-    diagnosticGoogleMethod = useDirectGoogle ? "Google direkt → Firebase" : useRedirect ? "Weiterleitung auf derselben Domain" : "Popup";
-    diagnosticAuth = auth;
     const localPersistenceReady = ensureLocalAuthPersistence(auth);
     // Prepare persistence before enabling the button, so the popup opens directly in the click gesture.
     googleButton.disabled = true;
-    localPersistenceReady.then((persistent) => {
-      diagnosticPersistence = persistent ? "dauerhaft verfügbar" : "nicht dauerhaft verfügbar";
-      recordDiagnostic("persistence");
+    localPersistenceReady.then(() => {
       if (!useDirectGoogle && !checkingGoogleReturn && !authAction && !verifiedLoginPromise && !redirectResultPending) googleButton.disabled = false;
     });
     if (checkingGoogleReturn) {
@@ -278,7 +180,6 @@
         if (authAction === "google" || checkingGoogleReturn) setLoading(googleButton, true, "Anmeldung prüfen...");
         await localPersistenceReady;
         const activeUser = await reloadUser(user);
-        recordDiagnostic("profile");
         if (!isCurrentUser(activeUser)) return;
 
         if (!hasVerifiedAccess(activeUser)) {
@@ -289,7 +190,6 @@
         }
 
         loginRedirectStarted = true;
-        recordDiagnostic("complete");
         rememberGoogleAttempt(false);
         redirectToApp();
       })();
@@ -305,19 +205,7 @@
     function showLoginError(error) {
       if (loginRedirectStarted || error?.code === "auth/user-mismatch") return;
       if (!authAction) setLoading(googleButton, false);
-      const code = safeErrorCode(error);
-      diagnosticErrorCode = code;
-      recordDiagnostic("error", code);
-      const message = code === "app/google-session-missing"
-        ? "Die Google-Anmeldung ist in dieser Web-App noch nicht angekommen. Bitte versuche es erneut."
-        : translateAuthError(error);
-      setMessage("login", message);
-      const details = document.querySelector("[data-login-error-details]");
-      if (details) {
-        const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
-        details.hidden = false;
-        details.textContent = `Anmeldecode: ${code} · Version: ${loginVersion} · ${standalone ? "Web-App" : "Browser"}`;
-      }
+      setMessage("login", translateAuthError(error));
     }
 
     function showDirectGoogleButton() {
@@ -331,12 +219,8 @@
       googleHandoff?.clear();
       // The provider owns the popup; cancellation must not leave our forms locked.
       directGoogleAttempt = true;
-      diagnosticErrorCode = "keiner";
       rememberGoogleAttempt(true);
-      recordDiagnostic("google");
       showTab("login");
-      const details = document.querySelector("[data-login-error-details]");
-      if (details) details.hidden = true;
       setMessage("login", "Google öffnet … Bitte wähle dein Konto. Du kannst den Google-Button bei Bedarf erneut verwenden.");
     }
 
@@ -351,7 +235,6 @@
     async function waitForGoogleForeground() {
       for (;;) {
         if (document.visibilityState === "hidden") {
-          recordDiagnostic("foreground_wait");
           await new Promise((resolve) => { googleForegroundWaiter = resolve; });
         }
         // Let queued return/visibility events run before issuing the request.
@@ -360,21 +243,9 @@
           else window.setTimeout(resolve, 0);
         });
         if (document.visibilityState !== "hidden") {
-          recordDiagnostic("foreground_ready");
           return;
         }
       }
-    }
-
-    function recordCredentialFailure(error) {
-      recordDiagnostic("credential_error", safeErrorCode(error));
-      if (error?.code !== "auth/network-request-failed") return;
-      // SDK errors can include a raw URL/message. Retain only an allowlisted error class.
-      const detail = typeof error?.customData?.message === "string" ? error.customData.message : "";
-      const label = /^TypeError:/.test(detail) ? "network_type"
-        : /^AbortError:/.test(detail) ? "network_abort"
-          : /^NetworkError:/.test(detail) ? "network_other" : "network_unspecified";
-      recordDiagnostic(label);
     }
 
     async function receiveGoogleCredential(response, resuming = false) {
@@ -389,42 +260,30 @@
       setMessage("login", "");
       try {
         if (typeof response?.credential !== "string" || !response.credential) throw { code: "app/google-credential-missing" };
-        if (resuming) recordDiagnostic("handoff_resume");
-        else {
-          recordDiagnostic("identity_result");
-          recordDiagnostic(document.visibilityState === "hidden" ? "identity_hidden" : "identity_visible");
-          if (googleHandoff?.save(response.credential)) {
-            googleHandoffPending = true;
-            recordDiagnostic("handoff_saved");
-            rememberGoogleAttempt(true);
-            recordDiagnostic("handoff_navigation");
-            // Keep the proof in this tab's session storage, never in the URL.
-            window.location.replace(window.location.href);
-            navigating = true;
-            return;
-          }
-          recordDiagnostic("handoff_unavailable");
+        if (!resuming && googleHandoff?.save(response.credential)) {
+          googleHandoffPending = true;
+          rememberGoogleAttempt(true);
+          // Keep the proof in this tab's session storage, never in the URL.
+          window.location.replace(window.location.href);
+          navigating = true;
+          return;
         }
         await localPersistenceReady;
-        // Firebase validates the Google ID token; diagnostics never receive it.
+        // Firebase validates the Google ID token.
         const credential = window.firebase.auth.GoogleAuthProvider.credential(response.credential);
         const result = await withRetry(async (attempt) => {
           if (loginPageLeaving) return null;
           if (attempt) {
-            recordDiagnostic("credential_retry");
             setLoading(googleButton, true, "Verbindung erneut prüfen...");
           }
           await waitForGoogleForeground();
           if (loginRedirectStarted || loginPageLeaving) return null;
           if (resuming && !googleHandoff.takeAttempt()) throw { code: "app/google-handoff-unavailable" };
-          recordDiagnostic("credential_start");
-          try { return await auth.signInWithCredential(credential); }
-          catch (error) { recordCredentialFailure(error); throw error; }
+          return auth.signInWithCredential(credential);
         }, (error) => !loginPageLeaving && error?.code === "auth/network-request-failed");
         if (!result) return;
         googleHandoff?.clear();
         googleHandoffPending = false;
-        recordDiagnostic("credential_result");
         await finishVerifiedLogin(result.user);
       } catch (error) {
         if (!loginPageLeaving) showLoginError(error);
@@ -432,8 +291,7 @@
         googleHandoffProcessing = false;
         if (!navigating) {
           authAction = null;
-          if (loginPageLeaving && googleHandoffPending) recordDiagnostic("handoff_kept");
-          else {
+          if (!loginPageLeaving || !googleHandoffPending) {
             googleHandoff?.clear();
             googleHandoffPending = false;
             checkingGoogleReturn = false;
@@ -487,7 +345,6 @@
           directGoogleReady = true;
           setLoading(googleButton, false);
           showDirectGoogleButton();
-          recordDiagnostic("identity_ready");
         } catch (error) {
           setLoading(googleButton, false);
           showLoginError(error);
@@ -509,7 +366,6 @@
     }
 
     auth.onAuthStateChanged((user) => {
-      recordDiagnostic(user ? "user" : "guest");
       if (redirectResultPending || googleHandoffPending) return;
       if (!user) {
         showResendButton(false);
@@ -532,9 +388,7 @@
       (async () => {
         try {
           await localPersistenceReady;
-          recordDiagnostic("redirect_check");
           const result = await auth.getRedirectResult();
-          recordDiagnostic(result?.user ? "redirect_result" : "redirect_empty");
           redirectResultPending = false;
           const user = result?.user || auth.currentUser;
           if (user) {
@@ -570,17 +424,14 @@
 
     window.addEventListener("pageshow", (event) => {
       loginPageLeaving = false;
-      recordDiagnostic(event?.persisted ? "restored" : "shown");
       resumeGoogleForeground();
       if (event?.persisted) resumeGoogleHandoff();
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
     window.addEventListener("pagehide", () => {
       loginPageLeaving = true;
-      recordDiagnostic("pagehide");
     });
     document.addEventListener("visibilitychange", () => {
-      recordDiagnostic(document.visibilityState === "visible" ? "visible" : "hidden");
       if (document.visibilityState === "visible") {
         resumeGoogleForeground();
         resumeLoginAfterGoogleWindow().catch(showLoginError);
@@ -665,37 +516,27 @@
     googleButton?.addEventListener("click", async () => {
       if (authAction || redirectResultPending) return;
       if (useDirectGoogle) {
-        diagnosticErrorCode = "keiner";
         setMessage("login", "");
-        const details = document.querySelector("[data-login-error-details]");
-        if (details) details.hidden = true;
         await prepareDirectGoogle();
         return;
       }
       authAction = "google";
       let redirectStarted = false;
-      diagnosticErrorCode = "keiner";
-      recordDiagnostic("google");
       rememberGoogleAttempt(true);
-      const details = document.querySelector("[data-login-error-details]");
-      if (details) details.hidden = true;
       setMessage("login", "");
       try {
         setLoading(googleButton, true, "Google öffnet...");
         if (useRedirect) {
           await localPersistenceReady;
-          recordDiagnostic("redirect");
           redirectStarted = true;
           await auth.signInWithRedirect(googleProvider);
           return;
         }
         const { user } = await auth.signInWithPopup(googleProvider);
-        recordDiagnostic("popup_result");
         await finishVerifiedLogin(user);
         if (!loginRedirectStarted && !isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
       } catch (error) {
         redirectStarted = false;
-        recordDiagnostic("popup_error", safeErrorCode(error));
         // Some iOS returns report a closed popup even though Auth already holds the Google session.
         let failure = error;
         if (!loginRedirectStarted && auth.currentUser?.providerData?.some((provider) => provider.providerId === "google.com")) {
@@ -757,20 +598,7 @@
 
   initPasswordVisibilityToggles();
   initTabs();
-  recordDiagnostic("start");
-  document.querySelector("[data-login-diagnostics]")?.addEventListener("toggle", refreshDiagnostics);
-  document.querySelector("[data-login-diagnostics-copy]")?.addEventListener("click", async () => {
-    const text = refreshDiagnostics();
-    const status = document.querySelector("[data-login-diagnostics-copy-status]");
-    try {
-      await window.navigator.clipboard.writeText(text);
-      if (status) status.textContent = "Status kopiert. Du kannst ihn zur Fehleranalyse einfügen.";
-    } catch {
-      if (status) status.textContent = "Bitte den Statustext oben markieren und kopieren.";
-    }
-  });
   if (!canUseFirebase()) {
-    recordDiagnostic("unavailable");
     return;
   }
   const auth = initFirebase();

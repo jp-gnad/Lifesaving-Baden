@@ -812,15 +812,6 @@ body[data-page="app"] .dashboard > * {
   line-height: 1.45;
 }
 
-.login-diagnostics summary {
-  cursor: pointer;
-}
-
-.login-diagnostics [data-login-diagnostics-output] {
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
 .tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

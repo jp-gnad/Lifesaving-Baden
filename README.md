@@ -139,69 +139,21 @@ python -B -m unittest discover -s tests -p 'test_*.py'
 
 ### Google-Login in der installierten GitHub-Web-App
 
-Auf dem betroffenen iPhone scheitert der Firebase-Popup-Ablauf in der installierten
-GitHub-Web-App mit `auth/network-request-failed`, bevor die Seite neu startet.
-Safari funktioniert, ebenso die installierte Firebase-Hosting-Variante. Eine Kopie
-unter einem anderen Repository-Pfad auf derselben GitHub-Domain hat nicht geholfen.
-Die konkret fehlschlagende Anfrage beziehungsweise interne SDK-Verbindung ist
-damit noch nicht bestimmt.
+Installierte Apps unter einer `*.github.io`-Domain verwenden mit konfigurierter
+`window.googleSignInClientId` Google Identity Services direkt. Das Google-Skript
+wird nur in diesem Modus geladen. Googles eigener dunkler Button öffnet die
+Kontoauswahl; es gibt kein One Tap und keine automatische Kontoauswahl.
+Normale Browser verwenden weiterhin den Firebase-Popup-Ablauf.
 
-Installierte Apps unter einer `*.github.io`-Domain verwenden deshalb mit
-konfigurierter `window.googleSignInClientId` Google Identity Services direkt.
-Das Google-Skript wird nur in diesem Modus geladen. Googles eigener dunkler Button
-öffnet die Kontoauswahl; es gibt kein One Tap und keine automatische Kontoauswahl.
-Der ID-Token wird ausschließlich an `GoogleAuthProvider.credential` und
-`signInWithCredential` übergeben. Firebase validiert ihn und stellt die Sitzung
-für das bestehende Konto aus; der anschließende Profil-/Rollenablauf bleibt gleich.
-Der Anwendungscode schreibt den Google-Nachweis weder in URLs noch in den
-Diagnoseverlauf. Für den Seitenwechsel wird er kurzzeitig in `sessionStorage`
-derselben App gehalten; siehe den folgenden Abschnitt.
-
-Die öffentliche Web-Client-ID liegt getrennt von der Firebase-Konfiguration in
-`assets/js/firebase-config.js`. Sie ist kein Client-Secret. Einmalig im bestehenden
-Google-Cloud-Projekt `lifesaving-baden` unter `Google Auth Platform → Clients`
-den passenden OAuth-Web-Client öffnen und unter `Authorized JavaScript origins`
-den Eintrag `https://jp-gnad.github.io` ergänzen, falls er fehlt. Kein Repository-
-Pfad und kein abschließender Schrägstrich gehören in diesen Eintrag. Die Adresse
-gilt damit für `Lifesaving-Baden` und `Lifesaving-Test`. Die vorhandenen Redirect-URIs
-und die Firebase-Einstellungen bleiben erhalten. Auch die Firebase-Freigabe der
-GitHub-Domain unter `Authentication → Settings → Authorized domains` bleibt nötig.
-
-Nach dem Push auf GitHub die installierte App neu laden. Die Anmeldehilfe muss
-`Loginversion: 20261101-google-handoff-v8` und
-`Google-Verfahren: Google direkt → Firebase` zeigen. Die neuen Ereignisse
-unterscheiden das Empfangen des Google-Nachweises vom Firebase-Austausch. Die
-automatisierten Tests prüfen die Übergabe, Fehlerbehandlung und bestehenden
-Anmeldewege; den Erfolg auf dem betroffenen iPhone müssen wir noch prüfen.
-
-Ein abgebrochenes Google-Fenster sperrt die Formulare nicht. Bei einem Ladefehler
-kann derselbe Google-Button das Skript erneut laden. Nach einem Fehler beim
-Firebase-Austausch erscheint Googles Button wieder; es gibt keinen automatischen
-Rückfall auf den auf diesem Gerät fehlschlagenden Firebase-Popup-Ablauf.
-
-Im v6-Geräteprotokoll kommt der Google-Nachweis an; anschließend scheitert erst
-`signInWithCredential` mit `auth/network-request-failed`. Der Beginn des
-Firebase-Aufrufs steht dabei vor dem Ereignis „App wieder sichtbar“. Das ist ein
-Hinweis auf den Zeitpunkt der Rückkehr, noch kein Beweis für die genaue Ursache.
-Die aktuelle Version wartet vor jedem Austausch auf eine sichtbare Seite und
-einen nächsten Animationsframe. Nur `auth/network-request-failed` erlaubt bis zu
-zwei Wiederholungen mit kurzen Pausen; andere Anmeldefehler werden sofort
-angezeigt. Eine inzwischen abgeschlossene Anmeldung verhindert eine
-verspätete weitere Übergabe.
-
-Der v7-Gerätetest bestätigt einen empfangenen Google-Nachweis und einen
-Firebase-Aufruf im Vordergrund. Trotzdem meldet der Browser einen `TypeError`;
-anschließend startet die Loginseite automatisch neu, noch bevor der erste
-Wiederholungsversuch sichtbar wird. Der Nutzer bestätigt außerdem, dass der
-Passwort-Login in derselben installierten GitHub-Web-App funktioniert. Bloßes
-Warten auf Sichtbarkeit reicht deshalb nicht aus.
-
-`assets/js/google-handoff.js` sichert für die direkte Google-Anmeldung den
-Nachweis unter einem eigenen `sessionStorage`-Schlüssel. Nach dem Google-Callback
-wird die identische Login-URL ohne Tokenparameter neu geladen. Erst die neue
-Seite übernimmt die Übergabe an Firebase; es ist keine weitere Kontoauswahl
-nötig. Der zunächst leere Firebase-Sitzungszustand dieser neuen Seite wird
-während der Fortsetzung nicht als fehlgeschlagene Anmeldung ausgegeben.
+`assets/js/google-handoff.js` sichert den Google-Anmeldenachweis kurzzeitig im
+Sitzungsspeicher derselben App. Nach der Kontoauswahl wird die identische
+Login-URL ohne Tokenparameter neu geladen. Erst die neue Seite übergibt den
+Nachweis über `GoogleAuthProvider.credential` und `signInWithCredential` an
+Firebase. So übersteht die Anmeldung den unter iOS beobachteten Seitenneustart,
+ohne eine weitere Kontoauswahl zu verlangen. Der zunächst leere Firebase-
+Sitzungszustand während dieser Fortsetzung wird nicht als Fehler behandelt.
+Firebase validiert den Google-Nachweis und stellt die Sitzung für das bestehende
+Konto aus; der anschließende Profil- und Rollenablauf bleibt gleich.
 
 Die Übergabe enthält den Google-ID-Token, die öffentliche Client-ID, die
 Firebase-Projekt-ID, den Empfangszeitpunkt und einen Versuchszähler. Sie ist
@@ -210,21 +162,32 @@ auch über mehrere Seitenneustarts. Nach erfolgreicher Firebase-Übernahme,
 endgültigem Fehler oder einem Wechsel zur Passwortanmeldung wird sie gelöscht.
 Ein Ablauf-Timer und die Prüfung bei jedem Zugriff verwerfen abgelaufene Daten;
 wenn iOS eine Seite anhält, kann die Bereinigung erst beim nächsten Ausführen
-erfolgen. Der Google-ID-Token selbst wird weiterhin von Firebase validiert.
-Andere Projekte/Client-IDs und ungültige Übergaben werden verworfen.
+erfolgen. Andere Projekte/Client-IDs und ungültige Übergaben werden verworfen.
+Der Nachweis wird nicht in die URL geschrieben.
 
-Die verlassene Seite darf einen noch benötigten Übergabestatus nicht löschen
-oder weitere Austauschversuche starten. Bei blockiertem Sitzungsspeicher bleibt
-die bisherige Verarbeitung im Arbeitsspeicher nutzbar, kann aber einen
-Seitenneustart weiterhin nicht überstehen. Der Diagnoseverlauf enthält nur
-feste Statusmeldungen zur Sicherung und Wiederaufnahme, niemals den Token.
+Vor jedem Austausch wartet die App auf die sichtbare Seite und einen nächsten
+Animationsframe. Nur `auth/network-request-failed` erlaubt kurze Wiederholungen;
+andere Anmeldefehler werden sofort verständlich angezeigt. Die verlassene Seite
+darf einen noch benötigten Übergabestatus nicht löschen oder weitere
+Austauschversuche starten. Bei blockiertem Sitzungsspeicher bleibt die Verarbeitung
+im Arbeitsspeicher nutzbar, kann aber einen Seitenneustart nicht überstehen.
+Ein abgebrochenes Google-Fenster sperrt die Formulare nicht. Nach einem
+Lade-/Anmeldefehler kann der Google-Button erneut verwendet werden.
 
-Die Diagnose hält die tatsächliche Sichtbarkeit beim Empfang, das Warten auf
-den Vordergrund und fehlgeschlagene beziehungsweise wiederholte Übergaben fest.
-Aus dem internen SDK-Fehlertext werden lediglich die fest vorgegebenen Namen
-`TypeError`, `AbortError` oder `NetworkError` übernommen, sofern vorhanden.
-Der rohe Text kann sensible Angaben enthalten und wird nicht ausgegeben oder
-gespeichert. Die genaue betroffene HTTP-Anfrage wird damit nicht erfasst.
+Die öffentliche Web-Client-ID liegt getrennt von der Firebase-Konfiguration in
+`assets/js/firebase-config.js`. Sie ist kein Client-Secret. Einmalig im bestehenden
+Google-Cloud-Projekt `lifesaving-baden` unter `Google Auth Platform → Clients`
+den passenden OAuth-Web-Client öffnen und unter `Authorized JavaScript origins`
+den Eintrag `https://jp-gnad.github.io` ergänzen, falls er fehlt. Kein Repository-
+Pfad und kein abschließender Schrägstrich gehören in diesen Eintrag. Die Adresse
+gilt für `Lifesaving-Baden` und `Lifesaving-Test`. Die vorhandenen Redirect-URIs
+und die Firebase-Einstellungen bleiben erhalten. Auch die Firebase-Freigabe der
+GitHub-Domain unter `Authentication → Settings → Authorized domains` bleibt nötig.
+
+Die Loginseite führt keinen Diagnoseverlauf mehr. Der frühere lokale
+Diagnoseschlüssel wird beim nächsten Aufruf gezielt entfernt; Konto-, Firebase-
+und Übergabedaten bleiben dabei erhalten. Für den funktionalen Rückkehrablauf
+bleibt ein kurzlebiger Startzeitpunkt in `sessionStorage` bestehen.
 
 ### Zusätzliche Firebase-Testwebsite entfernen
 
@@ -257,39 +220,14 @@ Domain für Authentication wird nicht entfernt.
 
 Nach der Veröffentlichung `/`, `/login.html` und `/timer/` auf Firebase auf
 HTTP 404 sowie `/__/auth/iframe` auf Erreichbarkeit prüfen. Der Google-Login im
-Safari-Browser auf GitHub Pages muss weiterhin funktionieren. Die neue direkte
-Anmeldung in der GitHub-Web-App wird unabhängig davon weiter geprüft.
+Safari-Browser auf GitHub Pages muss weiterhin funktionieren. Die direkte
+Anmeldung in der GitHub-Web-App bleibt von dieser Hosting-Änderung getrennt.
 
 Beim Google-Login werden Firebase-Anmeldeereignisse und die Rückkehr in die
 App auch während eines offenen Google-Fensters verarbeitet. Ein noch wartendes
 oder bereits geschlossenes Fenster blockiert so keine vorhandene Sitzung.
 Die Timer-App lädt gemeinsame Auth-Skripte bevorzugt aus dem Netz und greift
 bei fehlender Verbindung auf ihren Cache zurück.
-
-Falls die iPhone-Web-App nach der Kontoauswahl auf der Loginseite bleibt,
-zeigt sie bei einem erkannten Fehler den Anmeldecode, die geladene Version und
-den App-/Browsermodus. Unter dem Google-Button lässt sich außerdem die
-`Anmeldehilfe` aufklappen und über `Status kopieren` weitergeben. Sie zeigt auch
-bei ausbleibenden Fehlermeldungen die Firebase-Version, die Speicherverfügbarkeit,
-ob Firebase eine Sitzung erkennt und die letzten 40 Ablaufereignisse.
-Relative Sekundenangaben machen die Dauer zwischen Fehler und Seitenwechsel
-sichtbar; sie beziehen sich auf den ersten noch angezeigten Eintrag.
-Die Verlaufsspur liegt zusätzlich unter einem eigenen Schlüssel in `localStorage`,
-damit ein Seitenneustart den ursprünglichen Google-Klick nicht aus der Diagnose
-entfernt. Einzelne Seitenausführungen erhalten zufällige lokale Kennzeichnungen;
-diese identifizieren weder ein Konto noch ein Gerät. Navigationsart, ein vorhandener
-Fensteröffner und der beim Seitenstart vorgefundene Startmarker helfen, einen
-Seitenneustart von einem anderen Fenster-/Speicherkontext zu unterscheiden.
-Einträge, die älter als zehn Minuten sind, werden beim nächsten Zugriff verworfen.
-Wenn der lokale Speicher blockiert ist, funktioniert die Diagnose weiterhin im
-Arbeitsspeicher und blockiert keine Anmeldung.
-Die Angaben enthalten keine E-Mail-Adresse, Nutzer-ID, Tokens oder rohen
-Fehlermeldungen und werden erst durch den Kopierbutton in die Zwischenablage
-übernommen; es erfolgt kein automatischer Versand.
-Ein kurzfristiger Eintrag in `sessionStorage` erkennt
-auch einen Seitenneustart während der Anmeldung; er enthält nur den Startzeitpunkt,
-keine Kontodaten oder Tokens. Diese Angaben helfen, eine fehlende Firebase-Sitzung
-von einem Fehler bei der Rückkehr aus dem Google-Fenster zu unterscheiden.
 
 Gespeicherte Felder:
 

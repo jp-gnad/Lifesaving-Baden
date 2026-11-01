@@ -326,7 +326,7 @@ test("a closed-popup error still completes an already delivered Google session",
   assert.equal(h.element("[data-google-login]").disabled, true);
 });
 
-test("a closed popup with no session shows its safe error code and allows retrying", async () => {
+test("a closed popup with no session shows a readable error and allows retrying", async () => {
   const h = harness();
   h.window.navigator = { standalone: true };
   h.auth.signInWithPopup = async () => { throw { code: "auth/popup-closed-by-user", message: "sensitive-details" }; };
@@ -335,11 +335,7 @@ test("a closed popup with no session shows its safe error code and allows retryi
   assert.equal(h.counts.redirects.length, 0);
   assert.equal(h.element("[data-google-login]").disabled, false);
   assert.match(h.element('[data-form-message="login"]').textContent, /Google-Fenster/);
-  const details = h.element("[data-login-error-details]");
-  assert.equal(details.hidden, false);
-  assert.match(details.textContent, /auth\/popup-closed-by-user/);
-  assert.match(details.textContent, /Web-App/);
-  assert.doesNotMatch(details.textContent, /sensitive-details/);
+  assert.doesNotMatch(h.element('[data-form-message="login"]').textContent, /sensitive-details|auth\//);
 });
 
 test("the Google popup is opened synchronously from the click after persistence preparation", async () => {
@@ -360,7 +356,7 @@ test("a page restart during Google login reports a missing app session without s
   h.login();
   h.callbacks.auth(null);
   await new Promise(setImmediate);
-  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-session-missing/);
+  assert.match(h.element("[data-form-message=\"login\"]").textContent, /noch nicht angekommen/);
   assert.equal(h.element("[data-google-login]").disabled, false);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
 });
@@ -388,120 +384,48 @@ test("Google errors do not erase local storage or sign out a valid account", asy
   assert.equal(h.window.sessionStorage.getItem("unrelated"), "keep");
 });
 
-test("login help exposes pending Google events without collecting account details or tokens", async () => {
-  const gate = deferred();
-  const h = harness();
-  h.window.firebase.SDK_VERSION = "12.19.0";
-  h.window.navigator = { standalone: true };
-  h.auth.signInWithPopup = () => gate.promise;
-  h.login();
-  const clicked = h.element("[data-google-login]").handlers.click();
-  h.callbacks.visibilitychange();
-  await new Promise(setImmediate);
-  h.element("[data-login-diagnostics]").handlers.toggle();
-  const output = h.element("[data-login-diagnostics-output]").textContent;
-  gate.resolve({ user: null });
-  await clicked;
-  assert.match(output, /Firebase-Version: 12\.19\.0/);
-  assert.match(output, /Modus: Web-App/);
-  assert.match(output, /Firebase-Sitzung: keine/);
-  assert.match(output, /Google-Anmeldung gestartet/);
-  assert.doesNotMatch(output, /Google-Fenster hat ein Ergebnis geliefert/);
-});
 
-test("copying login help excludes the account identifier, email, and raw Firebase errors", async () => {
+
+test("login failures show a readable message without private SDK data or diagnostic codes", async () => {
   const h = harness({ user: { uid: "private-uid", email: "private@example.test", emailVerified: false } });
   h.window.localStorage = localStore();
-  let copied;
-  h.window.navigator = { clipboard: { async writeText(text) { copied = text; } } };
   h.auth.signInWithPopup = async () => { throw { code: "auth/network-request-failed", message: "private-access-token" }; };
   h.login();
   await h.element("[data-google-login]").handlers.click();
-  await h.element("[data-login-diagnostics-copy]").handlers.click();
-  assert.match(copied, /auth\/network-request-failed/);
-  assert.match(copied, /Firebase-Sitzung: vorhanden/);
-  assert.doesNotMatch(copied, /private-uid|private@example\.test|private-access-token/);
-  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-uid|private@example\.test|private-access-token/);
+  const message = h.element('[data-form-message="login"]').textContent;
+  assert.match(message, /Verbindung/);
+  assert.doesNotMatch(message, /private-uid|private@example\.test|private-access-token|auth\/|Anmeldecode|Loginversion/);
+  assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
 });
 
-test("the diagnostic trace preserves the Google click across a page restart without sharing sessionStorage", async () => {
-  const storage = localStore();
-  const first = harness();
-  first.window.localStorage = storage;
-  const gate = deferred();
-  first.auth.signInWithPopup = () => gate.promise;
-  first.login();
-  const clicked = first.element("[data-google-login]").handlers.click();
-  await new Promise(setImmediate);
-  const before = first.element("[data-login-diagnostics-output]").textContent;
-  const second = harness();
-  second.window.localStorage = storage;
-  second.window.performance = { getEntriesByType: () => [{ type: "reload" }] };
-  second.login();
-  second.callbacks.auth(null);
-  await new Promise(setImmediate);
-  const after = second.element("[data-login-diagnostics-output]").textContent;
-  gate.resolve({ user: null });
-  await clicked;
-  assert.match(before, /Lokaler Diagnoseverlauf: gespeichert/);
-  assert.match(after, /Google-Anmeldung gestartet/);
-  assert.match(after, /Navigationsart: reload/);
-  assert.match(after, /Google-Startmarker bei Seitenstart: keiner/);
-  const labels = new Set([...after.matchAll(/\[Seite ([a-z0-9]{8})\]/g)].map((match) => match[1]));
-  assert.equal(labels.size, 2);
-});
-
-test("an isolated storage context cannot inherit the first window's Google trace", async () => {
-  const first = harness();
-  first.window.localStorage = localStore();
-  const gate = deferred();
-  first.auth.signInWithPopup = () => gate.promise;
-  first.login();
-  const clicked = first.element("[data-google-login]").handlers.click();
-  const second = harness();
-  second.window.localStorage = localStore();
-  second.window.opener = {};
-  second.login();
-  await new Promise(setImmediate);
-  const after = second.element("[data-login-diagnostics-output]").textContent;
-  gate.resolve({ user: null });
-  await clicked;
-  assert.doesNotMatch(after, /Google-Anmeldung gestartet/);
-  assert.match(after, /Fensteröffner: vorhanden/);
-  assert.match(after, /Lokaler Diagnoseverlauf: gespeichert/);
-});
-
-test("blocked local trace storage does not block authentication", async () => {
+test("blocked local storage cleanup does not block authentication", async () => {
   const h = harness({ user: { uid: "u", providerData: [{ providerId: "google.com" }] } });
   Object.defineProperty(h.window, "localStorage", { get() { throw new Error("blocked"); } });
   h.login();
   await h.element("[data-google-login]").handlers.click();
   assert.equal(h.counts.redirects.length, 1);
-  assert.match(h.element("[data-login-diagnostics-output]").textContent, /nur aktuelle Seite/);
 });
 
-test("old and unrecognized trace data is discarded, including extra private fields", async () => {
+test("retired login traces are removed without touching the Firebase session or pending Google handoff", async () => {
   const h = harness();
   h.window.localStorage = localStore();
-  const time = Date.now();
-  h.window.localStorage.setItem("lifesaving-baden:login-trace-v1", JSON.stringify({ entries: [
-    { id: "google", page: "abcdefgh", seq: 1, time: time - 11 * 60 * 1000 },
-    { id: "private-account@example.test", page: "abcdefgh", seq: 2, time },
-    { id: "start", page: "abcdefgh", seq: 3, time, message: "private-access-token" },
-  ] }));
+  h.window.localStorage.setItem("lifesaving-baden:login-trace-v1", "old support trace");
+  h.window.localStorage.setItem("firebase:authUser:public-key:[DEFAULT]", "keep Firebase session");
+  h.window.localStorage.setItem("unrelated", "keep unrelated data");
+  h.window.sessionStorage.setItem("lifesaving-baden:google-handoff-v1", "keep pending handoff");
   h.login();
   await new Promise(setImmediate);
-  const output = h.element("[data-login-diagnostics-output]").textContent;
-  assert.doesNotMatch(output, /Google-Anmeldung gestartet|private-account|private-access-token/);
-  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-account|private-access-token/);
+  assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
+  assert.equal(h.window.localStorage.getItem("firebase:authUser:public-key:[DEFAULT]"), "keep Firebase session");
+  assert.equal(h.window.localStorage.getItem("unrelated"), "keep unrelated data");
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), "keep pending handoff");
 });
 
-test("login help identifies a persistence failure while keeping the login usable", async () => {
+test("a persistence failure keeps the login usable", async () => {
   const h = harness();
   h.auth.setPersistence = async () => { throw { code: "auth/web-storage-unsupported" }; };
   h.login();
   await new Promise(setImmediate);
-  assert.match(h.element("[data-login-diagnostics-output]").textContent, /Sitzungsspeicher: nicht dauerhaft verfügbar/);
   assert.equal(h.element("[data-google-login]").disabled, false);
   assert.equal(await h.core.ensureLocalAuthPersistence(h.auth), false);
 });
@@ -547,7 +471,7 @@ test("a redirect failure is visible and allows a new attempt without a login loo
   assert.equal(h.counts.redirectStarts, 0);
   assert.equal(h.counts.redirects.length, 0);
   assert.equal(h.element("[data-google-login]").disabled, false);
-  assert.match(h.element("[data-login-error-details]").textContent, /auth\/network-request-failed/);
+  assert.match(h.element("[data-form-message=\"login\"]").textContent, /Verbindung/);
 });
 
 test("a redirect with no session reports the missing result after checking Firebase", async () => {
@@ -558,7 +482,7 @@ test("a redirect with no session reports the missing result after checking Fireb
   h.callbacks.auth(null);
   await new Promise(setImmediate);
   assert.equal(h.counts.redirectResults, 1);
-  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-session-missing/);
+  assert.match(h.element("[data-form-message=\"login\"]").textContent, /noch nicht angekommen/);
   assert.equal(h.element("[data-google-login]").disabled, false);
 });
 
@@ -593,12 +517,7 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.equal(h.counts.reads, 0);
   assert.equal(h.counts.writes.length, 0);
   assert.equal(h.counts.redirectStarts, 0);
-  const output = h.element("[data-login-diagnostics-output]").textContent;
-  assert.match(output, /Google-Verfahren: Google direkt → Firebase/);
-  assert.match(output, /Google-Anmeldenachweis empfangen/);
-  assert.match(output, /Firebase hat die Google-Anmeldung übernommen/);
-  assert.doesNotMatch(output, /private-google-id-token|existing-admin/);
-  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-google-id-token|existing-admin/);
+  assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
 });
 
@@ -638,10 +557,7 @@ test("Google handoff saves a short-lived proof before navigating, then signs in 
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
   assert.equal(next.identity.timers.size, 0);
-  const output = next.element("[data-login-diagnostics-output]").textContent;
-  assert.match(output, /nach Seitenstart wieder aufgenommen/);
-  assert.doesNotMatch(output, /private-handoff-token|app\/google-session-missing/);
-  assert.doesNotMatch(next.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-handoff-token/);
+  assert.equal(next.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
   assert.ok(Date.now() - originalTime < 120000);
 });
 
@@ -665,7 +581,6 @@ test("an interrupted credential request survives the next automatic navigation b
     await new Promise(setImmediate);
     assert.equal(calls, 1);
     assert.equal(JSON.parse(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1")).attempts, attempt);
-    assert.match(next.element("[data-login-diagnostics-output]").textContent, /bleibt für die nächste Seite erhalten/);
     previous = next;
   }
   const last = continuedGooglePage(previous);
@@ -676,7 +591,7 @@ test("an interrupted credential request survives the next automatic navigation b
   assert.equal(last.counts.redirects.length, 0);
   assert.equal(last.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
   assert.equal(last.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
-  assert.match(last.element("[data-login-error-details]").textContent, /app\/google-handoff-unavailable/);
+  assert.match(last.element("[data-form-message=\"login\"]").textContent, /abgelaufen|fortgesetzt/);
   assert.equal(last.element("[data-google-identity]").hidden, false);
 });
 
@@ -757,7 +672,6 @@ test("invalid, expired, future-dated, or differently configured handoffs are cle
     assert.equal(next.identity.credentials.length, 0);
     assert.equal(next.counts.redirects.length, 0);
     assert.equal(next.window.sessionStorage.getItem(key), undefined);
-    assert.doesNotMatch(next.element("[data-login-diagnostics-output]").textContent, /private-expired-token/);
   }
 });
 
@@ -793,7 +707,7 @@ test("a permanent handoff error clears the proof and offers Google login again",
   assert.equal(calls, 1);
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
-  assert.match(next.element("[data-login-error-details]").textContent, /auth\/invalid-credential/);
+  assert.match(next.element("[data-form-message=\"login\"]").textContent, /E-Mail oder Passwort/);
   assert.equal(next.element("[data-google-identity]").hidden, false);
 });
 
@@ -852,8 +766,6 @@ test("a Google credential received in the background waits for visibility and th
     await new Promise(setImmediate);
     assert.equal(h.identity.credentials.length, 0);
     assert.equal(frames.length, 0);
-    assert.match(h.element("[data-login-diagnostics-output]").textContent, /App beim Google-Nachweis: ausgeblendet/);
-    assert.match(h.element("[data-login-diagnostics-output]").textContent, /wartet auf die sichtbare App/);
     h.document.visibilityState = "visible";
     h.callbacks[returnEvent]();
     await new Promise(setImmediate);
@@ -863,7 +775,7 @@ test("a Google credential received in the background waits for visibility and th
     await received;
     assert.equal(h.identity.credentials.length, 1);
     assert.equal(h.counts.redirects.length, 1);
-    assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /background-private-token/);
+    assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
   }
 });
 
@@ -917,9 +829,7 @@ test("a transient Google credential failure retries only after the app is visibl
   assert.equal(credentials[0], credentials[1]);
   assert.deepEqual(h.counts.delays, [450]);
   assert.equal(h.counts.redirects.length, 1);
-  assert.match(h.element("[data-login-diagnostics-output]").textContent, /nach Verbindungsfehler erneut versucht/);
-  assert.match(h.element("[data-login-diagnostics-output]").textContent, /Browser-Fehlertyp: TypeError/);
-  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-network-details/);
+  assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
 });
 
 test("credential retries stop after three network failures and never repeat a permanent or internal error", async () => {
@@ -939,40 +849,7 @@ test("credential retries stop after three network failures and never repeat a pe
   }
 });
 
-test("the complete background handoff and bounded retries remain diagnosable after another page starts", async () => {
-  const first = directGoogleHarness();
-  first.auth.signInWithCredential = async () => {
-    throw { code: "auth/network-request-failed", customData: { message: "TypeError: private-token-in-url" } };
-  };
-  first.login();
-  await new Promise(setImmediate);
-  first.callbacks.pageshow();
-  first.identity.click();
-  first.document.visibilityState = "hidden";
-  first.callbacks.visibilitychange();
-  const received = first.identity.receive({ credential: "private-id-token" });
-  await new Promise(setImmediate);
-  first.document.visibilityState = "visible";
-  first.callbacks.visibilitychange();
-  await received;
-  first.callbacks.pagehide();
-  first.document.visibilityState = "hidden";
-  first.callbacks.visibilitychange();
-  const next = directGoogleHarness();
-  next.window.localStorage = first.window.localStorage;
-  next.login();
-  next.callbacks.pageshow();
-  next.callbacks.auth(null);
-  await new Promise(setImmediate);
-  const output = next.element("[data-login-diagnostics-output]").textContent;
-  assert.match(output, /App beim Google-Nachweis: ausgeblendet/);
-  assert.match(output, /wartet auf die sichtbare App/);
-  assert.equal((output.match(/Firebase-Anmeldung mit Google-Nachweis gestartet/g) || []).length, 3);
-  assert.equal((output.match(/nach Verbindungsfehler erneut versucht/g) || []).length, 2);
-  assert.doesNotMatch(output, /private-token-in-url|private-id-token/);
-  const entries = JSON.parse(next.window.localStorage.getItem("lifesaving-baden:login-trace-v1")).entries;
-  assert.ok(entries.length <= 40);
-});
+
 
 test("a session completed while waiting for foreground is not replaced by a late Google credential", async () => {
   const h = directGoogleHarness();
@@ -1027,9 +904,8 @@ test("a failed Firebase credential exchange offers another direct attempt and st
   assert.equal(h.counts.redirects.length, 0);
   assert.equal(h.element("[data-google-identity]").hidden, false);
   assert.equal(h.element("[data-google-login]").hidden, true);
-  assert.match(h.element("[data-login-error-details]").textContent, /auth\/network-request-failed/);
-  assert.doesNotMatch(h.element("[data-login-diagnostics-output]").textContent, /private-error-token|private-id-token/);
-  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-error-token|private-id-token/);
+  assert.match(h.element("[data-form-message=\"login\"]").textContent, /Verbindung/);
+  assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
   h.auth.signInWithCredential = exchange;
   h.identity.click();
@@ -1047,7 +923,7 @@ test("a missing Google credential is rejected before calling Firebase and the bu
   h.identity.click();
   await h.identity.receive({});
   assert.equal(h.identity.credentials.length, 0);
-  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-credential-missing/);
+  assert.match(h.element("[data-form-message=\"login\"]").textContent, /keinen Anmeldenachweis/);
   assert.equal(h.element("[data-google-identity]").hidden, false);
 });
 
@@ -1070,7 +946,7 @@ test("Google client loading is bounded, retryable, and does not lock the email f
     assert.equal(h.identity.scripts[0].removed, true);
     assert.equal(h.identity.timers.size, 0);
     assert.equal(h.element("[data-google-login]").disabled, false);
-    assert.match(h.element("[data-login-error-details]").textContent, /app\/google-library-unavailable/);
+    assert.match(h.element("[data-form-message=\"login\"]").textContent, /nicht geladen/);
     const retry = h.element("[data-google-login]").handlers.click();
     assert.equal(h.identity.scripts.length, 2);
     h.window.google = google;
@@ -1079,7 +955,7 @@ test("Google client loading is bounded, retryable, and does not lock the email f
     assert.equal(h.identity.renders.length, 1);
     assert.equal(h.identity.timers.size, 0);
     assert.equal(h.element("[data-google-identity]").hidden, false);
-    assert.equal(h.element("[data-login-error-details]").hidden, true);
+    assert.equal(h.element('[data-form-message="login"]').textContent, "");
   }
 });
 

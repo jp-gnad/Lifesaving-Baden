@@ -199,6 +199,7 @@
       "auth/network-request-failed": "Die Verbindung für die Anmeldung ist fehlgeschlagen oder hat zu lange gedauert. Bitte versuche es erneut.",
       "app/google-library-unavailable": "Die Google-Anmeldung konnte nicht geladen werden. Bitte versuche es über den Google-Button erneut.",
       "app/google-credential-missing": "Google hat keinen Anmeldenachweis zurückgegeben. Bitte versuche es erneut.",
+      "app/google-session-missing": "Die Google-Anmeldung ist in dieser Web-App noch nicht angekommen. Bitte versuche es erneut.",
       "app/google-handoff-unavailable": "Die Google-Anmeldung ist abgelaufen oder konnte nach dem Seitenwechsel nicht fortgesetzt werden. Bitte starte sie erneut.",
       "auth/operation-not-allowed": "Dieser Login-Anbieter ist in Firebase noch nicht aktiviert.",
       "auth/popup-blocked": "Das Google-Popup wurde vom Browser blockiert.",
