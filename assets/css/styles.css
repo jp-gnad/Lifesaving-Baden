@@ -426,8 +426,12 @@ h3 {
 }
 
 .auth-panel .button {
-  min-height: 44px;
+  min-height: 45px;
   padding-block: 8px;
+}
+
+.auth-panel .button-google {
+  min-height: 46px;
 }
 
 .button-google .google-logo {
@@ -899,7 +903,7 @@ body[data-page="app"] .dashboard > * {
 
 .auth-form input {
   width: 100%;
-  min-height: 44px;
+  min-height: 46px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px 11px;
@@ -1023,9 +1027,10 @@ body[data-page="app"] .dashboard > * {
 
 .google-identity:not([hidden]) {
   display: flex;
+  align-items: center;
   justify-content: center;
   margin-top: 14px;
-  min-height: 44px;
+  min-height: 46px;
 }
 
 .auth-aside {
@@ -3975,11 +3980,6 @@ body.auth-context-loading .member-apps::after {
     margin: 0;
   }
 
-  body[data-page="login"] .auth-form input,
-  body[data-page="login"] .auth-panel .button {
-    min-height: 44px;
-  }
-
   body[data-page="login"] .auth-form input {
     padding: 8px 14px;
     background: var(--surface);
@@ -4039,7 +4039,9 @@ body.auth-context-loading .member-apps::after {
     overflow: auto;
     padding: 16px 32px;
     /* Keep the 3:2 photo scale independent of the scrollable form height. */
-    background: url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
+    background:
+      linear-gradient(rgba(15, 15, 18, 0.15), rgba(15, 15, 18, 0.15)) center top / 100% 100% no-repeat local,
+      url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
   }
 
   body[data-page="login"] .auth-panel {
