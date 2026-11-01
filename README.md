@@ -126,7 +126,8 @@ Timer nutzen `assets/js/auth-core.js` für dauerhafte Sitzungen, Rollen und
 höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
 
 Auf allen Bildschirmgrößen bleibt das Passwort zunächst verborgen und erscheint
-erst nach Eingabe der E-Mail und Klick auf „Anmelden“. Auf Handys bis 600 px steht
+erst nach Eingabe der E-Mail und Klick auf „Anmelden“ anstelle des E-Mail-Felds.
+Über „E-Mail ändern“ kehrt man zum ersten Schritt zurück. Auf Handys bis 600 px steht
 der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet; neue
 E-Mail-Konten werden angelegt und müssen die Bestätigungsmail öffnen. Weil
 Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabprüfung

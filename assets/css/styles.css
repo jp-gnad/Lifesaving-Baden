@@ -821,6 +821,11 @@ body[data-page="app"] .dashboard > * {
   font-weight: 400;
 }
 
+.auth-panel .form-message.success {
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .auth-note {
   margin: 12px 0 16px;
   color: var(--muted);
@@ -833,7 +838,9 @@ body[data-page="app"] .dashboard > * {
   margin-top: 14px;
 }
 
+.auth-form:not(.is-email-step) .auth-email-step,
 .auth-form.is-email-step .auth-password-step,
+.auth-form.is-email-step [data-change-email],
 .auth-form.is-email-step [data-reset-password] {
   display: none;
 }

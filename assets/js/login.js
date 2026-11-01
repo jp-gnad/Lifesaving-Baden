@@ -108,6 +108,7 @@
     const googleIdentityButton = document.querySelector("[data-google-identity]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
+    const changeEmailButton = document.querySelector("[data-change-email]");
     const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
@@ -137,6 +138,14 @@
         setMessage("login", "");
       }
       updateEmailStep();
+    });
+    changeEmailButton?.addEventListener("click", () => {
+      if (authAction) return;
+      passwordStep = false;
+      passwordInput.value = "";
+      setMessage("login", "");
+      updateEmailStep();
+      emailInput?.focus();
     });
     emailInput?.addEventListener("change", updateEmailButton);
     compactLoginQuery?.addEventListener("change", updateEmailStep);

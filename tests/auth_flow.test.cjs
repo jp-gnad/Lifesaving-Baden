@@ -1585,3 +1585,20 @@ test("the email submit button is disabled for blank input and stays disabled whe
   h.email.handlers.change();
   assert.equal(button.disabled, false);
 });
+
+
+test("returning from the password step preserves the email and clears the password without an auth request", async () => {
+  const h = mobileEmailHarness();
+  let requests = 0;
+  h.auth.signInWithEmailAndPassword = async () => { requests++; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "synthetic-password";
+  h.element("[data-change-email]").handlers.click();
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.email.value, "anna@example.test");
+  assert.equal(h.email.focused, true);
+  assert.equal(h.password.value, "");
+  assert.equal(h.password.required, false);
+  assert.equal(requests, 0);
+});
