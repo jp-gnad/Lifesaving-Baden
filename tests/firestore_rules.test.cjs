@@ -92,21 +92,23 @@ test("event administration and directory import stay exclusive to organizers and
   }
 });
 
-test("admin accounts cannot be edited, demoted or deleted by themselves or another admin", { skip: !enabled }, async () => {
+test("admins can edit their own profile but nobody can demote or delete admin accounts", { skip: !enabled }, async () => {
   await env.clearFirestore();
   await seed({ "users/admin": { role: "admin" }, "users/other": { role: "admin" } });
   for (const marker of [{ role: "admin" }, { role: " ADMIN " }, { admin: true }, { isAdmin: true }]) {
     await seed({ "users/admin": marker });
     for (const uid of ["admin", "other"]) {
       const ref = sdk.doc(dbFor(uid), "users/admin");
-      await assertFails(sdk.updateDoc(ref, { displayName: "Geändert" }));
+      const profileCheck = uid === "admin" ? assertSucceeds : assertFails;
+      await profileCheck(sdk.updateDoc(ref, { displayName: "Geändert", privateProfile: true, birthDate: "2000-01-01" }));
       await assertFails(sdk.updateDoc(ref, { role: "standard", admin: false, isAdmin: false }));
       await assertFails(sdk.deleteDoc(ref));
     }
   }
   await seed({ "users/claim-admin": { role: "standard" } });
   const claimAdmin = sdk.doc(dbFor("claim-admin", { admin: true }), "users/claim-admin");
-  await assertFails(sdk.updateDoc(claimAdmin, { displayName: "Geändert" }));
+  await assertSucceeds(sdk.updateDoc(claimAdmin, { displayName: "Geändert" }));
+  await assertFails(sdk.updateDoc(claimAdmin, { role: "trainer" }));
   await assertFails(sdk.deleteDoc(claimAdmin));
   assert.equal((await sdk.getDoc(sdk.doc(dbFor("other"), "users/admin"))).data().isAdmin, true);
 });

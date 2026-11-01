@@ -2206,8 +2206,7 @@ body.auth-context-loading .member-apps::after {
 
 [data-admin-only].is-hidden,
 [data-organizer-only].is-hidden,
-[data-athlete-only].is-hidden,
-[data-account-editable].is-hidden {
+[data-athlete-only].is-hidden {
   display: none;
 }
 

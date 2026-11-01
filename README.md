@@ -286,25 +286,23 @@ mit `kader` entsprechen „Sportler und höher“. Neue Änderungen speichern di
 oben. Bei einer Rollenänderung werden alte Kader-Markierungen entfernt.
 
 Admins können andere Nicht-Admin-Konten zu Standard, Sportler, Trainer oder
-Organisator machen. Admin-Konten sind in der Web-App vollständig schreibgeschützt,
-auch bei Profil, Anmeldeanbietern, Verknüpfungen und Löschung. Automatische
-Profilabgleiche überspringen Admin-Konten. Die Firestore-Regeln sperren Änderungen
-und Löschungen an Admin-Dokumenten auch für andere Admins. Eine Adminrolle kann
-nicht über die Web-App vergeben werden.
+Organisator machen. Die Rolle bestehender Admin-Konten kann nicht über die Web-App
+geändert werden; auch ihre Löschung ist gesperrt. Eigene persönliche Daten,
+Anmeldeanbieter, Verknüpfungen und Datenschutzeinstellungen bleiben bearbeitbar.
+Die Firestore-Regeln erlauben dabei keine Änderungen an geschützten Rollenfeldern.
+Auch andere Admins können Admin-Konten weder umstufen noch löschen.
 
-Admin-Konten werden ausschließlich manuell in der Firebase Console gepflegt:
-Authentication für Anmeldedaten und Firestore `users/{uid}` für Kontodaten/Rolle.
-Bei Admins muss auch das Kontodokument `role: "admin"`, `admin: true` oder
-`isAdmin: true` enthalten, damit andere Konten den Admin-Schutz erkennen.
+Adminrollen werden ausschließlich manuell in der Firebase Console unter Firestore
+`users/{uid}` gepflegt. Admin-Kontodokumente müssen `role: "admin"`, `admin: true`
+oder `isAdmin: true` enthalten, damit andere Konten den Admin-Schutz erkennen.
 Vorhandene Auth Custom Claims bleiben wirksam und müssen gegebenenfalls separat
 über eine privilegierte Admin-Umgebung geändert werden; die Web-App kann sie nicht
-ändern. Eigene Profiländerungen eines nur über Claims erkannten Admins sind ebenfalls
-gesperrt. Firebase-Auth-Profilaktionen werden durch die Web-App gesperrt, nicht durch
-Firestore-Regeln.
+ändern. Der Schutz der eigenen Rollenfelder und vor Löschung gilt auch für nur
+über Claims erkannte Admins.
 
 ## Kontoverwaltung
 
-In den Kontoeinstellungen kann ein eingeloggter Nutzer ohne Adminrolle Name und E-Mail-Adresse
+In den Kontoeinstellungen kann ein eingeloggter Nutzer auch mit Adminrolle Name und E-Mail-Adresse
 ändern. Die Firebase UID bleibt dabei gleich, das Konto geht also nicht
 verloren. Bei einer neuen E-Mail-Adresse sendet Firebase eine
 Bestätigungs-Mail an die neue Adresse.
@@ -429,8 +427,8 @@ Zugriffen erwartungsgemäß eine fehlende Berechtigung an.
 
 ## Admin- und Organisatorrollen
 
-Die Adminrolle kann weiterhin nicht über die Website vergeben werden. Das
-Admin-Konto wird ausschließlich direkt in Firebase gepflegt. Ein Admin kann in
+Die Adminrolle kann weiterhin nicht über die Website vergeben werden. Die
+Adminrolle wird ausschließlich direkt in Firebase gepflegt. Ein Admin kann in
 der Website andere Konten zu Organisatoren, Trainern, Sportlern oder Standard-Nutzern
 machen, aber keinen weiteren Admin anlegen. Normale Konten können ihre eigenen
 Rollenfelder weder setzen noch verändern.

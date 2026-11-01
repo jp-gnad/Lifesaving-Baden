@@ -12,14 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Kontoeinstellungen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-roles-v10">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-settings-v11">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
-    <script defer src="assets/js/firebase-config.js?v=20261101-roles-v10"></script>
-    <script defer src="assets/js/auth-core.js?v=20261101-roles-v10"></script>
-    <script defer src="assets/js/auth.js?v=20261101-roles-v10"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth.js?v=20261101-settings-v11"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -77,7 +77,7 @@
               </span>
               <span>Persönliche Daten</span>
             </a>
-            <a class="settings-menu-item" href="#sicherheit" data-account-editable>
+            <a class="settings-menu-item" href="#sicherheit">
               <span class="settings-menu-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
                   <rect x="5" y="10" width="14" height="9" rx="2"></rect>
@@ -87,7 +87,7 @@
               </span>
               <span>Sicherheit und Anmeldung</span>
             </a>
-            <a class="settings-menu-item" href="#verknuepfungen" data-account-editable>
+            <a class="settings-menu-item" href="#verknuepfungen">
               <span class="settings-menu-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
                   <path d="M9.4 14.6 8 16a3.5 3.5 0 0 1-5-5l2-2a3.5 3.5 0 0 1 5 0"></path>
@@ -97,7 +97,7 @@
               </span>
               <span>Verknüpfungen</span>
             </a>
-            <a class="settings-menu-item" href="#datenschutz" data-account-editable>
+            <a class="settings-menu-item" href="#datenschutz">
               <span class="settings-menu-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
                   <path d="M5 6.5c0-1.4 3.1-2.5 7-2.5s7 1.1 7 2.5-3.1 2.5-7 2.5-7-1.1-7-2.5Z"></path>
@@ -161,11 +161,7 @@
                 <p>Konto-Typ: <strong data-account-role>Standard</strong></p>
               </div>
             </article>
-            <article class="card is-hidden" data-admin-only>
-              <p>Admin-Konten sind hier schreibgeschützt. Änderungen sind ausschließlich manuell in Firebase möglich.</p>
-            </article>
-
-            <article class="account-form-card profile-field-card" data-account-editable>
+            <article class="account-form-card profile-field-card">
               <div class="profile-field-list" data-profile-field-list>
                 <button class="profile-field-row" type="button" data-profile-edit="displayName" aria-expanded="false">
                   <span class="profile-field-icon" aria-hidden="true">
@@ -276,7 +272,7 @@
               </button>
               <h2 id="settings-security-title">Sicherheit und Anmeldung</h2>
             </div>
-            <article data-account-editable class="account-form-card profile-field-card security-field-card">
+            <article class="account-form-card profile-field-card security-field-card">
               <div class="profile-field-list">
                 <details class="security-field-item" data-google-provider-item>
                   <summary class="profile-field-row security-field-row">
@@ -402,7 +398,7 @@
               </button>
               <h2 id="settings-links-title">Verknüpfungen</h2>
             </div>
-            <article data-account-editable class="account-form-card profile-field-card link-management-card" data-link-management>
+            <article class="account-form-card profile-field-card link-management-card" data-link-management>
               <div class="profile-field-list">
                 <details class="security-field-item link-management-item" data-link-management-details>
                   <summary class="profile-field-row link-management-status-row" data-link-management-status-row>
@@ -494,7 +490,7 @@
               </button>
               <h2 id="settings-privacy-title">Daten und Datenschutz</h2>
             </div>
-            <article class="card setting-card" data-account-editable>
+            <article class="card setting-card">
               <h3>Datenschutz</h3>
               <label class="setting-check">
                 <input type="checkbox" data-keep-data>
@@ -527,7 +523,7 @@
             </article>
             <article class="card is-hidden" data-admin-only>
               <h3>Admin-Konto geschützt</h3>
-              <p>Admin-Konten können hier weder bearbeitet noch gelöscht werden. Änderungen sind ausschließlich manuell in Firebase möglich.</p>
+              <p>Die Adminrolle kann hier nicht geändert und das Admin-Konto nicht gelöscht werden. Persönliche Daten und die übrigen Kontoeinstellungen bleiben bearbeitbar.</p>
             </article>
           </section>
 
@@ -558,7 +554,7 @@
               <h3>Adminstatus</h3>
               <p>
                 Dieses Konto ist als Admin markiert. Die Verwaltung anderer Konten findest du im Mitgliederbereich.
-                Admin-Konten werden ausschließlich manuell in Firebase gepflegt.
+                Adminrollen können ausschließlich manuell in Firebase vergeben oder geändert werden.
               </p>
             </article>
           </section>

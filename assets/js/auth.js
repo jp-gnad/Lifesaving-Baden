@@ -11,7 +11,7 @@
       "permission-denied": "Firestore-Regeln erlauben diese Aktion noch nicht.",
       "unavailable": "Firestore ist gerade nicht erreichbar.",
       "unauthenticated": "Bitte logge dich erneut ein.",
-      "app/admin-account-readonly": "Admin-Konten können nur manuell in Firebase bearbeitet werden."
+      "app/admin-account-protected": "Admin-Konten können nicht über die Web-App gelöscht werden."
     };
 
     return messages[error.code] || "Die Einstellung konnte nicht gespeichert werden.";
@@ -114,20 +114,16 @@
 
   async function loadFreshUserContext(user) {
     const { userData, claims } = await loadUserContext(user);
-    if (isAdminAccount(userData, claims)) {
-      writeUserDocCache(user.uid, userData);
-      return { userData, claims };
-    }
     const data = await withRetry(() => synchronizeUserDocument(user, userData));
     return { userData: data, claims };
   }
 
-  async function requireEditableAccount(user) {
+  async function requireDeletableAccount(user) {
     requireCurrentUser(user);
     const { userData, claims } = await loadUserContext(user);
     if (isAdminAccount(userData, claims)) {
-      const error = new Error("Admin-Konten können nur manuell in Firebase bearbeitet werden.");
-      error.code = "app/admin-account-readonly";
+      const error = new Error("Admin-Konten können nicht über die Web-App gelöscht werden.");
+      error.code = "app/admin-account-protected";
       throw error;
     }
     requireCurrentUser(user);
@@ -439,7 +435,8 @@
 
       updateResponsiveSettingsView(hasValidHash);
 
-      if (!options.keepHash && activeHash && window.location.hash !== activeHash) {
+      if (!options.keepHash && activeHash && window.location.hash !== activeHash
+        && (!isMobileSettingsView() || hasValidHash)) {
         if (options.pushHash) {
           window.history.pushState(null, "", activeHash);
         } else {
@@ -551,8 +548,7 @@
           const { userData, claims } = await loadFreshUserContext(activeUser);
           const role = getAccountRole(userData, claims);
           updateRoleUi(role);
-          const initializers = role.isAdmin ? [initAdminStatus]
-            : [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest];
+          const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest];
           for (const initialize of initializers) {
             if (!isCurrentUser(activeUser)) return;
             await initialize(auth, userData, claims);
@@ -975,7 +971,6 @@
     const visibility = {
       "data-admin-only": role.isAdmin,
       "data-non-admin-only": !role.isAdmin,
-      "data-account-editable": !role.isAdmin,
       "data-organizer-only": role.isOrganizer,
       "data-athlete-only": role.isAthlete,
       "data-privileged-menu-divider": role.isOrganizer,
@@ -2080,7 +2075,7 @@
     }
 
     try {
-      await requireEditableAccount(user);
+      await requireDeletableAccount(user);
       setLoading(deleteButton, true, "Löschen...");
 
       if (window.firebase.firestore) {
@@ -3005,7 +3000,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, "Speichern...");
 
       if (displayNameChanged) {
@@ -3142,7 +3136,6 @@
     let verificationSent = false;
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, passwordLinked ? "Speichern..." : "Aktiviere...");
 
       if (passwordLinked) {
@@ -3215,7 +3208,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, "Google öffnet...");
 
       if (googleLinked && passwordLinked) {
@@ -3277,7 +3269,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, "Entferne...");
       await user.unlink("google.com");
       await user.reload();
@@ -3315,7 +3306,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, "Sende...");
       await user.sendEmailVerification({
         url: getLoginRedirectUrl()
@@ -3356,7 +3346,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       setLoading(button, true, "Entferne...");
       await user.unlink("password");
       await user.reload();
@@ -3585,7 +3574,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
 
       setLoading(button, true, "Ziehe zurück...");
@@ -3631,7 +3619,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
 
       setLoading(button, true, "Hebe auf...");
@@ -3682,7 +3669,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
       const payload = {
         status: "reported",
@@ -3725,7 +3711,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
 
       setLoading(button, true, "Ziehe zurück...");
@@ -3905,7 +3890,6 @@
     setSettingsMessage("Einstellung wird gespeichert...", true);
 
     try {
-      await requireEditableAccount(user);
       await userDoc.set(payload, { merge: true });
       mergeUserDocCache(user.uid, {
         email: payload.email,
@@ -3973,7 +3957,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
 
       setLoading(button, true, "Ziehe zurück...");
@@ -4011,7 +3994,6 @@
     }
 
     try {
-      await requireEditableAccount(user);
       const fieldValue = window.firebase.firestore.FieldValue;
 
       setLoading(button, true, "Ziehe zurück...");
@@ -4501,7 +4483,6 @@
     const fieldValue = window.firebase.firestore.FieldValue;
 
     try {
-      await requireEditableAccount(user);
       controls.dlrgBranch.value = details.dlrgBranch;
       setLinkRequestControlsDisabled(true);
       setLoading(

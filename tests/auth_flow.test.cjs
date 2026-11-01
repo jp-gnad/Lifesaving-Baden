@@ -1152,7 +1152,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { requireEditableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1176,16 +1176,17 @@ test("the five canonical roles form the expected hierarchy and retain legacy pri
   assert.equal(h.core.getAccountRole({ role: "trainer" }, { organizer: true }).value, "organizer");
 });
 
-test("admin context loading never synchronizes Auth or Firestore profile fields", async () => {
-  for (const [stored, claims] of [[{ role: "admin" }, {}], [{ admin: true }, {}], [{ isAdmin: true }, {}], [{ role: "standard" }, { admin: true }]]) {
-    let authWrites = 0;
-    const h = harness({ user: { uid: "admin", displayName: "Auth Name", updateProfile: async () => { authWrites++; } }, stored, token: async () => ({ claims }) });
+test("admin profiles synchronize normally without changing their role or admin flags", async () => {
+  for (const [marker, claims] of [[{ role: "admin" }, {}], [{ admin: true }, {}], [{ isAdmin: true }, {}], [{ role: "standard" }, { admin: true }]]) {
+    const stored = { ...marker, firstName: "Neuer", lastName: "Name" };
+    const h = harness({ user: { uid: "admin", displayName: "Alter Name" }, stored, token: async () => ({ claims }) });
     const functions = memberFunctions(h);
     const context = await functions.loadFreshUserContext(h.auth.currentUser);
     assert.equal(h.core.getAccountRole(context.userData, context.claims).isAdmin, true);
-    assert.equal(authWrites, 0);
-    assert.equal(h.counts.writes.length, 0);
-    await assert.rejects(functions.requireEditableAccount(h.auth.currentUser), { code: "app/admin-account-readonly" });
+    assert.equal(h.auth.currentUser.displayName, "Neuer Name");
+    assert.equal(h.counts.writes.length, 1);
+    for (const key of ["role", "admin", "isAdmin"]) assert.equal(key in h.counts.writes[0], false);
+    await assert.rejects(functions.requireDeletableAccount(h.auth.currentUser), { code: "app/admin-account-protected" });
   }
 });
 
@@ -1196,13 +1197,13 @@ test("an admin claim with no account document does not create or initialize a pr
   assert.equal(h.counts.writes.length, 0);
 });
 
-test("current-account mutation guard rechecks roles and permits non-admin profile edits", async () => {
+test("account deletion guard rechecks roles and blocks newly recognized admins", async () => {
   let stored = { role: "trainer" };
   const h = harness({ user: { uid: "u" }, read: async () => ({ exists: true, data: () => stored }) });
   const functions = memberFunctions(h);
-  await functions.requireEditableAccount(h.auth.currentUser);
+  await functions.requireDeletableAccount(h.auth.currentUser);
   stored = { role: "admin" };
-  await assert.rejects(functions.requireEditableAccount(h.auth.currentUser), { code: "app/admin-account-readonly" });
+  await assert.rejects(functions.requireDeletableAccount(h.auth.currentUser), { code: "app/admin-account-protected" });
 });
 
 test("timer permissions match every role threshold and keep management away from trainers", async () => {
@@ -1248,14 +1249,85 @@ test("admin account cards expose no editors or request actions while other roles
   }
 });
 
-test("admin settings actions cannot unlink providers, replace Google credentials or delete the account", async () => {
-  let mutations = 0;
-  const user = { uid: "admin", emailVerified: true, providerData: [{ providerId: "password" }, { providerId: "google.com" }],
-    unlink: async () => { mutations++; }, linkWithPopup: async () => { mutations++; }, delete: async () => { mutations++; } };
-  const h = harness({ user, stored: { role: "admin" } });
-  h.window.confirm = () => true;
+test("admin settings allow provider management while account deletion remains blocked", async () => {
+  for (const [action, expected] of [["manageGoogleAccount", 2], ["unlinkGoogleAccount", 1], ["unlinkPasswordAccount", 1], ["deleteCurrentAccount", 0]]) {
+    let mutations = 0;
+    const user = { uid: "admin", email: "admin@example.test", emailVerified: true, providerData: [{ providerId: "password" }, { providerId: "google.com" }],
+      unlink: async () => { mutations++; }, linkWithPopup: async () => { mutations++; }, delete: async () => { mutations++; } };
+    const h = harness({ user, stored: { role: "admin" } });
+    h.window.confirm = () => true;
+    const functions = memberFunctions(h);
+    await functions[action](h.auth, null);
+    assert.equal(mutations, expected, action);
+    assert.equal(h.counts.writes.length, expected ? 1 : 0, action);
+    for (const payload of h.counts.writes) assert.equal("role" in payload, false);
+  }
+});
+
+
+function settingsNavigationHarness({ mobile = true, hash = "" } = {}) {
+  const h = harness({ url: `https://example.test/club/account-settings.html${hash}` });
   const functions = memberFunctions(h);
-  for (const action of ["manageGoogleAccount", "unlinkGoogleAccount", "unlinkPasswordAccount", "deleteCurrentAccount"]) await functions[action](h.auth, null);
-  assert.equal(mutations, 0);
-  assert.equal(h.counts.writes.length, 0);
+  const makeNode = (id) => {
+    const classes = new Set();
+    return { id, handlers: {}, classList: {
+      contains: (name) => classes.has(name),
+      toggle(name, on) { if (on) classes.add(name); else classes.delete(name); },
+    }, addEventListener(type, fn) { this.handlers[type] = fn; }, setAttribute() {},
+    getAttribute: () => `#${id}` };
+  };
+  const items = ["persoenliche-daten", "sicherheit", "datenschutz"].map(makeNode);
+  const categories = items.map((item) => makeNode(item.id));
+  const back = makeNode("back");
+  h.document.body.classList = makeNode("body").classList;
+  h.document.querySelectorAll = (selector) => ({ ".settings-menu-item": items, ".settings-category": categories, "[data-settings-mobile-back]": [back] })[selector] || [];
+  h.window.matchMedia = () => ({ matches: mobile, addEventListener() {} });
+  const history = [];
+  const navigate = (_, __, value) => { history.push(value); h.window.location.hash = new URL(value, h.window.location.href).hash; };
+  h.window.history = { pushState: navigate, replaceState: navigate };
+  functions.initSettingsMenu();
+  return { ...h, items, categories, back, history };
+}
+
+test("mobile settings stay in the menu when delayed role updates refresh navigation", () => {
+  const h = settingsNavigationHarness();
+  assert.equal(h.document.body.classList.contains("settings-mobile-menu-view"), true);
+  h.window.refreshSettingsMenu();
+  h.window.refreshSettingsMenu();
+  assert.equal(h.window.location.hash, "");
+  assert.equal(h.history.length, 0);
+  assert.equal(h.document.body.classList.contains("settings-mobile-menu-view"), true);
+  h.items[1].handlers.click({ preventDefault() {} });
+  assert.equal(h.window.location.hash, "#sicherheit");
+  assert.equal(h.document.body.classList.contains("settings-mobile-content-view"), true);
+  h.window.refreshSettingsMenu();
+  assert.equal(h.window.location.hash, "#sicherheit");
+  h.back.handlers.click();
+  h.window.refreshSettingsMenu();
+  assert.equal(h.window.location.hash, "");
+  assert.equal(h.document.body.classList.contains("settings-mobile-menu-view"), true);
+});
+
+test("settings navigation preserves direct mobile links and the desktop default category", () => {
+  const mobile = settingsNavigationHarness({ hash: "#datenschutz" });
+  mobile.window.refreshSettingsMenu();
+  assert.equal(mobile.window.location.hash, "#datenschutz");
+  assert.equal(mobile.categories[2].hidden, false);
+  assert.equal(mobile.document.body.classList.contains("settings-mobile-content-view"), true);
+  const desktop = settingsNavigationHarness({ mobile: false });
+  desktop.window.refreshSettingsMenu();
+  assert.equal(desktop.window.location.hash, "#persoenliche-daten");
+  assert.equal(desktop.categories[0].hidden, false);
+});
+
+test("admins can save personal profile fields without changing their role", async () => {
+  const h = harness({ user: { uid: "admin", email: "admin@example.test", displayName: "Alter Name", emailVerified: true }, stored: { role: "admin" } });
+  const functions = memberFunctions(h);
+  const form = { dataset: {}, elements: Object.fromEntries(Object.entries({ firstName: "Neuer", lastName: "Name", displayName: "Neuer Name", email: "admin@example.test", dlrgBranch: "Baden", birthDate: "2000-01-01", gender: "maennlich" }).map(([key, value]) => [key, { value }])), querySelectorAll: () => [] };
+  const saved = await functions.persistProfileDetails(h.auth, form, null);
+  assert.equal(saved, true);
+  assert.equal(h.auth.currentUser.displayName, "Neuer Name");
+  assert.equal(h.counts.writes.length, 1);
+  assert.equal(h.counts.writes[0].dlrgBranch, "Baden");
+  assert.equal("role" in h.counts.writes[0], false);
 });

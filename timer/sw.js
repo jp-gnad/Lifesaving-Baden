@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v29";
+const staticCache = "lifesaving-timer-static-firebase-v30";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -7,8 +7,8 @@ const relativeAppShell = [
   "./styles.css?v=firebase-access-v20",
   "./app.js?v=firebase-access-v20",
   "./firestore-api.js?v=firebase-access-v20",
-  "../assets/js/auth-core.js?v=20261101-roles-v10",
-  "../assets/js/firebase-config.js?v=20261101-roles-v10",
+  "../assets/js/auth-core.js?v=20261101-settings-v11",
+  "../assets/js/firebase-config.js?v=20261101-settings-v11",
   "../assets/img/elch-gelb.png",
   "./icons.svg?v=event-settings",
   "./app-icon-64.png?v=baden-brand-v1",

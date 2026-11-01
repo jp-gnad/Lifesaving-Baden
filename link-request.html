@@ -12,14 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Person verknüpfen - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-roles-v10">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-settings-v11">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
-    <script defer src="assets/js/firebase-config.js?v=20261101-roles-v10"></script>
-    <script defer src="assets/js/auth-core.js?v=20261101-roles-v10"></script>
-    <script defer src="assets/js/auth.js?v=20261101-roles-v10"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth.js?v=20261101-settings-v11"></script>
   </head>
   <body data-page="link-request">
     <header class="site-header">
@@ -91,8 +91,7 @@
             </div>
           </div>
 
-          <p class="card is-hidden" data-admin-only>Admin-Konten können nur manuell in Firebase bearbeitet werden.</p>
-          <form class="setting-form link-request-step-form" data-account-editable data-link-request-form data-current-step="0">
+          <form class="setting-form link-request-step-form" data-link-request-form data-current-step="0">
             <section class="link-request-step" data-link-request-step data-step-label="Persönliche Angaben">
               <div class="link-request-step-heading">
                 <h3 tabindex="-1">

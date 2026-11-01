@@ -209,10 +209,8 @@ service cloud.firestore {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
-      allow update: if !adminAccount(resource.data)
-        && !(isOwner(uid) && isAdmin())
-        && ((isAdmin() && adminKeepsAdminGrantSafe(uid))
-          || (isOwner(uid) && ownerKeepsProtectedFieldsSafe()));
+      allow update: if (isOwner(uid) && ownerKeepsProtectedFieldsSafe())
+        || (isAdmin() && !adminAccount(resource.data) && adminKeepsAdminGrantSafe(uid));
       allow delete: if !adminAccount(resource.data)
         && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()));
     }
