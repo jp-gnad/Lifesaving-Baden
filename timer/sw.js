@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v19";
+const staticCache = "lifesaving-timer-static-firebase-v20";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -16,6 +16,7 @@ const relativeAppShell = [
   "./app-icon-192.png?v=baden-brand-v1",
   "./app-icon-512.png?v=baden-brand-v1",
   "./manifest.webmanifest?v=baden-brand-v1",
+  "../manifest.webmanifest?v=20261101-project-app-v1",
 ];
 const appShell = relativeAppShell.map((path) => new URL(path, baseUrl).href);
 const authScripts = ["../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/firebase-config.js"]

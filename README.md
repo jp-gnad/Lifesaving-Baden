@@ -100,8 +100,25 @@ Website und Timer verwenden dieselbe dunkle Loginseite unter `login.html`.
 Der Parameter `returnTo` führt nach der Anmeldung zum ursprünglichen Bereich
 zurück; externe Ziele und Login-Schleifen werden verworfen. Die bisherige URL
 `timer/login.html` leitet zur gemeinsamen Anmeldung weiter.
-Der Navigationsbereich der installierten Timer-App umfasst deshalb auch die
-gemeinsame Anmeldung; ihre Startseite bleibt die Timerübersicht.
+Alle HTML-Seiten verweisen auf das gemeinsame Projektmanifest
+`manifest.webmanifest`. Es startet Lifesaving Baden auf der Hauptseite,
+definiert den gesamten Projektpfad als App-Bereich und verwendet `standalone`.
+Login, Kontobereich und Timer liegen damit im selben App-Bereich. Alle Seiten
+enthalten dieselben Apple-Web-App-Metadaten und dasselbe Home-Screen-Icon.
+Das bisherige `timer/manifest.webmanifest` bleibt für ältere Installationen
+mit seiner bisherigen Timer-Identität und Timer-Startseite erreichbar.
+
+Nach der Veröffentlichung die Hauptseite in Safari öffnen und über
+`Teilen → Zum Home-Bildschirm` als Web-App hinzufügen. Unter iOS 26 muss
+`Als Web-App öffnen` eingeschaltet sein. Wenn eine ältere Installation weiterhin
+eigene Seiten in einem Browserfenster öffnet, die App von der Hauptseite neu
+hinzufügen, damit sie die gemeinsame Konfiguration bei der Einrichtung erhält.
+Vor dem Entfernen einer alten Timer-Installation alle lokalen Ergebnisse
+synchronisieren, da deren Offline-Daten verloren gehen können.
+
+Browserleisten auf externen Seiten wie Google oder Firebase werden von iOS
+verwaltet und lassen sich durch dieses Projekt nicht ausblenden. Der gemeinsame
+App-Bereich gilt für die eigenen Seiten auf derselben Domain.
 
 `assets/js/login.js` enthält Anmeldung, Registrierung und Passwort-Zurücksetzen.
 `assets/js/auth.js` verwaltet den Mitglieder- und Kontobereich. Beide und der
