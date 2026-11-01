@@ -137,6 +137,48 @@ node --test tests/auth_flow.test.cjs
 python -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
+### Vorbereiteter App-Login über Firebase Hosting
+
+Das iPhone-Protokoll zeigt nach der Google-Kontoauswahl einen neuen Loginseitenstart
+ohne Firebase-Sitzung. Ein verlorener Popup-/Fensterkontext ist damit plausibel;
+die genaue Ursache auf dem Gerät ist noch nicht abschließend bestätigt.
+
+Für einen Ablauf, der Seitenneustarts ausdrücklich unterstützt, ist zusätzlich
+Firebase Hosting vorbereitet. Auf `https://lifesaving-baden.firebaseapp.com/`
+haben Website und die bereits konfigurierte Auth-Domain denselben Ursprung.
+Eine installierte Web-App auf genau dieser Domain verwendet deshalb
+`signInWithRedirect` und wertet nach der Rückkehr `getRedirectResult` aus.
+Browser und GitHub-Pages-Installationen behalten den bisherigen Popup-Ablauf.
+Es gibt keine automatische Umleitung von GitHub Pages zur neuen Domain.
+
+Lokal bauen und prüfen:
+
+```powershell
+python tools/build_hosting.py
+```
+
+Der Build enthält ausschließlich die öffentlichen HTML-Seiten, das App-Manifest
+sowie freigegebene Webdateien aus `assets/` und `timer/`. Regeln, Testdateien,
+Werkzeuge, Logs und Konfigurationsdateien werden nicht veröffentlicht.
+
+Nach ausdrücklicher Freigabe lässt sich nur die Website veröffentlichen:
+
+```powershell
+npx firebase-tools deploy --only hosting --project lifesaving-baden
+```
+
+Der Hosting-Predeploy-Schritt baut `dist/` automatisch neu. Dieser Befehl ersetzt
+die bisherige Website des Standard-Hosting-Sites in diesem Firebase-Projekt;
+er veröffentlicht keine Firestore-Regeln und löscht keine Datenbankdaten.
+Die eigentliche iPhone-Anmeldung muss anschließend auf der Firebase-Adresse
+geprüft werden. Dafür die App von dieser Adresse zum Home-Bildschirm hinzufügen.
+Bestehende Konten, Rollen und Daten werden im selben Firebase-Projekt verwendet.
+
+Das gleichnamige Hosting-Site und die Freigabe der Firebase-Domain in Authentication
+müssen vor der produktiven Veröffentlichung beziehungsweise beim ersten Test
+geprüft werden. Die Firebase-Adresse sollte nicht als funktionierende Alternative
+verteilt werden, solange dort noch keine geprüfte Version veröffentlicht wurde.
+
 Beim Google-Login werden Firebase-Anmeldeereignisse und die Rückkehr in die
 App auch während eines offenen Google-Fensters verarbeitet. Ein noch wartendes
 oder bereits geschlossenes Fenster blockiert so keine vorhandene Sitzung.

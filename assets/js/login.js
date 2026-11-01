@@ -6,6 +6,7 @@
   let diagnosticAuth = null;
   let diagnosticPersistence = "wird vorbereitet";
   let diagnosticErrorCode = "keiner";
+  let diagnosticGoogleMethod = "Popup";
 
   function safeErrorCode(error) {
     return /^(auth|app)\/[a-z0-9-]+$/.test(error?.code || "") ? error.code : "app/unknown-login-error";
@@ -19,6 +20,7 @@
       `Loginversion: ${loginVersion}`,
       `Firebase-Version: ${window.firebase?.SDK_VERSION || "unbekannt"}`,
       `Modus: ${standalone ? "Web-App" : "Browser"}`,
+      `Google-Verfahren: ${diagnosticGoogleMethod}`,
       `Sitzungsspeicher: ${diagnosticPersistence}`,
       `Firebase-Sitzung: ${diagnosticAuth?.currentUser ? "vorhanden" : "keine"}`,
       `Letzter Fehlercode: ${diagnosticErrorCode}`,
@@ -135,6 +137,12 @@
     let verifiedLoginUid = null;
     let authAction = null;
     let checkingGoogleReturn = hasPendingGoogleReturn();
+    const standalone = window.navigator?.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
+    // Redirect sign-in needs same-origin helpers; cross-origin GitHub Pages keeps its existing popup flow.
+    const useRedirect = Boolean(standalone && window.firebaseConfig?.authDomain
+      && window.location.origin === `https://${window.firebaseConfig.authDomain}`);
+    let redirectResultPending = useRedirect;
+    diagnosticGoogleMethod = useRedirect ? "Weiterleitung auf derselben Domain" : "Popup";
     diagnosticAuth = auth;
     const localPersistenceReady = ensureLocalAuthPersistence(auth);
     // Prepare persistence before enabling the button, so the popup opens directly in the click gesture.
@@ -142,11 +150,13 @@
     localPersistenceReady.then((persistent) => {
       diagnosticPersistence = persistent ? "dauerhaft verfügbar" : "nicht dauerhaft verfügbar";
       recordDiagnostic("Sitzungsspeicher geprüft");
-      if (!checkingGoogleReturn && !authAction && !verifiedLoginPromise) googleButton.disabled = false;
+      if (!checkingGoogleReturn && !authAction && !verifiedLoginPromise && !redirectResultPending) googleButton.disabled = false;
     });
     if (checkingGoogleReturn) {
       setLoading(googleButton, true, "Anmeldung prüfen...");
-      setMessage("login", "Die App wurde während der Google-Anmeldung neu geladen. Deine Anmeldung wird geprüft.");
+      setMessage("login", useRedirect
+        ? "Die Google-Anmeldung wird abgeschlossen."
+        : "Die App wurde während der Google-Anmeldung neu geladen. Deine Anmeldung wird geprüft.");
     }
 
     async function finishVerifiedLogin(user) {
@@ -215,6 +225,7 @@
 
     auth.onAuthStateChanged((user) => {
       recordDiagnostic(`Firebase-Anmeldeereignis: ${user ? "Sitzung vorhanden" : "keine Sitzung"}`);
+      if (redirectResultPending) return;
       if (!user) {
         showResendButton(false);
         if (checkingGoogleReturn) {
@@ -232,8 +243,34 @@
       checkingGoogleReturn = false;
     });
 
+    if (useRedirect) {
+      (async () => {
+        try {
+          await localPersistenceReady;
+          recordDiagnostic("Google-Rückgabe nach Seitenstart wird geprüft");
+          const result = await auth.getRedirectResult();
+          recordDiagnostic(result?.user ? "Google-Weiterleitung hat ein Ergebnis geliefert" : "Keine ausstehende Google-Rückgabe");
+          redirectResultPending = false;
+          const user = result?.user || auth.currentUser;
+          if (user) {
+            await finishVerifiedLogin(user);
+            if (!isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
+          } else if (checkingGoogleReturn) {
+            showLoginError({ code: "app/google-session-missing" });
+          }
+        } catch (error) {
+          showLoginError(error);
+        } finally {
+          redirectResultPending = false;
+          checkingGoogleReturn = false;
+          rememberGoogleAttempt(false);
+          if (!loginRedirectStarted && !authAction) setLoading(googleButton, false);
+        }
+      })();
+    }
+
     async function resumeLoginAfterGoogleWindow() {
-      if (document.visibilityState === "hidden" || loginRedirectStarted || authAction === "register") {
+      if (document.visibilityState === "hidden" || loginRedirectStarted || authAction === "register" || redirectResultPending) {
         return;
       }
 
@@ -326,8 +363,9 @@
     });
 
     googleButton?.addEventListener("click", async () => {
-      if (authAction) return;
+      if (authAction || redirectResultPending) return;
       authAction = "google";
+      let redirectStarted = false;
       diagnosticErrorCode = "keiner";
       recordDiagnostic("Google-Anmeldung gestartet");
       rememberGoogleAttempt(true);
@@ -336,11 +374,19 @@
       setMessage("login", "");
       try {
         setLoading(googleButton, true, "Google öffnet...");
+        if (useRedirect) {
+          await localPersistenceReady;
+          recordDiagnostic("Google-Weiterleitung gestartet");
+          redirectStarted = true;
+          await auth.signInWithRedirect(googleProvider);
+          return;
+        }
         const { user } = await auth.signInWithPopup(googleProvider);
         recordDiagnostic("Google-Fenster hat ein Ergebnis geliefert");
         await finishVerifiedLogin(user);
         if (!loginRedirectStarted && !isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
       } catch (error) {
+        redirectStarted = false;
         recordDiagnostic(`Google-Fenster meldet: ${safeErrorCode(error)}`);
         // Some iOS returns report a closed popup even though Auth already holds the Google session.
         let failure = error;
@@ -349,9 +395,11 @@
         }
         showLoginError(failure);
       } finally {
-        authAction = null;
-        rememberGoogleAttempt(false);
-        if (!loginRedirectStarted) setLoading(googleButton, false);
+        if (!redirectStarted) {
+          authAction = null;
+          rememberGoogleAttempt(false);
+          if (!loginRedirectStarted) setLoading(googleButton, false);
+        }
       }
     });
 

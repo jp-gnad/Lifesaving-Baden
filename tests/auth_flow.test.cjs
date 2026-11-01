@@ -13,7 +13,7 @@ const deferred = () => {
 };
 
 function harness({ url = "https://example.test/club/login.html", user = null, stored = { role: "sportler" }, read, token, transactionData } = {}) {
-  const counts = { persistence: 0, reads: 0, tokens: [], writes: [], delays: [], redirects: [], warnings: [], events: [] };
+  const counts = { persistence: 0, reads: 0, tokens: [], writes: [], delays: [], redirects: [], redirectResults: 0, redirectStarts: 0, warnings: [], events: [] };
   const callbacks = {};
   const elements = new Map();
   const storage = new Map();
@@ -49,6 +49,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     async signOut() { this.currentUser = null; callbacks.auth?.(null); },
     async signInWithEmailAndPassword() { callbacks.auth?.(this.currentUser); return { user: this.currentUser }; },
     async signInWithPopup() { callbacks.auth?.(this.currentUser); return { user: this.currentUser }; },
+    async signInWithRedirect() { counts.redirectStarts += 1; },
+    async getRedirectResult() { counts.redirectResults += 1; return { user: null }; },
     async createUserWithEmailAndPassword() { callbacks.auth?.(this.currentUser); return { user: this.currentUser }; },
     async sendPasswordResetEmail(email, options) { counts.reset = { email, options }; },
   };
@@ -72,8 +74,10 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     set: (value) => counts.redirects.push(value),
   });
   location.replace = (value) => counts.redirects.push(value);
+  const timerSegment = location.pathname.indexOf("/timer/");
+  const appPath = timerSegment >= 0 ? location.pathname.slice(0, timerSegment + 1) : location.pathname.slice(0, location.pathname.lastIndexOf("/") + 1);
   const document = {
-    currentScript: { src: "https://example.test/club/assets/js/auth-core.js?v=test" },
+    currentScript: { src: new URL(`${appPath}assets/js/auth-core.js?v=test`, location.origin).href },
     body: { dataset: { page: "login" } }, visibilityState: "visible",
     querySelector: element,
     querySelectorAll: () => [],
@@ -81,6 +85,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   };
   const window = {
     location, isFirebaseConfigured: true,
+    firebaseConfig: { authDomain: "lifesaving-baden.firebaseapp.com" },
     firebase: { apps: [{}], auth: firebaseAuth, firestore },
     sessionStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
     setTimeout(fn, delay) { counts.delays.push(delay); queueMicrotask(fn); },
@@ -364,6 +369,72 @@ test("login help identifies a persistence failure while keeping the login usable
   assert.match(h.element("[data-login-diagnostics-output]").textContent, /Sitzungsspeicher: nicht dauerhaft verfügbar/);
   assert.equal(h.element("[data-google-login]").disabled, false);
   assert.equal(await h.core.ensureLocalAuthPersistence(h.auth), false);
+});
+
+test("standalone sign-in uses a full redirect only when app and auth helper have the same origin", async () => {
+  const h = harness({ url: "https://lifesaving-baden.firebaseapp.com/login.html?returnTo=%2Ftimer%2F%23%2Fevent%2F42" });
+  h.window.navigator = { standalone: true };
+  h.auth.signInWithPopup = () => { throw new Error("Popup must not be used on the same-origin standalone app"); };
+  h.login();
+  await new Promise(setImmediate);
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirectStarts, 1);
+  assert.equal(h.counts.redirectResults, 1);
+  assert.ok(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"));
+  assert.equal(h.element("[data-google-login]").disabled, true);
+});
+
+test("a new standalone page consumes the redirect result and returns to its original timer event", async () => {
+  const h = harness({ url: "https://lifesaving-baden.firebaseapp.com/login.html?returnTo=%2Ftimer%2F%23%2Fevent%2F42" });
+  h.window.navigator = { standalone: true };
+  h.window.sessionStorage.setItem("lifesaving-baden:google-login-started", String(Date.now()));
+  const user = h.prepareUser({ uid: "same-admin-uid", providerData: [{ providerId: "google.com" }] });
+  h.auth.getRedirectResult = async () => {
+    h.auth.currentUser = user;
+    h.callbacks.auth(user);
+    return { user };
+  };
+  h.login();
+  h.callbacks.auth(null);
+  h.callbacks.pageshow();
+  await new Promise(setImmediate);
+  assert.deepEqual(h.counts.redirects, ["https://lifesaving-baden.firebaseapp.com/timer/#/event/42"]);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  assert.equal(h.counts.writes.length, 0);
+});
+
+test("a redirect failure is visible and allows a new attempt without a login loop", async () => {
+  const h = harness({ url: "https://lifesaving-baden.firebaseapp.com/login.html" });
+  h.window.navigator = { standalone: true };
+  h.auth.getRedirectResult = async () => { throw { code: "auth/network-request-failed" }; };
+  h.login();
+  await new Promise(setImmediate);
+  assert.equal(h.counts.redirectStarts, 0);
+  assert.equal(h.counts.redirects.length, 0);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+  assert.match(h.element("[data-login-error-details]").textContent, /auth\/network-request-failed/);
+});
+
+test("a redirect with no session reports the missing result after checking Firebase", async () => {
+  const h = harness({ url: "https://lifesaving-baden.firebaseapp.com/login.html" });
+  h.window.navigator = { standalone: true };
+  h.window.sessionStorage.setItem("lifesaving-baden:google-login-started", String(Date.now()));
+  h.login();
+  h.callbacks.auth(null);
+  await new Promise(setImmediate);
+  assert.equal(h.counts.redirectResults, 1);
+  assert.match(h.element("[data-login-error-details]").textContent, /app\/google-session-missing/);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+});
+
+test("cross-origin standalone installations keep the working popup path", async () => {
+  const h = harness({ user: { uid: "google", providerData: [{ providerId: "google.com" }] } });
+  h.window.navigator = { standalone: true };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirectStarts, 0);
+  assert.equal(h.counts.redirectResults, 0);
+  assert.equal(h.counts.redirects.length, 1);
 });
 
 test("registration preserves first/last names for deferred initialization without a database SDK", async () => {
