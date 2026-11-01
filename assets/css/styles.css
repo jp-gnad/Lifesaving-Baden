@@ -1034,7 +1034,7 @@ body[data-page="app"] .dashboard > * {
   min-height: 360px;
   background:
     linear-gradient(150deg, rgba(15, 15, 18, 0.2) 0%, rgba(15, 15, 18, 0.78) 100%),
-    url("../img/auth-pool.jpg") center 48% / cover no-repeat;
+    url("../img/auth-pool.jpg?v=20261102-start") center 48% / cover no-repeat;
 }
 
 .auth-aside::before {
@@ -4025,7 +4025,7 @@ body.auth-context-loading .member-apps::after {
     overflow: auto;
     scrollbar-gutter: stable both-edges;
     padding: 16px 32px;
-    background: url("../img/auth-pool.jpg") center top / cover no-repeat fixed;
+    background: url("../img/auth-pool.jpg?v=20261102-start") center top / cover no-repeat fixed;
   }
 
   body[data-page="login"] .auth-panel {
