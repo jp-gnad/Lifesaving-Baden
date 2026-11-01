@@ -322,6 +322,50 @@ test("Google errors do not erase local storage or sign out a valid account", asy
   assert.equal(h.window.sessionStorage.getItem("unrelated"), "keep");
 });
 
+test("login help exposes pending Google events without collecting account details or tokens", async () => {
+  const gate = deferred();
+  const h = harness();
+  h.window.firebase.SDK_VERSION = "12.19.0";
+  h.window.navigator = { standalone: true };
+  h.auth.signInWithPopup = () => gate.promise;
+  h.login();
+  const clicked = h.element("[data-google-login]").handlers.click();
+  h.callbacks.visibilitychange();
+  await new Promise(setImmediate);
+  h.element("[data-login-diagnostics]").handlers.toggle();
+  const output = h.element("[data-login-diagnostics-output]").textContent;
+  gate.resolve({ user: null });
+  await clicked;
+  assert.match(output, /Firebase-Version: 12\.19\.0/);
+  assert.match(output, /Modus: Web-App/);
+  assert.match(output, /Firebase-Sitzung: keine/);
+  assert.match(output, /Google-Anmeldung gestartet/);
+  assert.doesNotMatch(output, /Google-Fenster hat ein Ergebnis geliefert/);
+});
+
+test("copying login help excludes the account identifier, email, and raw Firebase errors", async () => {
+  const h = harness({ user: { uid: "private-uid", email: "private@example.test", emailVerified: false } });
+  let copied;
+  h.window.navigator = { clipboard: { async writeText(text) { copied = text; } } };
+  h.auth.signInWithPopup = async () => { throw { code: "auth/network-request-failed", message: "private-access-token" }; };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  await h.element("[data-login-diagnostics-copy]").handlers.click();
+  assert.match(copied, /auth\/network-request-failed/);
+  assert.match(copied, /Firebase-Sitzung: vorhanden/);
+  assert.doesNotMatch(copied, /private-uid|private@example\.test|private-access-token/);
+});
+
+test("login help identifies a persistence failure while keeping the login usable", async () => {
+  const h = harness();
+  h.auth.setPersistence = async () => { throw { code: "auth/web-storage-unsupported" }; };
+  h.login();
+  await new Promise(setImmediate);
+  assert.match(h.element("[data-login-diagnostics-output]").textContent, /Sitzungsspeicher: nicht dauerhaft verfügbar/);
+  assert.equal(h.element("[data-google-login]").disabled, false);
+  assert.equal(await h.core.ensureLocalAuthPersistence(h.auth), false);
+});
+
 test("registration preserves first/last names for deferred initialization without a database SDK", async () => {
   const h = harness({ user: { uid: "new", emailVerified: false } });
   delete h.window.firebase.firestore;

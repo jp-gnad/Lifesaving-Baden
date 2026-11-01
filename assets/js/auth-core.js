@@ -29,8 +29,9 @@
 
   function ensureLocalAuthPersistence(auth) {
     if (!persistencePromises.has(auth)) {
-      persistencePromises.set(auth, auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL).catch((error) => {
+      persistencePromises.set(auth, auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL).then(() => true).catch((error) => {
         console.warn("Dauerhafte Firebase-Anmeldung konnte nicht aktiviert werden.", error);
+        return false;
       }));
     }
     return persistencePromises.get(auth);

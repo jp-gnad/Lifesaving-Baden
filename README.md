@@ -145,7 +145,14 @@ bei fehlender Verbindung auf ihren Cache zurück.
 
 Falls die iPhone-Web-App nach der Kontoauswahl auf der Loginseite bleibt,
 zeigt sie bei einem erkannten Fehler den Anmeldecode, die geladene Version und
-den App-/Browsermodus. Ein kurzfristiger Eintrag in `sessionStorage` erkennt
+den App-/Browsermodus. Unter dem Google-Button lässt sich außerdem die
+`Anmeldehilfe` aufklappen und über `Status kopieren` weitergeben. Sie zeigt auch
+bei ausbleibenden Fehlermeldungen die Firebase-Version, die Speicherverfügbarkeit,
+ob Firebase eine Sitzung erkennt und die letzten zehn Ablaufereignisse.
+Die Angaben enthalten keine E-Mail-Adresse, Nutzer-ID, Tokens oder rohen
+Fehlermeldungen und werden erst durch den Kopierbutton in die Zwischenablage
+übernommen; es erfolgt kein automatischer Versand.
+Ein kurzfristiger Eintrag in `sessionStorage` erkennt
 auch einen Seitenneustart während der Anmeldung; er enthält nur den Startzeitpunkt,
 keine Kontodaten oder Tokens. Diese Angaben helfen, eine fehlende Firebase-Sitzung
 von einem Fehler bei der Rückkehr aus dem Google-Fenster zu unterscheiden.
