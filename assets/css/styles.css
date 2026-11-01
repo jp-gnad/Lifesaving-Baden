@@ -779,7 +779,7 @@ body[data-page="app"] .dashboard > * {
   font-size: 0.9rem;
 }
 
-.auth-mobile-copy {
+.auth-compact-copy {
   display: none;
 }
 
@@ -3851,6 +3851,12 @@ body.auth-context-loading .member-apps::after {
     padding: 34px 24px 40px;
   }
 
+  body[data-page="login"] .site-footer {
+    display: none;
+  }
+}
+
+@media (max-width: 600px), (min-width: 1200px) {
   body[data-page="login"] .auth-panel {
     display: flex;
     flex-direction: column;
@@ -3865,14 +3871,13 @@ body.auth-context-loading .member-apps::after {
   }
 
   body[data-page="login"] .auth-aside,
-  body[data-page="login"] .site-footer,
   body[data-page="login"] .eyebrow,
   body[data-page="login"] .auth-note,
-  body[data-page="login"] .auth-desktop-copy {
+  body[data-page="login"] .auth-expanded-copy {
     display: none;
   }
 
-  body[data-page="login"] .auth-mobile-copy {
+  body[data-page="login"] .auth-compact-copy {
     display: inline;
   }
 
@@ -3944,5 +3949,40 @@ body.auth-context-loading .member-apps::after {
     color: var(--text);
     text-decoration: underline;
     text-underline-offset: 3px;
+  }
+}
+
+
+@media (min-width: 1200px) {
+  body[data-page="login"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  body[data-page="login"] .site-header,
+  body[data-page="login"] .site-footer {
+    flex-shrink: 0;
+  }
+
+  body[data-page="login"] .auth-layout {
+    flex: 1 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    min-height: 0;
+    padding: 48px 32px;
+    background: url("../img/auth-pool.jpg") center 48% / cover no-repeat;
+  }
+
+  body[data-page="login"] .auth-panel {
+    max-width: 480px;
+    margin: 0;
+    padding: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    background: rgba(24, 24, 29, 0.84);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 }

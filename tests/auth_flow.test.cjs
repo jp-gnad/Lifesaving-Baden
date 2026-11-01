@@ -1402,7 +1402,7 @@ function mobileEmailHarness(options = {}) {
   form.querySelector = (selector) => selector === 'input[name="email"]' ? email : selector === 'input[name="password"]' ? password : button;
   Object.defineProperties(form.fields, { email: { get: () => email.value }, password: { get: () => password.value } });
   const mobile = { matches: true, addEventListener(type, fn) { this.changed = fn; } };
-  h.window.matchMedia = (query) => query === "(max-width: 600px)" ? mobile : { matches: false };
+  h.window.matchMedia = (query) => query === "(max-width: 600px), (min-width: 1200px)" ? mobile : { matches: false };
   return { ...h, form, email, password, mobile };
 }
 

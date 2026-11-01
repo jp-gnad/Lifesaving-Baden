@@ -108,7 +108,7 @@
     const googleIdentityButton = document.querySelector("[data-google-identity]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
-    const mobileQuery = window.matchMedia?.("(max-width: 600px)");
+    const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
     const loginButton = loginForm?.querySelector('button[type="submit"]');
@@ -123,10 +123,10 @@
       updateEmailButton();
       const emailStep = !passwordStep;
       loginForm?.classList.toggle("is-email-step", emailStep);
-      if (emailInput) emailInput.placeholder = mobileQuery?.matches ? "Deine E-Mail" : "";
+      if (emailInput) emailInput.placeholder = compactLoginQuery?.matches ? "Deine E-Mail" : "";
       if (passwordInput) {
         passwordInput.required = !emailStep;
-        passwordInput.placeholder = mobileQuery?.matches ? "Dein Passwort" : "";
+        passwordInput.placeholder = compactLoginQuery?.matches ? "Dein Passwort" : "";
       }
     }
 
@@ -139,7 +139,7 @@
       updateEmailStep();
     });
     emailInput?.addEventListener("change", updateEmailButton);
-    mobileQuery?.addEventListener("change", updateEmailStep);
+    compactLoginQuery?.addEventListener("change", updateEmailStep);
     updateEmailStep();
     const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
     if (returnTo.pathname.includes("/timer/")) {
@@ -350,7 +350,7 @@
           });
           identity.renderButton(googleIdentityButton, {
             type: "standard", theme: "filled_black", size: "large",
-            text: mobileQuery?.matches ? "signin_with" : "continue_with",
+            text: compactLoginQuery?.matches ? "signin_with" : "continue_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
             width: Math.min(400, googleButton.clientWidth || 300),
             click_listener: startDirectGoogle,

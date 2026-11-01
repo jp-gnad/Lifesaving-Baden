@@ -133,7 +133,10 @@ Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabp
 liefert, wird erst nach Eingabe des Passworts zwischen Anmeldung und Registrierung
 unterschieden. Bestehende Konten werden bei falschem Passwort nicht verändert.
 Auch am Desktop gibt es ein gemeinsames Formular ohne Umschaltung zwischen Login
-und Registrierung. Neue Konten können ihren Namen in den Einstellungen ergänzen.
+und Registrierung. Ab 1200 px liegt derselbe kompakte Anmeldekasten mittig mit
+leicht transparentem Hintergrund vor dem durchgehenden Schwimmbadfoto zwischen
+Header und Footer. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
+Neue Konten können ihren Namen in den Einstellungen ergänzen.
 
 Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
 wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue

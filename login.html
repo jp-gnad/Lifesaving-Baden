@@ -12,14 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-static-hover-v19">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-desktop-login-v21">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/login.js?v=20261101-email-button-v20"></script>
+    <script defer src="assets/js/login.js?v=20261101-desktop-login-v21"></script>
   </head>
   <body data-page="login">
     <header class="site-header">
@@ -68,7 +68,7 @@
     <main class="auth-layout">
       <section class="auth-panel" aria-labelledby="auth-title">
         <p class="eyebrow">Mitgliederbereich</p>
-        <h1 id="auth-title"><span class="auth-desktop-copy">Login oder Konto erstellen</span><span class="auth-mobile-copy">Anmelden</span></h1>
+        <h1 id="auth-title"><span class="auth-expanded-copy">Login oder Konto erstellen</span><span class="auth-compact-copy">Anmelden</span></h1>
         <p class="auth-note" data-login-context>
           Konten werden über Firebase verwaltet. Neue E-Mail-Konten müssen
           vor dem ersten Zugriff bestätigt werden.
@@ -103,15 +103,15 @@
 
         <div class="auth-divider" aria-hidden="true">
           <span></span>
-          <strong><span class="auth-desktop-copy">oder</span><span class="auth-mobile-copy">oder mit E-Mail-Adresse registrieren</span></strong>
+          <strong><span class="auth-expanded-copy">oder</span><span class="auth-compact-copy">oder mit E-Mail-Adresse registrieren</span></strong>
           <span></span>
         </div>
 
         <div class="auth-google-options">
           <button class="button button-google full-width" type="button" data-google-login>
             <img class="google-logo" src="assets/img/google-g.png" alt="" aria-hidden="true" width="28" height="28">
-            <span class="auth-desktop-copy">Mit Google fortfahren</span>
-            <span class="auth-mobile-copy">Mit Google Anmelden</span>
+            <span class="auth-expanded-copy">Mit Google fortfahren</span>
+            <span class="auth-compact-copy">Mit Google Anmelden</span>
           </button>
 
           <div class="google-identity" data-google-identity hidden></div>
@@ -120,7 +120,7 @@
         <button class="inline-action is-hidden" type="button" data-resend-verification>
           Bestätigungs-Mail erneut senden
         </button>
-        <p class="auth-privacy auth-mobile-copy">Indem du fortfährst, stimmst du unserer <a href="datenschutz.html">Datenschutzerklärung</a> zu.</p>
+        <p class="auth-privacy auth-compact-copy">Indem du fortfährst, stimmst du unserer <a href="datenschutz.html">Datenschutzerklärung</a> zu.</p>
       </section>
 
       <aside class="auth-aside" aria-label="Hinweis">
