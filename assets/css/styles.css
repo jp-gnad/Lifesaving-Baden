@@ -117,6 +117,10 @@ input {
   backdrop-filter: blur(16px);
 }
 
+.site-header.is-scrolled {
+  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, 0.3);
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -4040,7 +4044,7 @@ body.auth-context-loading .member-apps::after {
     padding: 16px 32px;
     /* Keep the 3:2 photo scale independent of the scrollable form height. */
     background:
-      linear-gradient(rgba(15, 15, 18, 0.15), rgba(15, 15, 18, 0.15)) center top / 100% 100% no-repeat local,
+      linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)) center top / 100% 100% no-repeat local,
       url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
   }
 

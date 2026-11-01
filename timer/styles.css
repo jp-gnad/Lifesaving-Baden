@@ -52,6 +52,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   justify-content: space-between;
 }
 
+.site-header.is-scrolled {
+  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, 0.18);
+}
+
 .brand {
   color: var(--text);
   text-decoration: none;
