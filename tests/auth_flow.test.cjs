@@ -1152,7 +1152,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1330,4 +1330,51 @@ test("admins can save personal profile fields without changing their role", asyn
   assert.equal(h.counts.writes.length, 1);
   assert.equal(h.counts.writes[0].dlrgBranch, "Baden");
   assert.equal("role" in h.counts.writes[0], false);
+});
+
+
+test("role refreshes preserve profile photos, names and email in cards for every role", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  const node = (dataset = {}, children = []) => {
+    const classes = new Set();
+    return { dataset, children, value: "", classList: {
+      toggle(name, on) { if (on) classes.add(name); else classes.delete(name); },
+      add: (name) => classes.add(name), remove: (name) => classes.delete(name), contains: (name) => classes.has(name),
+    }, get textContent() { return this.value + this.children.map((child) => child.textContent).join(""); },
+    set textContent(value) { this.value = value; this.children = []; }, removeAttribute() {} };
+  };
+  const photo = node({ accountPhotoLarge: "" });
+  const initials = node({ accountInitialsLarge: "" });
+  const name = node({ accountName: "" });
+  const email = node({ accountEmail: "" });
+  const label = node({ accountRole: "" });
+  const card = node({ accountTypeCard: "" }, [node({}, [photo, initials]), node({}, [name, email, label])]);
+  const adminCard = node({ adminAccountCard: "" }, [node({}, [node()])]);
+  const all = (item) => [item, ...item.children.flatMap(all)];
+  const attributeKey = (attribute) => attribute.replace(/^data-/, "").replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  h.document.querySelectorAll = (selectors) => [...all(card), ...all(adminCard)].filter((item) => selectors.split(",").some((selector) => {
+    const attribute = selector.trim().match(/^\[([^\]]+)\]$/)?.[1];
+    return attribute && attributeKey(attribute) in item.dataset;
+  }));
+  const user = { uid: "u", displayName: "Anna Baden", email: "anna@example.test", photoURL: "https://example.test/photo.jpg" };
+  for (const role of ["admin", "organizer", "trainer", "athlete", "standard"]) {
+    functions.updateAccountProfile(user);
+    functions.updateAdminAccountCardRole(adminCard, role);
+    for (let refresh = 0; refresh < 2; refresh++) functions.updateRoleUi(h.core.getAccountRole({ role }, {}));
+    assert.equal(card.children.length, 2, role);
+    assert.equal(adminCard.children.length, 1, role);
+    assert.equal(name.textContent, user.displayName);
+    assert.equal(email.textContent, user.email);
+    assert.equal(photo.src, user.photoURL);
+    assert.equal(photo.classList.contains("is-hidden"), false);
+    assert.equal(initials.classList.contains("is-hidden"), true);
+    assert.equal(label.textContent, h.core.getAccountRole({ role }, {}).label);
+    assert.equal("accountRole" in card.dataset, false);
+    assert.equal(adminCard.dataset.accountRoleValue, role);
+  }
+  functions.updateAccountProfile({ ...user, photoURL: null });
+  assert.equal(photo.classList.contains("is-hidden"), true);
+  assert.equal(initials.classList.contains("is-hidden"), false);
+  assert.equal(initials.textContent, "AB");
 });

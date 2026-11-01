@@ -1236,7 +1236,7 @@
       return;
     }
 
-    card.dataset.accountRole = roleValue;
+    card.dataset.accountRoleValue = roleValue;
     card.classList.toggle("is-admin-account", roleValue === "admin");
     card.classList.toggle("is-organizer-account", roleValue === "organizer");
     card.classList.toggle("is-athlete-account", roleValue === "athlete");
@@ -1246,7 +1246,7 @@
   function getAdminAccountCardSortData(card) {
     return {
       rank: getAdminAccountRoleSortRank(
-        card?.dataset.accountRole || "standard",
+        card?.dataset.accountRoleValue || "standard",
         card?.dataset.hasAdminAttention === "true"
       ),
       name: card?.dataset.accountName || ""
@@ -1393,7 +1393,7 @@
     const saveButton = card?.querySelector("[data-admin-account-save]");
     const cancelButton = card?.querySelector("[data-admin-account-cancel]");
 
-    if (!card || card.dataset.accountRole === "admin" || !display || !editor || !input || !editButton || !saveButton || !cancelButton) {
+    if (!card || card.dataset.accountRoleValue === "admin" || !display || !editor || !input || !editButton || !saveButton || !cancelButton) {
       return;
     }
 
@@ -1407,7 +1407,7 @@
     if (roleSelect) {
       roleSelect.hidden = !shouldOpen;
       roleSelect.setAttribute("aria-hidden", String(!shouldOpen));
-      roleSelect.value = card.dataset.accountRole || roleSelect.dataset.previousValue || "standard";
+      roleSelect.value = card.dataset.accountRoleValue || roleSelect.dataset.previousValue || "standard";
     }
 
     display.classList.toggle("is-hidden", shouldOpen);
@@ -1435,7 +1435,7 @@
     const input = card?.querySelector("[data-admin-account-link-id]");
 
     if (roleSelect) {
-      const roleValue = card.dataset.accountRole || roleSelect.dataset.previousValue || "standard";
+      const roleValue = card.dataset.accountRoleValue || roleSelect.dataset.previousValue || "standard";
 
       roleSelect.value = roleValue;
       setAdminAccountRoleAppearance(roleSelect, roleValue);
@@ -1730,12 +1730,12 @@
     const targetUid = card?.dataset.targetUid;
     const user = auth.currentUser;
     const roleSelect = card?.querySelector("[data-admin-account-role]");
-    const previousRole = card?.dataset.accountRole || "standard";
+    const previousRole = card?.dataset.accountRoleValue || "standard";
     const nextRole = roleSelect ? roleSelect.value : previousRole;
     const input = card?.querySelector("[data-admin-account-link-id]");
     const hasOpenRequest = card?.dataset.hasPendingRequest === "true";
 
-    if (!targetUid || !user || !input || card?.dataset.accountRole === "admin") {
+    if (!targetUid || !user || !input || card?.dataset.accountRoleValue === "admin") {
       setAdminAccountMessage("Die Änderungen können gerade nicht gespeichert werden.", false);
       return;
     }
@@ -1840,7 +1840,7 @@
       || card?.querySelector("[data-admin-account-link-id]")?.value.trim()
       || "";
 
-    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRole === "admin") {
+    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRoleValue === "admin") {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
       return;
     }
@@ -1908,7 +1908,7 @@
     const action = button.dataset.adminAccountIssueAction;
     const status = action === "resolve" ? "resolved" : "cancelled";
 
-    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRole === "admin") {
+    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRoleValue === "admin") {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
       return;
     }
