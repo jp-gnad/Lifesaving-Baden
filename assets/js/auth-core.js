@@ -11,12 +11,12 @@
     return transientCodes.has(String(error?.code || "").replace(/^(auth|firestore)\//, ""));
   }
 
-  async function withRetry(operation) {
+  async function withRetry(operation, shouldRetry = isTransientError) {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await operation(attempt);
       } catch (error) {
-        if (attempt >= 2 || !isTransientError(error)) throw error;
+        if (attempt >= 2 || !shouldRetry(error)) throw error;
         await new Promise((resolve) => window.setTimeout(resolve, 450 * (attempt + 1)));
       }
     }

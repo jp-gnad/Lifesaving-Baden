@@ -141,9 +141,11 @@ function directGoogleHarness(options = {}) {
   let timerSequence = 0;
   h.window.setTimeout = (callback, delay) => {
     const id = ++timerSequence;
-    identity.timers.set(id, { callback, delay });
+    if (delay === 15000) identity.timers.set(id, { callback, delay });
+    else { h.counts.delays.push(delay); queueMicrotask(callback); }
     return id;
   };
+  h.window.requestAnimationFrame = (callback) => queueMicrotask(callback);
   h.window.clearTimeout = (id) => identity.timers.delete(id);
   identity.click = () => identity.renders.at(-1).config.click_listener();
   identity.receive = (response) => identity.initializations.at(-1).callback(response);
@@ -624,6 +626,161 @@ test("the direct Google button waits for persistence before it accepts credentia
   assert.equal(h.identity.renders.length, 1);
   h.identity.click();
   await h.identity.receive({ credential: "synthetic-token" });
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("a Google credential received in the background waits for visibility and the next frame before contacting Firebase", async () => {
+  for (const returnEvent of ["visibilitychange", "pageshow"]) {
+    const h = directGoogleHarness();
+    const frames = [];
+    h.window.requestAnimationFrame = (callback) => frames.push(callback);
+    h.login();
+    await new Promise(setImmediate);
+    h.identity.click();
+    h.document.visibilityState = "hidden";
+    h.callbacks.visibilitychange();
+    const received = h.identity.receive({ credential: "background-private-token" });
+    await new Promise(setImmediate);
+    assert.equal(h.identity.credentials.length, 0);
+    assert.equal(frames.length, 0);
+    assert.match(h.element("[data-login-diagnostics-output]").textContent, /App beim Google-Nachweis: ausgeblendet/);
+    assert.match(h.element("[data-login-diagnostics-output]").textContent, /wartet auf die sichtbare App/);
+    h.document.visibilityState = "visible";
+    h.callbacks[returnEvent]();
+    await new Promise(setImmediate);
+    assert.equal(h.identity.credentials.length, 0);
+    assert.equal(frames.length, 1);
+    frames.shift()();
+    await received;
+    assert.equal(h.identity.credentials.length, 1);
+    assert.equal(h.counts.redirects.length, 1);
+    assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /background-private-token/);
+  }
+});
+
+test("the app becoming hidden again before the next frame postpones credential exchange", async () => {
+  const h = directGoogleHarness();
+  const frames = [];
+  h.window.requestAnimationFrame = (callback) => frames.push(callback);
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  const received = h.identity.receive({ credential: "synthetic-token" });
+  await new Promise(setImmediate);
+  h.document.visibilityState = "hidden";
+  frames.shift()();
+  await new Promise(setImmediate);
+  assert.equal(h.identity.credentials.length, 0);
+  h.document.visibilityState = "visible";
+  h.callbacks.visibilitychange();
+  await new Promise(setImmediate);
+  frames.shift()();
+  await received;
+  assert.equal(h.identity.credentials.length, 1);
+});
+
+test("a transient Google credential failure retries only after the app is visible and redirects once", async () => {
+  const h = directGoogleHarness();
+  const exchange = h.auth.signInWithCredential;
+  let calls = 0;
+  const credentials = [];
+  h.auth.signInWithCredential = async (credential) => {
+    calls += 1;
+    credentials.push(credential);
+    if (calls === 1) {
+      h.document.visibilityState = "hidden";
+      h.callbacks.visibilitychange();
+      throw { code: "auth/network-request-failed", customData: { message: "TypeError: private-network-details" } };
+    }
+    return exchange(credential);
+  };
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  const received = h.identity.receive({ credential: "synthetic-token" });
+  await new Promise(setImmediate);
+  assert.equal(calls, 1);
+  assert.equal(h.counts.redirects.length, 0);
+  h.document.visibilityState = "visible";
+  h.callbacks.visibilitychange();
+  await received;
+  assert.equal(calls, 2);
+  assert.equal(credentials[0], credentials[1]);
+  assert.deepEqual(h.counts.delays, [450]);
+  assert.equal(h.counts.redirects.length, 1);
+  assert.match(h.element("[data-login-diagnostics-output]").textContent, /nach Verbindungsfehler erneut versucht/);
+  assert.match(h.element("[data-login-diagnostics-output]").textContent, /Browser-Fehlertyp: TypeError/);
+  assert.doesNotMatch(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), /private-network-details/);
+});
+
+test("credential retries stop after three network failures and never repeat a permanent or internal error", async () => {
+  for (const code of ["auth/network-request-failed", "auth/invalid-credential", "auth/unauthorized-domain", "auth/too-many-requests", "auth/internal-error"]) {
+    const h = directGoogleHarness();
+    let calls = 0;
+    h.auth.signInWithCredential = async () => { calls += 1; throw { code }; };
+    h.login();
+    await new Promise(setImmediate);
+    h.identity.click();
+    await h.identity.receive({ credential: "synthetic-token" });
+    assert.equal(calls, code === "auth/network-request-failed" ? 3 : 1, code);
+    assert.equal(h.counts.delays.length, calls - 1);
+    assert.equal(h.counts.redirects.length, 0);
+    assert.equal(h.element("[data-google-identity]").hidden, false);
+    assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+  }
+});
+
+test("the complete background handoff and bounded retries remain diagnosable after another page starts", async () => {
+  const first = directGoogleHarness();
+  first.auth.signInWithCredential = async () => {
+    throw { code: "auth/network-request-failed", customData: { message: "TypeError: private-token-in-url" } };
+  };
+  first.login();
+  await new Promise(setImmediate);
+  first.callbacks.pageshow();
+  first.identity.click();
+  first.document.visibilityState = "hidden";
+  first.callbacks.visibilitychange();
+  const received = first.identity.receive({ credential: "private-id-token" });
+  await new Promise(setImmediate);
+  first.document.visibilityState = "visible";
+  first.callbacks.visibilitychange();
+  await received;
+  first.callbacks.pagehide();
+  first.document.visibilityState = "hidden";
+  first.callbacks.visibilitychange();
+  const next = directGoogleHarness();
+  next.window.localStorage = first.window.localStorage;
+  next.login();
+  next.callbacks.pageshow();
+  next.callbacks.auth(null);
+  await new Promise(setImmediate);
+  const output = next.element("[data-login-diagnostics-output]").textContent;
+  assert.match(output, /App beim Google-Nachweis: ausgeblendet/);
+  assert.match(output, /wartet auf die sichtbare App/);
+  assert.equal((output.match(/Firebase-Anmeldung mit Google-Nachweis gestartet/g) || []).length, 3);
+  assert.equal((output.match(/nach Verbindungsfehler erneut versucht/g) || []).length, 2);
+  assert.doesNotMatch(output, /private-token-in-url|private-id-token/);
+  const entries = JSON.parse(next.window.localStorage.getItem("lifesaving-baden:login-trace-v1")).entries;
+  assert.ok(entries.length <= 40);
+});
+
+test("a session completed while waiting for foreground is not replaced by a late Google credential", async () => {
+  const h = directGoogleHarness();
+  h.login();
+  await new Promise(setImmediate);
+  h.identity.click();
+  h.document.visibilityState = "hidden";
+  const received = h.identity.receive({ credential: "late-google-token" });
+  await new Promise(setImmediate);
+  h.auth.currentUser = h.prepareUser({ uid: "already-authenticated", emailVerified: true });
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  assert.equal(h.counts.redirects.length, 1);
+  h.document.visibilityState = "visible";
+  h.callbacks.pageshow();
+  await received;
+  assert.equal(h.identity.credentials.length, 0);
   assert.equal(h.counts.redirects.length, 1);
 });
 

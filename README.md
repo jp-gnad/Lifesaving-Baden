@@ -167,7 +167,7 @@ und die Firebase-Einstellungen bleiben erhalten. Auch die Firebase-Freigabe der
 GitHub-Domain unter `Authentication → Settings → Authorized domains` bleibt nötig.
 
 Nach dem Push auf GitHub die installierte App neu laden. Die Anmeldehilfe muss
-`Loginversion: 20261101-google-direct-v6` und
+`Loginversion: 20261101-google-foreground-v7` und
 `Google-Verfahren: Google direkt → Firebase` zeigen. Die neuen Ereignisse
 unterscheiden das Empfangen des Google-Nachweises vom Firebase-Austausch. Die
 automatisierten Tests prüfen die Übergabe, Fehlerbehandlung und bestehenden
@@ -178,43 +178,57 @@ kann derselbe Google-Button das Skript erneut laden. Nach einem Fehler beim
 Firebase-Austausch erscheint Googles Button wieder; es gibt keinen automatischen
 Rückfall auf den auf diesem Gerät fehlschlagenden Firebase-Popup-Ablauf.
 
-### Zusätzlich vorbereiteter App-Login über Firebase Hosting
+Im v6-Geräteprotokoll kommt der Google-Nachweis an; anschließend scheitert erst
+`signInWithCredential` mit `auth/network-request-failed`. Der Beginn des
+Firebase-Aufrufs steht dabei vor dem Ereignis „App wieder sichtbar“. Das ist ein
+Hinweis auf den Zeitpunkt der Rückkehr, noch kein Beweis für die genaue Ursache.
+Die aktuelle Version wartet vor jedem Austausch auf eine sichtbare Seite und
+einen nächsten Animationsframe. Nur `auth/network-request-failed` erlaubt bis zu
+zwei Wiederholungen mit kurzen Pausen; andere Anmeldefehler werden sofort
+angezeigt. Der Google-Nachweis bleibt während des Wartens ausschließlich im
+Arbeitsspeicher. Eine inzwischen abgeschlossene Anmeldung verhindert eine
+verspätete weitere Übergabe.
 
-Für einen Ablauf, der Seitenneustarts ausdrücklich unterstützt, ist zusätzlich
-Firebase Hosting vorbereitet. Auf `https://lifesaving-baden.firebaseapp.com/`
-haben Website und die bereits konfigurierte Auth-Domain denselben Ursprung.
-Eine installierte Web-App auf genau dieser Domain verwendet deshalb
-`signInWithRedirect` und wertet nach der Rückkehr `getRedirectResult` aus.
-Normale Browser behalten den bisherigen Firebase-Popup-Ablauf.
-Es gibt keine automatische Umleitung von GitHub Pages zur neuen Domain.
+Die Diagnose hält die tatsächliche Sichtbarkeit beim Empfang, das Warten auf
+den Vordergrund und fehlgeschlagene beziehungsweise wiederholte Übergaben fest.
+Aus dem internen SDK-Fehlertext werden lediglich die fest vorgegebenen Namen
+`TypeError`, `AbortError` oder `NetworkError` übernommen, sofern vorhanden.
+Der rohe Text kann sensible Angaben enthalten und wird nicht ausgegeben oder
+gespeichert. Die genaue betroffene HTTP-Anfrage wird damit nicht erfasst.
 
-Lokal bauen und prüfen:
+### Zusätzliche Firebase-Testwebsite entfernen
+
+Die Website wird ausschließlich über GitHub Pages weiter veröffentlicht. Die
+Hosting-Konfiguration zeigt jetzt auf `firebase-hosting/`: Darin liegt nur eine
+`404.html`, keine Kopie der Website, kein Loginformular und keine Timer-Datei.
+Der bisherige Export der Website nach `dist/` wurde entfernt.
+
+Um die bereits veröffentlichte Kopie auf Firebase durch diesen leeren Stand zu
+ersetzen, einmalig im Projektverzeichnis ausführen:
 
 ```powershell
-python tools/build_hosting.py
+npx.cmd firebase-tools deploy --only hosting --project lifesaving-baden
 ```
 
-Der Build enthält ausschließlich die öffentlichen HTML-Seiten, das App-Manifest
-sowie freigegebene Webdateien aus `assets/` und `timer/`. Regeln, Testdateien,
-Werkzeuge, Logs und Konfigurationsdateien werden nicht veröffentlicht.
+Falls die CLI abgemeldet ist, vorher `npx.cmd firebase-tools login` ausführen.
+Der Befehl veröffentlicht ausschließlich die 404-Seite auf dem explizit gesetzten
+Hosting-Site `lifesaving-baden`. Die bisherige Website-Kopie wird damit aus dem
+aktiven Hosting-Stand entfernt. Die Firebase-Domains liefern für die bisherigen
+App-Seiten anschließend HTTP 404. Ein GitHub-Push allein ändert die bereits
+veröffentlichten Firebase-Dateien nicht.
 
-Nach ausdrücklicher Freigabe lässt sich nur die Website veröffentlichen:
+Die Domain `lifesaving-baden.firebaseapp.com` bleibt als technische Auth-Domain
+bestehen. Firebase stellt unter `/__/auth/` eigene Anmelde-Hilfsseiten bereit;
+dieser reservierte Bereich wird weder überschrieben noch umgeleitet. Die
+Konfiguration enthält deshalb keine allgemeine Weiterleitung oder SPA-Rewrite.
+`authDomain`, die Firebase-Anbieter, OAuth-Weiterleitungsadressen, Konten,
+Firestore-Daten und Regeln bleiben erhalten. Auch die Freigabe der Firebase-
+Domain für Authentication wird nicht entfernt.
 
-```powershell
-npx firebase-tools deploy --only hosting --project lifesaving-baden
-```
-
-Der Hosting-Predeploy-Schritt baut `dist/` automatisch neu. Dieser Befehl ersetzt
-die bisherige Website des Standard-Hosting-Sites in diesem Firebase-Projekt;
-er veröffentlicht keine Firestore-Regeln und löscht keine Datenbankdaten.
-Der Nutzer hat die iPhone-Anmeldung mit der veröffentlichten Firebase-Variante
-erfolgreich geprüft. Neue Versionen müssen dort separat veröffentlicht werden.
-Bestehende Konten, Rollen und Daten werden im selben Firebase-Projekt verwendet.
-
-Das gleichnamige Hosting-Site und die Freigabe der Firebase-Domain in Authentication
-müssen vor der produktiven Veröffentlichung beziehungsweise beim ersten Test
-geprüft werden. Die Firebase-Adresse sollte nicht als funktionierende Alternative
-verteilt werden, solange dort noch keine geprüfte Version veröffentlicht wurde.
+Nach der Veröffentlichung `/`, `/login.html` und `/timer/` auf Firebase auf
+HTTP 404 sowie `/__/auth/iframe` auf Erreichbarkeit prüfen. Der Google-Login im
+Safari-Browser auf GitHub Pages muss weiterhin funktionieren. Die neue direkte
+Anmeldung in der GitHub-Web-App wird unabhängig davon weiter geprüft.
 
 Beim Google-Login werden Firebase-Anmeldeereignisse und die Rückkehr in die
 App auch während eines offenen Google-Fensters verarbeitet. Ein noch wartendes
@@ -227,7 +241,7 @@ zeigt sie bei einem erkannten Fehler den Anmeldecode, die geladene Version und
 den App-/Browsermodus. Unter dem Google-Button lässt sich außerdem die
 `Anmeldehilfe` aufklappen und über `Status kopieren` weitergeben. Sie zeigt auch
 bei ausbleibenden Fehlermeldungen die Firebase-Version, die Speicherverfügbarkeit,
-ob Firebase eine Sitzung erkennt und die letzten 24 Ablaufereignisse.
+ob Firebase eine Sitzung erkennt und die letzten 40 Ablaufereignisse.
 Die Verlaufsspur liegt zusätzlich unter einem eigenen Schlüssel in `localStorage`,
 damit ein Seitenneustart den ursprünglichen Google-Klick nicht aus der Diagnose
 entfernt. Einzelne Seitenausführungen erhalten zufällige lokale Kennzeichnungen;

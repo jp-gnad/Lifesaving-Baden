@@ -4,6 +4,7 @@
   const googleAttemptKey = "lifesaving-baden:google-login-started";
   const traceKey = "lifesaving-baden:login-trace-v1";
   const traceTtl = 10 * 60 * 1000;
+  const traceLimit = 40;
   // This labels a page execution, never an account or a device.
   const pageLabel = Math.random().toString(36).slice(2, 10).padEnd(8, "0");
   const diagnosticLabels = Object.freeze({
@@ -18,6 +19,11 @@
     error: "Anmeldefehler", popup_error: "Google-Fenster meldet",
     identity_ready: "Direkte Google-Anmeldung bereit", identity_result: "Google-Anmeldenachweis empfangen",
     credential_start: "Firebase-Anmeldung mit Google-Nachweis gestartet", credential_result: "Firebase hat die Google-Anmeldung übernommen",
+    identity_hidden: "App beim Google-Nachweis: ausgeblendet", identity_visible: "App beim Google-Nachweis: sichtbar",
+    foreground_wait: "Firebase-Übergabe wartet auf die sichtbare App", foreground_ready: "App für Firebase-Übergabe im Vordergrund",
+    credential_retry: "Firebase-Übergabe wird nach Verbindungsfehler erneut versucht", credential_error: "Firebase-Übergabe fehlgeschlagen",
+    network_type: "Firebase meldet Browser-Fehlertyp: TypeError", network_abort: "Firebase meldet Browser-Fehlertyp: AbortError",
+    network_other: "Firebase meldet Browser-Fehlertyp: NetworkError", network_unspecified: "Firebase liefert keinen weiteren Browser-Fehlertyp",
   });
   let diagnosticEvents = [];
   let diagnosticSequence = 0;
@@ -71,7 +77,7 @@
         && /^[a-z0-9]{8}$/.test(entry.page) && Number.isInteger(entry.seq) && entry.seq > 0
         && Number.isFinite(entry.time) && Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl
         && (entry.code === undefined || /^(auth|app)\/[a-z0-9-]+$/.test(entry.code)))
-        .slice(-24).map(({ id, page, seq, time, code }) => ({ id, page, seq, time, ...(code ? { code } : {}) }));
+        .slice(-traceLimit).map(({ id, page, seq, time, code }) => ({ id, page, seq, time, ...(code ? { code } : {}) }));
     } catch { return []; }
   }
 
@@ -88,6 +94,7 @@
       `Loginversion: ${loginVersion}`,
       `Firebase-Version: ${window.firebase?.SDK_VERSION || "unbekannt"}`,
       `Modus: ${standalone ? "Web-App" : "Browser"}`,
+      `Sichtbarkeit jetzt: ${document.visibilityState === "hidden" ? "ausgeblendet" : "sichtbar"}`,
       `Google-Verfahren: ${diagnosticGoogleMethod}`,
       `Aktuelle Seite: ${pageLabel}`,
       `Navigationsart: ${navigationType()}`,
@@ -109,7 +116,7 @@
     const merged = new Map([...readTrace(), ...diagnosticEvents, current]
       .filter((entry) => Date.now() - entry.time >= 0 && Date.now() - entry.time < traceTtl)
       .map((entry) => [`${entry.page}:${entry.seq}`, entry]));
-    diagnosticEvents = [...merged.values()].sort((a, b) => a.time - b.time).slice(-24);
+    diagnosticEvents = [...merged.values()].sort((a, b) => a.time - b.time).slice(-traceLimit);
     try {
       if (!window.localStorage) throw new Error("Storage unavailable");
       const serialized = JSON.stringify({ entries: diagnosticEvents });
@@ -133,7 +140,7 @@
     } catch { /* Login remains usable when session storage is unavailable. */ }
   }
   const {
-    initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
+    initFirebase, ensureLocalAuthPersistence, reloadUser, withRetry, isCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
     rememberRegistrationName, normalizeNamePart, formatFullName,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, setMessage, setLoading, translateAuthError,
   } = window.LifesavingAuth;
@@ -230,6 +237,7 @@
     let directGoogleReady = false;
     let directGoogleLoading = null;
     let directGoogleAttempt = false;
+    let googleForegroundWaiter = null;
     let redirectResultPending = useRedirect;
     diagnosticGoogleMethod = useDirectGoogle ? "Google direkt → Firebase" : useRedirect ? "Weiterleitung auf derselben Domain" : "Popup";
     diagnosticAuth = auth;
@@ -323,6 +331,43 @@
       setMessage("login", "Google öffnet … Bitte wähle dein Konto. Du kannst den Google-Button bei Bedarf erneut verwenden.");
     }
 
+    function resumeGoogleForeground() {
+      if (document.visibilityState !== "hidden" && googleForegroundWaiter) {
+        const resume = googleForegroundWaiter;
+        googleForegroundWaiter = null;
+        resume();
+      }
+    }
+
+    async function waitForGoogleForeground() {
+      for (;;) {
+        if (document.visibilityState === "hidden") {
+          recordDiagnostic("foreground_wait");
+          await new Promise((resolve) => { googleForegroundWaiter = resolve; });
+        }
+        // Let queued return/visibility events run before issuing the request.
+        await new Promise((resolve) => {
+          if (window.requestAnimationFrame) window.requestAnimationFrame(resolve);
+          else window.setTimeout(resolve, 0);
+        });
+        if (document.visibilityState !== "hidden") {
+          recordDiagnostic("foreground_ready");
+          return;
+        }
+      }
+    }
+
+    function recordCredentialFailure(error) {
+      recordDiagnostic("credential_error", safeErrorCode(error));
+      if (error?.code !== "auth/network-request-failed") return;
+      // SDK errors can include a raw URL/message. Retain only an allowlisted error class.
+      const detail = typeof error?.customData?.message === "string" ? error.customData.message : "";
+      const label = /^TypeError:/.test(detail) ? "network_type"
+        : /^AbortError:/.test(detail) ? "network_abort"
+          : /^NetworkError:/.test(detail) ? "network_other" : "network_unspecified";
+      recordDiagnostic(label);
+    }
+
     async function receiveGoogleCredential(response) {
       if (!directGoogleAttempt || authAction || loginRedirectStarted) return;
       directGoogleAttempt = false;
@@ -334,13 +379,24 @@
       try {
         if (typeof response?.credential !== "string" || !response.credential) throw { code: "app/google-credential-missing" };
         recordDiagnostic("identity_result");
+        recordDiagnostic(document.visibilityState === "hidden" ? "identity_hidden" : "identity_visible");
         await localPersistenceReady;
         // Firebase validates the Google ID token. Never log or persist the credential ourselves.
         const credential = window.firebase.auth.GoogleAuthProvider.credential(response.credential);
-        recordDiagnostic("credential_start");
-        const { user } = await auth.signInWithCredential(credential);
+        const result = await withRetry(async (attempt) => {
+          if (attempt) {
+            recordDiagnostic("credential_retry");
+            setLoading(googleButton, true, "Verbindung erneut prüfen...");
+          }
+          await waitForGoogleForeground();
+          if (loginRedirectStarted) return null;
+          recordDiagnostic("credential_start");
+          try { return await auth.signInWithCredential(credential); }
+          catch (error) { recordCredentialFailure(error); throw error; }
+        }, (error) => error?.code === "auth/network-request-failed");
+        if (!result) return;
         recordDiagnostic("credential_result");
-        await finishVerifiedLogin(user);
+        await finishVerifiedLogin(result.user);
       } catch (error) {
         showLoginError(error);
       } finally {
@@ -457,12 +513,14 @@
 
     window.addEventListener("pageshow", (event) => {
       recordDiagnostic(event?.persisted ? "restored" : "shown");
+      resumeGoogleForeground();
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
     window.addEventListener("pagehide", () => recordDiagnostic("pagehide"));
     document.addEventListener("visibilitychange", () => {
       recordDiagnostic(document.visibilityState === "visible" ? "visible" : "hidden");
       if (document.visibilityState === "visible") {
+        resumeGoogleForeground();
         resumeLoginAfterGoogleWindow().catch(showLoginError);
       }
     });
