@@ -127,8 +127,8 @@ höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
 
 Auf allen Bildschirmgrößen bleibt das Passwort zunächst verborgen und erscheint
 erst nach Eingabe der E-Mail und Klick auf „Anmelden“ anstelle des E-Mail-Felds.
-Im Passwortschritt steht die gewählte E-Mail unter der Überschrift. Über „Zurück“
-kehrt man zum ersten Schritt zurück. Auf Handys bis 600 px steht
+Im Passwortschritt ersetzt die gewählte E-Mail den Text im Trennbereich. Der
+Zurück-Pfeil neben „Anmelden“ führt zum E-Mail-Schritt zurück. Auf Handys bis 600 px steht
 der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet; neue
 E-Mail-Konten werden angelegt und müssen die Bestätigungsmail öffnen. Weil
 Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabprüfung
@@ -138,7 +138,7 @@ Auch am Desktop gibt es ein gemeinsames Formular ohne Umschaltung zwischen Login
 und Registrierung. Ab 1200 px liegt derselbe kompakte Anmeldekasten mittig mit
 leicht transparentem Hintergrund vor dem durchgehenden Schwimmbadfoto zwischen
 Header und Footer. Die Bildfläche bleibt bei wechselnder Formularhöhe unverändert;
-der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
+das Bild ist am Browserfenster oben verankert, der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
 Formularbereich. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
 Neue Konten können ihren Namen in den Einstellungen ergänzen.
 

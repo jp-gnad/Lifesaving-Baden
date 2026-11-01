@@ -1595,7 +1595,9 @@ test("returning from the password step preserves the email and clears the passwo
   await h.submit("login");
   const summary = h.element("[data-login-email-summary]");
   assert.equal(summary.hidden, false);
-  assert.equal(summary.textContent, "für anna@example.test");
+  assert.equal(summary.textContent, "anna@example.test");
+  assert.equal(h.element("[data-login-divider-copy]").hidden, true);
+  assert.equal(h.element("[data-change-email]").hidden, false);
   h.password.value = "synthetic-password";
   h.element("[data-change-email]").handlers.click();
   assert.equal(h.form.classList.contains("is-email-step"), true);
@@ -1605,5 +1607,7 @@ test("returning from the password step preserves the email and clears the passwo
   assert.equal(h.password.required, false);
   assert.equal(summary.hidden, true);
   assert.equal(summary.textContent, "");
+  assert.equal(h.element("[data-login-divider-copy]").hidden, false);
+  assert.equal(h.element("[data-change-email]").hidden, true);
   assert.equal(requests, 0);
 });

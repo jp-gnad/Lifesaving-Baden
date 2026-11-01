@@ -816,11 +816,44 @@ body[data-page="app"] .dashboard > * {
   line-height: 1.08;
 }
 
-.auth-selected-email {
-  margin: 8px 0 0;
+.auth-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-back {
+  display: inline-grid;
+  flex: 0 0 32px;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
   color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
+  cursor: pointer;
+}
+
+.auth-back[hidden] {
+  display: none;
+}
+
+.auth-back:hover,
+.auth-back:focus-visible {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.auth-back svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .auth-panel .button,
@@ -852,7 +885,6 @@ body[data-page="app"] .dashboard > * {
 
 .auth-form:not(.is-email-step) .auth-email-step,
 .auth-form.is-email-step .auth-password-step,
-.auth-form.is-email-step [data-change-email],
 .auth-form.is-email-step [data-reset-password] {
   display: none;
 }
@@ -3921,7 +3953,7 @@ body.auth-context-loading .member-apps::after {
   }
 
   body[data-page="login"] .auth-divider {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(12px, 1fr) minmax(0, auto) minmax(12px, 1fr);
     order: 2;
     gap: 10px;
     margin: 0;
@@ -3930,6 +3962,8 @@ body.auth-context-loading .member-apps::after {
   }
 
   body[data-page="login"] .auth-divider strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.5;
   }
@@ -3991,7 +4025,7 @@ body.auth-context-loading .member-apps::after {
     overflow: auto;
     scrollbar-gutter: stable both-edges;
     padding: 16px 32px;
-    background: url("../img/auth-pool.jpg") center 48% / cover no-repeat;
+    background: url("../img/auth-pool.jpg") center top / cover no-repeat fixed;
   }
 
   body[data-page="login"] .auth-panel {

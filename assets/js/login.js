@@ -110,6 +110,7 @@
     const resetPasswordButton = document.querySelector("[data-reset-password]");
     const changeEmailButton = document.querySelector("[data-change-email]");
     const emailSummary = document.querySelector("[data-login-email-summary]");
+    const dividerCopy = document.querySelector("[data-login-divider-copy]");
     const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
@@ -127,8 +128,10 @@
       loginForm?.classList.toggle("is-email-step", emailStep);
       if (emailSummary) {
         emailSummary.hidden = emailStep;
-        emailSummary.textContent = emailStep ? "" : `für ${String(new FormData(loginForm).get("email") || "").trim()}`;
+        emailSummary.textContent = emailStep ? "" : String(new FormData(loginForm).get("email") || "").trim();
       }
+      if (dividerCopy) dividerCopy.hidden = !emailStep;
+      if (changeEmailButton) changeEmailButton.hidden = emailStep;
       if (emailInput) emailInput.placeholder = compactLoginQuery?.matches ? "Deine E-Mail" : "";
       if (passwordInput) {
         passwordInput.required = !emailStep;

@@ -12,14 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-login-corners-v27">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261101-login-navigation-v28">
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20260712-mobile-fixed-header"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/login.js?v=20261101-login-back-v24"></script>
+    <script defer src="assets/js/login.js?v=20261101-login-navigation-v28"></script>
   </head>
   <body data-page="login">
     <header class="site-header">
@@ -69,8 +69,10 @@
       <section class="auth-panel" aria-labelledby="auth-title">
         <p class="eyebrow">Mitgliederbereich</p>
         <div class="auth-heading">
-          <h1 id="auth-title"><span class="auth-expanded-copy">Login oder Konto erstellen</span><span class="auth-compact-copy">Anmelden</span></h1>
-          <p class="auth-selected-email" data-login-email-summary hidden></p>
+          <button class="auth-back" type="button" data-change-email aria-label="Zurück zur E-Mail-Adresse" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 5-7 7 7 7M5 12h14"></path></svg>
+          </button>
+          <h1 id="auth-title">Anmelden</h1>
         </div>
         <p class="auth-note" data-login-context>
           Konten werden über Firebase verwaltet. Neue E-Mail-Konten müssen
@@ -102,13 +104,15 @@
           <button class="inline-action" type="button" data-reset-password>
             Passwort vergessen?
           </button>
-          <button class="inline-action" type="button" data-change-email>Zurück</button>
         </form>
 
-        <div class="auth-divider" aria-hidden="true">
-          <span></span>
-          <strong><span class="auth-expanded-copy">oder</span><span class="auth-compact-copy">oder mit E-Mail-Adresse registrieren</span></strong>
-          <span></span>
+        <div class="auth-divider">
+          <span aria-hidden="true"></span>
+          <strong>
+            <span data-login-divider-copy><span class="auth-expanded-copy">oder</span><span class="auth-compact-copy">oder mit E-Mail-Adresse registrieren</span></span>
+            <span data-login-email-summary hidden></span>
+          </strong>
+          <span aria-hidden="true"></span>
         </div>
 
         <div class="auth-google-options">
