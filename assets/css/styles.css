@@ -4016,6 +4016,16 @@ body.auth-context-loading .member-apps::after {
 
 
 @media (min-width: 1200px) {
+  html:has(body[data-page="login"]),
+  body[data-page="login"] .auth-layout {
+    scrollbar-width: none;
+  }
+
+  html:has(body[data-page="login"])::-webkit-scrollbar,
+  body[data-page="login"] .auth-layout::-webkit-scrollbar {
+    display: none;
+  }
+
   body[data-page="login"] .auth-screen {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -4027,7 +4037,6 @@ body.auth-context-loading .member-apps::after {
     place-items: center;
     min-height: 0;
     overflow: auto;
-    scrollbar-gutter: stable both-edges;
     padding: 16px 32px;
     /* Keep the 3:2 photo scale independent of the scrollable form height. */
     background: url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
