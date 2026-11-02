@@ -654,7 +654,8 @@ body[data-page="app"] .dashboard > * {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
-  padding: 22px clamp(20px, 5vw, 64px);
+  min-height: calc(64px + env(safe-area-inset-bottom));
+  padding: 10px clamp(20px, 5vw, 64px) max(10px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: rgba(15, 15, 18, 0.9);
   color: var(--muted);
@@ -663,29 +664,37 @@ body[data-page="app"] .dashboard > * {
 .footer-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  min-height: 40px;
+  padding: 4px 6px;
+  gap: 9px;
   color: var(--text);
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .footer-brand .moose-icon {
-  width: 34px;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .footer-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .footer-links a {
+  display: inline-flex;
+  align-items: center;
   min-height: 34px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 8px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 13px;
   font-weight: 550;
 }
 
@@ -3451,15 +3460,6 @@ body.auth-context-loading .member-apps::after {
     backdrop-filter: none;
   }
 
-  .site-footer {
-    align-items: flex-start;
-    grid-template-columns: 1fr;
-  }
-
-  .footer-links {
-    justify-content: flex-start;
-  }
-
   .footer-note {
     max-width: none;
     text-align: left;
@@ -3937,6 +3937,7 @@ body.auth-context-loading .member-apps::after {
   body[data-page="login"] .auth-screen {
     flex: 1 1 auto;
     min-height: 0;
+    background: rgb(20, 20, 25);
   }
 
   body[data-page="login"] .auth-layout {
@@ -3947,8 +3948,33 @@ body.auth-context-loading .member-apps::after {
 
   body[data-page="login"] .site-footer {
     flex: 0 0 auto;
-    gap: 4px;
-    padding: 12px 24px max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 430px) {
+  .site-footer {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+
+  .footer-brand {
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .footer-brand .moose-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .footer-links {
+    gap: 0;
+  }
+
+  .footer-links a {
+    min-height: 30px;
+    padding: 5px 4px;
+    font-size: 11px;
   }
 }
 
