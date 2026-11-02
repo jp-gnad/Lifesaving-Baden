@@ -654,8 +654,8 @@ body[data-page="app"] .dashboard > * {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
-  min-height: calc(64px + env(safe-area-inset-bottom));
-  padding: 10px clamp(20px, 5vw, 64px) max(10px, env(safe-area-inset-bottom));
+  min-height: calc(72px + env(safe-area-inset-bottom));
+  padding: 14px clamp(20px, 5vw, 64px) max(14px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: rgba(15, 15, 18, 0.9);
   color: var(--muted);
