@@ -113,12 +113,36 @@
     const dividerCopy = document.querySelector("[data-login-divider-copy]");
     const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
     const mobileLoginQuery = window.matchMedia?.("(max-width: 600px)");
+    ["gesturestart", "gesturechange"].forEach((type) => {
+      document.addEventListener(type, (event) => {
+        if (mobileLoginQuery?.matches) event.preventDefault();
+      }, { passive: false });
+    });
     const loginTitle = document.querySelector("#auth-title");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
     const loginButton = loginForm?.querySelector('button[type="submit"]');
     let passwordStep = false;
     let emailSubmissionPending = false;
+
+    function lockMobileInputs() {
+      if (!mobileLoginQuery?.matches) return;
+      if (emailInput) emailInput.readOnly = true;
+      if (passwordInput) passwordInput.readOnly = true;
+    }
+
+    [emailInput, passwordInput].forEach((input) => {
+      if (!input) return;
+      input.readOnly = Boolean(mobileLoginQuery?.matches);
+      input.addEventListener("pointerdown", () => { input.readOnly = false; });
+      input.addEventListener("click", () => {
+        input.readOnly = false;
+        input.focus();
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Tab" && event.key !== "Escape") input.readOnly = false;
+      });
+    });
 
     function focusMobileHeading() {
       if (!passwordStep && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
@@ -373,13 +397,11 @@
             auto_select: false,
             ux_mode: "popup",
           });
-          const buttonScale = 1.2;
-          googleIdentityButton.style.setProperty("--google-button-scale", String(buttonScale));
           identity.renderButton(googleIdentityButton, {
             type: "standard", theme: "filled_black", size: "large",
             text: compactLoginQuery?.matches ? "signin_with" : "continue_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
-            width: Math.min(400, (googleButton.clientWidth || 300) / buttonScale),
+            width: Math.min(400, googleButton.clientWidth || 300),
             click_listener: startDirectGoogle,
           });
           directGoogleReady = true;
@@ -464,6 +486,7 @@
 
     window.addEventListener("pageshow", (event) => {
       updateEmailButton();
+      if (event?.persisted) lockMobileInputs();
       focusMobileHeading();
       loginPageLeaving = false;
       resumeGoogleForeground();
@@ -471,6 +494,7 @@
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
     window.addEventListener("pagehide", () => {
+      lockMobileInputs();
       loginPageLeaving = true;
     });
     document.addEventListener("visibilitychange", () => {
@@ -491,6 +515,7 @@
       if (!passwordStep) {
         passwordStep = true;
         updateEmailStep();
+        if (passwordInput) passwordInput.readOnly = false;
         passwordInput?.focus();
         return;
       }

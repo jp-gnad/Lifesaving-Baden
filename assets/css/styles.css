@@ -1047,10 +1047,6 @@ body[data-page="app"] .dashboard > * {
   min-height: 48px;
 }
 
-.google-identity > div {
-  transform: scale(var(--google-button-scale, 1));
-}
-
 .auth-aside {
   position: relative;
   isolation: isolate;
@@ -3924,6 +3920,7 @@ body.auth-context-loading .member-apps::after {
     display: flex;
     flex-direction: column;
     min-height: 100dvh;
+    touch-action: pan-x pan-y;
   }
 
   body[data-page="login"] .auth-screen {
@@ -4087,10 +4084,10 @@ body.auth-context-loading .member-apps::after {
     min-height: 0;
     overflow: auto;
     padding: 16px 32px;
-    /* Keep the 3:2 photo scale independent of the scrollable form height. */
+    /* Keep the photo scale independent of the scrollable form height. */
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)) center top / 100% 100% no-repeat local,
-      url("../img/auth-pool.jpg?v=20261102-start") center top / max(100vw, 150dvh) auto no-repeat local;
+      var(--login-background-image, url("../img/auth-pool.jpg?v=20261102-start")) center top / max(100vw, calc(100dvh * var(--login-background-ratio, 1.5))) auto no-repeat local;
   }
 
   body[data-page="login"] .auth-panel {

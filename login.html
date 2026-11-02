@@ -12,7 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261102-mobile-fit-v41">
+    <script src="assets/js/login-background.js?v=20261102-random-background-v43"></script>
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261102-mobile-zoom-v44">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -20,7 +21,7 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/login.js?v=20261102-mobile-fit-v41"></script>
+    <script defer src="assets/js/login.js?v=20261102-mobile-zoom-v44"></script>
   </head>
   <body data-page="login">
     <div class="auth-screen">
@@ -71,12 +72,12 @@
           <form class="auth-form is-email-step" data-auth-form="login">
             <label class="auth-email-step">
               E-Mail
-              <input name="email" type="email" autocomplete="email" required>
+              <input name="email" type="email" autocomplete="email" readonly required>
             </label>
             <label class="auth-password-step">
               Passwort
               <span class="password-field">
-                <input name="password" type="password" autocomplete="current-password" minlength="8" required>
+                <input name="password" type="password" autocomplete="current-password" minlength="8" readonly required>
                 <button class="password-toggle" type="button" data-password-toggle aria-label="Passwort anzeigen" aria-pressed="false">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                     <path class="password-eye-open" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>

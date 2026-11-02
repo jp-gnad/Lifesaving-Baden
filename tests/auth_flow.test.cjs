@@ -29,7 +29,6 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     if (!elements.has(key)) elements.set(key, {
       textContent: "", innerHTML: "button", dataset: {}, disabled: false, hidden: false,
       handlers: {}, fields: {}, classList: { toggle() {} },
-      style: { setProperty(name, value) { this[name] = value; } },
       addEventListener(type, handler) { this.handlers[type] = handler; },
       querySelector() { return element(`${key}:button`); },
       reset() { this.wasReset = true; },
@@ -1417,6 +1416,52 @@ test("opening or restoring mobile login focuses the heading without opening the 
   h.callbacks.pageshow({ persisted: false });
   assert.equal(heading.focused, true);
   assert.notEqual(h.email.focused, true);
+});
+
+test("iOS zoom gestures are prevented only in the mobile login layout", () => {
+  const h = mobileEmailHarness();
+  h.login();
+  let prevented = 0;
+  const gesture = { preventDefault() { prevented++; } };
+  h.callbacks.gesturestart(gesture);
+  h.callbacks.gesturechange(gesture);
+  assert.equal(prevented, 2);
+  h.mobile.matches = false;
+  h.callbacks.gesturestart(gesture);
+  h.callbacks.gesturechange(gesture);
+  assert.equal(prevented, 2);
+});
+
+test("mobile fields require a deliberate interaction before editing, including after page restoration", async () => {
+  const h = mobileEmailHarness();
+  h.login();
+  assert.equal(h.email.readOnly, true);
+  assert.equal(h.password.readOnly, true);
+  h.email.handlers.pointerdown();
+  assert.equal(h.email.readOnly, false);
+  h.callbacks.pagehide();
+  h.callbacks.pageshow({ persisted: true });
+  assert.equal(h.email.readOnly, true);
+  h.email.handlers.click();
+  assert.equal(h.email.readOnly, false);
+  assert.equal(h.email.focused, true);
+  await h.submit("login");
+  assert.equal(h.password.readOnly, false);
+  assert.equal(h.password.focused, true);
+});
+
+test("desktop fields stay editable and mobile fields support physical keyboards", () => {
+  const desktop = mobileEmailHarness();
+  desktop.mobile.matches = false;
+  desktop.login();
+  assert.equal(desktop.email.readOnly, false);
+  assert.equal(desktop.password.readOnly, false);
+  const mobile = mobileEmailHarness();
+  mobile.login();
+  mobile.email.handlers.keydown({ key: "Tab" });
+  assert.equal(mobile.email.readOnly, true);
+  mobile.email.handlers.keydown({ key: "a" });
+  assert.equal(mobile.email.readOnly, false);
 });
 
 test("mobile email entry reveals the required password only after continuing and resets when the address changes", async () => {
