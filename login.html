@@ -13,7 +13,7 @@
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <script src="assets/js/login-background.js?v=20261102-random-background-v43"></script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261102-footer-row-v47">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261102-login-layouts-v48">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -21,7 +21,7 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/login.js?v=20261102-mobile-zoom-v44"></script>
+    <script defer src="assets/js/login.js?v=20261102-login-layouts-v48"></script>
   </head>
   <body data-page="login">
     <div class="auth-screen">
@@ -57,17 +57,12 @@
 
       <main class="auth-layout">
         <section class="auth-panel" aria-labelledby="auth-title">
-          <p class="eyebrow">Mitgliederbereich</p>
           <div class="auth-heading">
             <button class="auth-back" type="button" data-change-email aria-label="Zurück zur E-Mail-Adresse" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 5-7 7 7 7M5 12h14"></path></svg>
             </button>
             <h1 id="auth-title" tabindex="-1">Anmelden</h1>
           </div>
-          <p class="auth-note" data-login-context>
-            Konten werden über Firebase verwaltet. Neue E-Mail-Konten müssen
-            vor dem ersten Zugriff bestätigt werden.
-          </p>
 
           <form class="auth-form is-email-step" data-auth-form="login">
             <label class="auth-email-step">
@@ -99,7 +94,7 @@
           <div class="auth-divider">
             <span aria-hidden="true"></span>
             <strong>
-              <span data-login-divider-copy><span class="auth-expanded-copy">oder</span><span class="auth-compact-copy">oder mit E-Mail-Adresse registrieren</span></span>
+              <span data-login-divider-copy>oder mit E-Mail-Adresse registrieren</span>
               <span data-login-email-summary hidden></span>
             </strong>
             <span aria-hidden="true"></span>
@@ -108,8 +103,7 @@
           <div class="auth-google-options">
             <button class="button button-google full-width" type="button" data-google-login>
               <img class="google-logo" src="assets/img/google-g.png" alt="" aria-hidden="true" width="28" height="28">
-              <span class="auth-expanded-copy">Mit Google fortfahren</span>
-              <span class="auth-compact-copy">Über Google anmelden</span>
+              <span>Über Google anmelden</span>
             </button>
 
             <div class="google-identity" data-google-identity hidden></div>
@@ -118,15 +112,10 @@
           <button class="inline-action is-hidden" type="button" data-resend-verification>
             Bestätigungs-Mail erneut senden
           </button>
-          <p class="auth-privacy auth-compact-copy">Indem du fortfährst, stimmst du unserer <a href="datenschutz.html">Datenschutzerklärung</a> zu.</p>
+          <p class="auth-privacy">Indem du fortfährst, stimmst du unserer <a href="datenschutz.html">Datenschutzerklärung</a> zu.</p>
         </section>
 
-        <aside class="auth-aside" aria-label="Hinweis">
-          <div class="status-panel">
-            <img class="moose-icon status-moose" src="assets/img/elch-gelb.png" alt="" aria-hidden="true">
-            <p>Ein Konto für Lifesaving Baden und den Timer. Nach der Anmeldung geht es direkt zurück zu deinem Bereich.</p>
-          </div>
-        </aside>
+        <aside class="auth-aside" aria-hidden="true"></aside>
       </main>
     </div>
 

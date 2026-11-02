@@ -111,8 +111,7 @@
     const changeEmailButton = document.querySelector("[data-change-email]");
     const emailSummary = document.querySelector("[data-login-email-summary]");
     const dividerCopy = document.querySelector("[data-login-divider-copy]");
-    const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
-    const mobileLoginQuery = window.matchMedia?.("(max-width: 600px)");
+    const mobileLoginQuery = window.matchMedia?.("(max-width: 700px)");
     ["gesturestart", "gesturechange"].forEach((type) => {
       document.addEventListener(type, (event) => {
         if (mobileLoginQuery?.matches) event.preventDefault();
@@ -162,10 +161,10 @@
       }
       if (dividerCopy) dividerCopy.hidden = !emailStep;
       if (changeEmailButton) changeEmailButton.hidden = emailStep;
-      if (emailInput) emailInput.placeholder = compactLoginQuery?.matches ? "Deine E-Mail" : "";
+      if (emailInput) emailInput.placeholder = "Deine E-Mail";
       if (passwordInput) {
         passwordInput.required = !emailStep;
-        passwordInput.placeholder = compactLoginQuery?.matches ? "Dein Passwort" : "";
+        passwordInput.placeholder = "Dein Passwort";
       }
     }
 
@@ -187,14 +186,15 @@
       else emailInput?.focus();
     });
     emailInput?.addEventListener("change", updateEmailButton);
-    compactLoginQuery?.addEventListener("change", updateEmailStep);
+    mobileLoginQuery?.addEventListener("change", () => {
+      if (!mobileLoginQuery.matches) {
+        if (emailInput) emailInput.readOnly = false;
+        if (passwordInput) passwordInput.readOnly = false;
+      }
+      updateEmailStep();
+    });
     updateEmailStep();
     focusMobileHeading();
-    const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
-    if (returnTo.pathname.includes("/timer/")) {
-      document.querySelector("[data-login-context]").textContent =
-        "Melde dich mit deinem Lifesaving-Baden-Konto an. Danach kehrst du automatisch zum Timer zurück.";
-    }
     let loginRedirectStarted = false;
     let verifiedLoginPromise = null;
     let verifiedLoginUid = null;
@@ -399,7 +399,7 @@
           });
           identity.renderButton(googleIdentityButton, {
             type: "standard", theme: "filled_black", size: "large",
-            text: compactLoginQuery?.matches ? "signin_with" : "continue_with",
+            text: "signin_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
             width: Math.min(400, googleButton.clientWidth || 300),
             click_listener: startDirectGoogle,

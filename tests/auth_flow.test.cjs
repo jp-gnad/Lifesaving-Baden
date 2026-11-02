@@ -1402,7 +1402,7 @@ function mobileEmailHarness(options = {}) {
   form.querySelector = (selector) => selector === 'input[name="email"]' ? email : selector === 'input[name="password"]' ? password : button;
   Object.defineProperties(form.fields, { email: { get: () => email.value }, password: { get: () => password.value } });
   const mobile = { matches: true, addEventListener(type, fn) { this.changed = fn; } };
-  h.window.matchMedia = (query) => ["(max-width: 600px), (min-width: 1200px)", "(max-width: 600px)"].includes(query) ? mobile : { matches: false };
+  h.window.matchMedia = (query) => query === "(max-width: 700px)" ? mobile : { matches: false };
   return { ...h, form, email, password, mobile };
 }
 
@@ -1487,7 +1487,8 @@ test("mobile email entry reveals the required password only after continuing and
   h.mobile.changed();
   assert.equal(h.password.required, false);
   assert.equal(h.form.classList.contains("is-email-step"), true);
-  assert.equal(h.email.placeholder, "");
+  assert.equal(h.email.placeholder, "Deine E-Mail");
+  assert.equal(h.email.readOnly, false);
 });
 
 test("mobile existing-account sign-in preserves the account and exact return route without registering", async () => {
