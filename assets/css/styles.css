@@ -194,6 +194,12 @@ input {
   color: var(--bg);
 }
 
+@media (min-width: 861px) {
+  body[data-page="landing"] .nav-button {
+    order: 1;
+  }
+}
+
 .nav-menu-toggle {
   display: none;
   width: 42px;
@@ -1039,6 +1045,10 @@ body[data-page="app"] .dashboard > * {
   justify-content: center;
   margin-top: 14px;
   min-height: 48px;
+}
+
+.google-identity > div {
+  transform: scale(var(--google-button-scale, 1));
 }
 
 .auth-aside {
@@ -3910,10 +3920,26 @@ body.auth-context-loading .member-apps::after {
 }
 
 @media (max-width: 600px) {
+  body[data-page="login"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  body[data-page="login"] .auth-screen {
+    flex: 1 0 auto;
+  }
+
   body[data-page="login"] .auth-layout {
     display: block;
-    min-height: calc(100dvh - var(--mobile-header-height));
-    padding: 34px 24px 40px;
+    min-height: 0;
+    padding: 24px;
+  }
+
+  body[data-page="login"] .site-footer {
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 12px 24px max(12px, env(safe-area-inset-bottom));
   }
 }
 
@@ -4018,6 +4044,25 @@ body.auth-context-loading .member-apps::after {
   }
 }
 
+
+@media (max-width: 600px) and (max-height: 700px) {
+  body[data-page="login"] .auth-layout {
+    padding-block: 16px;
+  }
+
+  body[data-page="login"] .auth-panel,
+  body[data-page="login"] .auth-form {
+    gap: 12px;
+  }
+
+  body[data-page="login"] .auth-heading {
+    margin-bottom: 0;
+  }
+
+  body[data-page="login"] .auth-panel h1 {
+    font-size: 1.9rem;
+  }
+}
 
 @media (min-width: 1200px) {
   html:has(body[data-page="login"]),

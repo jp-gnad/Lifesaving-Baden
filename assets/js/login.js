@@ -373,11 +373,13 @@
             auto_select: false,
             ux_mode: "popup",
           });
+          const buttonScale = 1.2;
+          googleIdentityButton.style.setProperty("--google-button-scale", String(buttonScale));
           identity.renderButton(googleIdentityButton, {
             type: "standard", theme: "filled_black", size: "large",
             text: compactLoginQuery?.matches ? "signin_with" : "continue_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
-            width: Math.min(400, googleButton.clientWidth || 300),
+            width: Math.min(400, (googleButton.clientWidth || 300) / buttonScale),
             click_listener: startDirectGoogle,
           });
           directGoogleReady = true;

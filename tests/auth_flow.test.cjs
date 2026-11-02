@@ -29,6 +29,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     if (!elements.has(key)) elements.set(key, {
       textContent: "", innerHTML: "button", dataset: {}, disabled: false, hidden: false,
       handlers: {}, fields: {}, classList: { toggle() {} },
+      style: { setProperty(name, value) { this[name] = value; } },
       addEventListener(type, handler) { this.handlers[type] = handler; },
       querySelector() { return element(`${key}:button`); },
       reset() { this.wasReset = true; },
