@@ -435,7 +435,7 @@ h3 {
 }
 
 .auth-panel .button-google {
-  min-height: 47px;
+  min-height: 48px;
 }
 
 .button-google .google-logo {
@@ -1034,7 +1034,7 @@ body[data-page="app"] .dashboard > * {
   align-items: center;
   justify-content: center;
   margin-top: 14px;
-  min-height: 47px;
+  min-height: 48px;
 }
 
 .auth-aside {
