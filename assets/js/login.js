@@ -112,11 +112,17 @@
     const emailSummary = document.querySelector("[data-login-email-summary]");
     const dividerCopy = document.querySelector("[data-login-divider-copy]");
     const compactLoginQuery = window.matchMedia?.("(max-width: 600px), (min-width: 1200px)");
+    const mobileLoginQuery = window.matchMedia?.("(max-width: 600px)");
+    const loginTitle = document.querySelector("#auth-title");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
     const loginButton = loginForm?.querySelector('button[type="submit"]');
     let passwordStep = false;
     let emailSubmissionPending = false;
+
+    function focusMobileHeading() {
+      if (!passwordStep && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
+    }
 
     function updateEmailButton() {
       if (loginButton) loginButton.disabled = emailSubmissionPending || !String(new FormData(loginForm).get("email") || "").trim();
@@ -153,11 +159,13 @@
       passwordInput.value = "";
       setMessage("login", "");
       updateEmailStep();
-      emailInput?.focus();
+      if (mobileLoginQuery?.matches) focusMobileHeading();
+      else emailInput?.focus();
     });
     emailInput?.addEventListener("change", updateEmailButton);
     compactLoginQuery?.addEventListener("change", updateEmailStep);
     updateEmailStep();
+    focusMobileHeading();
     const returnTo = window.LifesavingAuth.getSafeReturnUrl(params.get("returnTo"));
     if (returnTo.pathname.includes("/timer/")) {
       document.querySelector("[data-login-context]").textContent =
@@ -454,6 +462,7 @@
 
     window.addEventListener("pageshow", (event) => {
       updateEmailButton();
+      focusMobileHeading();
       loginPageLeaving = false;
       resumeGoogleForeground();
       if (event?.persisted) resumeGoogleHandoff();

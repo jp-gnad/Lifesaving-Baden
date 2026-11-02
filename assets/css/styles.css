@@ -825,6 +825,10 @@ body[data-page="app"] .dashboard > * {
   line-height: 1.08;
 }
 
+.auth-panel h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .auth-heading {
   display: flex;
   align-items: center;
@@ -3910,10 +3914,6 @@ body.auth-context-loading .member-apps::after {
     display: block;
     min-height: calc(100dvh - var(--mobile-header-height));
     padding: 34px 24px 40px;
-  }
-
-  body[data-page="login"] .site-footer {
-    display: none;
   }
 }
 

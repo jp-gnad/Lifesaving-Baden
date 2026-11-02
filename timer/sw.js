@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v43";
+const staticCache = "lifesaving-timer-static-firebase-v44";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",

@@ -1402,9 +1402,21 @@ function mobileEmailHarness(options = {}) {
   form.querySelector = (selector) => selector === 'input[name="email"]' ? email : selector === 'input[name="password"]' ? password : button;
   Object.defineProperties(form.fields, { email: { get: () => email.value }, password: { get: () => password.value } });
   const mobile = { matches: true, addEventListener(type, fn) { this.changed = fn; } };
-  h.window.matchMedia = (query) => query === "(max-width: 600px), (min-width: 1200px)" ? mobile : { matches: false };
+  h.window.matchMedia = (query) => ["(max-width: 600px), (min-width: 1200px)", "(max-width: 600px)"].includes(query) ? mobile : { matches: false };
   return { ...h, form, email, password, mobile };
 }
+
+test("opening or restoring mobile login focuses the heading without opening the email keyboard", () => {
+  const h = mobileEmailHarness();
+  h.login();
+  const heading = h.element("#auth-title");
+  assert.equal(heading.focused, true);
+  assert.notEqual(h.email.focused, true);
+  heading.focused = false;
+  h.callbacks.pageshow({ persisted: false });
+  assert.equal(heading.focused, true);
+  assert.notEqual(h.email.focused, true);
+});
 
 test("mobile email entry reveals the required password only after continuing and resets when the address changes", async () => {
   let requests = 0;
@@ -1602,7 +1614,8 @@ test("returning from the password step preserves the email and clears the passwo
   h.element("[data-change-email]").handlers.click();
   assert.equal(h.form.classList.contains("is-email-step"), true);
   assert.equal(h.email.value, "anna@example.test");
-  assert.equal(h.email.focused, true);
+  assert.equal(h.element("#auth-title").focused, true);
+  assert.notEqual(h.email.focused, true);
   assert.equal(h.password.value, "");
   assert.equal(h.password.required, false);
   assert.equal(summary.hidden, true);
