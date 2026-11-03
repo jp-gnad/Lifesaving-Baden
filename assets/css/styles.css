@@ -3606,6 +3606,69 @@ body.auth-context-loading .member-apps::after {
   }
 }
 
+@media (max-width: 700px) {
+  body:is([data-page="app"], [data-page="admin-accounts"]) {
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
+  }
+
+  :is(body[data-page="app"], body[data-page="admin-accounts"]) .dashboard {
+    flex: 1 0 auto;
+    min-height: 0;
+    padding-top: 0;
+  }
+
+  :is(body[data-page="app"], body[data-page="admin-accounts"]) .dashboard-header {
+    min-height: 0;
+    margin-top: 0;
+    margin-bottom: 24px;
+    padding-block: 28px;
+  }
+
+  :is(body[data-page="app"], body[data-page="admin-accounts"]) .dashboard-header h1 {
+    font-size: clamp(1.75rem, 6vw, 2.1rem);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  :is(body[data-page="app"], body[data-page="admin-accounts"]) .dashboard-header p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .member-apps .eyebrow {
+    margin: 0 0 16px;
+  }
+
+  .member-app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 78px);
+    gap: 24px 20px;
+  }
+
+  .member-app {
+    min-height: 96px;
+    grid-template-rows: 68px auto;
+    align-content: start;
+  }
+
+  .admin-panel-heading {
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .admin-panel-heading .button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .admin-account-search {
+    max-width: none;
+    margin-top: 0;
+  }
+}
+
 @media (max-width: 520px) {
   .legal-page {
     width: min(100% - 28px, 1040px);
