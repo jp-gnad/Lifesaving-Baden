@@ -374,7 +374,7 @@
     });
   }
 
-  if (page === "app" || page === "settings" || page === "link-request") {
+  if (["app", "settings", "link-request", "admin-accounts"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -547,6 +547,10 @@
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
           const role = getAccountRole(userData, claims);
+          if (page === "admin-accounts" && !role.isAdmin) {
+            redirectToApp();
+            return;
+          }
           updateRoleUi(role);
           const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest];
           for (const initialize of initializers) {
@@ -961,7 +965,8 @@
       const role = getAccountRole(data, claims);
 
       updateRoleUi(role);
-      await initAdminAccounts(auth, role);
+      if (page === "admin-accounts") await initAdminAccounts(auth, role);
+      if (page === "app" && role.isAdmin) initAdminAccountBadge(auth);
     } catch (error) {
       updateRoleUi(getDefaultAccountRole());
     }
@@ -1213,6 +1218,75 @@
     return hasPendingLinkRequest(data) || hasOpenLinkIssue(data);
   }
 
+  async function countAdminNotifications(user) {
+    const token = await user.getIdToken();
+    const field = (fieldPath, value) => ({ fieldFilter: { field: { fieldPath }, op: "EQUAL", value: { stringValue: value } } });
+    const filters = [
+      { compositeFilter: { op: "OR", filters: [field("personLinkStatus", "requested"), field("personLinkRequest.status", "requested")] } },
+      field("personLinkIssue.status", "reported")
+    ];
+    // Aggregations return counts without downloading the account documents.
+    const counts = await Promise.all(filters.map(async (where) => {
+      const response = await fetch(`https://firestore.googleapis.com/v1/projects/${window.firebaseConfig.projectId}/databases/(default)/documents:runAggregationQuery`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ structuredAggregationQuery: {
+          structuredQuery: { from: [{ collectionId: "users" }], where },
+          aggregations: [{ alias: "total", count: {} }]
+        } })
+      });
+      if (!response.ok) throw new Error("Benachrichtigungen konnten nicht geladen werden.");
+      const results = await response.json();
+      return Number(results.find((row) => row.result)?.result.aggregateFields.total.integerValue || 0);
+    }));
+    return counts.reduce((sum, count) => sum + count, 0);
+  }
+
+  function initAdminAccountBadge(auth) {
+    const badge = document.querySelector("[data-admin-notification-count]");
+    if (!badge || badge.dataset.listenerAttached) return;
+    badge.dataset.listenerAttached = "true";
+    const app = badge.closest("a");
+    let loading = false;
+    const refresh = async () => {
+      const user = auth.currentUser;
+      if (loading || !user || document.visibilityState === "hidden") return;
+      loading = true;
+      try {
+        const count = await countAdminNotifications(user);
+        if (!isCurrentUser(user)) return;
+        badge.textContent = String(count);
+        badge.hidden = count === 0;
+        app.setAttribute("aria-label", count ? `Kontenübersicht öffnen, ${count} offene Anträge und Meldungen` : "Kontenübersicht öffnen");
+        app.removeAttribute("title");
+      } catch {
+        if (isCurrentUser(user)) app.title = "Benachrichtigungen konnten nicht geladen werden.";
+      } finally {
+        loading = false;
+      }
+    };
+    refresh();
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", refresh);
+  }
+
+  function filterAdminAccounts() {
+    const { list } = getAdminAccountControls();
+    const input = document.querySelector("[data-admin-account-search]");
+    const summary = document.querySelector("[data-admin-account-search-summary]");
+    if (!list || !input || !summary) return;
+    const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("de");
+    const terms = normalize(input.value).trim().split(/\s+/).filter(Boolean);
+    const cards = Array.from(list.querySelectorAll("[data-admin-account-card]"));
+    let visible = 0;
+    cards.forEach((card) => {
+      const text = normalize([card.dataset.accountSearch, card.dataset.linkedPersonId, getAdminAccountRoleLabel(card.dataset.accountRoleValue)].join(" "));
+      card.hidden = !terms.every((term) => text.includes(term));
+      if (!card.hidden) visible++;
+    });
+    summary.textContent = terms.length ? `${visible} von ${cards.length} Konten gefunden.` : "";
+  }
+
   function getAdminAttentionTimestamp(data) {
     if (hasOpenLinkIssue(data)) {
       return getTimestampMillis(data?.personLinkIssue?.reportedAt);
@@ -1393,7 +1467,7 @@
     const saveButton = card?.querySelector("[data-admin-account-save]");
     const cancelButton = card?.querySelector("[data-admin-account-cancel]");
 
-    if (!card || card.dataset.accountRoleValue === "admin" || !display || !editor || !input || !editButton || !saveButton || !cancelButton) {
+    if (!card || !display || !editor || !input || !editButton || !saveButton || !cancelButton) {
       return;
     }
 
@@ -1460,7 +1534,7 @@
     const card = document.createElement("article");
     const identity = document.createElement("div");
     const titleRow = document.createElement("div");
-    const name = hasAttention ? document.createElement("button") : document.createElement("h3");
+    const name = document.createElement("button");
     const branch = document.createElement("p");
     const roleLabel = document.createElement("label");
     const roleText = document.createElement("span");
@@ -1492,6 +1566,7 @@
     card.dataset.hasLinkIssue = String(hasOpenIssue);
     card.dataset.hasAdminAttention = String(hasAttention);
     card.dataset.accountName = accountName;
+    card.dataset.accountSearch = [accountName, data.email, request.accountEmail, issue.accountEmail, getAdminAccountBranch(data)].filter(Boolean).join(" ");
     card.dataset.linkedPersonId = linkedId;
     updateAdminAccountCardRole(card, roleValue);
 
@@ -1504,23 +1579,20 @@
       requestAlert.className = "admin-account-alert";
       requestAlert.textContent = "!";
       requestAlert.title = hasOpenIssue ? "Gemeldeter Verknüpfungsfehler" : "Offener Verknüpfungsantrag";
-      name.className = "admin-request-toggle admin-account-toggle";
-      name.type = "button";
-      name.textContent = `${accountName} (${getAdminAccountBirthYear(data)})`;
-      name.dataset.adminAccountToggle = "";
-      name.setAttribute("aria-expanded", "false");
-      name.setAttribute("aria-controls", detailsId);
-      titleRow.append(requestAlert, name);
-    } else {
-      name.className = "admin-account-title";
-      name.textContent = `${accountName} (${getAdminAccountBirthYear(data)})`;
-      titleRow.append(name);
+      titleRow.append(requestAlert);
     }
+    name.className = "admin-request-toggle admin-account-toggle";
+    name.type = "button";
+    name.textContent = `${accountName} (${getAdminAccountBirthYear(data)})`;
+    name.dataset.adminAccountToggle = "";
+    name.setAttribute("aria-expanded", "false");
+    name.setAttribute("aria-controls", detailsId);
+    titleRow.append(name);
 
     const accountBranch = getAdminAccountBranch(data);
 
     if (accountBranch) {
-      branch.textContent = `DLRG ${accountBranch}`;
+      branch.textContent = accountBranch;
       identity.append(titleRow, branch);
     } else {
       identity.append(titleRow);
@@ -1554,12 +1626,13 @@
     linkedIdInput.type = "text";
     linkedIdInput.value = linkedId;
     linkedIdInput.placeholder = hasOpenRequest ? "Personen-ID zum Verknüpfen" : "Personen-ID";
+    linkedIdInput.setAttribute("aria-label", "Personen-ID");
     linkedIdInput.dataset.adminAccountLinkId = "";
     linkedIdInput.dataset.previousValue = linkedId;
     linkEditor.append(linkedIdInput);
 
     linkControls.append(linkDisplay);
-    if (roleValue !== "admin") linkControls.append(linkEditor);
+    linkControls.append(linkEditor);
     linkField.append(linkTitle, linkControls);
 
     cardActions.className = "admin-account-actions";
@@ -1569,28 +1642,27 @@
     cancelAccountButton.setAttribute("aria-hidden", "true");
     cardActions.append(editAccountButton, saveAccountButton, cancelAccountButton);
 
-    card.append(identity, roleLabel, linkField);
-    if (roleValue !== "admin") card.append(cardActions);
+    card.append(identity, roleLabel, linkField, cardActions);
 
+    detailsShell.className = "admin-account-details-shell";
+    detailsShell.id = detailsId;
+    detailsShell.hidden = true;
+    detailsShell.setAttribute("aria-hidden", "true");
+
+    details.className = "admin-request-details";
+    appendAdminRequestDetail(details, "E-Mail", data.email || request.accountEmail || issue.accountEmail || "Keine E-Mail gespeichert");
+    if (hasOpenIssue) {
+      appendAdminRequestDetail(details, "Status", "Verknüpfungsfehler gemeldet");
+      appendAdminRequestDetail(details, "Personen-ID", linkedId);
+      appendAdminRequestDetail(details, "Meldung", issue.message || "Verknüpfung stimmt nicht mit der Person überein.");
+    } else if (hasOpenRequest) {
+      appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
+      appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
+      appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
+    }
+
+    detailsShell.append(details);
     if (hasAttention) {
-      detailsShell.className = "admin-account-details-shell";
-      detailsShell.id = detailsId;
-      detailsShell.hidden = true;
-      detailsShell.setAttribute("aria-hidden", "true");
-
-      details.className = "admin-request-details";
-      if (hasOpenIssue) {
-        appendAdminRequestDetail(details, "Status", "Verknüpfungsfehler gemeldet");
-        appendAdminRequestDetail(details, "Personen-ID", linkedId);
-        appendAdminRequestDetail(details, "Meldung", issue.message || "Verknüpfung stimmt nicht mit der Person überein.");
-        appendAdminRequestDetail(details, "E-Mail", issue.accountEmail || data.email || "Keine E-Mail gespeichert");
-      } else {
-        appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-        appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
-        appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
-        appendAdminRequestDetail(details, "E-Mail", request.accountEmail || data.email || "Keine E-Mail gespeichert");
-      }
-
       actions.className = "admin-request-actions admin-account-request-actions";
       approveButton.type = "button";
       rejectButton.type = "button";
@@ -1612,10 +1684,9 @@
       }
 
       actions.append(approveButton, rejectButton);
-      detailsShell.append(details);
-      if (roleValue !== "admin") detailsShell.append(actions);
-      card.append(detailsShell);
+      detailsShell.append(actions);
     }
+    card.append(detailsShell);
 
     return card;
   }
@@ -1650,23 +1721,25 @@
       emptyState.textContent = "Keine Konten gefunden.";
       list.append(emptyState);
       setAdminAccountSummary("Keine Konten gefunden.");
+      filterAdminAccounts();
       return;
     }
 
     accounts.forEach((account) => {
       list.append(createAdminAccountCard(account));
     });
+    filterAdminAccounts();
 
     const pendingCount = accounts.filter((account) => hasPendingLinkRequest(account.data)).length;
     const issueCount = accounts.filter((account) => hasOpenLinkIssue(account.data)).length;
     const attentionParts = [];
 
     if (pendingCount) {
-      attentionParts.push(`${pendingCount} offene Anträge`);
+      attentionParts.push(pendingCount === 1 ? "1 offener Antrag" : `${pendingCount} offene Anträge`);
     }
 
     if (issueCount) {
-      attentionParts.push(`${issueCount} gemeldete Fehler`);
+      attentionParts.push(issueCount === 1 ? "1 gemeldeter Fehler" : `${issueCount} gemeldete Fehler`);
     }
 
     setAdminAccountSummary(
@@ -1690,7 +1763,6 @@
 
       const snapshot = await window.firebase.firestore()
         .collection("users")
-        .limit(200)
         .get({ source: "server" });
       const accounts = snapshot.docs
         .map((doc) => ({ uid: doc.id, data: doc.data() || {} }))
@@ -1735,7 +1807,7 @@
     const input = card?.querySelector("[data-admin-account-link-id]");
     const hasOpenRequest = card?.dataset.hasPendingRequest === "true";
 
-    if (!targetUid || !user || !input || card?.dataset.accountRoleValue === "admin") {
+    if (!targetUid || !user || !input) {
       setAdminAccountMessage("Die Änderungen können gerade nicht gespeichert werden.", false);
       return;
     }
@@ -1745,7 +1817,7 @@
     const roleChanged = roleSelect && nextRole !== previousRole;
     const idChanged = nextId !== previousId;
 
-    if (roleSelect && !["standard", "athlete", "trainer", "organizer"].includes(nextRole)) {
+    if (roleSelect && (previousRole === "admin" || !["standard", "athlete", "trainer", "organizer"].includes(nextRole))) {
       roleSelect.value = previousRole;
       setAdminAccountMessage("Diese Rolle kann hier nicht vergeben werden.", false);
       return;
@@ -1804,6 +1876,7 @@
       }
 
       setAdminAccountLinkedIdDisplay(card, nextId);
+      filterAdminAccounts();
       setAdminAccountEditMode(card, false);
 
       if (hasOpenRequest && idChanged && nextId) {
@@ -1840,7 +1913,7 @@
       || card?.querySelector("[data-admin-account-link-id]")?.value.trim()
       || "";
 
-    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRoleValue === "admin") {
+    if (!user || !targetUid || !window.firebase.firestore) {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
       return;
     }
@@ -1908,7 +1981,7 @@
     const action = button.dataset.adminAccountIssueAction;
     const status = action === "resolve" ? "resolved" : "cancelled";
 
-    if (!user || !targetUid || !window.firebase.firestore || card?.dataset.accountRoleValue === "admin") {
+    if (!user || !targetUid || !window.firebase.firestore) {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
       return;
     }
@@ -1959,6 +2032,7 @@
 
     if (!list.dataset.listenerAttached) {
       list.dataset.listenerAttached = "true";
+      document.querySelector("[data-admin-account-search]")?.addEventListener("input", filterAdminAccounts);
       list.addEventListener("click", (event) => {
         const toggleButton = event.target.closest("[data-admin-account-toggle]");
         const actionButton = event.target.closest("[data-admin-account-request-action]");

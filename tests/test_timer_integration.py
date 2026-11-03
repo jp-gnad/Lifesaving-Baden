@@ -235,7 +235,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", login)
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
         self.assertIn("login.js?v=20261102-login-layouts-v48", login)
-        self.assertIn("auth.js?v=20261101-profile-card-v12", app)
+        self.assertIn("auth.js?v=20261103-admin-accounts-v14", app)
         self.assertIn("auth-core.js?v=20261101-settings-v11", login)
         self.assertIn("auth-core.js?v=20261101-settings-v11", app)
         self.assertIn("loadFreshUserContext(activeUser)", auth)

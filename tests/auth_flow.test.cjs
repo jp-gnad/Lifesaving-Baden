@@ -1160,7 +1160,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, saveAdminAccountChanges, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1231,7 +1231,7 @@ test("timer permissions match every role threshold and keep management away from
 });
 
 
-test("admin account cards expose no editors or request actions while other roles keep their controls", () => {
+test("admin account cards allow person linking while only other roles expose a role selector", () => {
   const h = harness();
   const functions = memberFunctions(h);
   h.document.createElement = (tagName) => ({
@@ -1246,14 +1246,51 @@ test("admin account cards expose no editors or request actions while other roles
     const select = nodes.find((node) => node.tagName === "select");
     if (role === "admin") {
       assert.equal(select, undefined);
-      assert.equal(nodes.some((node) => node.tagName === "input"), false);
-      for (const action of ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction", "adminAccountIssueAction"]) {
-        assert.equal(nodes.some((node) => action in node.dataset), false);
-      }
     } else {
       assert.deepEqual(select.children.map((option) => option.value), ["organizer", "trainer", "athlete", "standard"]);
-      assert.equal(nodes.some((node) => "adminAccountEdit" in node.dataset), true);
     }
+    assert.equal(nodes.some((node) => node.tagName === "input"), true);
+    for (const action of ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction"]) {
+      assert.equal(nodes.some((node) => action in node.dataset), true);
+    }
+  }
+  const issueCard = functions.createAdminAccountCard({ uid: "admin", data: { role: "admin", personLinkIssue: { status: "reported" } } });
+  assert.equal(all(issueCard).some((node) => "adminAccountIssueAction" in node.dataset), true);
+});
+
+test("saving a person link on own and other admin accounts never writes roles or admin flags", async () => {
+  for (const targetUid of ["admin", "other-admin"]) {
+    const h = harness({ user: { uid: "admin" } });
+    const functions = memberFunctions(h);
+    const writes = [];
+    const firestore = () => ({ collection: () => ({ doc: (uid) => ({ update: async (data) => writes.push({ uid, data }) }) }) });
+    firestore.FieldValue = { serverTimestamp: () => "timestamp", delete: () => "delete-field" };
+    h.window.firebase.firestore = firestore;
+    const controls = new Map();
+    for (const selector of ["[data-admin-account-role-display]", ".admin-link-display", ".admin-link-editor", "[data-admin-account-link-id]", "[data-admin-account-link-value]", "[data-admin-account-edit]", "[data-admin-account-save]", "[data-admin-account-cancel]"]) {
+      controls.set(selector, { dataset: {}, classList: { toggle() {} }, setAttribute() {}, focus() {}, select() {} });
+    }
+    const card = {
+      dataset: { targetUid, accountRoleValue: "admin", linkedPersonId: "" },
+      classList: { toggle() {} },
+      querySelector: (selector) => controls.get(selector),
+      querySelectorAll: () => [...controls.values()],
+    };
+    const button = { closest: () => card };
+    functions.setAdminAccountEditMode(card, true);
+    assert.equal(controls.get(".admin-link-editor").hidden, false);
+    assert.notEqual(controls.get("[data-admin-account-role-display]").hidden, true);
+    controls.get("[data-admin-account-link-id]").value = " person-123 ";
+    await functions.saveAdminAccountChanges(h.auth, button);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].uid, targetUid);
+    assert.equal(writes[0].data.linkedPersonId, "person-123");
+    assert.equal(writes[0].data.personLinked, true);
+    assert.equal(card.dataset.accountRoleValue, "admin");
+    for (const field of ["role", "admin", "isAdmin", "kader", "isKaderAthlete"]) assert.equal(field in writes[0].data, false);
+    controls.set("[data-admin-account-role]", { value: "standard" });
+    await functions.saveAdminAccountChanges(h.auth, button);
+    assert.equal(writes.length, 1);
   }
 });
 
@@ -1269,6 +1306,132 @@ test("admin settings allow provider management while account deletion remains bl
     assert.equal(mutations, expected, action);
     assert.equal(h.counts.writes.length, expected ? 1 : 0, action);
     for (const payload of h.counts.writes) assert.equal("role" in payload, false);
+  }
+});
+
+test("member home does not load the admin account list", async () => {
+  const h = harness({ user: { uid: "admin" } });
+  h.document.body.dataset.page = "app";
+  const functions = memberFunctions(h);
+  let accountReads = 0;
+  h.window.firebase.firestore = () => ({ collection() { accountReads++; throw new Error("Unexpected account list read"); } });
+  await functions.initAdminStatus(h.auth, { role: "admin" });
+  assert.equal(accountReads, 0);
+  assert.equal(source("app.html").includes("data-admin-account-list"), false);
+  assert.equal(source("admin-accounts.html").includes("data-admin-account-list"), true);
+});
+
+test("opening the accounts page with a non-admin account returns to member home", async () => {
+  const h = harness({ user: { uid: "trainer", emailVerified: true }, stored: { role: "trainer" }, url: "https://example.test/club/admin-accounts.html" });
+  h.document.body.dataset.page = "admin-accounts";
+  h.document.body.classList = { remove() {} };
+  h.document.querySelector = () => null;
+  vm.runInContext(source("assets/js/auth.js"), h.context);
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
+});
+
+test("admin badge uses count-only queries, combines both pending request formats, and adds open issues", async () => {
+  const user = { uid: "admin", getIdToken: async () => "synthetic-token" };
+  const h = harness({ user });
+  const functions = memberFunctions(h);
+  h.window.firebaseConfig.projectId = "demo-lifesaving-baden";
+  const requests = [];
+  h.context.fetch = async (url, options) => {
+    requests.push({ url, ...options });
+    const count = requests.length === 1 ? "2" : "1";
+    return { ok: true, json: async () => [{ result: { aggregateFields: { total: { integerValue: count } } } }] };
+  };
+  assert.equal(await functions.countAdminNotifications(user), 3);
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.url.endsWith("/documents:runAggregationQuery"), true);
+    assert.equal(request.headers.Authorization, "Bearer synthetic-token");
+    const aggregation = JSON.parse(request.body).structuredAggregationQuery;
+    assert.deepEqual(aggregation.aggregations, [{ alias: "total", count: {} }]);
+  }
+  const pending = JSON.parse(requests[0].body).structuredAggregationQuery.structuredQuery.where.compositeFilter;
+  assert.equal(pending.op, "OR");
+  assert.deepEqual(pending.filters.map((filter) => filter.fieldFilter.field.fieldPath), ["personLinkStatus", "personLinkRequest.status"]);
+  h.context.fetch = async () => ({ ok: false });
+  await assert.rejects(functions.countAdminNotifications(user));
+});
+
+test("admin badge hides at zero and refreshes after returning to the member page", async () => {
+  const h = harness({ user: { uid: "admin", getIdToken: async () => "synthetic-token" } });
+  const functions = memberFunctions(h);
+  let count = 0;
+  const attributes = new Map();
+  const app = { setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) };
+  const badge = { dataset: {}, hidden: true, closest: () => app };
+  h.document.querySelector = (selector) => selector === "[data-admin-notification-count]" ? badge : null;
+  h.context.fetch = async () => ({ ok: true, json: async () => [{ result: { aggregateFields: { total: { integerValue: String(count) } } } }] });
+  functions.initAdminAccountBadge(h.auth);
+  await new Promise(setImmediate);
+  assert.equal(badge.hidden, true);
+  count = 1;
+  await h.callbacks.pageshow();
+  assert.equal(badge.textContent, "2");
+  assert.equal(badge.hidden, false);
+  assert.match(attributes.get("aria-label"), /2 offene/);
+  h.context.fetch = async () => ({ ok: false });
+  await h.callbacks.pageshow();
+  assert.equal(badge.textContent, "2");
+  assert.match(app.title, /nicht geladen/);
+});
+
+test("admin search combines name, email, branch, person ID and current role without database reads", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  const cards = [
+    { dataset: { accountSearch: "Anna Müller anna@example.test Baden", linkedPersonId: "p-123", accountRoleValue: "trainer" } },
+    { dataset: { accountSearch: "Ben Nord ben@example.test Heidelberg", linkedPersonId: "p-456", accountRoleValue: "standard" } },
+  ];
+  const input = { value: "" };
+  const summary = {};
+  h.document.querySelector = (selector) => ({
+    "[data-admin-account-list]": { querySelectorAll: () => cards },
+    "[data-admin-account-search]": input,
+    "[data-admin-account-search-summary]": summary,
+  })[selector] || null;
+  for (const query of ["muller anna", "anna@example.test", "baden", "p-123", "trainer"]) {
+    input.value = query;
+    functions.filterAdminAccounts();
+    assert.deepEqual(cards.map((card) => card.hidden), [false, true]);
+    assert.equal(summary.textContent, "1 von 2 Konten gefunden.");
+  }
+  input.value = "unbekannt";
+  functions.filterAdminAccounts();
+  assert.deepEqual(cards.map((card) => card.hidden), [true, true]);
+  input.value = "";
+  functions.filterAdminAccounts();
+  assert.deepEqual(cards.map((card) => card.hidden), [false, false]);
+  assert.equal(summary.textContent, "");
+});
+
+test("every account name expands its email and branches have no added DLRG prefix", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  h.document.createElement = (tagName) => ({
+    tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
+    append(...children) { this.children.push(...children); },
+    setAttribute(key, value) { this.attributes[key] = value; },
+    getAttribute(key) { return this.attributes[key]; },
+  });
+  const all = (node) => [node, ...node.children.flatMap(all)];
+  for (const role of ["admin", "standard"]) {
+    const nodes = all(functions.createAdminAccountCard({ uid: role, data: { role, email: "anna@example.test", dlrgBranch: "Baden" } }));
+    const toggle = nodes.find((node) => "adminAccountToggle" in node.dataset);
+    const details = nodes.find((node) => node.id === toggle.getAttribute("aria-controls"));
+    assert.equal(details.hidden, true);
+    assert.equal(all(details).some((node) => node.textContent === "anna@example.test"), true);
+    assert.equal(nodes.some((node) => node.tagName === "p" && node.textContent === "Baden"), true);
+    h.document.getElementById = () => details;
+    functions.toggleAdminAccountDetails(toggle);
+    assert.equal(details.hidden, false);
+    functions.toggleAdminAccountDetails(toggle);
+    assert.equal(details.hidden, true);
   }
 });
 

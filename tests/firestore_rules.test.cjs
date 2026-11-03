@@ -100,7 +100,7 @@ test("admins can edit their own profile but nobody can demote or delete admin ac
     for (const uid of ["admin", "other"]) {
       const ref = sdk.doc(dbFor(uid), "users/admin");
       const profileCheck = uid === "admin" ? assertSucceeds : assertFails;
-      await profileCheck(sdk.updateDoc(ref, { displayName: "Geändert", privateProfile: true, birthDate: "2000-01-01" }));
+      await profileCheck(sdk.updateDoc(ref, { displayName: `Geändert ${uid}`, privateProfile: true, birthDate: "2000-01-01" }));
       await assertFails(sdk.updateDoc(ref, { role: "standard", admin: false, isAdmin: false }));
       await assertFails(sdk.deleteDoc(ref));
     }
@@ -129,4 +129,60 @@ test("only admins can assign non-admin roles; legacy athlete flags can be remove
   await assertFails(sdk.getDoc(sdk.doc(dbFor("user"), "timerEvents/athlete/participants/p")));
   for (const role of ["standard", "sportler"]) await assertSucceeds(sdk.setDoc(sdk.doc(dbFor(`new-${role}`), `users/new-${role}`), { role }));
   for (const role of ["athlete", "trainer", "organizer", "admin"]) await assertFails(sdk.setDoc(sdk.doc(dbFor(`new-${role}`), `users/new-${role}`), { role }));
+});
+
+test("admins can manage person links on admin accounts without changing protected account data", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/admin": { role: "admin" }, "users/trainer": { role: "trainer" } });
+  for (const marker of [{ role: "admin" }, { role: " ADMIN " }, { admin: true }, { isAdmin: true }]) {
+    await seed({ "users/target-admin": marker });
+    for (const uid of ["admin", "target-admin"]) {
+      const ref = sdk.doc(dbFor(uid), "users/target-admin");
+      await assertSucceeds(sdk.updateDoc(ref, {
+        linkedPersonId: "person-123", personLinkStatus: "linked", personLinked: true,
+        personLinkRequest: sdk.deleteField(), personLinkIdentityHint: sdk.deleteField(),
+        personLinkDecision: { status: "linked", personId: "person-123", decidedByUid: uid },
+        updatedAt: sdk.serverTimestamp(),
+      }));
+      await assertSucceeds(sdk.updateDoc(ref, {
+        "personLinkIssue.status": "resolved", "personLinkIssue.decidedByUid": uid,
+        updatedAt: sdk.serverTimestamp(),
+      }));
+      const forbiddenChanges = [{ role: "standard" }, { admin: false }, { isAdmin: false }, { organizer: true }, { kader: true }];
+      if ("role" in marker) forbiddenChanges.push({ role: sdk.deleteField() });
+      for (const forbidden of forbiddenChanges) {
+        await assertFails(sdk.updateDoc(ref, { linkedPersonId: "person-456", ...forbidden }));
+      }
+      await assertFails(sdk.deleteDoc(ref));
+      await assertSucceeds(sdk.updateDoc(ref, {
+        linkedPersonId: sdk.deleteField(), personId: sdk.deleteField(), personLinkStatus: "open", personLinked: false,
+      }));
+    }
+    const trainer = sdk.doc(dbFor("trainer"), "users/target-admin");
+    await assertFails(sdk.updateDoc(trainer, { linkedPersonId: "person-123", personLinked: true }));
+    const otherAdmin = sdk.doc(dbFor("admin"), "users/target-admin");
+    await assertFails(sdk.updateDoc(otherAdmin, { linkedPersonId: "person-123", displayName: "Unzulässig" }));
+  }
+});
+
+test("notification aggregations count open requests and issues without returning account documents and stay admin-only", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({
+    "users/admin": { role: "admin" }, "users/trainer": { role: "trainer" },
+    "users/current": { personLinkStatus: "requested", personLinkRequest: { status: "requested" }, personLinkIssue: { status: "reported" } },
+    "users/legacy": { personLinkRequest: { status: "requested" } },
+    "users/status-only": { personLinkStatus: "requested" },
+    "users/issue": { personLinkIssue: { status: "reported" } },
+    "users/closed": { personLinkStatus: "linked", personLinkIssue: { status: "resolved" } },
+  });
+  const code = fs.readFileSync(path.join(__dirname, "../assets/js/auth.js"), "utf8");
+  const countCode = code.slice(code.indexOf("  async function countAdminNotifications"), code.indexOf("  function initAdminAccountBadge"));
+  const countNotifications = new Function("window", "fetch", `${countCode}; return countAdminNotifications;`)(
+    { firebaseConfig: { projectId: "demo-lifesaving-baden" } },
+    (url, options) => fetch(url.replace("https://firestore.googleapis.com", `http://${host}`), options)
+  );
+  const { createMockUserToken } = require("@firebase/util");
+  const user = (uid) => ({ getIdToken: async () => createMockUserToken({ sub: uid, email_verified: true }, "demo-lifesaving-baden") });
+  assert.equal(await countNotifications(user("admin")), 5);
+  await assert.rejects(countNotifications(user("trainer")));
 });

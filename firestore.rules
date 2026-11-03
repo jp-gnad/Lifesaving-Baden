@@ -205,12 +205,27 @@ service cloud.firestore {
         );
     }
 
+    function adminUpdatesOnlyPersonLink() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "linkedPersonId",
+        "personId",
+        "personLinkStatus",
+        "personLinked",
+        "personLinkRequest",
+        "personLinkIdentityHint",
+        "personLinkDecision",
+        "personLinkIssue",
+        "updatedAt"
+      ]);
+    }
+
     match /users/{uid} {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
       allow update: if (isOwner(uid) && ownerKeepsProtectedFieldsSafe())
-        || (isAdmin() && !adminAccount(resource.data) && adminKeepsAdminGrantSafe(uid));
+        || (isAdmin() && (adminAccount(resource.data)
+          ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid)));
       allow delete: if !adminAccount(resource.data)
         && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()));
     }

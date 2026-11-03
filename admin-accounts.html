@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin-Kontenübersicht von Lifesaving Baden.">
+    <meta name="theme-color" content="#0f0f12">
+    <link rel="manifest" href="manifest.webmanifest?v=20261101-project-app-v1">
+    <link rel="apple-touch-icon" href="timer/app-icon-180.png?v=baden-brand-v1" sizes="180x180">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
+    <title>Kontenübersicht - Lifesaving Baden</title>
+    <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-admin-accounts-v59">
+    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
+    <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth.js?v=20261103-admin-accounts-v14"></script>
+  </head>
+  <body class="auth-context-loading" data-page="admin-accounts">
+    <header class="site-header">
+      <a class="brand" href="app.html" aria-label="Lifesaving Baden Mitgliederbereich">
+        <span class="brand-mark" aria-hidden="true">
+          <img src="assets/img/lifesaving-baden-logo.png" alt="">
+        </span>
+        <span>Lifesaving Baden</span>
+      </a>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
+          <span class="account-avatar account-avatar-small">
+            <img class="is-hidden" src="" alt="" data-account-photo-small>
+            <span data-account-initials-small>?</span>
+          </span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="dashboard">
+      <p class="form-message" data-auth-error role="alert" hidden></p>
+      <section class="dashboard-header">
+        <p class="eyebrow">Admin</p>
+        <h1>Kontenübersicht</h1>
+        <a class="button button-ghost" href="app.html">← Mitgliederbereich</a>
+      </section>
+      <section class="card dashboard-action-card admin-account-panel is-hidden" data-admin-only data-admin-accounts aria-label="Konten verwalten">
+        <div class="admin-panel-heading">
+          <p data-admin-account-summary>Konten werden geladen.</p>
+          <button class="button button-secondary" type="button" data-admin-accounts-refresh>Aktualisieren</button>
+        </div>
+        <label class="admin-account-search">
+          Konten suchen
+          <input type="search" data-admin-account-search placeholder="Name, E-Mail, Gliederung oder Personen-ID" autocomplete="off">
+        </label>
+        <p class="admin-search-summary" data-admin-account-search-summary role="status"></p>
+        <p class="form-message" data-admin-account-message role="status"></p>
+        <div class="admin-account-list" data-admin-account-list></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span class="footer-brand">
+        <img class="moose-icon" src="assets/img/elch-gelb.png" alt="" aria-hidden="true">
+        Lifesaving Baden
+      </span>
+      <nav class="footer-links" aria-label="Fußnavigation">
+        <a href="impressum.html">Impressum</a>
+        <a href="datenschutz.html">Datenschutz</a>
+      </nav>
+    </footer>
+
+    <div class="account-overlay is-hidden" data-account-overlay aria-hidden="true">
+      <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+        <button class="account-close" type="button" data-account-close aria-label="Kontofenster schließen">&times;</button>
+
+        <p class="account-email" data-account-email>Keine E-Mail geladen.</p>
+
+        <div class="account-avatar account-avatar-large">
+          <img class="is-hidden" src="" alt="" data-account-photo-large>
+          <span data-account-initials-large>?</span>
+        </div>
+
+        <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
+        <p class="account-name-line account-role-line">Status: <strong data-account-role>Standard</strong></p>
+
+        <a class="button button-secondary account-manage" href="account-settings.html">
+          <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 7h10"></path>
+            <path d="M18 7h2"></path>
+            <circle cx="16" cy="7" r="2"></circle>
+            <path d="M4 17h2"></path>
+            <path d="M10 17h10"></path>
+            <circle cx="8" cy="17" r="2"></circle>
+          </svg>
+          <span>Kontoeinstellungen</span>
+          <span class="account-manage-attention is-hidden" data-account-manage-attention aria-hidden="true" hidden>!</span>
+        </a>
+
+        <div class="account-actions">
+          <button class="account-action" type="button" data-logout>
+            <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M14 4h4a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-4"></path>
+            </svg>
+            <span>Abmelden</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
