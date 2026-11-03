@@ -2,6 +2,7 @@
   const mobile = window.matchMedia("(max-width: 1000px)");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const svgNamespace = "http://www.w3.org/2000/svg";
+  const opening = { delay: 100, stagger: 95, duration: 320, backdrop: 160 };
   let scrollLock = null;
 
   function lockPage(header) {
@@ -82,6 +83,15 @@
     root.className = "nav-level nav-root-level";
     root.append(...panel.childNodes);
     panel.append(backdrop, root);
+    const registration = Array.from(root.children).find((item) => item.matches("a[href]")
+      && new URL(item.href).pathname.endsWith("/login.html"));
+    let registrationMarker = null;
+    if (registration) {
+      registrationMarker = document.createComment("desktop registration position");
+      registration.before(registrationMarker);
+      registration.classList.add("nav-registration");
+      if (document.body.dataset.page === "login") registration.href = window.location.href;
+    }
     const levels = [root];
     const submenus = [];
     let current = root;
@@ -158,11 +168,18 @@
       });
     }
     prepare(root);
+    if (registration) {
+      const label = document.createElement("span");
+      label.className = "nav-registration-label";
+      label.textContent = "Jetzt Registrieren";
+      registration.append(label);
+    }
 
     function updateActive() {
       const normalize = (path) => path.replace(/\/index\.html$/, "/");
       const here = new URL(window.location.href);
-      const links = Array.from(panel.querySelectorAll("a[href]"));
+      const links = Array.from(panel.querySelectorAll("a[href]"))
+        .filter((link) => !link.classList.contains("nav-registration"));
       let active = links.filter((link) => {
         const target = new URL(link.href);
         return link.getAttribute("aria-current") === "page"
@@ -209,6 +226,7 @@
     }
 
     function enterMobile() {
+      if (registration) root.append(registration);
       submenus.forEach((item) => { panel.append(item.level); });
       showLevel(root);
       panel.inert = true;
@@ -231,6 +249,7 @@
         panel.setAttribute("aria-hidden", "true");
       } else {
         root.hidden = false;
+        if (registration) registrationMarker.parentNode.insertBefore(registration, registrationMarker);
         submenus.forEach((item) => {
           item.marker.parentNode.insertBefore(item.level, item.marker);
           item.level.hidden = item.hidden;
@@ -271,18 +290,20 @@
       if (!noMotion()) {
         visibleRows.forEach((row, index) => {
           const from = wasClosed ? { opacity: 0, transform: "translateX(3rem)" } : previous.get(row);
-          const delay = open ? 80 + index * 85 : (visibleRows.length - 1 - index) * 85;
+          const delay = open ? opening.delay + index * opening.stagger : (visibleRows.length - 1 - index) * 85;
           animate(row, [from, { opacity: open ? 1 : 0, transform: open ? "translateX(0)" : "translateX(3rem)" }], {
-            duration: open ? 280 : 220, delay,
+            duration: open ? opening.duration : 220, delay,
             easing: open ? "cubic-bezier(.22, .75, .25, 1)" : "cubic-bezier(.55, .05, .78, .3)",
           });
         });
-        const lastRowEnd = visibleRows.length ? (visibleRows.length - 1) * 85 + (open ? 360 : 220) : 0;
+        const lastRowEnd = visibleRows.length ? (open
+          ? opening.delay + (visibleRows.length - 1) * opening.stagger + opening.duration
+          : (visibleRows.length - 1) * 85 + 220) : 0;
         const fadeDelay = open ? 0 : Math.max(0, lastRowEnd - 20);
         animate(backdrop, [{ opacity: wasClosed ? 0 : previous.get(backdrop).opacity }, { opacity: open ? 1 : 0 }], {
-          duration: open ? 140 : 130, delay: fadeDelay, easing: open ? "ease-out" : "ease-in",
+          duration: open ? opening.backdrop : 130, delay: fadeDelay, easing: open ? "ease-out" : "ease-in",
         });
-        duration = Math.max(lastRowEnd, fadeDelay + (open ? 140 : 130));
+        duration = Math.max(lastRowEnd, fadeDelay + (open ? opening.backdrop : 130));
       } else {
         backdrop.style.opacity = open ? "1" : "0";
       }
@@ -312,7 +333,7 @@
       nav.classList.toggle("is-instant", noMotion());
       if (!noMotion()) rows().forEach((row, index) => {
         animate(row, [{ opacity: 0, transform: "translateX(3rem)" }, { opacity: 1, transform: "translateX(0)" }], {
-          duration: 280, delay: 80 + index * 85, easing: "cubic-bezier(.22, .75, .25, 1)",
+          duration: opening.duration, delay: opening.delay + index * opening.stagger, easing: "cubic-bezier(.22, .75, .25, 1)",
         });
       });
       phase = "open";

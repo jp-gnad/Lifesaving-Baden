@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <base href="../">
     <title>Mobile Navigation – Browsertest</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-mobile-menu-v56">
-    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v56">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-mobile-menu-v57">
+    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v57">
     <script>
       const query = new URLSearchParams(location.search);
       const animationLog = [];
@@ -21,7 +21,7 @@
           ? { matches: true, addEventListener() {} } : nativeMatchMedia(value);
       }
     </script>
-    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v56"></script>
+    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
   </head>
   <body>
     <header class="site-header">
@@ -29,7 +29,7 @@
       <nav class="nav" aria-label="Hauptnavigation">
         <button class="nav-menu-toggle" data-nav-toggle aria-expanded="false" aria-controls="test-navigation" aria-label="Menü öffnen"></button>
         <div class="nav-links" id="test-navigation" data-nav-links>
-          <a href="tests/mobile_nav.browser.html#first">Erster Hauptlink</a>
+          <a href="login.html">Anmelden</a>
           <a href="tests/mobile_nav.browser.html#second">Zweiter Hauptlink</a>
           <div id="parent-row">
             <a href="tests/mobile_nav.browser.html#parent-target">Bereich</a>
@@ -90,7 +90,7 @@
           .filter((row) => !row.hidden && getComputedStyle(row).display !== "none");
         const assert = (value, message) => { if (!value) throw new Error(message); };
         const record = (message) => { results.push(message); output.textContent = results.join("\n"); };
-        const settleOpen = () => sleep(reduce ? 0 : 80 + (visibleRows().length - 1) * 85 + 280 + 40);
+        const settleOpen = () => sleep(reduce ? 0 : 100 + (visibleRows().length - 1) * 95 + 320 + 40);
         const settleClose = (count) => sleep(reduce ? 0 : (count - 1) * 85 + 220 + 110 + 40);
         let accountCalls = 0;
         document.querySelector("[data-account-open]").addEventListener("click", () => { accountCalls++; });
@@ -112,15 +112,20 @@
             assert(Math.abs(panel.getBoundingClientRect().bottom - innerHeight) < 1, "Menü muss bis zum unteren Rand reichen.");
             if (!reduce) {
               const rows = animationLog.filter((item) => item.target.classList.contains("nav-row"));
-              assert(rows.every((item, index) => item.options.delay === 80 + index * 85 && item.options.duration === 280), "Öffnungsdauer und Staffelung");
+              assert(rows.every((item, index) => item.options.delay === 100 + index * 95 && item.options.duration === 320), "Öffnungsdauer und Staffelung");
               assert(rows.every((item) => item.options.easing === "cubic-bezier(.22, .75, .25, 1)"), "Öffnungs-Easing");
               const background = animationLog.find((item) => item.target.classList.contains("nav-backdrop"));
-              assert(background.options.duration === 140 && background.options.easing === "ease-out", "Hintergrund einblenden");
+              assert(background.options.duration === 160 && background.options.easing === "ease-out", "Hintergrund einblenden");
             } else assert(nav.dataset.navState === "open" && animationLog.length === 0, "Reduzierte Bewegung muss sofort öffnen.");
             await settleOpen();
             assert(visibleRows().every((row) => getComputedStyle(row).opacity === "1"), "Alle Zeilen müssen sichtbar sein.");
             assert(document.querySelector("#parent-row").classList.contains("is-current-section"), "Aktiver Unterpunkt muss den Hauptbereich kennzeichnen.");
             assert(getComputedStyle(root.querySelector('[href$="#long"] .nav-link-label')).textOverflow === "ellipsis", "Lange Beschriftungen");
+            const registration = root.querySelector(".nav-registration");
+            assert(registration === root.lastElementChild, "Registrierungslink muss unter den großen Zeilen stehen.");
+            assert(getComputedStyle(registration).fontSize === "12px" && getComputedStyle(registration).justifyContent === "center", "Registrierungslink muss klein und zentriert sein.");
+            assert(getComputedStyle(registration.querySelector(".nav-link-label")).display === "none", "Anmelden darf keine große Menüzeile mehr sein.");
+            assert(registration.querySelector(".nav-registration-label").textContent === "Jetzt Registrieren", "Registrierungsbeschriftung");
             record("Öffnen, Reihenfolge, aktive Icons, lange Texte und Scrollsperre: OK");
 
             animationLog.length = 0;
@@ -146,7 +151,7 @@
             const firstLink = root.querySelector("a");
             toggle.focus();
             toggle.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
-            assert(document.activeElement === root.querySelector('[href$="#last"]'), "Shift-Tab muss im Menü bleiben.");
+            assert(document.activeElement === registration, "Shift-Tab muss im Menü bleiben.");
             firstLink.focus();
             record("Schnelle Richtungswechsel und Tastaturführung: OK");
 
@@ -155,7 +160,7 @@
             await settleOpen();
             assert(document.querySelector("#first-level").hidden === false && root.hidden, "Untermenü muss die Hauptliste ersetzen.");
             assert(getComputedStyle(document.querySelector("#first-level > .nav-back")).fontWeight === "700", "Zurück-Zeile muss kräftig sein.");
-            if (!reduce) assert(animationLog.filter((item) => item.target.classList.contains("nav-row")).every((item, index) => item.options.delay === 80 + index * 85), "Untermenü muss erneut einblenden.");
+            if (!reduce) assert(animationLog.filter((item) => item.target.classList.contains("nav-row")).every((item, index) => item.options.delay === 100 + index * 95), "Untermenü muss erneut einblenden.");
             document.querySelector("#nested-row > .nav-submenu-toggle").click();
             await settleOpen();
             const deep = document.querySelector("#second-level");

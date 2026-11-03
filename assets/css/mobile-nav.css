@@ -4,7 +4,9 @@
 
 .nav-backdrop,
 .nav-submenu-toggle,
-.nav-back {
+.nav-back,
+.nav-registration-label,
+.nav-mobile-only {
   display: none;
 }
 
@@ -235,6 +237,34 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .nav .nav-level .nav-registration {
+    justify-content: center;
+    gap: 0;
+    padding: 1.25rem 1rem;
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, .8);
+    font-size: .8rem;
+    font-weight: 400;
+    text-align: center;
+  }
+
+  .nav .nav-level .nav-registration:hover {
+    background: transparent;
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .nav .nav-registration .nav-link-icon,
+  .nav .nav-registration .nav-link-label {
+    display: none;
+  }
+
+  .nav .nav-registration-label {
+    display: inline;
   }
 
   .nav .nav-link-icon {
