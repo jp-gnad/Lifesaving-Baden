@@ -841,7 +841,7 @@
     const isComplete = hasLoadedData && isAccountChecklistComplete(data);
 
     document.querySelectorAll("[data-account-attention], [data-account-manage-attention]").forEach((element) => {
-      const shouldHide = !hasLoadedData || isComplete;
+      const shouldHide = !hasLoadedData || (element.hasAttribute("data-account-attention") ? isPersonLinked(data) : isComplete);
 
       element.classList.toggle("is-hidden", shouldHide);
       element.hidden = shouldHide;
@@ -939,7 +939,15 @@
     });
 
     document.querySelectorAll("[data-link-indicator]").forEach((element) => {
-      element.classList.toggle("is-hidden", !hasLoadedData || !isLinked);
+      const shouldHide = !hasLoadedData || !isLinked;
+      element.classList.toggle("is-hidden", shouldHide);
+      element.hidden = shouldHide;
+    });
+
+    document.querySelectorAll("[data-account-open]").forEach((element) => {
+      element.setAttribute("aria-label", hasLoadedData
+        ? `Kontoprofil öffnen – Konto ${isLinked ? "verknüpft" : "nicht verknüpft"}`
+        : "Kontoprofil öffnen");
     });
 
     document.querySelectorAll("[data-link-status-action]").forEach((element) => {

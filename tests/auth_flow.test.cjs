@@ -505,6 +505,7 @@ test("cross-origin standalone installations keep the working popup path", async 
 
 test("direct Google sign-in exchanges the credential once, preserves the account and exact timer return, and logs no token", async () => {
   const h = directGoogleHarness();
+  h.element("[data-google-login]").parentElement = { clientWidth: 342 };
   const privateToken = "private-google-id-token";
   h.login();
   await new Promise(setImmediate);
@@ -512,6 +513,8 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.equal(h.identity.initializations[0].client_id, h.window.googleSignInClientId);
   assert.equal(h.identity.initializations[0].auto_select, false);
   assert.equal(h.identity.renders[0].config.theme, "filled_black");
+  assert.equal(h.identity.renders[0].config.size, "medium");
+  assert.equal(h.identity.renders[0].config.width, 342);
   assert.equal(h.element("[data-google-login]").hidden, true);
   h.identity.click();
   const first = h.identity.receive({ credential: privateToken });
@@ -1160,7 +1163,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1319,6 +1322,40 @@ test("member home does not load the admin account list", async () => {
   assert.equal(accountReads, 0);
   assert.equal(source("app.html").includes("data-admin-account-list"), false);
   assert.equal(source("admin-accounts.html").includes("data-admin-account-list"), true);
+});
+
+test("the profile link badge follows the person link while other profile notices keep their checklist state", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  const node = (attributes = []) => ({
+    hidden: true, attributes: {}, classList: { toggle() {} },
+    hasAttribute: (name) => attributes.includes(name),
+    setAttribute(name, value) { this.attributes[name] = value; },
+  });
+  const green = node();
+  const red = node(["data-account-attention"]);
+  const manage = node(["data-account-manage-attention"]);
+  const profile = node();
+  h.document.querySelectorAll = (selector) => ({
+    "[data-link-indicator]": [green],
+    "[data-account-open]": [profile],
+    "[data-account-attention], [data-account-manage-attention]": [red, manage],
+  })[selector] || [];
+  for (const data of [{ linkedPersonId: "p-123" }, { personId: "legacy" }]) {
+    functions.updateLinkStatusUi(data);
+    assert.equal(green.hidden, false);
+    assert.equal(red.hidden, true);
+    assert.equal(manage.hidden, false);
+    assert.match(profile.attributes["aria-label"], /Konto verknüpft/);
+  }
+  functions.updateLinkStatusUi({});
+  assert.equal(green.hidden, true);
+  assert.equal(red.hidden, false);
+  assert.match(profile.attributes["aria-label"], /nicht verknüpft/);
+  functions.updateLinkStatusUi(null);
+  assert.equal(green.hidden, true);
+  assert.equal(red.hidden, true);
+  assert.equal(profile.attributes["aria-label"], "Kontoprofil öffnen");
 });
 
 test("opening the accounts page with a non-admin account returns to member home", async () => {

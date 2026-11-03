@@ -398,10 +398,11 @@
             ux_mode: "popup",
           });
           identity.renderButton(googleIdentityButton, {
-            type: "standard", theme: "filled_black", size: "large",
+            // Medium prevents the personalized account preview; CSS supplies the shared 48px layout.
+            type: "standard", theme: "filled_black", size: "medium",
             text: "signin_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
-            width: Math.min(400, googleButton.clientWidth || 300),
+            width: Math.min(400, googleButton.parentElement?.clientWidth || googleButton.clientWidth || 300),
             click_listener: startDirectGoogle,
           });
           directGoogleReady = true;
