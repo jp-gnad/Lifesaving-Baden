@@ -4061,7 +4061,7 @@ body[data-page="login"] .auth-privacy a {
 
   body[data-page="login"] .auth-aside {
     display: block;
-    width: 300px;
+    width: calc(100% - 48px);
     height: 480px;
     margin: 0 auto;
     border-radius: 2px;
