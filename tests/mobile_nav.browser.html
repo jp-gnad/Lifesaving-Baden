@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="../">
+    <title>Mobile Navigation – Browsertest</title>
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-mobile-menu-v55">
+    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v55">
+    <script>
+      const query = new URLSearchParams(location.search);
+      const animationLog = [];
+      const nativeAnimate = Element.prototype.animate;
+      Element.prototype.animate = function (frames, options) {
+        animationLog.push({ target: this, frames, options });
+        return nativeAnimate.call(this, frames, options);
+      };
+      if (query.has("reduce")) {
+        const nativeMatchMedia = window.matchMedia.bind(window);
+        window.matchMedia = (value) => value === "(prefers-reduced-motion: reduce)"
+          ? { matches: true, addEventListener() {} } : nativeMatchMedia(value);
+      }
+    </script>
+    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v55"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html"><span class="brand-mark"><img src="assets/img/lifesaving-baden-logo.png" alt=""></span><span>Lifesaving Baden</span></a>
+      <nav class="nav" aria-label="Hauptnavigation">
+        <button class="nav-menu-toggle" data-nav-toggle aria-expanded="false" aria-controls="test-navigation" aria-label="Menü öffnen"></button>
+        <div class="nav-links" id="test-navigation" data-nav-links>
+          <a href="tests/mobile_nav.browser.html#first">Erster Hauptlink</a>
+          <a href="tests/mobile_nav.browser.html#second">Zweiter Hauptlink</a>
+          <div id="parent-row">
+            <a href="tests/mobile_nav.browser.html#parent-target">Bereich</a>
+            <div data-nav-submenu id="first-level">
+              <a href="tests/mobile_nav.browser.html#sub-one">Erster Unterpunkt</a>
+              <a href="tests/mobile_nav.browser.html#sub-two">Zweiter Unterpunkt</a>
+              <div id="nested-row">
+                <a href="tests/mobile_nav.browser.html#nested-target">Verschachtelter Bereich</a>
+                <div data-nav-submenu id="second-level">
+                  <a href="tests/mobile_nav.browser.html#active" aria-current="page">Aktiver Unterpunkt</a>
+                  <a href="#2">Unterpunkt 2</a><a href="#3">Unterpunkt 3</a><a href="#4">Unterpunkt 4</a>
+                  <a href="#5">Unterpunkt 5</a><a href="#6">Unterpunkt 6</a><a href="#7">Unterpunkt 7</a>
+                  <a href="#8">Unterpunkt 8</a><a href="#9">Unterpunkt 9</a><a href="#10">Unterpunkt 10</a>
+                  <a href="#11">Unterpunkt 11</a><a href="#12">Unterpunkt 12</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <a href="tests/mobile_nav.browser.html#long">Eine sehr lange Beschriftung, die auch auf einem kleinen Handy in einer Zeile mit Auslassungspunkten bleiben muss</a>
+          <a href="tests/mobile_nav.browser.html#last">Letzter Hauptlink</a>
+          <a href="#hidden" hidden>Unsichtbare Zeile</a>
+        </div>
+        <button type="button" data-account-open aria-label="Kontofunktion testen">Konto</button>
+      </nav>
+    </header>
+    <main style="min-height:2200px;padding:32px">
+      <h1>Navigationstest</h1>
+      <p>Lokale Testseite für Animationen, Untermenüs, Scrollsperre und Fokus.</p>
+      <button id="run-tests" type="button">Tests ausführen</button>
+      <pre id="test-results" role="status">Bereit.</pre>
+      <div id="parent-target" style="margin-top:800px">Hauptlink-Ziel</div>
+      <div inert id="already-inert">Bleibt inert.</div>
+    </main>
+    <script>
+      window.addEventListener("load", () => {
+        document.querySelectorAll("a[href]").forEach((link) => {
+          const target = new URL(link.href);
+          if (target.pathname === location.pathname) {
+            target.search = location.search;
+            link.href = target.href;
+          }
+        });
+        const output = document.querySelector("#test-results");
+        const toggle = document.querySelector("[data-nav-toggle]");
+        const nav = document.querySelector(".nav");
+        const panel = document.querySelector("[data-nav-links]");
+        const root = document.querySelector(".nav-root-level");
+        const reduce = query.has("reduce");
+        const results = [];
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const visibleRows = () => Array.from(panel.querySelector(".nav-level:not([hidden])").children).filter((row) => !row.hidden);
+        const assert = (value, message) => { if (!value) throw new Error(message); };
+        const record = (message) => { results.push(message); output.textContent = results.join("\n"); };
+        const settleOpen = () => sleep(reduce ? 0 : 80 + (visibleRows().length - 1) * 85 + 280 + 40);
+        const settleClose = (count) => sleep(reduce ? 0 : (count - 1) * 85 + 220 + 110 + 40);
+        let accountCalls = 0;
+        document.querySelector("[data-account-open]").addEventListener("click", () => { accountCalls++; });
+
+        document.querySelector("#run-tests").addEventListener("click", async () => {
+          output.dataset.status = "running";
+          results.length = 0;
+          try {
+            assert(innerWidth <= 1000, "Diese Testreihe benötigt die mobile Navigation.");
+            window.scrollTo({ top: 300, behavior: "instant" });
+            const savedScroll = scrollY;
+            animationLog.length = 0;
+            toggle.click();
+            const count = visibleRows().length;
+            assert(count === 5, "Versteckte Zeilen dürfen nicht mitgezählt werden.");
+            assert(toggle.getAttribute("aria-expanded") === "true", "aria-expanded beim Öffnen");
+            assert(document.body.style.position === "fixed", "Scrollsperre beim Öffnen");
+            assert(document.querySelector("main").inert, "Hintergrund muss inert sein.");
+            assert(Math.abs(panel.getBoundingClientRect().bottom - innerHeight) < 1, "Menü muss bis zum unteren Rand reichen.");
+            if (!reduce) {
+              const rows = animationLog.filter((item) => item.target.classList.contains("nav-row"));
+              assert(rows.every((item, index) => item.options.delay === 80 + index * 85 && item.options.duration === 280), "Öffnungsdauer und Staffelung");
+              assert(rows.every((item) => item.options.easing === "cubic-bezier(.22, .75, .25, 1)"), "Öffnungs-Easing");
+              const background = animationLog.find((item) => item.target.classList.contains("nav-backdrop"));
+              assert(background.options.duration === 140 && background.options.easing === "ease-out", "Hintergrund einblenden");
+            } else assert(nav.dataset.navState === "open" && animationLog.length === 0, "Reduzierte Bewegung muss sofort öffnen.");
+            await settleOpen();
+            assert(visibleRows().every((row) => getComputedStyle(row).opacity === "1"), "Alle Zeilen müssen sichtbar sein.");
+            assert(document.querySelector("#parent-row").classList.contains("is-current-section"), "Aktiver Unterpunkt muss den Hauptbereich kennzeichnen.");
+            assert(getComputedStyle(root.querySelector('[href$="#long"] .nav-link-label')).textOverflow === "ellipsis", "Lange Beschriftungen");
+            record("Öffnen, Reihenfolge, aktive Icons, lange Texte und Scrollsperre: OK");
+
+            animationLog.length = 0;
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+            assert(document.activeElement === toggle, "Escape muss den Fokus zurückgeben.");
+            if (!reduce) {
+              assert(nav.classList.contains("is-open") && document.documentElement.classList.contains("nav-open"), "Menü und Scrollsperre müssen während des Schließens bestehen bleiben.");
+              const rows = animationLog.filter((item) => item.target.classList.contains("nav-row"));
+              assert(rows.every((item, index) => item.options.delay === (count - 1 - index) * 85 && item.options.duration === 220), "Umgekehrte Schließstaffelung");
+              assert(rows.every((item) => item.options.easing === "cubic-bezier(.55, .05, .78, .3)"), "Schließ-Easing");
+              const background = animationLog.find((item) => item.target.classList.contains("nav-backdrop"));
+              assert(background.options.delay === (count - 1) * 85 + 220 - 20 && background.options.duration === 130 && background.options.easing === "ease-in", "Hintergrund muss 20 ms vor der letzten Zeile ausblenden.");
+            } else assert(nav.dataset.navState === "closed", "Reduzierte Bewegung muss sofort schließen.");
+            await settleClose(count);
+            assert(nav.dataset.navState === "closed" && !document.documentElement.classList.contains("nav-open"), "Vollständig geschlossen");
+            assert(Math.abs(scrollY - savedScroll) < 1, "Scrollposition muss erhalten bleiben.");
+            assert(!document.querySelector("main").inert && document.querySelector("#already-inert").inert, "Inert-Zustände müssen wiederhergestellt werden.");
+            record("Schließen, dynamische Gesamtdauer, Escape und Wiederherstellung: OK");
+
+            toggle.click(); await sleep(20); toggle.click(); await sleep(20); toggle.click();
+            await settleOpen();
+            assert(nav.dataset.navState === "open" && toggle.getAttribute("aria-expanded") === "true", "Schneller Richtungswechsel muss geöffnet enden.");
+            const firstLink = root.querySelector("a");
+            toggle.focus();
+            toggle.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
+            assert(document.activeElement === root.querySelector('[href$="#last"]'), "Shift-Tab muss im Menü bleiben.");
+            firstLink.focus();
+            record("Schnelle Richtungswechsel und Tastaturführung: OK");
+
+            animationLog.length = 0;
+            document.querySelector("#parent-row > .nav-submenu-toggle").click();
+            await settleOpen();
+            assert(document.querySelector("#first-level").hidden === false && root.hidden, "Untermenü muss die Hauptliste ersetzen.");
+            assert(getComputedStyle(document.querySelector("#first-level > .nav-back")).fontWeight === "700", "Zurück-Zeile muss kräftig sein.");
+            if (!reduce) assert(animationLog.filter((item) => item.target.classList.contains("nav-row")).every((item, index) => item.options.delay === 80 + index * 85), "Untermenü muss erneut einblenden.");
+            document.querySelector("#nested-row > .nav-submenu-toggle").click();
+            await settleOpen();
+            const deep = document.querySelector("#second-level");
+            assert(!deep.hidden && deep.scrollHeight > deep.clientHeight, "Viele Unterpunkte müssen scrollbar bleiben.");
+            deep.scrollTop = 120;
+            assert(deep.scrollTop === 120 && scrollY === 0, "Nur die Menüliste darf scrollen.");
+            assert(getComputedStyle(deep.querySelector('[aria-current="page"]')).color === "rgb(255, 237, 0)", "Aktiver Unterpunkt muss gelb sein.");
+            deep.querySelector(".nav-back").click(); await settleOpen();
+            document.querySelector("#first-level > .nav-back").click(); await settleOpen();
+            assert(!root.hidden, "Zurück muss die Hauptliste wiederherstellen.");
+            record("Getrennte Pfeile, verschachtelte Untermenüs, Zurück und Listen-Scrollen: OK");
+
+            root.querySelector('#parent-row > a').click();
+            await settleClose(count);
+            await sleep(50);
+            assert(location.hash === "#parent-target" && nav.dataset.navState === "closed", "Hauptlink muss navigieren und darf kein Untermenü öffnen.");
+            record("Eigenständiger Hauptlink: OK");
+            toggle.click(); await settleOpen();
+            document.querySelector("[data-account-open]").click();
+            assert(accountCalls === 1 && nav.dataset.navState === "closed", "Bestehende Kontofunktion muss ohne Wartezeit erreichbar bleiben.");
+            record("Bestehende Kontofunktion: OK");
+            output.dataset.status = "passed";
+            record(reduce ? "ALLE TESTS BESTANDEN (reduzierte Bewegung)" : "ALLE TESTS BESTANDEN");
+          } catch (error) {
+            output.dataset.status = "failed";
+            record(`FEHLER: ${error.message}`);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

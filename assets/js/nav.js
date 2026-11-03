@@ -102,8 +102,15 @@
         row.classList.add("nav-row");
         const link = mainLink(row);
         if (link) {
-          const label = Array.from(link.children).find((child) => !child.matches(".nav-link-icon"));
-          if (label) label.classList.add("nav-link-label");
+          let label = Array.from(link.children).find((child) => child.matches("span:not(.nav-link-icon)"));
+          if (!label) {
+            label = document.createElement("span");
+            Array.from(link.childNodes).forEach((node) => {
+              if (node.nodeType !== 1 || !node.matches(".nav-link-icon")) label.append(node);
+            });
+            link.append(label);
+          }
+          label.classList.add("nav-link-label");
           if (!link.querySelector(".nav-link-icon")) {
             const icon = document.createElement("span");
             icon.className = "nav-link-icon";
@@ -154,7 +161,8 @@
       const links = Array.from(panel.querySelectorAll("a[href]"));
       let active = links.filter((link) => {
         const target = new URL(link.href);
-        return target.origin === here.origin && normalize(target.pathname) === normalize(here.pathname)
+        return link.getAttribute("aria-current") === "page"
+          || target.origin === here.origin && normalize(target.pathname) === normalize(here.pathname)
           && (!target.hash || target.hash === here.hash);
       });
       if (!active.length) {
@@ -332,7 +340,7 @@
       if (phase === "closed" || !mobile.matches) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        transition(false);
+        if (desiredOpen) transition(false);
         toggle.focus({ preventScroll: true });
       } else if (event.key === "Tab" && desiredOpen) {
         const focusable = [toggle, ...current.querySelectorAll("a[href], button:not([disabled])")]
