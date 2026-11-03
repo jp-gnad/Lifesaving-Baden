@@ -1272,10 +1272,6 @@ body.auth-context-loading .member-apps::after {
   outline-offset: 5px;
 }
 
-.member-app--admin {
-  width: 100px;
-}
-
 .member-app-icon-wrap {
   position: relative;
   display: block;

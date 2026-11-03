@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-admin-accounts-v60">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-app-alignment-v62">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -68,7 +68,8 @@
         <a class="button button-primary" href="link-request.html" data-link-status-action>Jetzt abschließen</a>
       </section>
 
-      <section class="member-apps" aria-label="Apps">
+      <section class="member-apps" aria-label="Standard">
+        <h2 class="eyebrow">Standard</h2>
         <div class="member-app-grid">
           <a class="member-app" href="timer/#/" aria-label="Lifesaving Timer öffnen">
             <span class="member-app-icon"><img src="timer/app-icon-1024.png?v=baden-brand-v1" alt=""></span>
@@ -80,7 +81,7 @@
       <section class="member-apps is-hidden" data-admin-only aria-label="Admin">
         <h2 class="eyebrow">Admin</h2>
         <div class="member-app-grid">
-          <a class="member-app member-app--admin" href="admin-accounts.html" aria-label="Kontenübersicht öffnen">
+          <a class="member-app" href="admin-accounts.html" aria-label="Kontenübersicht öffnen">
             <span class="member-app-icon-wrap">
               <span class="member-app-icon"><img src="assets/img/accounts-app.svg" alt=""></span>
               <span class="member-app-badge" data-admin-notification-count hidden aria-hidden="true"></span>
