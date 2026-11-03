@@ -4064,7 +4064,7 @@ body[data-page="login"] .auth-privacy a {
     width: 300px;
     height: 480px;
     margin: 0 auto;
-    border-radius: 8px;
+    border-radius: 2px;
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)),
       var(--login-background-image, url("../img/auth-pool.jpg?v=20261102-start")) center / cover no-repeat;
