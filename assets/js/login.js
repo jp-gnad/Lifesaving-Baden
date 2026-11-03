@@ -106,6 +106,7 @@
     const loginForm = document.querySelector('[data-auth-form="login"]');
     const googleButton = document.querySelector("[data-google-login]");
     const googleIdentityButton = document.querySelector("[data-google-identity]");
+    const googleIdentityAction = document.querySelector("[data-google-identity-action]");
     const resendButton = document.querySelector("[data-resend-verification]");
     const resetPasswordButton = document.querySelector("[data-reset-password]");
     const changeEmailButton = document.querySelector("[data-change-email]");
@@ -397,14 +398,34 @@
             auto_select: false,
             ux_mode: "popup",
           });
-          identity.renderButton(googleIdentityButton, {
-            // Medium prevents the personalized account preview; CSS supplies the shared 48px layout.
+          const buttonWidth = Math.min(400, googleButton.parentElement?.clientWidth || googleButton.clientWidth || 300);
+          identity.renderButton(googleIdentityAction, {
+            // Keep Google's actual control intact, including its iframe and keyboard handling.
             type: "standard", theme: "filled_black", size: "medium",
             text: "signin_with",
             shape: "rectangular", locale: "de", logo_alignment: "left",
-            width: Math.min(400, googleButton.parentElement?.clientWidth || googleButton.clientWidth || 300),
+            width: buttonWidth,
             click_listener: startDirectGoogle,
           });
+          googleIdentityAction.style.setProperty("--google-button-width", `${buttonWidth}px`);
+          // Resize only the click target so an open Google popup is never replaced.
+          const fitGoogleControl = () => {
+            const width = googleButton.parentElement?.clientWidth || buttonWidth;
+            googleIdentityAction.style.setProperty("--google-button-scale-x", String((width + 8) / buttonWidth));
+          };
+          fitGoogleControl();
+          if (window.ResizeObserver && googleButton.parentElement) {
+            new window.ResizeObserver(fitGoogleControl).observe(googleButton.parentElement);
+          } else {
+            window.addEventListener("resize", fitGoogleControl);
+          }
+          // Focus inside Google's iframe does not propagate through :focus-within in every browser.
+          window.addEventListener("blur", () => {
+            window.requestAnimationFrame(() => {
+              googleIdentityButton.classList.toggle("has-google-focus", googleIdentityAction.contains(document.activeElement));
+            });
+          });
+          document.addEventListener("focusin", () => googleIdentityButton.classList.remove("has-google-focus"));
           directGoogleReady = true;
           setLoading(googleButton, false);
           showDirectGoogleButton();

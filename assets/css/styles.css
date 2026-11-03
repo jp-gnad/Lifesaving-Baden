@@ -1053,65 +1053,43 @@ body[data-page="app"] .dashboard > * {
 }
 
 .google-identity:not([hidden]) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 14px;
-  min-height: 48px;
-}
-
-.google-identity > div,
-.google-identity > div > div {
-  width: 100%;
-  min-width: 0;
-}
-
-body[data-page="login"] .auth-panel .google-identity [role="button"] {
   position: relative;
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.google-identity .google-identity-face {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
   height: 48px;
-  padding: 8px 52px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--surface);
-  color: var(--text);
-  font: 500 1rem Arial, sans-serif;
-  letter-spacing: normal;
-}
-
-body[data-page="login"] .google-identity [role="button"] > div:last-child {
-  position: static;
-  width: 100%;
-  height: 100%;
-}
-
-body[data-page="login"] .google-identity [role="button"] > div:last-child > div:has(svg) {
-  position: absolute;
-  inset: 0 auto 0 16px;
-  width: 28px;
-  height: 28px;
-  margin: auto 0;
-  padding: 4px;
-  border-radius: 50%;
-  background: #fff;
-}
-
-body[data-page="login"] .google-identity [role="button"] svg,
-body[data-page="login"] .google-identity [role="button"] > div:last-child > div:has(svg) > div {
-  width: 20px;
-  height: 20px;
-}
-
-body[data-page="login"] .google-identity [role="button"] > div:last-child > span:first-of-type {
   margin: 0;
-  font: inherit;
-  letter-spacing: inherit;
-  text-align: center;
+  pointer-events: none;
+}
+
+.google-identity:focus-within,
+.google-identity.has-google-focus {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 3px;
+}
+
+.google-identity-action {
+  /* Keep Google's control and iframe intact; only the shared face supplies the visible design. */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--google-button-width, 300px);
+  height: 32px;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(var(--google-button-scale-x, 1), 1.5);
+  transform-origin: center;
 }
 
 .status-dot {

@@ -27,7 +27,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   const storage = new Map();
   function element(key) {
     if (!elements.has(key)) elements.set(key, {
-      textContent: "", innerHTML: "button", dataset: {}, disabled: false, hidden: false,
+      textContent: "", innerHTML: "button", dataset: {}, disabled: false, hidden: false, style: { setProperty() {} },
       handlers: {}, fields: {}, classList: { toggle() {} },
       addEventListener(type, handler) { this.handlers[type] = handler; },
       querySelector() { return element(`${key}:button`); },
@@ -515,6 +515,7 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.equal(h.identity.renders[0].config.theme, "filled_black");
   assert.equal(h.identity.renders[0].config.size, "medium");
   assert.equal(h.identity.renders[0].config.width, 342);
+  assert.equal(h.identity.renders[0].host, h.element("[data-google-identity-action]"));
   assert.equal(h.element("[data-google-login]").hidden, true);
   h.identity.click();
   const first = h.identity.receive({ credential: privateToken });
@@ -529,6 +530,26 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.equal(h.counts.redirectStarts, 0);
   assert.equal(h.window.localStorage.getItem("lifesaving-baden:login-trace-v1"), null);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
+});
+
+test("resizing the direct Google control preserves the active provider button and credential callback", async () => {
+  const h = directGoogleHarness();
+  const parent = { clientWidth: 342 };
+  const styles = new Map();
+  h.element("[data-google-login]").parentElement = parent;
+  h.element("[data-google-identity-action]").style = { setProperty: (name, value) => styles.set(name, value) };
+  h.login();
+  await new Promise(setImmediate);
+  const initialScale = styles.get("--google-button-scale-x");
+  h.identity.click();
+  parent.clientWidth = 420;
+  h.callbacks.resize();
+  assert.notEqual(styles.get("--google-button-scale-x"), initialScale);
+  assert.equal(h.identity.renders.length, 1);
+  assert.equal(h.identity.initializations.length, 1);
+  await h.identity.receive({ credential: "synthetic-token" });
+  assert.equal(h.identity.credentials.length, 1);
+  assert.equal(h.counts.redirects.length, 1);
 });
 
 function continuedGooglePage(previous, options = {}) {

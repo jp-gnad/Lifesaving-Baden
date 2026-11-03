@@ -13,7 +13,7 @@
     <title>Login - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <script src="assets/js/login-background.js?v=20261102-random-background-v43"></script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-google-button-v64">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-google-button-v66">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -22,7 +22,7 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/login.js?v=20261103-google-button-v49"></script>
+    <script defer src="assets/js/login.js?v=20261103-google-button-v50"></script>
   </head>
   <body data-page="login">
     <div class="auth-screen">
@@ -125,7 +125,13 @@
               <span>Über Google anmelden</span>
             </button>
 
-            <div class="google-identity" data-google-identity hidden></div>
+            <div class="google-identity" data-google-identity hidden>
+              <span class="button button-google full-width google-identity-face" aria-hidden="true">
+                <img class="google-logo" src="assets/img/google-g.png" alt="" width="28" height="28">
+                <span>Über Google anmelden</span>
+              </span>
+              <div class="google-identity-action" data-google-identity-action></div>
+            </div>
           </div>
 
           <button class="inline-action is-hidden" type="button" data-resend-verification>
