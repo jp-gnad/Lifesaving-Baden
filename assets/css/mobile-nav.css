@@ -187,6 +187,11 @@
     transform: translateX(3rem);
   }
 
+  .nav .nav-row[hidden],
+  .nav .nav-row.is-hidden {
+    display: none;
+  }
+
   .nav .nav-row:is(a, button),
   .nav .nav-row > a {
     display: flex;
@@ -216,6 +221,7 @@
   .nav .nav-row > a:hover {
     background: rgba(255, 255, 255, .035);
     color: #fff;
+    border-bottom-color: rgba(255, 255, 255, .15);
   }
 
   .nav .nav-row:focus-visible,

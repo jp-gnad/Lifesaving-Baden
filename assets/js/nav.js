@@ -92,13 +92,17 @@
     let settle = null;
     let animations = [];
 
-    const rows = (level = current) => Array.from(level.children)
-      .filter((row) => !row.hidden && !row.matches("script, template, [data-nav-submenu]"));
+    const items = (level) => Array.from(level.children)
+      .filter((row) => !row.matches("script, template, [data-nav-submenu]"));
+    const rows = (level = current) => items(level).filter((row) => {
+      const style = getComputedStyle(row);
+      return !row.hidden && style.display !== "none" && style.visibility !== "hidden";
+    });
     const mainLink = (row) => row.matches("a") ? row : row.querySelector("a");
     const noMotion = () => reducedMotion.matches || typeof panel.animate !== "function";
 
     function prepare(level) {
-      rows(level).forEach((row) => {
+      items(level).forEach((row) => {
         row.classList.add("nav-row");
         const link = mainLink(row);
         if (link) {
@@ -169,7 +173,7 @@
         const home = header.querySelector(".brand[href]");
         active = links.filter((link) => home && link.href === home.href);
       }
-      levels.forEach((level) => rows(level).forEach((row) => row.classList.remove("is-current-section")));
+      levels.forEach((level) => items(level).forEach((row) => row.classList.remove("is-current-section")));
       active.forEach((link) => {
         link.closest(".nav-row")?.classList.add("is-current-section");
         let level = link.closest(".nav-level");
@@ -258,6 +262,7 @@
       nav.classList.toggle("is-instant", noMotion());
       toggle.setAttribute("aria-expanded", String(open));
       toggle.setAttribute("aria-label", open ? "Menü schließen" : "Menü öffnen");
+      if (!open && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
       panel.inert = !open;
       panel.setAttribute("aria-hidden", String(!open));
       if (open) { lockPage(header); updateActive(); }

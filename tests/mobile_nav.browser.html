@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <base href="../">
     <title>Mobile Navigation – Browsertest</title>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-mobile-menu-v55">
-    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v55">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-mobile-menu-v56">
+    <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v56">
     <script>
       const query = new URLSearchParams(location.search);
       const animationLog = [];
@@ -21,7 +21,7 @@
           ? { matches: true, addEventListener() {} } : nativeMatchMedia(value);
       }
     </script>
-    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v55"></script>
+    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v56"></script>
   </head>
   <body>
     <header class="site-header">
@@ -44,6 +44,10 @@
                   <a href="#5">Unterpunkt 5</a><a href="#6">Unterpunkt 6</a><a href="#7">Unterpunkt 7</a>
                   <a href="#8">Unterpunkt 8</a><a href="#9">Unterpunkt 9</a><a href="#10">Unterpunkt 10</a>
                   <a href="#11">Unterpunkt 11</a><a href="#12">Unterpunkt 12</a>
+                  <a href="#13">Unterpunkt 13</a><a href="#14">Unterpunkt 14</a>
+                  <a href="#15">Unterpunkt 15</a><a href="#16">Unterpunkt 16</a>
+                  <a href="#17">Unterpunkt 17</a><a href="#18">Unterpunkt 18</a>
+                  <a href="#19">Unterpunkt 19</a><a href="#20">Unterpunkt 20</a>
                 </div>
               </div>
             </div>
@@ -51,6 +55,8 @@
           <a href="tests/mobile_nav.browser.html#long">Eine sehr lange Beschriftung, die auch auf einem kleinen Handy in einer Zeile mit Auslassungspunkten bleiben muss</a>
           <a href="tests/mobile_nav.browser.html#last">Letzter Hauptlink</a>
           <a href="#hidden" hidden>Unsichtbare Zeile</a>
+          <a href="#css-hidden" style="display:none">Per CSS ausgeblendete Zeile</a>
+          <a href="#class-hidden" class="is-hidden">Per Klasse ausgeblendete Zeile</a>
         </div>
         <button type="button" data-account-open aria-label="Kontofunktion testen">Konto</button>
       </nav>
@@ -80,7 +86,8 @@
         const reduce = query.has("reduce");
         const results = [];
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        const visibleRows = () => Array.from(panel.querySelector(".nav-level:not([hidden])").children).filter((row) => !row.hidden);
+        const visibleRows = () => Array.from(panel.querySelector(".nav-level:not([hidden])").children)
+          .filter((row) => !row.hidden && getComputedStyle(row).display !== "none");
         const assert = (value, message) => { if (!value) throw new Error(message); };
         const record = (message) => { results.push(message); output.textContent = results.join("\n"); };
         const settleOpen = () => sleep(reduce ? 0 : 80 + (visibleRows().length - 1) * 85 + 280 + 40);
