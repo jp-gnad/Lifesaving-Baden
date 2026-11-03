@@ -3885,7 +3885,7 @@ body.auth-context-loading .member-apps::after {
   body[data-page="login"] .auth-layout {
     display: block;
     min-height: 0;
-    padding: 24px;
+    padding: 36px 24px 24px;
   }
 
   body[data-page="login"] .site-footer {
@@ -4014,7 +4014,7 @@ body[data-page="login"] .auth-privacy a {
 
 @media (max-width: 700px) and (max-height: 700px) {
   body[data-page="login"] .auth-layout {
-    padding-block: 16px;
+    padding-block: 28px 16px;
   }
 
   body[data-page="login"] .auth-panel,
