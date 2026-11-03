@@ -71,11 +71,12 @@ class TimerIntegrationTest(unittest.TestCase):
 
     def test_public_home_links_to_timer_event_overview(self):
         landing = (ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn('id="timer" aria-labelledby="timer-title"', landing)
-        self.assertIn('class="public-timer-launcher" href="timer/#/"', landing)
-        self.assertIn("Eventübersicht öffnen", landing)
-        self.assertIn("app-icon-1024.png", landing)
-        self.assertIn("min-height: 68px", (ROOT / "assets" / "css" / "styles.css").read_text(encoding="utf-8"))
+        navigation = re.search(r'<div class="nav-links"[^>]*>(.*?)</div>', landing, re.S).group(1)
+        self.assertIn('href="timer/#/"', navigation)
+        self.assertIn("Lifesaving Timer", navigation)
+        for section in ("timer", "termine"):
+            self.assertRegex(landing, rf'<section[^>]*class="[^"]*landing-placeholder"[^>]*id="{section}"[^>]*>\s*</section>')
+        self.assertNotIn("public-timer-launcher", landing)
         self.assertNotIn('id="training"', landing)
 
     def test_known_club_cap_is_mapped(self):

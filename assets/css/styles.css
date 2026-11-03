@@ -611,13 +611,13 @@ body[data-page="app"] .dashboard > * {
   color: var(--text);
 }
 
-#termine {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(15, 15, 18, 0.88) 0%, rgba(15, 15, 18, 0.68) 50%, rgba(15, 15, 18, 0.46) 100%),
-    linear-gradient(0deg, rgba(15, 15, 18, 0.72) 0%, rgba(15, 15, 18, 0.16) 58%, rgba(15, 15, 18, 0.46) 100%),
-    url("../img/termine-pool.jpg") center 46% / cover no-repeat;
+.landing-placeholder {
+  min-height: 320px;
+}
+
+#termine.landing-placeholder {
+  min-height: 330px;
+  background: var(--surface);
 }
 
 .info-band .eyebrow {
@@ -1280,61 +1280,6 @@ body.auth-context-loading .member-apps::after {
   border-radius: 18px;
   outline: 3px solid rgba(255, 237, 0, 0.3);
   outline-offset: 5px;
-}
-
-.timer-home-copy p:last-child {
-  max-width: 38ch;
-  margin: 16px 0 0;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.public-timer-launcher {
-  width: min(250px, 100%);
-  min-height: 68px;
-  justify-self: start;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
-  padding: 9px 11px;
-  background: rgba(24, 24, 29, 0.78);
-  color: var(--text);
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 19px;
-  align-items: center;
-  gap: 11px;
-  text-decoration: none;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.public-timer-launcher:hover {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(30, 30, 35, 0.88);
-}
-
-.public-timer-launcher img {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.public-timer-launcher span {
-  min-width: 0;
-  display: block;
-}
-
-.public-timer-launcher strong {
-  font-size: 1rem;
-}
-
-.public-timer-launcher svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .dashboard-action-card.is-linked {
@@ -3507,6 +3452,10 @@ body.auth-context-loading .member-apps::after {
   .info-band,
   .auth-layout {
     grid-template-columns: 1fr;
+  }
+
+  #termine.landing-placeholder {
+    min-height: 415px;
   }
 
   .dashboard-header {
