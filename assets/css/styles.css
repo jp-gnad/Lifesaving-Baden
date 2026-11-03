@@ -236,38 +236,6 @@ input {
   cursor: pointer;
 }
 
-.nav-menu-toggle span {
-  display: block;
-  width: 20px;
-  height: 2px;
-  border-radius: 999px;
-  background: currentColor;
-  transition: transform 160ms ease, opacity 160ms ease;
-}
-
-.nav-menu-toggle:hover,
-.nav-menu-toggle:focus-visible,
-.nav.is-open .nav-menu-toggle {
-  background: var(--surface-muted);
-  color: var(--text);
-}
-
-.nav.is-open .nav-menu-toggle {
-  color: var(--primary);
-}
-
-.nav.is-open .nav-menu-toggle span:nth-child(1) {
-  transform: translateY(6px) rotate(45deg);
-}
-
-.nav.is-open .nav-menu-toggle span:nth-child(2) {
-  opacity: 0;
-}
-
-.nav.is-open .nav-menu-toggle span:nth-child(3) {
-  transform: translateY(-6px) rotate(-45deg);
-}
-
 .account-trigger {
   position: relative;
   display: inline-grid;
@@ -3351,25 +3319,10 @@ body.auth-context-loading .member-apps::after {
 }
 
 @media (max-width: 860px) {
-  body {
-    padding-top: var(--mobile-header-height);
-  }
-
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
     font-size: 16px;
-  }
-
-  .site-header {
-    position: fixed;
-    right: 0;
-    left: 0;
-    align-items: center;
-    flex-direction: row;
-    gap: 12px;
-    min-height: var(--mobile-header-height);
-    backdrop-filter: none;
   }
 
   .footer-note {
@@ -3379,93 +3332,6 @@ body.auth-context-loading .member-apps::after {
 
   .legal-hero h1 {
     font-size: 2.15rem;
-  }
-
-  .brand {
-    min-width: 0;
-  }
-
-  .brand > span:last-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .nav {
-    position: relative;
-    width: auto;
-    flex-wrap: nowrap;
-    gap: 4px;
-    margin-left: auto;
-  }
-
-  .nav-menu-toggle {
-    display: inline-flex;
-  }
-
-  .nav-links {
-    position: fixed;
-    top: var(--mobile-header-height);
-    right: 0;
-    left: 0;
-    z-index: 30;
-    display: none;
-    width: 100vw;
-    height: calc(100vh - var(--mobile-header-height));
-    height: calc(100dvh - var(--mobile-header-height));
-    min-height: calc(100vh - var(--mobile-header-height));
-    min-height: calc(100dvh - var(--mobile-header-height));
-    min-width: 0;
-    padding: 22px clamp(20px, 5vw, 64px);
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
-    background: rgba(24, 24, 29, 0.98);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-  }
-
-  .nav.is-open .nav-links {
-    display: grid;
-    align-content: start;
-    gap: 8px;
-  }
-
-  .nav .nav-links a,
-  .nav .nav-links .nav-button {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    justify-content: flex-start;
-    width: 100%;
-    min-height: 54px;
-    padding: 14px 16px;
-    border-radius: 8px;
-    font-size: 1.14rem;
-    text-align: left;
-  }
-
-  .nav-link-icon {
-    display: inline-grid;
-    width: 28px;
-    height: 28px;
-    flex: 0 0 auto;
-    place-items: center;
-    color: inherit;
-  }
-
-  .nav-link-icon svg {
-    width: 100%;
-    height: 100%;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 2;
-  }
-
-  .account-trigger {
-    flex: 0 0 auto;
   }
 
   .hero,
@@ -3702,18 +3568,6 @@ body.auth-context-loading .member-apps::after {
 
   .legal-hero h1 {
     font-size: 1.7rem;
-  }
-
-  .nav a,
-  .nav-button {
-    flex: 1 1 auto;
-    text-align: center;
-  }
-
-  .nav .nav-links a,
-  .nav .nav-links .nav-button {
-    flex: none;
-    text-align: left;
   }
 
   .hero-actions,
