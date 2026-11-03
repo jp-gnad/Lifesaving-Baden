@@ -206,17 +206,18 @@ input {
 
 @media (min-width: 1001px) {
   body[data-page="landing"] .nav-button,
-  body[data-page="public"] .nav-button {
+  body[data-page="public"] .nav-button,
+  body[data-page="login"] .nav-button {
     order: 1;
   }
 }
 
 @media (min-width: 1001px) and (max-width: 1100px) {
-  :is(body[data-page="landing"], body[data-page="public"]) .nav-links {
+  :is(body[data-page="landing"], body[data-page="public"], body[data-page="login"]) .nav-links {
     gap: 4px;
   }
 
-  :is(body[data-page="landing"], body[data-page="public"]) .nav a {
+  :is(body[data-page="landing"], body[data-page="public"], body[data-page="login"]) .nav a {
     padding-inline: 8px;
   }
 }

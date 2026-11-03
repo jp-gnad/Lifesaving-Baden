@@ -5,8 +5,7 @@
 .nav-backdrop,
 .nav-submenu-toggle,
 .nav-back,
-.nav-registration-label,
-.nav-mobile-only {
+.nav-registration-label {
   display: none;
 }
 
