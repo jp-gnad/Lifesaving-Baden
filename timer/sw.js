@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v47";
+const staticCache = "lifesaving-timer-static-firebase-v48";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -17,7 +17,10 @@ const relativeAppShell = [
   "./app-icon-192.png?v=baden-brand-v1",
   "./app-icon-512.png?v=baden-brand-v1",
   "./manifest.webmanifest?v=baden-brand-v1",
-  "../manifest.webmanifest?v=20261101-project-app-v1",
+  "../manifest.webmanifest?v=20261105-baden-icon-v2",
+  "../assets/img/lifesaving-baden-app-180.png",
+  "../assets/img/lifesaving-baden-app-192.png",
+  "../assets/img/lifesaving-baden-app-512.png",
 ];
 const appShell = relativeAppShell.map((path) => new URL(path, baseUrl).href);
 const authScripts = ["../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/google-handoff.js", "../assets/js/firebase-config.js"]

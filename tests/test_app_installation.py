@@ -1,4 +1,5 @@
 import json
+import struct
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -25,8 +26,10 @@ class PageMetadata(HTMLParser):
                 self.manifests.append(attrs["href"])
             if "apple-touch-icon" in rel:
                 self.touch_icons.append(attrs["href"])
-        elif tag == "meta" and "name" in attrs:
-            self.meta[attrs["name"]] = attrs.get("content")
+        elif tag == "meta":
+            key = attrs.get("name") or attrs.get("property")
+            if key:
+                self.meta[key] = attrs.get("content")
         elif tag == "a" and "href" in attrs:
             self.links.append(attrs)
 
@@ -44,7 +47,8 @@ class AppInstallationTest(unittest.TestCase):
                 self.assertEqual(metadata.meta["apple-mobile-web-app-title"], "Lifesaving Baden")
                 self.assertEqual(len(metadata.touch_icons), 1)
                 icon = urlsplit(metadata.touch_icons[0]).path
-                self.assertTrue((page.parent / icon).is_file())
+                self.assertEqual((page.parent / icon).resolve(), ROOT / "assets/img/lifesaving-baden-app-180.png")
+                self.assertEqual(metadata.meta["og:image"], "https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png")
 
     def test_project_app_scope_contains_every_page_and_timer_route_on_both_hosting_paths(self):
         manifest = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
@@ -76,10 +80,16 @@ class AppInstallationTest(unittest.TestCase):
 
     def test_app_icons_and_cached_manifest_resolve(self):
         manifest = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
+        self.assertEqual({icon["sizes"] for icon in manifest["icons"]}, {"192x192", "512x512"})
         for icon in manifest["icons"]:
-            self.assertTrue((ROOT / unquote(urlsplit(icon["src"]).path)).is_file())
+            size = int(icon["sizes"].split("x")[0])
+            path = ROOT / unquote(urlsplit(icon["src"]).path)
+            self.assertEqual(path, ROOT / f"assets/img/lifesaving-baden-app-{size}.png")
+            self.assertEqual(struct.unpack(">II", path.read_bytes()[16:24]), (size, size))
+        touch_icon = ROOT / "assets/img/lifesaving-baden-app-180.png"
+        self.assertEqual(struct.unpack(">II", touch_icon.read_bytes()[16:24]), (180, 180))
         worker = (ROOT / "timer" / "sw.js").read_text(encoding="utf-8")
-        self.assertIn('"../manifest.webmanifest?v=20261101-project-app-v1"', worker)
+        self.assertIn('"../manifest.webmanifest?v=20261105-baden-icon-v2"', worker)
 
     def test_old_timer_manifest_keeps_its_original_identity_and_timer_start(self):
         manifest = json.loads((ROOT / "timer" / "manifest.webmanifest").read_text(encoding="utf-8"))

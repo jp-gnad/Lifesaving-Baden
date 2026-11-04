@@ -5,12 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Personenverknüpfung für Lifesaving Baden beantragen.">
     <meta name="theme-color" content="#0f0f12">
-    <link rel="manifest" href="manifest.webmanifest?v=20261101-project-app-v1">
-    <link rel="apple-touch-icon" href="timer/app-icon-180.png?v=baden-brand-v1" sizes="180x180">
+    <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
+    <link rel="apple-touch-icon" href="assets/img/lifesaving-baden-app-180.png" sizes="180x180">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Person verknüpfen - Lifesaving Baden</title>
+    <meta property="og:title" content="Person verknüpfen - Lifesaving Baden">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jp-gnad.github.io/Lifesaving-Baden/link-request.html">
+    <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
+    <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261103-linked-account-v65">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
@@ -18,7 +23,6 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
-    <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-account-setup-v12"></script>
     <script defer src="assets/js/auth.js?v=20261105-account-setup-v17"></script>
@@ -31,23 +35,7 @@
         </span>
         <span>Lifesaving Baden</span>
       </a>
-      <nav class="nav" aria-label="Hauptnavigation">
-        <button class="nav-menu-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="main-nav-links" aria-label="Menü öffnen">
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </button>
-        <div class="nav-links" id="main-nav-links" data-nav-links>
-          <a href="app.html">
-            <span class="nav-link-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="m3 11 9-8 9 8"></path>
-                <path d="M5 10v10h5v-6h4v6h5V10"></path>
-              </svg>
-            </span>
-            <span>Home</span>
-          </a>
-        </div>
+      <div class="nav">
         <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
           <span class="account-avatar account-avatar-small">
             <img class="is-hidden" src="" alt="" data-account-photo-small>
@@ -58,7 +46,7 @@
             <svg viewBox="0 0 24 24" focusable="false"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
           </span>
         </button>
-      </nav>
+      </div>
     </header>
 
     <main class="dashboard link-request-page">
@@ -282,6 +270,7 @@
             </section>
           </form>
           <p class="form-message" data-link-request-message role="status" hidden></p>
+          <a class="button button-ghost" href="app.html">Zurück zum Mitgliederbereich</a>
         </article>
       </section>
     </main>

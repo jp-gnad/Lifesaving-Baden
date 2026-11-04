@@ -10,13 +10,13 @@
   "theme_color": "#0f0f12",
   "icons": [
     {
-      "src": "timer/app-icon-192.png?v=baden-brand-v1",
+      "src": "assets/img/lifesaving-baden-app-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "timer/app-icon-512.png?v=baden-brand-v1",
+      "src": "assets/img/lifesaving-baden-app-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
