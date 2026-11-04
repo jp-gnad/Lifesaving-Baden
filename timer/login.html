@@ -12,14 +12,12 @@
     <title>Anmelden · Lifesaving Baden</title>
     <link rel="icon" href="../assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="../assets/css/styles.css?v=20261101-static-hover-v19">
-    <script defer src="../assets/js/auth-core.js?v=20261101-settings-v11"></script>
+    <script defer src="../assets/js/auth-core.js?v=20261105-account-setup-v12"></script>
     <script>
       window.addEventListener("DOMContentLoaded", () => {
-        const { getLoginRedirectUrl, getSafeReturnUrl } = window.LifesavingAuth;
+        const { getLoginRedirectUrl } = window.LifesavingAuth;
         const params = new URLSearchParams(window.location.search);
-        const fallback = new URL("./#/", window.location.href);
         const target = new URL(getLoginRedirectUrl());
-        target.searchParams.set("returnTo", getSafeReturnUrl(params.get("returnTo"), fallback).href);
         for (const flag of ["verified", "needsVerification"]) {
           if (params.has(flag)) target.searchParams.set(flag, "1");
         }
@@ -33,7 +31,7 @@
         <p class="eyebrow">Lifesaving Baden</p>
         <h1>Zur Anmeldung</h1>
         <p>Du wirst zur gemeinsamen Anmeldung weitergeleitet.</p>
-        <a class="button button-primary" href="../login.html?returnTo=timer%2F%23%2F">Anmeldung öffnen</a>
+        <a class="button button-primary" href="../login.html">Anmeldung öffnen</a>
       </section>
     </main>
   </body>

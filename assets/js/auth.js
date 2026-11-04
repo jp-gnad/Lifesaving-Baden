@@ -4,7 +4,7 @@
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, isAdminAccount,
-    getSafeReturnUrl, getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
   function translateFirestoreError(error) {
     const messages = {
@@ -375,12 +375,7 @@
       try {
         initFirebase().onAuthStateChanged((user) => {
           if (hasVerifiedAccess(user)) {
-            if (standaloneLaunch) {
-              const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-              window.location.replace(getSafeReturnUrl(returnTo).href);
-            } else {
-              redirectToApp();
-            }
+            redirectToApp({ replace: standaloneLaunch });
           } else if (user) {
             redirectToLogin("needsVerification");
           } else {
@@ -579,6 +574,7 @@
           }
           if (!isCurrentUser(activeUser)) return;
           settingsLoadedForUser = activeUser.uid;
+          if (page === "app") offerAccountSetup(activeUser, userData, role);
         }
 
         document.body.classList.remove("auth-context-loading");
@@ -804,6 +800,17 @@
 
   function isPersonLinked(data) {
     return Boolean(data?.linkedPersonId || data?.personId);
+  }
+
+  function offerAccountSetup(user, data, role) {
+    if (data?.accountSetupPending !== true || role.isAdmin || isPersonLinked(data) || hasPendingLinkRequest(data)) return;
+
+    const dialog = document.querySelector("[data-account-setup]");
+    if (!dialog?.showModal || dialog.open) return;
+
+    dialog.showModal();
+    window.firebase.firestore().collection("users").doc(user.uid).update({ accountSetupPending: false })
+      .catch((error) => console.warn("Einrichtungshinweis konnte nicht gespeichert werden.", error));
   }
 
   function hasPendingLinkRequest(data) {

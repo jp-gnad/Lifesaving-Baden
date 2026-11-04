@@ -223,16 +223,12 @@ test("unverified password accounts are blocked while verified and Google account
   assert.equal(h.core.hasVerifiedAccess({ providerData: [{ providerId: "google.com" }] }), true);
 });
 
-test("return links preserve timer routes under a project path and reject external targets and login loops", () => {
-  for (const value of ["timer/#/event/42", "/club/timer/?view=all#/results/42"]) {
+test("old return targets cannot override the member home after login", () => {
+  for (const value of ["timer/#/event/42", "/club/account-settings.html#konto", "/club/link-request.html?edit=1", "https://attacker.test/", "/club/login.html"]) {
     const h = harness({ url: `https://example.test/club/login.html?returnTo=${encodeURIComponent(value)}` });
+    assert.equal(new URL(h.core.getLoginRedirectUrl()).searchParams.has("returnTo"), false);
     h.core.redirectToApp();
-    assert.equal(h.counts.redirects[0], new URL(value, "https://example.test/club/login.html").href);
-    assert.equal(new URL(h.core.getVerificationRedirectUrl()).searchParams.get("returnTo"), h.counts.redirects[0]);
-  }
-  for (const value of ["https://attacker.test/", "//attacker.test/", "javascript:alert(1)", "/club/login.html", "/club/timer/login.html"]) {
-    const h = harness();
-    assert.equal(h.core.getSafeReturnUrl(value).href, "https://example.test/club/app.html");
+    assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
   }
 });
 
@@ -276,11 +272,11 @@ test("logout during an outstanding login reload prevents stale redirection", asy
   assert.equal(h.counts.redirects.length, 0);
 });
 
-test("Google uses the same login flow and returns to the exact timer event", async () => {
+test("Google login opens member home even from a legacy timer link", async () => {
   const h = harness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2Fevent%2F42", user: { uid: "u", providerData: [{ providerId: "google.com" }] } });
   h.login();
   await h.element("[data-google-login]").handlers.click();
-  assert.deepEqual(h.counts.redirects, ["https://example.test/club/timer/#/event/42"]);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
   assert.equal(h.counts.reads, 0);
 });
 
@@ -464,7 +460,7 @@ test("a new standalone page consumes the redirect result and returns to its orig
   h.callbacks.auth(null);
   h.callbacks.pageshow();
   await new Promise(setImmediate);
-  assert.deepEqual(h.counts.redirects, ["https://lifesaving-baden.firebaseapp.com/timer/#/event/42"]);
+  assert.deepEqual(h.counts.redirects, ["https://lifesaving-baden.firebaseapp.com/app.html"]);
   assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
   assert.equal(h.counts.writes.length, 0);
 });
@@ -503,7 +499,7 @@ test("cross-origin standalone installations keep the working popup path", async 
   assert.equal(h.counts.redirects.length, 1);
 });
 
-test("direct Google sign-in exchanges the credential once, preserves the account and exact timer return, and logs no token", async () => {
+test("direct Google sign-in exchanges the credential once, preserves the account and opens member home, and logs no token", async () => {
   const h = directGoogleHarness();
   h.element("[data-google-login]").parentElement = { clientWidth: 342 };
   const privateToken = "private-google-id-token";
@@ -524,7 +520,7 @@ test("direct Google sign-in exchanges the credential once, preserves the account
   assert.equal(h.identity.credentials.length, 1);
   assert.equal(h.identity.credentials[0].idToken, privateToken);
   assert.equal(h.auth.currentUser.uid, "existing-admin");
-  assert.deepEqual(h.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/timer/#/event/42"]);
+  assert.deepEqual(h.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/app.html"]);
   assert.equal(h.counts.reads, 0);
   assert.equal(h.counts.writes.length, 0);
   assert.equal(h.counts.redirectStarts, 0);
@@ -584,7 +580,7 @@ test("Google handoff saves a short-lived proof before navigating, then signs in 
   assert.equal(next.auth.currentUser.uid, "existing-admin");
   assert.equal(next.counts.reads, 0);
   assert.equal(next.counts.writes.length, 0);
-  assert.deepEqual(next.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/timer/#/event/42"]);
+  assert.deepEqual(next.counts.redirects, ["https://jp-gnad.github.io/Lifesaving-Baden/app.html"]);
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-handoff-v1"), undefined);
   assert.equal(next.window.sessionStorage.getItem("lifesaving-baden:google-login-started"), undefined);
   assert.equal(next.identity.timers.size, 0);
@@ -1004,12 +1000,12 @@ test("desktop registration uses the shared login form and sends verification wit
   assert.match(h.element('[data-form-message="login"]').textContent, /Konto erstellt/);
 });
 
-test("password reset keeps the timer return target", async () => {
+test("password reset links back to the shared login without a legacy timer target", async () => {
   const h = harness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2F" });
   h.login();
   h.element('[data-auth-form="login"]').fields.email = "test@example.test";
   await h.element("[data-reset-password]").handlers.click();
-  assert.equal(new URL(h.counts.reset.options.url).searchParams.get("returnTo"), "https://example.test/club/timer/#/");
+  assert.equal(new URL(h.counts.reset.options.url).searchParams.has("returnTo"), false);
 });
 
 test("new account documents preserve registration names and start with the standard role", async () => {
@@ -1062,7 +1058,7 @@ test("an account switch during context loading rejects stale data", async () => 
   assert.equal(h.counts.writes.length, 0);
 });
 
-test("legacy timer login redirects to the shared login with its original event and flags", () => {
+test("legacy timer login forwards verification flags and drops the old event target", () => {
   const h = harness({ url: "https://example.test/club/timer/login.html?returnTo=%2Fclub%2Ftimer%2F%23%2Fevent%2F42&verified=1" });
   const html = source("timer/login.html");
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
@@ -1070,7 +1066,7 @@ test("legacy timer login redirects to the shared login with its original event a
   h.callbacks.DOMContentLoaded();
   const destination = new URL(h.counts.redirects[0]);
   assert.equal(destination.pathname, "/club/login.html");
-  assert.equal(destination.searchParams.get("returnTo"), "https://example.test/club/timer/#/event/42");
+  assert.equal(destination.searchParams.has("returnTo"), false);
   assert.equal(destination.searchParams.get("verified"), "1");
 });
 
@@ -1146,6 +1142,31 @@ test("member initialization reports a permanent database error once", async () =
   assert.equal(h.counts.delays.length, 0);
   assert.equal(error.hidden, false);
   assert.match(error.textContent, /Firestore-Regeln/);
+});
+
+test("new profiles offer account setup in member home and consume the reminder", async () => {
+  for (const [stored, expectPrompt] of [
+    [null, true],
+    [{ role: "standard" }, false],
+    [{ role: "standard", accountSetupPending: true, linkedPersonId: "p-123" }, false],
+    [{ role: "standard", accountSetupPending: true, personLinkStatus: "requested" }, false],
+    [{ role: "admin", accountSetupPending: true }, false],
+  ]) {
+    const h = harness({ url: "https://example.test/club/app.html", user: { uid: "new-uid", emailVerified: true }, stored });
+    const updates = [];
+    const dialog = { open: false, showModal() { this.open = true; } };
+    h.document.body.dataset.page = "app";
+    h.document.body.classList = { remove() {} };
+    h.document.querySelector = (selector) => selector === "[data-account-setup]" ? dialog : null;
+    h.window.firebase.firestore().collection("users").doc("new-uid").update = async (payload) => updates.push(payload.accountSetupPending);
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(h.auth.currentUser);
+    await new Promise(setImmediate);
+    assert.equal(dialog.open, expectPrompt);
+    assert.deepEqual(updates, expectPrompt ? [false] : []);
+    assert.deepEqual(h.counts.redirects, []);
+    if (expectPrompt) assert.equal(h.counts.writes[0].accountSetupPending, true);
+  }
 });
 
 test("timer initialization uses the shared Kader role and clears it on logout", async () => {
@@ -1226,6 +1247,19 @@ function memberFunctions(h) {
   vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
+
+test("deleting an account exits to a clean login without the deletion page as return target", async () => {
+  const h = harness({ url: "https://example.test/club/account-settings.html#konto", user: { uid: "old-uid", emailVerified: true } });
+  const functions = memberFunctions(h);
+  let profileDeleted = false;
+  h.window.confirm = () => true;
+  h.window.firebase.firestore().collection("users").doc("old-uid").delete = async () => { profileDeleted = true; };
+  h.auth.currentUser.delete = async () => { h.auth.currentUser = null; };
+  await functions.deleteCurrentAccount(h.auth, null);
+  assert.equal(profileDeleted, true);
+  assert.equal(h.auth.currentUser, null);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/login.html"]);
+});
 
 test("the five canonical roles form the expected hierarchy and retain legacy privileges", () => {
   const h = harness();
@@ -1751,7 +1785,7 @@ test("mobile email entry reveals the required password only after continuing and
   assert.equal(h.email.readOnly, false);
 });
 
-test("mobile existing-account sign-in preserves the account and exact return route without registering", async () => {
+test("mobile existing-account sign-in preserves the account and opens member home without registering", async () => {
   const h = mobileEmailHarness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2Fevent%2F42", user: { uid: "existing-admin", emailVerified: true } });
   let registrations = 0;
   const credentials = [];
@@ -1764,11 +1798,11 @@ test("mobile existing-account sign-in preserves the account and exact return rou
   assert.deepEqual(credentials, [["anna@example.test", "existing-password"]]);
   assert.equal(registrations, 0);
   assert.equal(h.auth.currentUser.uid, "existing-admin");
-  assert.deepEqual(h.counts.redirects, ["https://example.test/club/timer/#/event/42"]);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
   assert.equal(h.counts.writes.length, 0);
 });
 
-test("mobile new accounts wait for email verification and preserve the original return route", async () => {
+test("mobile new accounts wait for email verification and continue to member home", async () => {
   const h = mobileEmailHarness({ url: "https://example.test/club/login.html?returnTo=timer%2F%23%2Fevent%2F42" });
   const verification = deferred();
   let verificationSettings;
@@ -1781,7 +1815,7 @@ test("mobile new accounts wait for email verification and preserve the original 
   const submitted = h.submit("login");
   await new Promise(setImmediate);
   assert.equal(h.counts.redirects.length, 0);
-  assert.equal(new URL(verificationSettings.url).searchParams.get("returnTo"), "https://example.test/club/timer/#/event/42");
+  assert.equal(new URL(verificationSettings.url).searchParams.has("returnTo"), false);
   verification.resolve();
   await submitted;
   assert.equal(h.counts.redirects.length, 0);
@@ -1791,7 +1825,7 @@ test("mobile new accounts wait for email verification and preserve the original 
   user.emailVerified = true;
   h.callbacks.visibilitychange();
   await new Promise(setImmediate);
-  assert.deepEqual(h.counts.redirects, ["https://example.test/club/timer/#/event/42"]);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
 });
 
 test("an existing address with an incorrect mobile password is never replaced or sent a verification email", async () => {

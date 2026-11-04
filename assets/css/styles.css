@@ -2116,6 +2116,28 @@ body.auth-context-loading .member-apps::after {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
+.account-setup-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(calc(100% - 32px), 460px);
+  height: fit-content;
+  margin: auto;
+  text-align: center;
+}
+
+.account-setup-dialog:not([open]) {
+  display: none;
+}
+
+.account-setup-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.66);
+}
+
+.account-setup-dialog p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .account-close {
   position: absolute;
   top: 16px;

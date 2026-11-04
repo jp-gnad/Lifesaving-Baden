@@ -93,6 +93,7 @@
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
+      accountSetupPending: true,
     };
     // Recheck inside the transaction so another tab's role/profile is never overwritten.
     return window.firebase.firestore().runTransaction(async (transaction) => {
@@ -129,21 +130,10 @@
   }
 
   const rootUrl = new URL("../../", document.currentScript.src);
-
-  function getSafeReturnUrl(value, fallback = new URL("app.html", rootUrl)) {
-    try {
-      const target = new URL(value || fallback.href, window.location.href);
-      const loginPaths = [new URL("login.html", rootUrl).pathname, new URL("timer/login.html", rootUrl).pathname];
-      if (target.origin === window.location.origin && !loginPaths.includes(target.pathname)) return target;
-    } catch { /* Invalid targets use the member home. */ }
-    return fallback;
-  }
+  const memberHomeUrl = new URL("app.html", rootUrl);
 
   function getLoginRedirectUrl() {
-    const target = new URL("login.html", rootUrl);
-    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-    if (returnTo) target.searchParams.set("returnTo", getSafeReturnUrl(returnTo).href);
-    return target.href;
+    return new URL("login.html", rootUrl).href;
   }
 
   function getVerificationRedirectUrl() {
@@ -152,18 +142,15 @@
     return target.href;
   }
 
-  function redirectToApp() {
-    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-    window.location.href = getSafeReturnUrl(returnTo).href;
+  function redirectToApp({ replace = false } = {}) {
+    if (replace) window.location.replace(memberHomeUrl.href);
+    else window.location.href = memberHomeUrl.href;
   }
 
   function redirectToLogin(reason) {
     const target = new URL(getLoginRedirectUrl());
-    if (window.location.pathname !== target.pathname) {
-      target.searchParams.set("returnTo", getSafeReturnUrl(window.location.href).href);
-    }
     if (reason) target.searchParams.set(reason, "1");
-    window.location.href = target.href;
+    window.location.replace(target.href);
   }
 
   function setMessage(type, text, isSuccess) {
@@ -368,7 +355,7 @@
     isTransientError, withRetry, loadUserContext, rememberRegistrationName,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount,
-    getSafeReturnUrl, getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin,
     setMessage, setLoading, translateAuthError, initPasswordVisibilityToggles,
   });
 })();

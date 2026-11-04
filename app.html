@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Mitgliederbereich - Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261103-linked-account-v65">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-account-setup-v67">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -20,8 +20,8 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth.js?v=20261103-linked-account-v15"></script>
+    <script defer src="assets/js/auth-core.js?v=20261105-account-setup-v12"></script>
+    <script defer src="assets/js/auth.js?v=20261105-account-setup-v17"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -143,6 +143,15 @@
         <a href="datenschutz.html">Datenschutz</a>
       </nav>
     </footer>
+
+    <dialog class="account-modal account-setup-dialog" data-account-setup aria-labelledby="account-setup-title">
+      <h2 id="account-setup-title">Konto einrichten</h2>
+      <p>Ergänze deine Angaben und beantrage die Verknüpfung mit deinem Eintrag in der Datenbank.</p>
+      <a class="button button-primary" href="link-request.html">Jetzt einrichten</a>
+      <form method="dialog">
+        <button class="button button-secondary full-width" type="submit" autofocus>Später</button>
+      </form>
+    </dialog>
 
     <div class="account-overlay is-hidden" data-account-overlay aria-hidden="true">
       <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
