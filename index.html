@@ -12,6 +12,30 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <title>Lifesaving Baden</title>
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
+    <script>
+      if (window.navigator.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches) {
+        document.documentElement.classList.add("app-launching");
+        window.setTimeout(() => document.documentElement.classList.remove("app-launching"), 10000);
+      }
+    </script>
+    <style>
+      .app-launch { display: none; }
+      .app-launching { background: #0f0f12; }
+      .app-launching body > :not(.app-launch) { display: none; }
+      .app-launching .app-launch {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 16px;
+        background: #0f0f12;
+        color: #fff;
+        font-size: 1.5rem;
+        text-align: center;
+      }
+    </style>
     <link rel="stylesheet" href="assets/css/styles.css?v=20261103-admin-accounts-v60">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
@@ -20,9 +44,13 @@
     <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth.js?v=20261103-linked-account-v15"></script>
+    <script defer src="assets/js/auth.js?v=20261105-app-launch-v16"></script>
   </head>
   <body data-page="landing">
+    <div class="app-launch" role="status" aria-label="Lifesaving Baden wird geöffnet">
+      <img src="assets/img/lifesaving-baden-logo.png" width="96" height="96" alt="">
+      <strong>Lifesaving Baden</strong>
+    </div>
     <header class="site-header">
       <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
         <span class="brand-mark" aria-hidden="true">

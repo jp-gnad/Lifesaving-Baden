@@ -4,7 +4,7 @@
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, isAdminAccount,
-    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
+    getSafeReturnUrl, getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
   function translateFirestoreError(error) {
     const messages = {
@@ -364,14 +364,34 @@
 
   initPasswordVisibilityToggles();
 
-  if (page === "landing" && window.isFirebaseConfigured && window.firebase?.auth) {
-    initFirebase().onAuthStateChanged((user) => {
-      if (hasVerifiedAccess(user)) {
-        redirectToApp();
-      } else if (user) {
-        redirectToLogin("needsVerification");
+  if (page === "landing") {
+    const launchClasses = document.documentElement.classList;
+    const standaloneLaunch = launchClasses.contains("app-launching");
+    const revealLanding = () => launchClasses.remove("app-launching");
+
+    if (!window.isFirebaseConfigured || !window.firebase?.auth) {
+      revealLanding();
+    } else {
+      try {
+        initFirebase().onAuthStateChanged((user) => {
+          if (hasVerifiedAccess(user)) {
+            if (standaloneLaunch) {
+              const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+              window.location.replace(getSafeReturnUrl(returnTo).href);
+            } else {
+              redirectToApp();
+            }
+          } else if (user) {
+            redirectToLogin("needsVerification");
+          } else {
+            revealLanding();
+          }
+        }, revealLanding);
+      } catch (error) {
+        revealLanding();
+        console.warn("Firebase-Anmeldung konnte nicht geprüft werden.", error);
       }
-    });
+    }
   }
 
   if (["app", "settings", "link-request", "admin-accounts"].includes(page)) {

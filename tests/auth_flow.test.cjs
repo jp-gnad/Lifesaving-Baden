@@ -1074,6 +1074,45 @@ test("legacy timer login redirects to the shared login with its original event a
   assert.equal(destination.searchParams.get("verified"), "1");
 });
 
+test("standalone launch covers the landing page until Firebase resolves the session", () => {
+  const startScript = source("index.html").match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+  for (const [mode, user] of [
+    ["ios", { uid: "member", emailVerified: true }],
+    ["standalone", null],
+    ["browser", null],
+    ["offline", null],
+  ]) {
+    const h = harness({ url: "https://example.test/club/", user });
+    const classes = new Set();
+    const replacements = [];
+    h.document.body.dataset.page = "landing";
+    h.document.documentElement = { classList: {
+      add: (name) => classes.add(name),
+      contains: (name) => classes.has(name),
+      remove: (name) => classes.delete(name),
+    } };
+    h.window.navigator = { standalone: mode === "ios" };
+    h.window.matchMedia = () => ({ matches: mode === "standalone" || mode === "offline" });
+    h.window.setTimeout = () => {};
+    h.window.location.replace = (url) => replacements.push(url);
+    if (mode === "offline") delete h.window.firebase;
+
+    vm.runInContext(startScript, h.context);
+    assert.equal(classes.has("app-launching"), mode !== "browser");
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    assert.deepEqual(replacements, []);
+    h.callbacks.auth?.(user);
+
+    if (user) {
+      assert.deepEqual(replacements, ["https://example.test/club/app.html"]);
+      assert.equal(classes.has("app-launching"), true);
+    } else {
+      assert.deepEqual(replacements, []);
+      assert.equal(classes.has("app-launching"), false);
+    }
+  }
+});
+
 test("the member page initializes an existing account with one document read and one token request", async () => {
   const user = { uid: "u", email: "test@example.test", displayName: "Anna Baden", emailVerified: true };
   const stored = { uid: "u", email: user.email, displayName: user.displayName, firstName: "Anna", lastName: "Baden", emailVerified: true, providerIds: ["password"], role: "sportler" };
