@@ -28,6 +28,8 @@
   let activeTab = "tasks";
   let previousStartDate = "";
   const currentMode = () => activeTab === "tasks" || mobile.matches ? "month" : mode;
+  const hourFormat = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const hours = (minutes) => `${hourFormat.format(minutes / 60)} Std.`;
   const organizationColor = (slot) => ({ "-1": "#898994", 0: "#51bd93", 1: "#77a9dc", 2: "#d6b66b" })[slot];
   const organizationLabel = (slot, summary) => Number(slot) === -1 ? "Ohne Gliederung" : organizations[slot] || summary.entries.find((entry) => entry.organization === Number(slot))?.organizationName || `Gliederung ${Number(slot) + 1}`;
 
@@ -114,16 +116,18 @@
     $("wt-chart-unit").textContent = compact ? "Stunden · Tage im Monat" : "Stunden";
     $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}. ${[0, 1, 2, -1].filter((slot) => bucket.byOrganization[slot] > 0).map((slot) => `${organizationLabel(slot, summary)} ${core.duration(bucket.byOrganization[slot])}`).join(", ")}`).join("; ")}`);
   }
-  function actionButton(label, action, entry, path) {
-    const button = node("button", "wt-icon-button");
-    button.type = "button";
-    button.setAttribute("aria-label", `${label}: ${entry.title}`);
-    button.title = label;
-    const icon = svgNode("svg", { viewBox: "0 0 24 24", "aria-hidden": "true" });
-    icon.append(svgNode("path", { d: path }));
-    button.append(icon);
-    button.addEventListener("click", () => action(entry));
-    return button;
+  function categoryIcon(category) {
+    const paths = {
+      training: "M9 2h6M12 2v3M18 6l2-2M20 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM12 9v4l3 2",
+      competition: "M8 3h8v6a4 4 0 0 1-8 0V3ZM8 5H4v2a4 4 0 0 0 4 4M16 5h4v2a4 4 0 0 1-4 4M12 13v6M8 21h8M9 19h6",
+      organization: "M8 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3M8 3h8v4H8V3ZM7 12h10M7 16h6",
+      athleteCare: "M12 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2",
+      education: "m2 9 10-5 10 5-10 5L2 9ZM6 11v6c4 3 8 3 12 0v-6M22 9v7",
+      other: "M5 12h.01M12 12h.01M19 12h.01",
+    };
+    const icon = svgNode("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" });
+    icon.append(svgNode("path", { d: paths[category] || paths.other }));
+    return icon;
   }
   function render() {
     updateControls();
@@ -155,34 +159,55 @@
     }
     const rows = [];
     let lastDate = "";
-    let group = null;
-    for (const entry of summary.entries.sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id))) {
+    let card = null;
+    const ordered = [...summary.entries].sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id));
+    const dailyTotals = new Map();
+    for (const entry of ordered) dailyTotals.set(entry.date, (dailyTotals.get(entry.date) || 0) + entry.durationMinutes);
+    for (const entry of ordered) {
       if (entry.date !== lastDate) {
-        group = node("section", "wt-day-group");
+        const group = node("section", "wt-day-group");
+        const header = node("div", "wt-day-header");
         const heading = node("h2", "wt-day-heading", dateFormat(entry.date, { weekday: "long", day: "numeric", month: "long" }));
         heading.id = `wt-day-${entry.date}`;
         group.setAttribute("aria-labelledby", heading.id);
-        group.append(heading);
+        const total = node("strong", "wt-day-total", hours(dailyTotals.get(entry.date)));
+        total.setAttribute("aria-label", `Tagessumme: ${core.duration(dailyTotals.get(entry.date))}`);
+        header.append(heading, total);
+        card = node("div", "wt-day-card");
+        card.setAttribute("role", "list");
+        group.append(header, card);
         rows.push(group);
         lastDate = entry.date;
       }
-      const item = node("article", "wt-task");
-      const info = node("div", "wt-task-info");
-      const meta = node("div", "wt-task-meta");
-      meta.append(node("span", "", core.categories[entry.category]));
-      if (entry.organization >= 0) {
-        const stripe = node("span", "wt-org-stripe");
-        stripe.dataset.organization = entry.organization;
-        stripe.title = entry.organizationName;
-        stripe.setAttribute("role", "img");
-        stripe.setAttribute("aria-label", `Gliederung: ${entry.organizationName}`);
-        item.append(stripe);
+      const row = node("div", "wt-task-row");
+      row.setAttribute("role", "listitem");
+      const item = node("button", "wt-task");
+      item.type = "button";
+      const organization = entry.organizationName || "Ohne Gliederung";
+      item.setAttribute("aria-label", `Aufgabe bearbeiten: ${entry.title}. ${core.categories[entry.category]}, ${core.duration(entry.durationMinutes)}, ${organization}`);
+      const icon = node("span", "wt-task-icon");
+      icon.dataset.organization = entry.organization ?? -1;
+      icon.title = `${core.categories[entry.category]} · ${organization}`;
+      icon.setAttribute("aria-hidden", "true");
+      icon.append(categoryIcon(entry.category));
+      const info = node("span", "wt-task-info");
+      const title = node("span", "wt-task-title", entry.title);
+      title.title = entry.title;
+      info.append(title);
+      if (entry.description) {
+        const description = node("span", "wt-task-description", entry.description);
+        description.title = entry.description;
+        const descriptionId = `wt-task-description-${entry.id}`;
+        description.id = descriptionId;
+        item.setAttribute("aria-describedby", descriptionId);
+        info.append(description);
       }
-      info.append(node("h3", "", entry.title), meta);
-      const actions = node("div", "wt-task-actions");
-      actions.append(actionButton("Bearbeiten", openEditor, entry, "m16 3 5 5M3 21l5-1L21 7a2 2 0 0 0-5-5L3 15v6Z"));
-      item.append(info, node("strong", "wt-task-duration", core.duration(entry.durationMinutes)), actions);
-      group.append(item);
+      const duration = node("strong", "wt-task-duration", hours(entry.durationMinutes));
+      duration.title = core.duration(entry.durationMinutes);
+      item.append(icon, info, duration);
+      item.addEventListener("click", () => openEditor(entry));
+      row.append(item);
+      card.append(row);
     }
     list.replaceChildren(...rows);
   }

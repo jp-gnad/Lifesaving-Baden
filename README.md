@@ -443,11 +443,16 @@ Ein Eintrag enthält Von-Datum/-Uhrzeit und Bis-Datum/-Uhrzeit, Titel, eine opti
 und eine Kategorie: Training, Wettkampf, Organisation, Athletenbetreuung,
 Fortbildungen oder Sonstiges. Auch zukünftige Aufgaben sind erlaubt. Es gibt
 keine Pausen und keinen Freigabeprozess. Jeder kann bis zu drei eigene Gliederungen
-hinterlegen und pro Aufgabe eine davon auswählen. Die Aufgabenliste zeigt nur
-Titel, Dauer, Kategorie und einen senkrechten Farbstreifen für die Gliederung.
-Die Tagesgruppen haben größere Überschriften und eigene Abstände; die zusätzliche
-Überschrift „Deine Aufgaben“ und die Stundensumme in der Aufgabenansicht entfallen. Details und die
-Löschfunktion befinden sich im Bearbeitungsdialog. Gespeicherte Gliederungsnamen
+hinterlegen und pro Aufgabe eine davon auswählen. Die Aufgabenliste kombiniert
+deutliche Tagesüberschriften mit einer gemeinsamen Box pro Tag. Jede Aufgabe ist
+eine vollständig anklickbare Zeile: links das Kategorie-Icon in Gliederungsfarbe,
+mittig Titel und Beschreibung, rechts die Stunden (z. B. `2,50 Std.`).
+Über der Box stehen Datum und Tagessumme. Lange Titel und Beschreibungen werden
+platzsparend gekürzt; im Bearbeitungsdialog bleiben sie vollständig verfügbar.
+Ein separates Bearbeiten-Icon gibt es nicht. Die Zeilen funktionieren auch per
+Tastatur; auf Handys erhält beim Öffnen die Dialogüberschrift den Fokus, damit
+die Tastatur erst nach dem Antippen eines Feldes erscheint. Die Löschfunktion
+befindet sich als Papierkorb-Icon unten links im Bearbeitungsdialog. Gespeicherte Gliederungsnamen
 bleiben bei späteren Änderungen der persönlichen Auswahl in alten Aufgaben erhalten.
 
 Aufgaben können sich über mehrere Tage erstrecken. Bis-Datum und -Uhrzeit müssen

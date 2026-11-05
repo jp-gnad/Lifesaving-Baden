@@ -10,15 +10,17 @@
   const pack = (record) => ({ ...record, day: timestamp(record.day), endDay: timestamp(record.endDay), startedAt: timestamp(record.startedAt), endedAt: timestamp(record.endedAt), createdAt: timestamp(new Date()), updatedAt: timestamp(new Date()) });
   const names = ["LV Baden", "Ettlingen", "Privat"];
   records.set(`${prefix}/worktimeSettings/preferences`, { organizations: names });
-  for (const [index, title, category, start, end, organization] of [
-    [1, "Abendtraining", "training", "18:00", "20:00", 0],
-    [2, "Wettkampf vorbereiten", "organization", "09:00", "10:00", 1],
-    [3, "Wettkampf betreuen", "competition", "08:00", "12:00", 0],
-    [4, "Athletengespräche", "athleteCare", "10:00", "12:00", 2],
-    [-2, "Trainerfortbildung", "education", "09:00", "11:30", 0],
-  ]) {
+  for (const [index, [offset, title, category, start, end, organization, description]] of [
+    [1, "Abendtraining", "training", "18:00", "20:00", 0, "Technik, Ausdauer und Staffelwechsel"],
+    [1, "Trainingsvorbereitung", "organization", "13:00", "14:00", 1, "Abläufe und Gruppen für das Training abstimmen"],
+    [1, "Kurzbesprechung", "other", "20:15", "21:00", 2, "Rückblick und nächste Schritte"],
+    [2, "Wettkampf vorbereiten", "organization", "09:00", "10:00", 1, "Meldeliste und Helfereinteilung"],
+    [3, "Wettkampf betreuen", "competition", "08:00", "12:00", 0, "Betreuung der Mannschaft vor Ort"],
+    [4, "Athletengespräche", "athleteCare", "10:00", "12:00", 2, "Persönliche Ziele und Trainingsfortschritt"],
+    [5, "Trainerfortbildung", "education", "09:00", "11:30", 0, "Neue Trainingsmethoden und Technikübungen"],
+  ].entries()) {
     const id = `sample-${index}`;
-    const record = pack(core.prepare({ date: core.shift(core.today(), -index), title, category, start, end, organization, organizationName: names[organization], description: "Details sind nur beim Bearbeiten sichtbar." }));
+    const record = pack(core.prepare({ date: core.shift(core.today(), -offset), title, category, start, end, organization, organizationName: names[organization], description }));
     records.set(`${prefix}/worktimeEntries/${id}`, record);
     const path = `${prefix}/worktimeSchedule/intervals`;
     const entries = records.get(path)?.entries || [];
