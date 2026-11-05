@@ -470,8 +470,10 @@ Kategorie- und Gliederungsfilter zur Verfügung. Die Aufgabenansicht zeigt jewei
 einen Monat. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
 zugerechnet und an der jeweiligen Uhrzeit angezeigt. Summen enthalten alle erfassten
 Aufgaben im Zeitraum einschließlich zukünftiger Einträge. Diagramme stapeln die
-Stunden je Gliederung in derselben Farbe wie die Aufgabenliste; nicht zugeordnete
-Zeiten sind grau. Die Legende nennt die Gliederungen und die zugehörigen Summen.
+Stunden wahlweise nach Gliederungen oder Kategorien. Die Umschaltung steht auch
+auf dem Handy zur Verfügung. Gliederungen verwenden dieselben Farben wie die
+Aufgabenliste; nicht zugeordnete Zeiten sind grau. Kategorien haben jeweils eine
+feste Farbe. Die Legende zeigt die gewählte Aufteilung und die zugehörigen Summen.
 Auf Handys stehen Kennzahlen, Diagramm und Kategorien in getrennten Bereichen.
 Der Button „Aufgabe hinzufügen“ bleibt unten im Inhaltsbereich und läuft beim
 Footer nach oben, sodass die Fußnavigation frei bleibt. Datum und Uhrzeit sind

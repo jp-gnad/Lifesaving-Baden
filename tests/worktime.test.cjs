@@ -133,3 +133,33 @@ test("stacked organization totals survive compact charts and include unassigned 
     if (mode === "month") assert.equal(core.compactBuckets(summary).reduce((sum, bucket) => sum + bucket.byOrganization[1], 0), 360);
   }
 });
+
+test("category stacks preserve totals across organizations, periods and compact monthly bins", () => {
+  const records = [
+    entry({ start: "08:00", end: "13:00", organization: 0, organizationName: "Baden" }),
+    entry({ start: "13:00", end: "14:00", organization: 1, organizationName: "Ettlingen" }),
+    entry({ start: "14:00", end: "20:00", category: "competition", organization: 1, organizationName: "Ettlingen" }),
+    entry({ start: "20:00", end: "20:30", category: "other" }),
+    entry({ date: "2026-10-02", category: "education", start: "09:00", end: "11:00" }),
+    entry({ date: "2026-09-30", category: "athleteCare" }),
+  ];
+  for (const mode of ["day", "week", "month"]) {
+    const summary = core.summarize(records, mode, "2026-10-31");
+    assert.equal(summary.byCategory.training, 360);
+    assert.equal(summary.byCategory.competition, 360);
+    assert.equal(summary.byCategory.other, 30);
+    assert.equal(summary.byCategory.education, mode === "month" ? 120 : 0);
+    assert.equal(summary.byCategory.athleteCare, 0);
+    for (const buckets of [summary.buckets, ...(mode === "month" ? [core.compactBuckets(summary)] : [])]) {
+      for (const category of Object.keys(core.categories)) {
+        assert.equal(buckets.reduce((sum, bucket) => sum + bucket.byCategory[category], 0), summary.byCategory[category]);
+      }
+      for (const bucket of buckets) {
+        assert.equal(Object.values(bucket.byCategory).reduce((sum, minutes) => sum + minutes, 0), bucket.minutes);
+        assert.equal(Object.values(bucket.byOrganization).reduce((sum, minutes) => sum + minutes, 0), bucket.minutes);
+      }
+    }
+  }
+  const empty = core.summarize([], "month", "2026-11-01");
+  assert.equal(core.compactBuckets(empty).every((bucket) => Object.values(bucket.byCategory).every((minutes) => minutes === 0)), true);
+});

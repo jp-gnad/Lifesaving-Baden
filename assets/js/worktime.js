@@ -13,6 +13,7 @@
   let unsubscribe = null;
   let entries = [];
   let mode = "month";
+  let chartGrouping = "organization";
   let anchor = core.today();
   let editing = null;
   let deleting = null;
@@ -32,6 +33,7 @@
   const hours = (minutes) => `${hourFormat.format(minutes / 60)} Std.`;
   const organizationColor = (slot) => ({ "-1": "#898994", 0: "#51bd93", 1: "#77a9dc", 2: "#d6b66b" })[slot];
   const organizationLabel = (slot, summary) => Number(slot) === -1 ? "Ohne Gliederung" : organizations[slot] || summary.entries.find((entry) => entry.organization === Number(slot))?.organizationName || `Gliederung ${Number(slot) + 1}`;
+  const categoryColors = Object.freeze({ training: "#51bd93", competition: "#77a9dc", organization: "#d6b66b", athleteCare: "#b29bd6", education: "#69bbc2", other: "#92929d" });
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -65,6 +67,7 @@
     $("wt-next").disabled = false;
     $("wt-prev").disabled = core.period(currentMode(), anchor).start <= "2000-01-01";
     document.querySelectorAll("[data-period]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.period === mode)));
+    document.querySelectorAll("[data-chart-grouping]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.chartGrouping === chartGrouping)));
   }
   function svgNode(tag, attrs = {}, text) {
     const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -74,6 +77,12 @@
   }
   function chart(summary) {
     const compact = mobile.matches;
+    const categories = chartGrouping === "category";
+    const groupingLabel = categories ? "Kategorien" : "Gliederungen";
+    const groups = categories ? Object.keys(core.categories) : [0, 1, 2, -1];
+    const property = categories ? "byCategory" : "byOrganization";
+    const groupLabel = (group) => categories ? core.categories[group] : organizationLabel(group, summary);
+    const groupColor = (group) => categories ? categoryColors[group] : organizationColor(group);
     const buckets = compact ? core.compactBuckets(summary) : summary.buckets;
     const chartWidth = compact ? 340 : 950;
     const svg = svgNode("svg", { viewBox: `0 0 ${chartWidth} 190`, preserveAspectRatio: "none", "aria-hidden": "true" });
@@ -92,29 +101,31 @@
       const x = 36 + index * slot;
       const label = compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" });
       let accumulated = 0;
-      for (const organization of [0, 1, 2, -1]) {
-        const minutes = bucket.byOrganization[organization];
+      for (const group of groups) {
+        const minutes = bucket[property][group];
         if (!minutes) continue;
         const barHeight = minutes / (maxHours * 60) * height;
         accumulated += barHeight;
-        const bar = svgNode("rect", { x: x + slot * .2, y: top + height - accumulated, width: slot * .6, height: barHeight, fill: organizationColor(organization), class: "wt-bar", "data-organization": organization });
-        bar.append(svgNode("title", {}, `${label} · ${organizationLabel(organization, summary)}: ${core.duration(minutes)}`));
+        const bar = svgNode("rect", { x: x + slot * .2, y: top + height - accumulated, width: slot * .6, height: barHeight, fill: groupColor(group), class: "wt-bar", "data-grouping": chartGrouping, "data-group": group });
+        bar.append(svgNode("title", {}, `${label} · ${groupLabel(group)}: ${core.duration(minutes)}`));
         svg.append(bar);
       }
       const showLabel = compact || currentMode() === "week" || (currentMode() === "day" ? index % 4 === 0 : index === 0 || (index + 1) % 5 === 0);
       if (showLabel) svg.append(svgNode("text", { x: x + slot / 2, y: 181, "text-anchor": "middle" }, compact ? bucket.label : currentMode() === "day" ? String(index).padStart(2, "0") : currentMode() === "week" ? dateFormat(bucket.key, { weekday: "short" }) : String(index + 1)));
     });
     $("wt-chart").replaceChildren(svg);
-    $("wt-legend").replaceChildren(...[0, 1, 2, -1].filter((organization) => summary.byOrganization[organization] > 0).map((organization) => {
+    $("wt-legend").setAttribute("aria-label", `${groupingLabel} im Diagramm`);
+    $("wt-legend").replaceChildren(...groups.filter((group) => summary[property][group] > 0).map((group) => {
       const label = node("span", "wt-legend-item");
       const marker = node("i", "wt-org-stripe");
-      marker.style.backgroundColor = organizationColor(organization);
+      marker.style.backgroundColor = groupColor(group);
       marker.setAttribute("aria-hidden", "true");
-      label.append(marker, node("span", "", organizationLabel(organization, summary)), node("strong", "", core.duration(summary.byOrganization[organization])));
+      label.append(marker, node("span", "", groupLabel(group)), node("strong", "", core.duration(summary[property][group])));
       return label;
     }));
     $("wt-chart-unit").textContent = compact ? "Stunden · Tage im Monat" : "Stunden";
-    $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}. ${[0, 1, 2, -1].filter((slot) => bucket.byOrganization[slot] > 0).map((slot) => `${organizationLabel(slot, summary)} ${core.duration(bucket.byOrganization[slot])}`).join(", ")}`).join("; ")}`);
+    $("wt-chart").setAttribute("aria-label", `${periodLabel()}, nach ${groupingLabel}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}. ${groups.filter((group) => bucket[property][group] > 0).map((group) => `${groupLabel(group)} ${core.duration(bucket[property][group])}`).join(", ")}`).join("; ")}`);
+    $("wt-categories").hidden = categories;
   }
   function categoryIcon(category) {
     const paths = {
@@ -298,7 +309,7 @@
     editor.querySelectorAll("input, select, textarea, button").forEach((element) => { element.disabled = value; });
     deleteDialog.querySelectorAll("button").forEach((element) => { element.disabled = value; });
     organizationsDialog.querySelectorAll("input, button").forEach((element) => { element.disabled = value; });
-    $("wt-save").textContent = value ? "Wird gespeichert …" : "Speichern";
+    $("wt-save").textContent = value ? "Speichern..." : "Speichern";
   }
   function refreshOrganizations(selected = form.elements.organization.value || "-1", previousName = form.elements.organization.selectedOptions[0]?.dataset.name || "") {
     const slot = Number(String(selected).split(":")[0]);
@@ -505,6 +516,10 @@
   });
   $("wt-filter").addEventListener("change", render);
   $("wt-organization-filter").addEventListener("change", render);
+  document.querySelectorAll("[data-chart-grouping]").forEach((button) => button.addEventListener("click", () => {
+    chartGrouping = button.dataset.chartGrouping;
+    render();
+  }));
   document.querySelectorAll("[data-period]").forEach((button) => button.addEventListener("click", () => {
     if (mode === button.dataset.period) return;
     mode = button.dataset.period;

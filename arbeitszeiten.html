@@ -17,16 +17,16 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
-    <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-task-cards-v1">
+    <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-chart-grouping-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/worktime-core.js?v=20261105-worktime-v3"></script>
+    <script defer src="assets/js/worktime-core.js?v=20261106-chart-grouping-v1"></script>
     <script defer src="assets/js/worktime-store.js?v=20261105-worktime-v3"></script>
-    <script defer src="assets/js/worktime.js?v=20261106-task-cards-v1"></script>
+    <script defer src="assets/js/worktime.js?v=20261106-chart-grouping-v1"></script>
     <script defer src="assets/js/auth.js?v=20261105-worktime-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="worktime">
@@ -90,6 +90,10 @@
             <div class="wt-metric"><span>Aktive Tage</span><strong id="wt-days">—</strong></div>
           </div>
           <div class="wt-chart-panel"><div class="wt-chart-heading"><h2>Zeitverteilung</h2><span id="wt-chart-unit">Stunden</span></div>
+          <div class="wt-segments wt-chart-grouping" role="group" aria-label="Diagramm aufteilen nach">
+            <button type="button" data-chart-grouping="organization" aria-pressed="true">Gliederungen</button>
+            <button type="button" data-chart-grouping="category" aria-pressed="false">Kategorien</button>
+          </div>
           <div class="wt-chart" id="wt-chart" role="img" aria-label="Arbeitsstunden im ausgewählten Zeitraum"></div><div class="wt-legend" id="wt-legend" aria-label="Gliederungen im Diagramm"></div></div>
           <div class="wt-categories" id="wt-categories" aria-label="Stunden je Kategorie"></div>
         </section>

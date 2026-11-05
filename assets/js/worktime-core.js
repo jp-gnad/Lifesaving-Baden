@@ -88,7 +88,7 @@
     const selected = entries.filter((entry) => entry.date >= range.start && entry.date < range.end);
     const buckets = [];
     if (mode === "day") {
-      for (let hour = 0; hour < 24; hour += 1) buckets.push({ key: hour, label: `${pad(hour)} Uhr`, minutes: 0, byOrganization: organizationTotals() });
+      for (let hour = 0; hour < 24; hour += 1) buckets.push({ key: hour, label: `${pad(hour)} Uhr`, minutes: 0, byOrganization: organizationTotals(), byCategory: categoryTotals() });
       // The full entry belongs to its start date, including hours after midnight.
       for (const entry of selected) {
         const start = entry.startMinute;
@@ -102,10 +102,10 @@
         portions.forEach((portion, hour) => addMinutes(buckets[hour], entry, portion * entry.durationMinutes / wallDuration));
       }
     } else {
-      for (let date = range.start; date < range.end; date = shift(date, 1)) buckets.push({ key: date, label: date, minutes: 0, byOrganization: organizationTotals() });
+      for (let date = range.start; date < range.end; date = shift(date, 1)) buckets.push({ key: date, label: date, minutes: 0, byOrganization: organizationTotals(), byCategory: categoryTotals() });
       for (const entry of selected) addMinutes(buckets.find((bucket) => bucket.key === entry.date), entry, entry.durationMinutes);
     }
-    const byCategory = Object.fromEntries(Object.keys(categories).map((category) => [category, 0]));
+    const byCategory = categoryTotals();
     for (const entry of selected) byCategory[entry.category] += entry.durationMinutes;
     const byOrganization = organizationTotals();
     for (const entry of selected) byOrganization[entry.organization ?? -1] += entry.durationMinutes;
@@ -120,15 +120,19 @@
     for (let index = 0; index < summary.buckets.length; index += 7) {
       const group = summary.buckets.slice(index, index + 7);
       const byOrganization = organizationTotals();
+      const byCategory = categoryTotals();
       for (const bucket of group) for (const organization of [-1, 0, 1, 2]) byOrganization[organization] += bucket.byOrganization[organization];
-      buckets.push({ key: group[0].key, label: `${index + 1}–${index + group.length}`, minutes: group.reduce((sum, bucket) => sum + bucket.minutes, 0), byOrganization });
+      for (const bucket of group) for (const category of Object.keys(categories)) byCategory[category] += bucket.byCategory[category];
+      buckets.push({ key: group[0].key, label: `${index + 1}–${index + group.length}`, minutes: group.reduce((sum, bucket) => sum + bucket.minutes, 0), byOrganization, byCategory });
     }
     return buckets;
   }
   function organizationTotals() { return { "-1": 0, 0: 0, 1: 0, 2: 0 }; }
+  function categoryTotals() { return Object.fromEntries(Object.keys(categories).map((category) => [category, 0])); }
   function addMinutes(bucket, entry, minutes) {
     bucket.minutes += minutes;
     bucket.byOrganization[entry.organization ?? -1] += minutes;
+    bucket.byCategory[entry.category] += minutes;
   }
   function recordEndDate(record) {
     if (record.endDay) return key(new Date(timestampMillis(record.endDay)));
