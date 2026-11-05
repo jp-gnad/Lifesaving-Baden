@@ -367,8 +367,10 @@
       revealLanding();
     } else {
       try {
-        initFirebase().onAuthStateChanged((user) => {
-          if (hasVerifiedAccess(user)) {
+        initFirebase().onAuthStateChanged(async (user) => {
+          const verified = await hasVerifiedAccess(user);
+          if (user && !isCurrentUser(user)) return;
+          if (verified) {
             redirectToApp({ replace: standaloneLaunch });
           } else if (user) {
             redirectToLogin("needsVerification");
@@ -480,6 +482,18 @@
       });
     });
 
+    document.querySelectorAll("[data-sign-in-email]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const section = document.querySelector(`[data-${link.dataset.signInEmail}-provider-item]`);
+        setActiveItem("#sicherheit", { pushHash: isMobileSettingsView() });
+        if (section) {
+          section.open = true;
+          section.querySelector("summary")?.focus();
+        }
+      });
+    });
+
     mobileBackButtons.forEach((button) => {
       button.addEventListener("click", () => showMobileSettingsMenu());
     });
@@ -539,7 +553,9 @@
         const activeUser = await reloadUser(user);
         if (!isCurrentUser(activeUser)) return;
 
-        if (!hasVerifiedAccess(activeUser)) {
+        const verified = await hasVerifiedAccess(activeUser);
+        if (!isCurrentUser(activeUser)) return;
+        if (!verified) {
           redirectToLogin("needsVerification");
           return;
         }
@@ -686,15 +702,27 @@
 
   function updateAccountProfile(user) {
     const accountName = getAccountName(user);
-    const accountEmail = user.email || "Keine E-Mail geladen.";
+    const googleEmail = getGoogleEmail(user);
+    const passwordEmail = hasProvider(user, "password") ? user.email || "" : "";
+    const accountEmail = googleEmail || passwordEmail
+      || (hasProvider(user, "google.com") ? "" : user.email) || "Keine E-Mail geladen.";
 
     setTextForAll("[data-account-email]", accountEmail);
+    updateSignInEmailRow("google", googleEmail);
+    updateSignInEmailRow("password", passwordEmail.toLowerCase() === googleEmail.toLowerCase() ? "" : passwordEmail);
     setTextForAll("[data-account-name]", accountName);
     setTextForAll("[data-user-name-separator]", accountName ? "," : "");
     setTextForAll("[data-user-name]", accountName);
-    setTextForAll("[data-link-account-email]", accountEmail);
+    setTextForAll("[data-link-account-email]", user.email || "Keine E-Mail geladen.");
     updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
+  }
+
+  function updateSignInEmailRow(provider, email) {
+    const row = document.querySelector(`[data-sign-in-email="${provider}"]`);
+    if (!row) return;
+    row.hidden = !email;
+    row.querySelector("[data-sign-in-email-value]").textContent = email;
   }
 
   async function synchronizeUserDocument(user, data) {
@@ -2179,24 +2207,21 @@
   }
 
   function getProviderIds(user) {
-    return user.providerData.map((provider) => provider.providerId);
+    return (user.providerData || []).map((provider) => provider.providerId);
   }
 
   function hasProvider(user, providerId) {
     return getProviderIds(user).includes(providerId);
   }
 
+  function getGoogleEmail(user) {
+    return user.providerData?.find((provider) => provider.providerId === "google.com")?.email || "";
+  }
+
   const profileFieldConfig = {
     displayName: {
       label: "Name",
       type: "name-parts",
-      required: true,
-      emptyLabel: "Nicht angegeben"
-    },
-    email: {
-      label: "E-Mail",
-      type: "email",
-      autocomplete: "email",
       required: true,
       emptyLabel: "Nicht angegeben"
     },
@@ -2281,9 +2306,7 @@
       const fieldName = element.dataset.profileValue;
       const value = getProfileFormValue(form, fieldName);
 
-      element.textContent = fieldName === "email" && form.dataset.pendingEmail
-        ? `${value} · Bestätigung ausstehend`
-        : formatProfileFieldValue(fieldName, value);
+      element.textContent = formatProfileFieldValue(fieldName, value);
     });
 
     document.querySelectorAll("[data-profile-edit]").forEach((row) => {
@@ -2450,7 +2473,6 @@
     const editorControl = document.querySelector("[data-profile-editor-control]");
     const editorHelp = document.querySelector("[data-profile-editor-help]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
-    const emailChangeCancelButton = document.querySelector("[data-profile-email-change-cancel]");
     const activeRow = document.querySelector(`[data-profile-edit="${fieldName}"]`);
 
     if (!config || !editor || !editorLabel || !editorControl || !deleteButton || !activeRow) {
@@ -2469,12 +2491,6 @@
     editorControl.replaceChildren(createProfileFieldControl(fieldName, form));
     deleteButton.hidden = !config.canDelete;
     deleteButton.disabled = !config.canDelete;
-    if (emailChangeCancelButton) {
-      const canCancelEmailChange = fieldName === "email" && Boolean(form.dataset.pendingEmail);
-
-      emailChangeCancelButton.hidden = !canCancelEmailChange;
-      emailChangeCancelButton.disabled = !canCancelEmailChange;
-    }
 
     editor.classList.remove("is-hidden");
     editor.hidden = false;
@@ -2494,7 +2510,6 @@
     const editorForm = document.querySelector("[data-profile-field-form]");
     const cancelButton = document.querySelector("[data-profile-edit-cancel]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
-    const emailChangeCancelButton = document.querySelector("[data-profile-email-change-cancel]");
 
     if (!profileForm || !editorForm || profileForm.dataset.fieldEditorAttached) {
       return;
@@ -2519,9 +2534,6 @@
     editorForm.addEventListener("submit", (event) => saveProfileField(event, auth, profileForm));
     cancelButton?.addEventListener("click", () => closeProfileFieldEditor());
     deleteButton?.addEventListener("click", () => deleteProfileField(auth, profileForm));
-    emailChangeCancelButton?.addEventListener("click", () => {
-      cancelPendingEmailChange(auth, profileForm, emailChangeCancelButton);
-    });
   }
 
   async function saveProfileField(event, auth, profileForm) {
@@ -2594,15 +2606,6 @@
       return;
     }
 
-    if (
-      fieldName === "email"
-      && profileForm.dataset.pendingEmail
-      && value.toLowerCase() === String(auth.currentUser?.email || "").toLowerCase()
-    ) {
-      await cancelPendingEmailChange(auth, profileForm, saveButton);
-      return;
-    }
-
     const previousValue = profileForm.elements[fieldName].value;
 
     profileForm.elements[fieldName].value = value;
@@ -2655,7 +2658,6 @@
     }
 
     profileForm.elements.displayName.value = nameDetails.displayName;
-    profileForm.elements.email.value = user.email || "";
     updateProfileFieldList(profileForm);
   }
 
@@ -2700,6 +2702,7 @@
     const hasEmailFallback = passwordLinked && Boolean(user.emailVerified);
 
     setProviderStatusClass(googleProviderItem, googleLinked ? "active" : "inactive");
+    button.disabled = googleLinked && !hasEmailFallback;
     updatePasswordProviderStatus(user);
     if (unlinkButton) {
       unlinkButton.classList.toggle("is-hidden", !googleLinked);
@@ -2713,7 +2716,7 @@
     }
 
     if (googleLinked) {
-      updateText("[data-google-provider-summary]", "Google-Konto aktiv");
+      updateText("[data-google-provider-summary]", getGoogleEmail(user) || "Google-Konto aktiv");
       status.textContent = hasEmailFallback
         ? "Google ist aktiv. Du kannst das Google-Konto wechseln oder abmelden, weil ein bestätigtes E-Mail-Konto vorhanden ist."
         : "Google ist aktiv. Zum Wechseln oder Abmelden brauchst du zuerst ein bestätigtes E-Mail-Konto.";
@@ -2757,6 +2760,9 @@
     const editButton = document.querySelector("[data-password-edit]");
     const submitButton = form?.querySelector('button[type="submit"]');
     const currentPasswordInput = form?.elements.currentPassword;
+    const emailInput = form?.elements.email;
+    const emailRow = document.querySelector("[data-password-email-row]");
+    const emailEditButton = document.querySelector("[data-password-email-edit]");
     const verificationButton = document.querySelector("[data-password-verification]");
     const unlinkButton = document.querySelector("[data-password-unlink]");
 
@@ -2772,6 +2778,8 @@
     const submitLabel = passwordLinked ? "Passwort speichern" : "E-Mail-Konto hinzufügen";
     const passwordStatus = !passwordLinked ? "inactive" : (passwordVerified ? "active" : "warning");
     const formIsOpen = form?.dataset.editing === "true";
+    const pendingEmail = passwordLinked ? String(readUserDocCache(user.uid)?.pendingEmail || "") : "";
+    const emailChangePending = pendingEmail && pendingEmail.toLowerCase() !== user.email?.toLowerCase();
 
     setProviderStatusClass(passwordProviderItem, passwordStatus);
     updateText(
@@ -2783,12 +2791,21 @@
 
     if (help) {
       if (!passwordLinked) {
-        help.textContent = `E-Mail-Konto: ${emailLabel}. Lege ein Passwort für diese E-Mail-Adresse an. Danach führen Google und E-Mail/Passwort zum selben Konto.`;
-      } else if (passwordVerified) {
-        help.textContent = `E-Mail-Konto: ${emailLabel}. Dieses E-Mail-Konto ist bestätigt.`;
+        help.textContent = "Gib eine E-Mail-Adresse und ein Passwort ein, um eine weitere Anmeldemethode hinzuzufügen.";
       } else {
-        help.textContent = `E-Mail-Konto: ${emailLabel}. Dieses E-Mail-Konto ist eingerichtet, aber noch nicht per Mail bestätigt.`;
+        help.textContent = `Passwort-Mail: ${emailLabel} · ${passwordVerified ? "Bestätigt" : "Bestätigung ausstehend"}.`
+          + (emailChangePending ? ` Neue Adresse: ${pendingEmail} · Bestätigung ausstehend.` : "");
       }
+    }
+
+    if (emailRow) emailRow.hidden = passwordLinked;
+    if (emailInput) {
+      emailInput.disabled = passwordLinked;
+      emailInput.required = !passwordLinked;
+    }
+    if (emailEditButton) {
+      emailEditButton.hidden = !passwordLinked || formIsOpen;
+      if (!passwordLinked) setPasswordEmailFormOpen(false);
     }
 
     if (currentPasswordRow) {
@@ -2822,6 +2839,7 @@
   function openPasswordForm(auth) {
     const form = document.querySelector("[data-password-form]");
 
+    setPasswordEmailFormOpen(false);
     setPasswordFormOpen(form, true);
     updatePasswordProviderStatus(auth.currentUser);
 
@@ -2829,6 +2847,41 @@
       .find((input) => !input.closest("[hidden]"));
 
     firstVisibleInput?.focus({ preventScroll: true });
+  }
+
+  function setPasswordEmailFormOpen(isOpen, email = "") {
+    const form = document.querySelector("[data-password-email-form]");
+    if (!form) return;
+    form.hidden = !isOpen;
+    form.elements.email.value = email;
+    document.querySelector("[data-password-email-edit]")?.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) form.elements.email.focus();
+  }
+
+  async function savePasswordEmail(event, auth) {
+    event.preventDefault();
+    const user = auth.currentUser;
+    if (!user || !hasProvider(user, "password")) return;
+    const form = event.currentTarget;
+    const email = form.elements.email.value.trim();
+    if (!email || email.toLowerCase() === user.email?.toLowerCase()) {
+      setPasswordEmailFormOpen(false);
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    try {
+      setLoading(button, true, "Speichern...");
+      await user.verifyBeforeUpdateEmail(email, { url: getVerificationRedirectUrl() });
+      requireCurrentUser(user);
+      await saveIdentitySnapshot(user, email);
+      setPasswordEmailFormOpen(false);
+      updatePasswordProviderStatus(user);
+      setPasswordMessage(`Bestätige die neue Passwort-Mail über den Link an ${email}.`, true);
+    } catch (error) {
+      setPasswordMessage(translateProfileSaveError(error), false);
+    } finally {
+      setLoading(button, false);
+    }
   }
 
   function closePasswordForm(auth) {
@@ -2895,6 +2948,18 @@
     if (passwordForm && !passwordForm.dataset.listenerAttached) {
       passwordForm.dataset.listenerAttached = "true";
       passwordForm.addEventListener("submit", (event) => changeAccountPassword(event, auth));
+      document.querySelector("[data-password-email-form]")?.addEventListener("submit", (event) => savePasswordEmail(event, auth));
+      document.querySelector("[data-password-email-edit]")?.addEventListener("click", () => {
+        const user = auth.currentUser;
+        if (!user || !hasProvider(user, "password")) return;
+        const isOpen = document.querySelector("[data-password-email-form]")?.hidden;
+        setPasswordMessage("");
+        setPasswordEmailFormOpen(isOpen, isOpen ? readUserDocCache(user.uid)?.pendingEmail || user.email : "");
+      });
+      document.querySelector("[data-password-email-cancel]")?.addEventListener("click", () => {
+        setPasswordEmailFormOpen(false);
+        document.querySelector("[data-password-email-edit]")?.focus();
+      });
     }
 
     if (passwordEditButton && !passwordEditButton.dataset.listenerAttached) {
@@ -2928,6 +2993,7 @@
     }
 
     await loadAccountProfileDetails(auth, userData);
+    updatePasswordProviderStatus(auth.currentUser);
   }
 
   function getOptionalProfileDetails(form) {
@@ -2984,19 +3050,6 @@
       const data = userData || await loadCurrentUserData(user) || {};
       const details = await syncProfileDetailsFromLinkRequest(user, data);
       const nameDetails = getNameDetailsFromData(data, user);
-      const activeEmail = user.email || data.email || "";
-      const pendingEmail = String(data.pendingEmail || "").trim();
-      const hasPendingEmail = Boolean(
-        pendingEmail
-        && pendingEmail.toLowerCase() !== activeEmail.toLowerCase()
-      );
-
-      if (hasPendingEmail) {
-        profileForm.dataset.pendingEmail = pendingEmail;
-      } else {
-        delete profileForm.dataset.pendingEmail;
-      }
-
       if (profileForm.elements.firstName) {
         profileForm.elements.firstName.value = nameDetails.firstName;
       }
@@ -3007,10 +3060,6 @@
 
       if (profileForm.elements.displayName) {
         profileForm.elements.displayName.value = nameDetails.displayName;
-      }
-
-      if (profileForm.elements.email) {
-        profileForm.elements.email.value = hasPendingEmail ? pendingEmail : activeEmail;
       }
 
       if (profileForm.elements.dlrgBranch) {
@@ -3053,7 +3102,6 @@
       displayName: form.elements.displayName?.value
     });
     const displayName = nameDetails.displayName;
-    const email = form.elements.email.value.trim();
     const optionalProfileDetails = getOptionalProfileDetails(form);
 
     if (!user) {
@@ -3061,24 +3109,15 @@
       return false;
     }
 
-    if (!email) {
-      setProfileMessage("Bitte gib eine E-Mail-Adresse ein.", false);
-      return false;
-    }
-
     if (form.elements.displayName) {
       form.elements.displayName.value = displayName;
     }
 
-    const normalizedEmail = email.toLowerCase();
-    const activeEmail = String(user.email || "").trim().toLowerCase();
-    const pendingEmail = String(readUserDocCache(user.uid)?.pendingEmail || "").trim().toLowerCase();
-    const emailChanged = normalizedEmail !== activeEmail && normalizedEmail !== pendingEmail;
     const displayNameChanged = Boolean(displayName && displayName !== (user.displayName || ""));
     const nameDetailsChanged = haveNameDetailsChanged(user, nameDetails);
     const profileDetailsChanged = haveOptionalProfileDetailsChanged(user, optionalProfileDetails);
 
-    if (!displayNameChanged && !nameDetailsChanged && !emailChanged && !profileDetailsChanged) {
+    if (!displayNameChanged && !nameDetailsChanged && !profileDetailsChanged) {
       setProfileMessage("Keine Ã„nderung zu speichern.", true);
       updateEmptyProfileFieldHighlights(form);
       return true;
@@ -3091,14 +3130,10 @@
         await user.updateProfile({ displayName });
       }
 
-      if (emailChanged) {
-        await requestEmailChange(user, email);
-      }
-
       await user.reload();
       const updatedData = await saveIdentitySnapshot(
         auth.currentUser,
-        emailChanged ? email : null,
+        null,
         optionalProfileDetails,
         nameDetails
       );
@@ -3108,12 +3143,7 @@
       await initLinkStatus(auth, updatedData);
       updateEmptyProfileFieldHighlights(form);
 
-      setProfileMessage(
-        emailChanged
-          ? `Bestätigungsmail an ${email} gesendet.`
-          : "Kontodaten gespeichert.",
-        true
-      );
+      setProfileMessage("Kontodaten gespeichert.", true);
       return true;
     } catch (error) {
       setProfileMessage(translateProfileSaveError(error), false);
@@ -3131,20 +3161,6 @@
       event.currentTarget,
       event.currentTarget.querySelector('button[type="submit"]')
     );
-  }
-
-  async function requestEmailChange(user, email) {
-    const actionSettings = {
-      url: getVerificationRedirectUrl()
-    };
-
-    if (typeof user.verifyBeforeUpdateEmail === "function") {
-      await user.verifyBeforeUpdateEmail(email, actionSettings);
-      return;
-    }
-
-    await user.updateEmail(email);
-    await user.sendEmailVerification(actionSettings);
   }
 
   async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails, nameDetails = null) {
@@ -3187,6 +3203,7 @@
     const form = event.currentTarget;
     const button = form.querySelector('button[type="submit"]');
     const currentPassword = form.elements.currentPassword?.value || "";
+    const email = form.elements.email?.value.trim() || "";
     const newPassword = form.elements.newPassword.value;
     const repeatPassword = form.elements.repeatPassword.value;
     const passwordLinked = user ? hasProvider(user, "password") : false;
@@ -3206,8 +3223,8 @@
       return;
     }
 
-    if (!passwordLinked && !user.email) {
-      setPasswordMessage("Dieses Konto hat keine E-Mail-Adresse, für die ein Passwort-Login aktiviert werden kann.", false);
+    if (!passwordLinked && !email) {
+      setPasswordMessage("Bitte gib eine E-Mail-Adresse für den Passwort-Login ein.", false);
       return;
     }
 
@@ -3226,20 +3243,21 @@
         await user.reauthenticateWithCredential(credential);
         await user.updatePassword(newPassword);
       } else {
-        const credential = window.firebase.auth.EmailAuthProvider.credential(user.email, newPassword);
+        const credential = window.firebase.auth.EmailAuthProvider.credential(email, newPassword);
         await user.linkWithCredential(credential);
         await user.reload();
+        requireCurrentUser(user);
 
-        if (auth.currentUser && !auth.currentUser.emailVerified) {
-          await auth.currentUser.sendEmailVerification({
+        updateAccountProfile(user);
+        updateGoogleProviderStatus(user);
+        await saveIdentitySnapshot(user, null);
+
+        if (!user.emailVerified) {
+          await user.sendEmailVerification({
             url: getLoginRedirectUrl()
           });
           verificationSent = true;
         }
-
-        updateAccountProfile(auth.currentUser);
-        updateGoogleProviderStatus(auth.currentUser);
-        await saveIdentitySnapshot(auth.currentUser, null);
       }
 
       form.reset();
@@ -3304,6 +3322,7 @@
 
         await user.unlink("google.com");
         googleWasUnlinked = true;
+        updateAccountProfile(user);
       }
 
       await user.linkWithPopup(provider);
@@ -4066,40 +4085,6 @@
       if (!isPersonLinked(readUserDocCache(user.uid))) {
         setLinkRequestControlsDisabled(false);
       }
-    }
-  }
-
-  async function cancelPendingEmailChange(auth, profileForm, button) {
-    const user = auth.currentUser;
-
-    if (!user || !window.firebase.firestore || !profileForm?.dataset.pendingEmail) {
-      return false;
-    }
-
-    try {
-      const fieldValue = window.firebase.firestore.FieldValue;
-
-      setLoading(button, true, "Ziehe zurück...");
-      await window.firebase.firestore().collection("users").doc(user.uid).update({
-        pendingEmail: fieldValue.delete(),
-        updatedAt: fieldValue.serverTimestamp()
-      });
-
-      const data = { ...(readUserDocCache(user.uid) || {}) };
-
-      delete data.pendingEmail;
-      writeUserDocCache(user.uid, data);
-      delete profileForm.dataset.pendingEmail;
-      profileForm.elements.email.value = user.email || data.email || "";
-      updateProfileFieldList(profileForm);
-      closeProfileFieldEditor();
-      setProfileMessage("E-Mail-Änderung zurückgezogen.", true);
-      return true;
-    } catch (error) {
-      setProfileMessage(translateProfileSaveError(error), false);
-      return false;
-    } finally {
-      setLoading(button, false);
     }
   }
 

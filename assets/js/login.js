@@ -245,7 +245,9 @@
         const activeUser = await reloadUser(user);
         if (!isCurrentUser(activeUser)) return;
 
-        if (!hasVerifiedAccess(activeUser)) {
+        const verified = await hasVerifiedAccess(activeUser);
+        if (!isCurrentUser(activeUser)) return;
+        if (!verified) {
           if (!authAction) setLoading(googleButton, false);
           showResendButton(true);
           setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du fortfährst.");

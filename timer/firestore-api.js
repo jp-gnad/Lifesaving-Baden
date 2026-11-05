@@ -227,6 +227,7 @@
       }
     }
 
+    const authenticated = await hasVerifiedAccess(user);
     if (refreshVersion !== authRefreshVersion) {
       return;
     }
@@ -242,7 +243,6 @@
       && Boolean(String(userData.dlrgBranch || "").trim())
       && Boolean(String(userData.birthDate || "").trim())
       && Boolean(String(userData.gender || "").trim());
-    const authenticated = hasVerifiedAccess(user);
     authContext = {
       user,
       authenticated,

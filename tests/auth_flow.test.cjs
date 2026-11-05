@@ -215,12 +215,19 @@ test("shared roles accept claims and stored role aliases consistently", () => {
   assert.equal(h.core.getAccountRole({ role: "admin" }, {}).isAthlete, true);
 });
 
-test("unverified password accounts are blocked while verified and Google accounts can continue", () => {
+test("unverified email permits a Google session but blocks password sign-in", async () => {
   const h = harness();
-  assert.equal(h.core.hasVerifiedAccess(null), false);
-  assert.equal(h.core.hasVerifiedAccess({ emailVerified: false, providerData: [{ providerId: "password" }] }), false);
-  assert.equal(h.core.hasVerifiedAccess({ emailVerified: true }), true);
-  assert.equal(h.core.hasVerifiedAccess({ providerData: [{ providerId: "google.com" }] }), true);
+  assert.equal(await h.core.hasVerifiedAccess(null), false);
+  assert.equal(await h.core.hasVerifiedAccess({ emailVerified: false, providerData: [{ providerId: "password" }] }), false);
+  assert.equal(await h.core.hasVerifiedAccess({ emailVerified: true }), true);
+  assert.equal(await h.core.hasVerifiedAccess({ providerData: [{ providerId: "google.com" }] }), true);
+  const providerData = [{ providerId: "google.com" }, { providerId: "password" }];
+  for (const [signInProvider, expected] of [["google.com", true], ["password", false]]) {
+    assert.equal(await h.core.hasVerifiedAccess({
+      providerData,
+      getIdTokenResult: async () => ({ signInProvider }),
+    }), expected);
+  }
 });
 
 test("old return targets cannot override the member home after login", () => {
@@ -1146,7 +1153,7 @@ test("standalone launch reveals its branding together and covers the landing pag
     }
     vm.runInContext(source("assets/js/auth.js"), h.context);
     assert.deepEqual(replacements, []);
-    h.callbacks.auth?.(user);
+    await h.callbacks.auth?.(user);
 
     if (user) {
       assert.deepEqual(replacements, ["https://example.test/club/app.html"]);
@@ -1329,7 +1336,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1740,6 +1747,62 @@ test("saving other settings keeps a new profile unnamed until the name is entere
   form.elements.lastName.value = "Baden";
   assert.equal(await functions.persistProfileDetails(h.auth, form, null), true);
   assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
+});
+
+test("password linking uses the entered address and keeps the Google email in the profile", async () => {
+  const googleEmail = "google@example.test";
+  const passwordEmail = "password@example.test";
+  const user = {
+    uid: "linked-user", email: googleEmail, emailVerified: true,
+    providerData: [{ providerId: "google.com", email: googleEmail }],
+  };
+  const h = harness({ user });
+  const functions = memberFunctions(h);
+  const accountEmail = h.element("account-email");
+  h.document.querySelectorAll = (selector) => selector === "[data-account-email]" ? [accountEmail] : [];
+  const passwordRow = { querySelector: () => h.element("password-email-value") };
+  const googleRow = { querySelector: () => h.element("google-email-value") };
+  h.document.querySelector = (selector) => ({
+    '[data-sign-in-email="password"]': passwordRow,
+    '[data-sign-in-email="google"]': googleRow,
+  })[selector] || null;
+  functions.updateAccountProfile({ ...user, email: "legacy@example.test" });
+  assert.equal(accountEmail.textContent, googleEmail);
+  assert.equal(passwordRow.hidden, true);
+  h.window.firebase.auth.EmailAuthProvider = { credential: (email, password) => ({ email, password }) };
+  const actions = [];
+  user.linkWithCredential = async ({ email, password }) => {
+    actions.push(["link", email, password]);
+    user.email = email;
+    user.emailVerified = false;
+    user.providerData.push({ providerId: "password", email });
+  };
+  user.sendEmailVerification = async () => { actions.push(["verify", user.email]); };
+  const form = {
+    elements: { email: { value: passwordEmail }, newPassword: { value: "synthetic-password" }, repeatPassword: { value: "synthetic-password" } },
+    querySelector: () => null,
+    reset() {},
+    dataset: {},
+    classList: { toggle() {} },
+    setAttribute() {},
+  };
+  await functions.changeAccountPassword({ preventDefault() {}, currentTarget: form }, h.auth);
+  assert.deepEqual(actions, [["link", passwordEmail, "synthetic-password"], ["verify", passwordEmail]]);
+  assert.equal(h.counts.writes.at(-1).uid, "linked-user");
+  assert.equal(accountEmail.textContent, googleEmail);
+  assert.equal(passwordRow.hidden, false);
+  assert.equal(h.element("password-email-value").textContent, passwordEmail);
+  functions.updateAccountProfile({ ...user, email: googleEmail });
+  assert.equal(passwordRow.hidden, true);
+  assert.equal(googleRow.hidden, false);
+
+  const changedEmail = "new-password@example.test";
+  user.verifyBeforeUpdateEmail = async (email) => { actions.push(["change", email]); };
+  form.elements.email.value = changedEmail;
+  await functions.savePasswordEmail({ preventDefault() {}, currentTarget: form }, h.auth);
+  assert.deepEqual(actions.at(-1), ["change", changedEmail]);
+  assert.equal(h.counts.writes.at(-1).pendingEmail, changedEmail);
+  assert.equal(user.email, passwordEmail);
 });
 
 test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {

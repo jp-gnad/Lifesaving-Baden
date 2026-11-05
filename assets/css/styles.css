@@ -3279,6 +3279,11 @@ body.auth-context-loading .member-apps::after {
   gap: 8px;
 }
 
+[data-password-email-form] .security-button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .profile-field-edit-form {
   display: grid;
   gap: 10px;
@@ -3696,10 +3701,6 @@ body.auth-context-loading .member-apps::after {
   .profile-field-editor:not(.is-choice-editor) .profile-field-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .profile-field-actions [data-profile-email-change-cancel] {
-    grid-column: 1 / -1;
   }
 
   .danger-zone-card {

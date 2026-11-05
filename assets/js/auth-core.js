@@ -61,8 +61,17 @@
     return pendingReloads.get(user);
   }
 
-  function hasVerifiedAccess(user) {
-    return Boolean(user && (user.emailVerified || user.providerData?.some((provider) => provider.providerId === "google.com")));
+  async function hasVerifiedAccess(user) {
+    if (!user || user.emailVerified) return Boolean(user);
+    const providers = user.providerData || [];
+    if (!providers.some((provider) => provider.providerId === "google.com")) return false;
+    if (!providers.some((provider) => provider.providerId === "password")) return true;
+    try {
+      const token = await user.getIdTokenResult();
+      return token.signInProvider === "google.com";
+    } catch {
+      return false;
+    }
   }
 
   async function createAccountDocument(user, ref) {

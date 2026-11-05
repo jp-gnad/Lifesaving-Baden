@@ -17,15 +17,15 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-account-modal-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-sign-in-email-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth-core.js?v=20261105-manual-profile-name-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261105-manual-profile-name-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261105-sign-in-email-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261105-sign-in-email-v1"></script>
   </head>
   <body data-page="settings">
     <header class="site-header">
@@ -171,7 +171,7 @@
                   </span>
                   <span class="profile-field-chevron" aria-hidden="true"></span>
                 </button>
-                <button class="profile-field-row" type="button" data-profile-edit="email" aria-expanded="false">
+                <a class="profile-field-row" href="#sicherheit" data-sign-in-email="google" hidden>
                   <span class="profile-field-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
                       <rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect>
@@ -179,11 +179,24 @@
                     </svg>
                   </span>
                   <span class="profile-field-copy">
-                    <strong>E-Mail</strong>
-                    <span data-profile-value="email">Wird geladen</span>
+                    <strong>Google-Mail</strong>
+                    <span data-sign-in-email-value>Wird geladen</span>
                   </span>
                   <span class="profile-field-chevron" aria-hidden="true"></span>
-                </button>
+                </a>
+                <a class="profile-field-row" href="#sicherheit" data-sign-in-email="password" hidden>
+                  <span class="profile-field-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect>
+                      <path d="m4 7 8 6 8-6"></path>
+                    </svg>
+                  </span>
+                  <span class="profile-field-copy">
+                    <strong>Passwort-Mail</strong>
+                    <span data-sign-in-email-value>Wird geladen</span>
+                  </span>
+                  <span class="profile-field-chevron" aria-hidden="true"></span>
+                </a>
                 <button class="profile-field-row" type="button" data-profile-edit="dlrgBranch" data-highlight-field-when-empty aria-expanded="false">
                   <span class="profile-field-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
@@ -240,7 +253,6 @@
                     <button class="button button-primary" type="submit" data-profile-edit-save>Speichern</button>
                     <button class="button button-secondary" type="button" data-profile-edit-delete>Löschen</button>
                     <button class="button button-ghost" type="button" data-profile-edit-cancel>Abbrechen</button>
-                    <button class="button button-secondary" type="button" data-profile-email-change-cancel hidden>Änderung zurückziehen</button>
                   </div>
                 </form>
               </div>
@@ -249,7 +261,6 @@
                 <input type="hidden" name="firstName">
                 <input type="hidden" name="lastName">
                 <input type="hidden" name="displayName">
-                <input type="hidden" name="email">
                 <input type="hidden" name="dlrgBranch" data-highlight-when-empty>
                 <input type="hidden" name="birthDate" data-highlight-when-empty>
                 <input type="hidden" name="gender" data-highlight-when-empty>
@@ -321,6 +332,10 @@
                       E-Mail-Konto hinzufügen
                     </button>
                     <form class="setting-form security-password-form is-hidden" data-password-form hidden aria-hidden="true">
+                      <label data-password-email-row>
+                        <span>Passwort-Mail</span>
+                        <input type="email" name="email" autocomplete="email" required>
+                      </label>
                       <label data-current-password-row>
                         <span>Altes Passwort</span>
                         <span class="password-field">
@@ -370,6 +385,19 @@
                         <button class="button button-primary" type="submit">Passwort speichern</button>
                         <button class="button button-ghost" type="button" data-password-cancel>Abbrechen</button>
                       </span>
+                    </form>
+                    <button class="button button-secondary" type="button" data-password-email-edit aria-expanded="false" aria-controls="password-email-form" hidden>
+                      Passwort-Mail ändern
+                    </button>
+                    <form class="setting-form security-password-form" id="password-email-form" data-password-email-form hidden>
+                      <label>
+                        <span>Neue Passwort-Mail</span>
+                        <input type="email" name="email" autocomplete="email" required>
+                      </label>
+                      <div class="security-button-row">
+                        <button class="button button-primary" type="submit">Speichern</button>
+                        <button class="button button-ghost" type="button" data-password-email-cancel>Abbrechen</button>
+                      </div>
                     </form>
                     <button class="button button-secondary is-hidden" type="button" data-password-verification>
                       Bestätigungsmail senden
