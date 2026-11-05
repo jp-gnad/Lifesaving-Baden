@@ -2119,28 +2119,6 @@ body.auth-context-loading .member-apps::after {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
-.account-setup-dialog {
-  position: fixed;
-  inset: 0;
-  width: min(calc(100% - 32px), 460px);
-  height: fit-content;
-  margin: auto;
-  text-align: center;
-}
-
-.account-setup-dialog:not([open]) {
-  display: none;
-}
-
-.account-setup-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.66);
-}
-
-.account-setup-dialog p {
-  margin: 0;
-  color: var(--muted);
-}
-
 .account-modal-header {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) 40px;
@@ -2832,6 +2810,19 @@ body.auth-context-loading .member-apps::after {
 
 .link-request-step-actions.is-forward-only {
   justify-content: flex-end;
+}
+
+.link-request-step-form[data-required-setup="true"] [data-link-final-actions] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.link-request-step-form[data-required-setup="true"] [data-link-final-actions] .button {
+  width: 100%;
+}
+
+.link-request-step-form[data-required-setup="true"] [data-link-submit] {
+  grid-column: 1 / -1;
 }
 
 .link-request-step-form[data-preview-mode="true"] .link-request-step-actions {
@@ -4161,4 +4152,8 @@ body[data-page="login"] .auth-privacy a {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
+}
+
+body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-page="link-request"]) > main {
+  visibility: hidden;
 }

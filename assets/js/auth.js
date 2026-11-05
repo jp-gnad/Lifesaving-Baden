@@ -4,7 +4,7 @@
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
     normalizeNamePart, formatFullName, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, isAdminAccount,
-    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, requiresAccountSetup, redirectToAccountSetup, setLoading, translateAuthError,
   } = window.LifesavingAuth;
   function translateFirestoreError(error) {
     const messages = {
@@ -569,6 +569,10 @@
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
           if (!isCurrentUser(activeUser)) return;
+          if (requiresAccountSetup(userData, claims) && page !== "link-request") {
+            redirectToAccountSetup();
+            return;
+          }
           const role = getAccountRole(userData, claims);
           if (page === "admin-accounts" && !role.isAdmin) {
             redirectToApp();
@@ -584,7 +588,6 @@
           }
           if (!isCurrentUser(activeUser)) return;
           settingsLoadedForUser = activeUser.uid;
-          if (page === "app") offerAccountSetup(activeUser, userData, role);
         }
 
         document.body.classList.remove("auth-context-loading");
@@ -837,17 +840,6 @@
 
   function isPersonLinked(data) {
     return Boolean(data?.linkedPersonId || data?.personId);
-  }
-
-  function offerAccountSetup(user, data, role) {
-    if (data?.accountSetupPending !== true || role.isAdmin || isPersonLinked(data) || hasPendingLinkRequest(data)) return;
-
-    const dialog = document.querySelector("[data-account-setup]");
-    if (!dialog?.showModal || dialog.open) return;
-
-    dialog.showModal();
-    window.firebase.firestore().collection("users").doc(user.uid).update({ accountSetupPending: false })
-      .catch((error) => console.warn("Einrichtungshinweis konnte nicht gespeichert werden.", error));
   }
 
   function hasPendingLinkRequest(data) {
@@ -4065,7 +4057,7 @@
     }
   }
 
-  async function initLinkRequest(auth, userData) {
+  async function initLinkRequest(auth, userData, claims) {
     const controls = getLinkRequestControls();
 
     if (!controls.form) {
@@ -4079,11 +4071,34 @@
     }
 
     const db = window.firebase.firestore();
+    const requiredSetup = requiresAccountSetup(userData, claims);
+    controls.form.dataset.requiredSetup = String(requiredSetup);
+    const brand = document.querySelector(".site-header .brand");
+    if (requiredSetup) {
+      document.title = "Konto einrichten – Lifesaving Baden";
+      updateText("[data-setup-eyebrow], [data-setup-title]", "Konto einrichten");
+      updateText("[data-setup-description]", "Vorname und Nachname sind erforderlich. Alle weiteren Angaben kannst du überspringen und später ergänzen.");
+      document.querySelector("[data-link-progress]")?.setAttribute("aria-label", "Fortschritt der Kontoeinrichtung");
+      const lastStep = controls.steps[controls.steps.length - 1];
+      lastStep.dataset.stepLabel = "Prüfen & speichern";
+      lastStep.querySelector("h3 span").textContent = "Prüfen & speichern";
+      brand?.removeAttribute("href");
+      brand?.setAttribute("aria-disabled", "true");
+      document.querySelectorAll("[data-account-open], [data-link-return]").forEach((element) => { element.hidden = true; });
+      document.querySelectorAll("[data-account-setup-save], [data-account-setup-logout], [data-account-setup-link-help]").forEach((element) => { element.hidden = false; });
+      controls.submitButton.textContent = "Speichern und Verknüpfung beantragen";
+    } else {
+      brand?.setAttribute("href", "app.html");
+    }
 
     if (!controls.form.dataset.listenerAttached) {
       controls.form.dataset.listenerAttached = "true";
       initLinkRequestSteps(controls.form);
       controls.form.addEventListener("submit", (event) => {
+        if (controls.form.dataset.busy === "true") {
+          event.preventDefault();
+          return;
+        }
         const currentStep = getLinkRequestCurrentStep(controls.form);
 
         if (currentStep < controls.steps.length - 1) {
@@ -4092,7 +4107,12 @@
           return;
         }
 
-        submitLinkRequest(event, auth, db);
+        if (requiredSetup && event.submitter?.hasAttribute("data-account-setup-save")) {
+          event.preventDefault();
+          saveAccountSetup(auth, db, controls.form);
+        } else {
+          submitLinkRequest(event, auth, db);
+        }
       });
       controls.form.querySelector("[data-link-request-preview-withdraw]")?.addEventListener("click", (event) => {
         withdrawLinkRequestFromForm(auth, db, controls.form, event.currentTarget);
@@ -4100,6 +4120,47 @@
     }
 
     await loadLinkRequest(auth, db, userData);
+  }
+
+  async function saveAccountSetup(auth, db, form) {
+    const user = auth.currentUser;
+    if (!user || form.dataset.requiredSetup !== "true") return;
+    const details = getLinkRequestEditableDetails(form);
+    const name = normalizeNameDetails(details);
+    if (!name.firstName || !name.lastName) {
+      setLinkRequestMessage("Bitte fülle Vorname und Nachname aus.", false);
+      showLinkRequestStep(form, 0);
+      return;
+    }
+    if (details.identityHint.length > 200 || (details.gender && !["maennlich", "weiblich"].includes(details.gender))) {
+      setLinkRequestMessage("Bitte prüfe deine Angaben.", false);
+      return;
+    }
+    const button = form.querySelector("[data-account-setup-save]");
+    try {
+      setLinkRequestControlsDisabled(true);
+      setLoading(button, true, "Speichern...");
+      requireCurrentUser(user);
+      const payload = {
+        ...name,
+        birthDate: details.birthDate,
+        dlrgBranch: details.dlrgBranch,
+        gender: details.gender,
+        personLinkIdentityHint: details.identityHint,
+        accountSetupRequired: false,
+        profileDetailsUpdatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await db.collection("users").doc(user.uid).update(payload);
+      requireCurrentUser(user);
+      mergeUserDocCache(user.uid, payload);
+      redirectToApp();
+    } catch (error) {
+      setLinkRequestMessage(translateFirestoreError(error), false);
+    } finally {
+      setLoading(button, false);
+      setLinkRequestControlsDisabled(false);
+    }
   }
 
   async function withdrawLinkRequestFromForm(auth, db, form, button) {
@@ -4213,6 +4274,12 @@
     setSummaryText("[data-link-summary-birth-date]", formatBirthDate(form.elements.birthDate?.value) || "Nicht angegeben");
     setSummaryText("[data-link-summary-branch]", normalizeDlrgBranchName(form.elements.dlrgBranch?.value) || "Nicht angegeben");
     setSummaryText("[data-link-summary-identity-hint]", form.elements.identityHint?.value.trim() || "");
+    if (form.dataset.requiredSetup === "true") {
+      form.querySelector("[data-account-setup-save]").disabled = form.dataset.busy === "true" || !firstName || !lastName;
+      form.querySelector("[data-link-submit]").disabled = form.dataset.busy === "true"
+        || !firstName || !lastName || !gender || !form.elements.birthDate.value || !form.elements.dlrgBranch.value.trim()
+        || !form.elements.identityConfirmation.checked || form.dataset.alreadyLinked === "true";
+    }
   }
 
   function showLinkRequestStep(form, nextStepIndex, shouldFocus = true) {
@@ -4303,7 +4370,7 @@
     const backButton = summaryStep?.querySelector("[data-link-step-back]");
     const editButton = summaryStep?.querySelector("[data-link-request-edit]");
     const withdrawButton = summaryStep?.querySelector("[data-link-request-preview-withdraw]");
-    const submitButton = summaryStep?.querySelector('button[type="submit"]');
+    const submitButton = summaryStep?.querySelector("[data-link-submit]");
     const confirmation = summaryStep?.querySelector("[data-link-request-confirmation]");
     const confirmationInput = confirmation?.querySelector('[name="identityConfirmation"]');
 
@@ -4430,7 +4497,7 @@
       dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
       identityHint: form?.querySelector('[name="identityHint"]'),
       identityConfirmation: form?.querySelector('[name="identityConfirmation"]'),
-      submitButton: form?.querySelector('button[type="submit"]')
+      submitButton: form?.querySelector("[data-link-submit]")
     };
   }
 
@@ -4441,12 +4508,14 @@
       return;
     }
 
+    controls.form.dataset.busy = String(isDisabled);
     controls.form.querySelectorAll("input, textarea, select, button").forEach((control) => {
       const isPreviewConfirmation = control.name === "identityConfirmation"
         && controls.form.dataset.previewMode === "true";
 
       control.disabled = isDisabled || isPreviewConfirmation;
     });
+    if (!isDisabled) updateLinkRequestSummary(controls.form);
   }
 
   async function loadLinkRequest(auth, db, userData) {
@@ -4465,14 +4534,15 @@
       data = await cleanupLegacyLinkRequestFields(user, data);
       data = await cleanupInactiveLinkRequestData(user, data);
       const request = data.personLinkRequest || null;
+      controls.form.dataset.alreadyLinked = String(isPersonLinked(data));
 
-      if (isPersonLinked(data)) {
+      if (isPersonLinked(data) && controls.form.dataset.requiredSetup !== "true") {
         setLinkRequestControlsDisabled(true);
         setLinkRequestMessage("Dieses Konto ist bereits mit der Datenbank verknüpft.", true);
         return;
       }
 
-      if (request) {
+      if (request && controls.form.dataset.requiredSetup !== "true") {
         await syncProfileDetailsFromLinkRequest(user, data);
         const nameDetails = getNameDetailsFromData(data, user);
 
@@ -4521,7 +4591,7 @@
         });
         controls.birthDate.value = data.birthDate || "";
         controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = "";
+        controls.identityHint.value = getLinkRequestIdentityHint({}, data);
         delete controls.form.dataset.linkRequestIdentityConfirmed;
         if (controls.identityConfirmation) {
           controls.identityConfirmation.checked = false;
@@ -4578,8 +4648,8 @@
       return;
     }
 
-    if (!details.firstName || !details.lastName || !details.birthDate || !details.dlrgBranch) {
-      setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geburtsdatum und DLRG-Gliederung aus.", false);
+    if (!details.firstName || !details.lastName || !details.gender || !details.birthDate || !details.dlrgBranch) {
+      setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geschlecht, Geburtsdatum und DLRG-Gliederung aus.", false);
       return;
     }
 
@@ -4709,8 +4779,13 @@
         }
       }
 
+      if (controls.form.dataset.requiredSetup === "true") {
+        const setup = { ...normalizeNameDetails(details), accountSetupRequired: false };
+        Object.assign(updatePayload, setup);
+        Object.assign(userCacheData, setup);
+      }
       const userDoc = db.collection("users").doc(user.uid);
-      if (getAccountName(user)) {
+      if (getAccountName(user) || controls.form.dataset.requiredSetup === "true") {
         await userDoc.update(updatePayload);
       } else {
         const savedName = await db.runTransaction(async (transaction) => {

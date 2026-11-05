@@ -81,7 +81,7 @@
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
-      accountSetupPending: true,
+      accountSetupRequired: true,
     };
     // Recheck inside the transaction so another tab's role/profile is never overwritten.
     return window.firebase.firestore().runTransaction(async (transaction) => {
@@ -127,6 +127,14 @@
     const target = new URL(getLoginRedirectUrl());
     target.searchParams.set("verified", "1");
     return target.href;
+  }
+
+  function requiresAccountSetup(data, claims = {}) {
+    return data?.accountSetupRequired === true && !isAdminAccount(data, claims);
+  }
+
+  function redirectToAccountSetup() {
+    window.location.replace(new URL("link-request.html", rootUrl).href);
   }
 
   function redirectToApp({ replace = false } = {}) {
@@ -341,7 +349,7 @@
     isTransientError, withRetry, loadUserContext,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount,
-    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, requiresAccountSetup, redirectToAccountSetup,
     setMessage, setLoading, translateAuthError, initPasswordVisibilityToggles,
   });
 })();

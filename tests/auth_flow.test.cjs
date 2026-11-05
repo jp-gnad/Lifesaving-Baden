@@ -1239,29 +1239,37 @@ test("member initialization reports a permanent database error once", async () =
   assert.match(error.textContent, /Firestore-Regeln/);
 });
 
-test("new profiles offer account setup in member home and consume the reminder", async () => {
-  for (const [stored, expectPrompt] of [
+test("new profiles must complete setup while existing profiles keep their access", async () => {
+  for (const [stored, expected] of [
     [null, true],
     [{ role: "standard" }, false],
-    [{ role: "standard", accountSetupPending: true, linkedPersonId: "p-123" }, false],
-    [{ role: "standard", accountSetupPending: true, personLinkStatus: "requested" }, false],
-    [{ role: "admin", accountSetupPending: true }, false],
+    [{ role: "standard", accountSetupRequired: true }, true],
+    [{ role: "standard", accountSetupPending: true }, false],
+    [{ role: "admin", accountSetupRequired: true }, false],
   ]) {
     const h = harness({ url: "https://example.test/club/app.html", user: { uid: "new-uid", emailVerified: true }, stored });
-    const updates = [];
-    const dialog = { open: false, showModal() { this.open = true; } };
     h.document.body.dataset.page = "app";
     h.document.body.classList = { remove() {} };
-    h.document.querySelector = (selector) => selector === "[data-account-setup]" ? dialog : null;
-    h.window.firebase.firestore().collection("users").doc("new-uid").update = async (payload) => updates.push(payload.accountSetupPending);
+    h.document.querySelector = () => null;
     vm.runInContext(source("assets/js/auth.js"), h.context);
     h.callbacks.auth(h.auth.currentUser);
     await new Promise(setImmediate);
-    assert.equal(dialog.open, expectPrompt);
-    assert.deepEqual(updates, expectPrompt ? [false] : []);
-    assert.deepEqual(h.counts.redirects, []);
-    if (expectPrompt) assert.equal(h.counts.writes[0].accountSetupPending, true);
+    assert.deepEqual(h.counts.redirects, expected ? ["https://example.test/club/link-request.html"] : []);
+    if (stored === null) assert.equal(h.counts.writes[0].accountSetupRequired, true);
+    assert.equal(h.counts.writes.some(write => write.accountSetupRequired === false), false);
   }
+});
+
+test("a new account cannot bypass setup through the timer", async () => {
+  const h = harness({
+    url: "https://example.test/club/timer/",
+    user: { uid: "new-user", emailVerified: true },
+    stored: { role: "standard", accountSetupRequired: true },
+  });
+  vm.runInContext(source("timer/firestore-api.js"), h.context);
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/link-request.html"]);
 });
 
 test("timer initialization uses the shared Kader role and clears it on logout", async () => {
@@ -1339,7 +1347,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1886,18 +1894,76 @@ test("profile synchronization clears obsolete email changes and preserves a newe
   }
 });
 
+test("setup saves only the name without a link request and stays required if saving fails", async () => {
+  const h = harness({ user: { uid: "u", email: "new@example.test" } });
+  const functions = memberFunctions(h);
+  const elements = Object.fromEntries(Object.entries({
+    firstName: " Anna ", lastName: " Baden ", gender: "", birthDate: "", dlrgBranch: "", identityHint: ""
+  }).map(([key, value]) => [key, { value }]));
+  elements.identityConfirmation = { checked: false };
+  const save = { disabled: false, dataset: {}, innerHTML: "Speichern" };
+  const submit = { disabled: false, dataset: {}, innerHTML: "Antrag absenden" };
+  const form = {
+    elements, dataset: { requiredSetup: "true" },
+    querySelectorAll: () => [],
+    querySelector: selector => ({
+      "[data-account-setup-save]": save,
+      "[data-link-submit]": submit,
+      '[name="identityConfirmation"]': elements.identityConfirmation,
+      '[name="gender"]:checked': elements.gender,
+      '[name="dlrgBranch"]': elements.dlrgBranch,
+    })[selector] || null,
+  };
+  h.document.querySelector = selector => selector === "[data-link-request-form]" ? form : null;
+  let fails = true;
+  const writes = [];
+  const db = { collection: () => ({ doc: () => ({
+    update: async payload => {
+      if (fails) throw { code: "unavailable" };
+      writes.push(payload);
+    },
+  }) }) };
+  await functions.saveAccountSetup(h.auth, db, form);
+  assert.deepEqual(h.counts.redirects, []);
+  assert.equal(submit.disabled, true);
+  assert.equal(writes.length, 0);
+  fails = false;
+  await functions.saveAccountSetup(h.auth, db, form);
+  assert.equal(writes[0].firstName, "Anna");
+  assert.equal(writes[0].lastName, "Baden");
+  assert.equal(writes[0].accountSetupRequired, false);
+  assert.equal("personLinkRequest" in writes[0], false);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
+
+  const count = writes.length;
+  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
+  assert.equal(writes.length, count);
+  elements.gender.value = "weiblich";
+  elements.birthDate.value = "2000-01-01";
+  elements.dlrgBranch.value = "Baden";
+  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
+  assert.equal(writes.length, count);
+  elements.identityConfirmation.checked = true;
+  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
+  assert.equal(writes.at(-1).accountSetupRequired, false);
+  assert.equal(writes.at(-1)["personLinkRequest.status"], "requested");
+  assert.equal(writes.at(-1).firstName, "Anna");
+  assert.equal(writes.at(-1).lastName, "Baden");
+});
+
 test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {
   for (const displayName of ["", "Name aus den Einstellungen"]) {
     const h = harness({ user: { uid: "u", email: "anna.baden@example.test" }, stored: null });
     const functions = memberFunctions(h);
     await functions.loadFreshUserContext(h.auth.currentUser);
     const elements = Object.fromEntries(Object.entries({
-      firstName: "Anna", lastName: "Baden", birthDate: "2000-01-01", dlrgBranch: "Baden", identityHint: ""
+      firstName: "Anna", lastName: "Baden", gender: "weiblich", birthDate: "2000-01-01", dlrgBranch: "Baden", identityHint: ""
     }).map(([key, value]) => [key, { value }]));
     const form = {
       elements, dataset: {}, querySelectorAll: () => [],
       querySelector: (selector) => ({
         '[name="identityConfirmation"]': { checked: true },
+        '[name="gender"]:checked': elements.gender,
         '[name="dlrgBranch"]': elements.dlrgBranch,
       })[selector] || null,
     };

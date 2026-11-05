@@ -181,7 +181,7 @@
     return;
   }
 
-  const { initFirebase, ensureLocalAuthPersistence, loadUserContext, getAccountRole, hasVerifiedAccess, getNameDetailsFromData } = window.LifesavingAuth;
+  const { initFirebase, ensureLocalAuthPersistence, loadUserContext, getAccountRole, hasVerifiedAccess, getNameDetailsFromData, requiresAccountSetup, redirectToAccountSetup } = window.LifesavingAuth;
   const auth = initFirebase();
   const db = window.firebase.firestore();
   const authPersistenceReady = ensureLocalAuthPersistence(auth);
@@ -229,6 +229,10 @@
 
     const authenticated = await hasVerifiedAccess(user);
     if (refreshVersion !== authRefreshVersion) {
+      return;
+    }
+    if (authenticated && requiresAccountSetup(userData, claims)) {
+      redirectToAccountSetup();
       return;
     }
 
