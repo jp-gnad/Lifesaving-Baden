@@ -1,46 +1,74 @@
-// Only loaded by worktime.browser.html: all writes stay in this page's memory.
+// Only loaded by worktime.browser.html: every write stays in page memory.
 (function () {
   const core = window.WorktimeCore;
+  const uid = "local-test-trainer";
+  const prefix = `users/${uid}`;
   const records = new Map();
   const listeners = new Set();
   let sequence = 0;
   const timestamp = (date) => ({ toDate: () => new Date(date), toMillis: () => new Date(date).getTime() });
   const pack = (record) => ({ ...record, day: timestamp(record.day), startedAt: timestamp(record.startedAt), endedAt: timestamp(record.endedAt), createdAt: timestamp(new Date()), updatedAt: timestamp(new Date()) });
-  for (const [index, title, category, start, end] of [
-    [1, "Abendtraining", "training", "18:00", "20:00"],
-    [2, "Wettkampf vorbereiten", "organization", "09:00", "10:00"],
-    [3, "Wettkampf betreuen", "competition", "08:00", "12:00"],
-    [4, "Athletengespräche", "athleteCare", "10:00", "12:00"],
-  ]) records.set(`sample-${index}`, pack(core.prepare({ date: core.shift(core.today(), -index), title, category, start, end, description: "" })));
+  const names = ["LV Baden", "Ettlingen", "Privat"];
+  records.set(`${prefix}/worktimeSettings/preferences`, { organizations: names });
+  for (const [index, title, category, start, end, organization] of [
+    [1, "Abendtraining", "training", "18:00", "20:00", 0],
+    [2, "Wettkampf vorbereiten", "organization", "09:00", "10:00", 1],
+    [3, "Wettkampf betreuen", "competition", "08:00", "12:00", 0],
+    [4, "Athletengespräche", "athleteCare", "10:00", "12:00", 2],
+    [-2, "Trainerfortbildung", "education", "09:00", "11:30", 0],
+  ]) {
+    const id = `sample-${index}`;
+    const record = pack(core.prepare({ date: core.shift(core.today(), -index), title, category, start, end, organization, organizationName: names[organization], description: "Details sind nur beim Bearbeiten sichtbar." }));
+    records.set(`${prefix}/worktimeEntries/${id}`, record);
+    for (const day of core.lockDays(record)) {
+      const path = `${prefix}/worktimeDays/${day}`;
+      const entries = records.get(path)?.entries || [];
+      entries.push({ id, start: record.startedAt, end: record.endedAt });
+      entries.sort((a, b) => a.start.toMillis() - b.start.toMillis());
+      records.set(path, { entries, entryId: id, position: 0, updatedAt: timestamp(new Date()) });
+    }
+  }
   const publish = () => queueMicrotask(() => listeners.forEach((listener) => listener()));
-  const collection = {
-    where(field, operator, value) { return query([[field, operator, value]]); },
-    doc(id = `new-${++sequence}`) {
-      return {
-        async set(record) { records.set(id, record); publish(); },
-        async update(record) {
-          if (!records.has(id)) throw Object.assign(new Error("Missing"), { code: "not-found" });
-          records.set(id, { ...records.get(id), ...record }); publish();
-        },
-        async delete() { records.delete(id); publish(); },
-      };
-    },
-  };
-  function query(filters) {
+  function doc(path) {
     return {
-      where(field, operator, value) { return query([...filters, [field, operator, value]]); },
-      orderBy() { return this; },
-      onSnapshot(options, receive) {
-        const listener = () => receive({ metadata: { fromCache: false }, docs: [...records].filter(([, data]) => filters.every(([field, operator, value]) => operator === ">=" ? data[field].toMillis() >= value.toMillis() : data[field].toMillis() < value.toMillis())).map(([id, data]) => ({ id, data: () => data })) });
+      id: path.split("/").pop(), path, collection: (name) => collection(`${path}/${name}`),
+      async set(data) { records.set(path, data); publish(); },
+      onSnapshot(receive) {
+        const listener = () => receive({ exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } });
         listeners.add(listener); queueMicrotask(listener);
         return () => listeners.delete(listener);
       },
     };
   }
-  const firestore = () => ({ collection: () => ({ doc: () => ({ collection: () => collection }) }) });
+  function collection(path) {
+    return { doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), where: (field, operator, value) => query(path, [[field, operator, value]]) };
+  }
+  function query(path, filters) {
+    const docs = () => [...records].filter(([name, data]) => name.startsWith(`${path}/`) && name.slice(path.length + 1).indexOf("/") === -1 && filters.every(([field, operator, value]) => operator === ">=" ? data[field].toMillis() >= value.toMillis() : data[field].toMillis() < value.toMillis())).map(([name, data]) => ({ id: name.split("/").pop(), data: () => data }));
+    return {
+      async get() { return { docs: docs() }; },
+      where(field, operator, value) { return query(path, [...filters, [field, operator, value]]); },
+      orderBy() { return this; },
+      onSnapshot(options, receive) {
+        const listener = () => receive({ metadata: { fromCache: false }, docs: docs() });
+        listeners.add(listener); queueMicrotask(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+  }
+  const db = { collection, async runTransaction(action) {
+    const writes = [];
+    await action({
+      async get(ref) { return { exists: records.has(ref.path), data: () => records.get(ref.path) }; },
+      set(ref, data) { writes.push(() => records.set(ref.path, data)); },
+      delete(ref) { writes.push(() => records.delete(ref.path)); },
+    });
+    writes.forEach((write) => write()); publish();
+  } };
+  const firestore = () => db;
   firestore.Timestamp = { fromDate: timestamp };
   firestore.FieldValue = { serverTimestamp: () => timestamp(new Date()) };
   window.firebase = { firestore };
-  window.LifesavingWorktime.start({ currentUser: { uid: "local-test-trainer" } }, { uid: "local-test-trainer" });
+  window.LifesavingWorktime.start({ currentUser: { uid } }, { uid });
   document.body.classList.remove("auth-context-loading");
 })();

@@ -41,11 +41,35 @@ test("DST duration uses elapsed minutes and rejects nonexistent Berlin times", (
   assert.equal(core.prepare(input({ date: "2026-10-25", start: "02:30", end: "03:30" }), now).durationMinutes, 120);
 });
 
-test("future dates and overnight tasks that have not ended cannot be recorded", () => {
+test("future dates and overnight tasks can be recorded", () => {
   for (const overrides of [{ date: "2026-12-01" }, { date: "2026-11-05", start: "15:00", end: "18:00" }, { date: "2026-11-05", start: "22:00", end: "01:00" }]) {
-    assert.throws(() => core.prepare(input(overrides), now), /abgeschlossene/);
+    assert.doesNotThrow(() => core.prepare(input(overrides), now));
   }
   assert.doesNotThrow(() => core.prepare(input({ date: "2026-11-05", start: "14:00", end: "16:00" }), now));
+});
+
+test("new categories, organization selection and compact monthly totals are supported", () => {
+  for (const category of ["education", "other"]) {
+    const record = core.prepare(input({ category, organization: "1", organizationName: " Ettlingen " }));
+    assert.equal(record.organization, 1);
+    assert.equal(record.organizationName, "Ettlingen");
+  }
+  assert.throws(() => core.prepare(input({ organization: "3", organizationName: "OG" })), /Gliederungen/);
+  assert.throws(() => core.prepare(input({ organization: "0", organizationName: " " })), /Gliederungen/);
+  const summary = core.summarize([entry({}), entry({ date: "2026-10-02" })], "month", "2026-10-01");
+  const compact = core.compactBuckets(summary);
+  assert.equal(compact.length, 5);
+  assert.equal(compact[0].label, "1–7");
+  assert.equal(compact[4].label, "29–31");
+  assert.equal(compact.reduce((sum, bucket) => sum + bucket.minutes, 0), summary.total);
+});
+
+test("overlap checks include overnight boundaries but allow adjacent intervals", () => {
+  const overnight = entry({ start: "22:00", end: "01:00" });
+  assert.equal(core.overlaps(overnight, entry({ date: "2026-11-01", start: "00:30", end: "02:00" })), true);
+  assert.equal(core.overlaps(overnight, entry({ date: "2026-11-01", start: "01:00", end: "02:00" })), false);
+  assert.equal(core.lockDays(overnight).length, 2);
+  assert.equal(core.lockDays(entry({})).length, 1);
 });
 
 test("invalid dates, times, category and oversized text are rejected", () => {

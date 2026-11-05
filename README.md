@@ -432,35 +432,54 @@ Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
 Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von
 der Oberfläche.
 
-## Arbeitszeitenerfassung
+## Zeiterfassung
 
-Die App unter `arbeitszeiten.html` ist über eine eigene Kachel im Mitgliederbereich
+Die App unter `arbeitszeiten.html` ist über eine grüne Kachel im Mitgliederbereich
 für Trainer, Organisatoren und Admins erreichbar. Jeder sieht und bearbeitet nur
-seine eigenen Einträge. Die Firestore-Regeln erlauben auch Admins und Organisatoren
-keinen Zugriff auf fremde Detaildaten. Eine übergreifende Personenübersicht ist
-noch nicht enthalten.
+seine eigenen Einträge. Auch Admins und Organisatoren erhalten keinen Zugriff auf
+fremde Detaildaten. Eine übergreifende Personenübersicht ist noch nicht enthalten.
 
 Ein Eintrag enthält Datum, Von-/Bis-Uhrzeit, Titel, eine optionale Beschreibung
-und eine Kategorie: Training, Wettkampf, Organisation oder Athletenbetreuung.
-Es werden nur abgeschlossene Aufgaben erfasst, ohne Pausen und Freigabeprozess.
+und eine Kategorie: Training, Wettkampf, Organisation, Athletenbetreuung,
+Fortbildungen oder Sonstiges. Auch zukünftige Aufgaben sind erlaubt. Es gibt
+keine Pausen und keinen Freigabeprozess. Jeder kann bis zu drei eigene Gliederungen
+hinterlegen und pro Aufgabe eine davon auswählen. Die Aufgabenliste zeigt nur
+Titel, Dauer, Kategorie und einen Farbpunkt für die Gliederung. Details und die
+Löschfunktion befinden sich im Bearbeitungsdialog. Gespeicherte Gliederungsnamen
+bleiben bei späteren Änderungen der persönlichen Auswahl in alten Aufgaben erhalten.
+
 Eine frühere Bis-Uhrzeit bezeichnet den Folgetag; die gesamte Zeit gehört zum
 Startdatum, auch an Wochen- und Monatsgrenzen. Gleiche Von-/Bis-Zeiten werden
 abgewiesen. Die Zeitzone ist unabhängig vom Gerät `Europe/Berlin`; die Dauer
 berücksichtigt Zeitumstellungen. Doppelte Uhrzeiten beim Herbstwechsel verwenden
 das erste Vorkommen; nicht existierende Uhrzeiten beim Frühjahrswechsel werden
-abgewiesen.
+abgewiesen. Direkt aneinander anschließende Aufgaben sind erlaubt.
 
-Die Monatsansicht öffnet sich standardmäßig. Tag, Woche (ab Montag), Monat,
-Datumsnavigation und Kategorienfilter steuern Diagramm, Summen und Aufgabenliste
-gemeinsam. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
-zugerechnet und an der jeweiligen Uhrzeit angezeigt.
+Die Oberfläche trennt Aufgaben und Auswertung. Auf dem Handy zeigt die Auswertung
+den Monat mit höchstens fünf Balken (1.–7., 8.–14. usw.) und ohne Filter oder
+Zeitraum-Auswahl. Auf dem Desktop stehen Tag, Woche (ab Montag), Monat, Datumswahl,
+Kategorie- und Gliederungsfilter zur Verfügung. Die Aufgabenansicht zeigt jeweils
+einen Monat. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
+zugerechnet und an der jeweiligen Uhrzeit angezeigt. Summen enthalten alle erfassten
+Aufgaben im Zeitraum einschließlich zukünftiger Einträge.
 
-Die Daten liegen unter `users/{uid}/worktimeEntries/{entryId}`, getrennt vom
-Kontodokument. Das Feld `day` enthält das Startdatum als UTC-Mitternacht zur
-Kalenderzuordnung; `startedAt` und `endedAt` enthalten die tatsächlichen
-Zeitpunkte. Pro Ansicht werden nur die Einträge des gewählten Zeitraums geladen.
-Speichern und Löschen benötigen eine Internetverbindung. Neue Sicherheitsregeln
-müssen vor der ersten Nutzung veröffentlicht werden (siehe nächsten Abschnitt).
+Die Daten liegen unter `users/{uid}/worktimeEntries/{entryId}`, die persönlichen
+Gliederungen unter `users/{uid}/worktimeSettings/preferences`. Das Feld `day`
+enthält das Startdatum als UTC-Mitternacht zur Kalenderzuordnung; `startedAt` und
+`endedAt` enthalten die tatsächlichen Zeitpunkte. Pro Ansicht werden nur die
+Einträge des gewählten Zeitraums geladen.
+
+Speichern, Bearbeiten und Löschen verwenden Firestore-Transaktionen mit geordneten
+Reservierungen unter `users/{uid}/worktimeDays/{dayMillis}`. Bei Mitternachtswechseln
+werden beide Kalendertage berücksichtigt. Die Sicherheitsregeln prüfen die
+benachbarten Intervalle sowie die vollständige Änderung der Reservierungsliste.
+Damit werden Überschneidungen auch bei gleichzeitiger Eingabe auf mehreren Geräten
+und bei direkten Datenbankzugriffen verhindert. Leere Reservierungsdokumente bleiben
+bestehen. Vor dem Speichern werden außerdem vorhandene Einträge der betroffenen
+Kalendertage einschließlich des Vortags vom Server geprüft, damit auch V1-Einträge
+ohne Reservierung bei der Überschneidungsprüfung berücksichtigt werden. Speichern
+und Löschen benötigen eine Internetverbindung. Die neuen
+Sicherheitsregeln müssen vor der ersten Nutzung veröffentlicht werden (siehe unten).
 
 Lokale Prüfungen:
 
@@ -468,7 +487,8 @@ Lokale Prüfungen:
 node --test tests/worktime.test.cjs tests/auth_flow.test.cjs
 ```
 
-`tests/firestore_rules.test.cjs` prüft zusätzlich Zugriffsschutz und Datenvalidierung
+`tests/firestore_rules.test.cjs` prüft Zugriffsschutz, Datenvalidierung,
+Überschneidungen, konkurrierende Schreibvorgänge und Gliederungseinstellungen
 gegen den lokalen Firestore-Emulator. Die Browser-Testansicht
 `tests/worktime.browser.html` lädt die echte Oberfläche mit eigenen Daten im
 Arbeitsspeicher und ohne Firebase-Verbindung. Über den lokalen HTTP-Server lässt

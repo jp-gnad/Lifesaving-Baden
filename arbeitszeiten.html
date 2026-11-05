@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Deine Arbeitszeiten bei Lifesaving Baden.">
+    <meta name="description" content="Deine Zeiterfassung bei Lifesaving Baden.">
     <meta name="theme-color" content="#0f0f12">
     <meta name="color-scheme" content="dark">
     <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
@@ -11,21 +11,22 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
-    <title>Arbeitszeitenerfassung · Lifesaving Baden</title>
-    <meta property="og:title" content="Arbeitszeitenerfassung · Lifesaving Baden">
+    <title>Zeiterfassung · Lifesaving Baden</title>
+    <meta property="og:title" content="Zeiterfassung · Lifesaving Baden">
     <meta property="og:type" content="website">
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
-    <link rel="stylesheet" href="assets/css/worktime.css?v=20261105-worktime-v1">
+    <link rel="stylesheet" href="assets/css/worktime.css?v=20261105-worktime-v2">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/worktime-core.js?v=20261105-worktime-v1"></script>
-    <script defer src="assets/js/worktime.js?v=20261105-worktime-v1"></script>
+    <script defer src="assets/js/worktime-core.js?v=20261105-worktime-v2"></script>
+    <script defer src="assets/js/worktime-store.js?v=20261105-worktime-v2"></script>
+    <script defer src="assets/js/worktime.js?v=20261105-worktime-v2"></script>
     <script defer src="assets/js/auth.js?v=20261105-worktime-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="worktime">
@@ -35,7 +36,6 @@
         <span>Lifesaving Baden</span>
       </a>
       <nav class="nav" aria-label="Kontonavigation">
-        <a class="wt-back" href="app.html" aria-label="Zurück zum Mitgliederbereich">← <span>Übersicht</span></a>
         <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
           <span class="account-avatar account-avatar-small">
             <img class="is-hidden" src="" alt="" data-account-photo-small>
@@ -50,40 +50,49 @@
       <p class="wt-message" id="wt-message" role="status" hidden></p>
       <div id="wt-content" hidden>
         <section class="wt-heading" aria-labelledby="wt-title">
-          <div><p class="eyebrow">Meine Arbeitszeiten</p><h1 id="wt-title">Arbeitszeitenerfassung</h1></div>
-          <button class="button button-primary" id="wt-create" type="button"><span aria-hidden="true">＋</span> Aufgabe erfassen</button>
+          <div class="wt-app-title"><img src="assets/img/worktime-app.svg?v=20261105-green-v2" alt=""><div><p class="eyebrow">Meine Zeit</p><h1 id="wt-title">Zeiterfassung</h1></div></div>
+          <div class="wt-heading-actions"><button class="wt-icon-button" id="wt-organizations-open" type="button" aria-label="Gliederungen verwalten" title="Gliederungen verwalten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg></button><button class="button button-primary" id="wt-create" type="button"><span aria-hidden="true">＋</span> Aufgabe erfassen</button></div>
         </section>
 
-        <section class="wt-overview" aria-label="Auswertung">
+        <div class="wt-tabs" role="tablist" aria-label="Zeiterfassung">
+          <button id="wt-tasks-tab" role="tab" aria-selected="true" aria-controls="wt-tasks-panel" type="button">Aufgaben</button>
+          <button id="wt-stats-tab" role="tab" aria-selected="false" aria-controls="wt-stats-panel" tabindex="-1" type="button">Auswertung</button>
+        </div>
+        <div class="wt-range-toolbar">
+          <div class="wt-period-nav">
+            <button class="wt-icon-button" id="wt-prev" type="button" aria-label="Vorheriger Zeitraum">‹</button>
+            <label class="wt-date-picker"><span id="wt-period-label"></span><input id="wt-anchor" type="date" min="2000-01-01" aria-label="Datum für die Auswertung wählen"></label>
+            <button class="wt-icon-button" id="wt-next" type="button" aria-label="Nächster Zeitraum">›</button>
+          </div>
+          <button class="wt-today" id="wt-today" type="button">Heute</button>
+        </div>
+
+        <section class="wt-tasks" id="wt-tasks-panel" role="tabpanel" aria-labelledby="wt-tasks-tab">
+          <div class="wt-list-heading"><h2 id="wt-tasks-title">Deine Aufgaben</h2><span id="wt-list-summary"></span></div>
+          <div id="wt-list" aria-live="polite" aria-busy="true"><p class="wt-empty">Zeiten werden geladen …</p></div>
+        </section>
+
+        <section class="wt-overview" id="wt-stats-panel" role="tabpanel" aria-labelledby="wt-stats-tab" hidden>
           <div class="wt-toolbar">
             <div class="wt-segments" role="group" aria-label="Zeitraum">
               <button type="button" data-period="day" aria-pressed="false">Tag</button>
               <button type="button" data-period="week" aria-pressed="false">Woche</button>
               <button type="button" data-period="month" aria-pressed="true">Monat</button>
             </div>
-            <div class="wt-period-nav">
-              <button class="wt-icon-button" id="wt-prev" type="button" aria-label="Vorheriger Zeitraum">‹</button>
-              <label class="wt-date-picker"><span id="wt-period-label"></span><input id="wt-anchor" type="date" min="2000-01-01" aria-label="Datum für die Auswertung wählen"></label>
-              <button class="wt-icon-button" id="wt-next" type="button" aria-label="Nächster Zeitraum">›</button>
-              <button class="wt-today" id="wt-today" type="button">Heute</button>
-            </div>
+            <div class="wt-filters"><label><span class="wt-sr-only">Kategorie filtern</span><select id="wt-filter"><option value="">Alle Kategorien</option><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option><option value="education">Fortbildungen</option><option value="other">Sonstiges</option></select></label><label><span class="wt-sr-only">Gliederung filtern</span><select id="wt-organization-filter"><option value="">Alle Gliederungen</option></select></label></div>
           </div>
           <div class="wt-metrics" aria-live="polite" aria-busy="true" id="wt-metrics">
             <div class="wt-metric wt-metric-primary"><span>Gesamtzeit</span><strong id="wt-total">—</strong></div>
             <div class="wt-metric"><span>Aufgaben</span><strong id="wt-count">—</strong></div>
             <div class="wt-metric"><span>Aktive Tage</span><strong id="wt-days">—</strong></div>
           </div>
-          <div class="wt-chart-heading"><h2>Zeitverteilung</h2><span>Stunden · Europe/Berlin</span></div>
+          <div class="wt-chart-heading"><h2>Zeitverteilung</h2><span id="wt-chart-unit">Stunden</span></div>
           <div class="wt-chart" id="wt-chart" role="img" aria-label="Arbeitsstunden im ausgewählten Zeitraum"></div>
           <div class="wt-categories" id="wt-categories" aria-label="Stunden je Kategorie"></div>
         </section>
 
-        <section class="wt-tasks" aria-labelledby="wt-tasks-title">
-          <div class="wt-list-heading"><h2 id="wt-tasks-title">Deine Aufgaben</h2><label><span class="wt-sr-only">Kategorie filtern</span><select id="wt-filter"><option value="">Alle Kategorien</option><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option></select></label></div>
-          <div id="wt-list" aria-live="polite" aria-busy="true"><p class="wt-empty">Arbeitszeiten werden geladen …</p></div>
-        </section>
       </div>
-      <noscript><p>Bitte aktiviere JavaScript, um deine Arbeitszeiten zu erfassen.</p></noscript>
+      <noscript><p>Bitte aktiviere JavaScript, um deine Zeiten zu erfassen.</p></noscript>
     </main>
 
     <footer class="site-footer"><span class="footer-brand"><img class="moose-icon" src="assets/img/elch-gelb.png" alt="">Lifesaving Baden</span><nav class="footer-links" aria-label="Fußnavigation"><a href="impressum.html">Impressum</a><a href="datenschutz.html">Datenschutz</a></nav></footer>
@@ -91,17 +100,27 @@
     <dialog class="wt-dialog" id="wt-editor" aria-labelledby="wt-editor-title">
       <form id="wt-form">
         <div class="wt-dialog-heading"><h2 id="wt-editor-title">Aufgabe erfassen</h2><button class="wt-icon-button" type="button" data-wt-close aria-label="Schließen">×</button></div>
-        <label class="wt-field">Titel<input name="title" maxlength="120" placeholder="Was hast du erledigt?" required autofocus></label>
+        <label class="wt-field">Titel<input name="title" maxlength="120" placeholder="Titel der Aufgabe" required autofocus></label>
         <div class="wt-form-grid">
           <label class="wt-field wt-field-date">Datum<input type="date" name="date" min="2000-01-01" required></label>
           <label class="wt-field">Von<input type="time" name="start" step="60" required></label>
           <label class="wt-field">Bis<input type="time" name="end" step="60" required></label>
         </div>
         <p class="wt-time-hint" id="wt-time-hint" aria-live="polite">Zeiten in Europe/Berlin.</p>
-        <label class="wt-field">Kategorie<select name="category" required><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option></select></label>
+        <label class="wt-field">Kategorie<select name="category" required><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option><option value="education">Fortbildungen</option><option value="other">Sonstiges</option></select></label>
+        <label class="wt-field">Gliederung<select name="organization"><option value="-1">Keine Gliederung</option></select></label>
         <label class="wt-field">Beschreibung <span class="wt-optional">optional</span><textarea name="description" rows="3" maxlength="2000" placeholder="Weitere Details"></textarea></label>
         <p class="wt-form-error" id="wt-form-error" role="alert" hidden></p>
-        <div class="wt-dialog-actions"><button class="button button-secondary" type="button" data-wt-close>Abbrechen</button><button class="button button-primary" type="submit" id="wt-save">Speichern</button></div>
+        <div class="wt-dialog-actions"><button class="wt-delete-action" id="wt-editor-delete" type="button" hidden>Löschen</button><button class="button button-secondary" type="button" data-wt-close>Abbrechen</button><button class="button button-primary" type="submit" id="wt-save">Speichern</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="wt-dialog" id="wt-organizations-dialog" aria-labelledby="wt-organizations-title">
+      <form id="wt-organizations-form"><div class="wt-dialog-heading"><h2 id="wt-organizations-title">Deine Gliederungen</h2><button class="wt-icon-button" id="wt-organizations-close" type="button" aria-label="Schließen">×</button></div><p class="wt-settings-hint">Bis zu drei Gliederungen. Pro Aufgabe wählst du eine aus.</p>
+        <label class="wt-field"><span><i class="wt-org-dot" data-organization="0" aria-hidden="true"></i>Gliederung 1</span><input name="organization0" maxlength="80" placeholder="z. B. LV Baden"></label>
+        <label class="wt-field"><span><i class="wt-org-dot" data-organization="1" aria-hidden="true"></i>Gliederung 2</span><input name="organization1" maxlength="80" placeholder="z. B. Ettlingen"></label>
+        <label class="wt-field"><span><i class="wt-org-dot" data-organization="2" aria-hidden="true"></i>Gliederung 3</span><input name="organization2" maxlength="80" placeholder="z. B. Privat"></label>
+        <p class="wt-form-error" id="wt-organizations-error" role="alert" hidden></p><div class="wt-dialog-actions"><button class="button button-secondary" id="wt-organizations-cancel" type="button">Abbrechen</button><button class="button button-primary" id="wt-organizations-save" type="submit">Speichern</button></div>
       </form>
     </dialog>
 

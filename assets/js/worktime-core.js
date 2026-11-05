@@ -1,6 +1,6 @@
 (function (root) {
   "use strict";
-  const categories = Object.freeze({ training: "Training", competition: "Wettkampf", organization: "Organisation", athleteCare: "Athletenbetreuung" });
+  const categories = Object.freeze({ training: "Training", competition: "Wettkampf", organization: "Organisation", athleteCare: "Athletenbetreuung", education: "Fortbildungen", other: "Sonstiges" });
   const berlin = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
@@ -40,14 +40,13 @@
     }
     throw new Error("Diese Uhrzeit existiert wegen der Zeitumstellung nicht. Bitte prüfe Von und Bis.");
   }
-  function prepare(input, now = new Date()) {
+  function prepare(input) {
     const date = day(input.date);
     const startMinute = minutes(input.start);
     const endMinute = minutes(input.end);
     if (startMinute === endMinute) throw new Error("Von und Bis müssen unterschiedlich sein.");
     const startedAt = instant(input.date, startMinute);
     const endedAt = instant(endMinute < startMinute ? shift(input.date, 1) : input.date, endMinute);
-    if (endedAt > now) throw new Error("Du kannst nur bereits abgeschlossene Aufgaben erfassen.");
     const title = String(input.title || "").trim();
     const description = String(input.description || "").trim();
     if (!title || title.length > 120) throw new Error("Bitte gib einen Titel mit höchstens 120 Zeichen ein.");
@@ -55,7 +54,10 @@
     if (!Object.hasOwn(categories, input.category)) throw new Error("Bitte wähle eine Kategorie.");
     const durationMinutes = (endedAt - startedAt) / 60000;
     if (durationMinutes <= 0 || durationMinutes > 1500) throw new Error("Bitte prüfe den Zeitraum.");
-    return { day: date, startMinute, endMinute, startedAt, endedAt, durationMinutes, title, description, category: input.category };
+    const organization = input.organization === undefined || input.organization === "" ? -1 : Number(input.organization);
+    const organizationName = organization === -1 ? "" : String(input.organizationName || "").trim();
+    if (![-1, 0, 1, 2].includes(organization) || (organization !== -1 && (!organizationName || organizationName.length > 80))) throw new Error("Bitte wähle eine deiner Gliederungen.");
+    return { day: date, startMinute, endMinute, startedAt, endedAt, durationMinutes, title, description, category: input.category, organization, organizationName };
   }
   function period(mode, anchor) {
     const date = day(anchor);
@@ -104,7 +106,24 @@
     const rounded = Math.round(value);
     return `${Math.floor(rounded / 60)} Std.${rounded % 60 ? ` ${rounded % 60} Min.` : ""}`;
   }
-  const api = Object.freeze({ categories, day, key, shift, today, minutes, clock, instant, prepare, period, move, summarize, duration });
+  function compactBuckets(summary) {
+    const buckets = [];
+    for (let index = 0; index < summary.buckets.length; index += 7) {
+      const group = summary.buckets.slice(index, index + 7);
+      buckets.push({ key: group[0].key, label: `${index + 1}–${index + group.length}`, minutes: group.reduce((sum, bucket) => sum + bucket.minutes, 0) });
+    }
+    return buckets;
+  }
+  function lockDays(record) {
+    const date = record.day instanceof Date ? record.day : record.day.toDate();
+    const first = date.getTime();
+    return record.endMinute < record.startMinute ? [first, first + 86400000] : [first];
+  }
+  function timestampMillis(value) { return value instanceof Date ? value.getTime() : value.toMillis(); }
+  function overlaps(a, b) {
+    return timestampMillis(a.startedAt) < timestampMillis(b.endedAt) && timestampMillis(b.startedAt) < timestampMillis(a.endedAt);
+  }
+  const api = Object.freeze({ categories, day, key, shift, today, minutes, clock, instant, prepare, period, move, summarize, duration, compactBuckets, lockDays, overlaps, timestampMillis });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.WorktimeCore = api;
 })(typeof window === "undefined" ? globalThis : window);

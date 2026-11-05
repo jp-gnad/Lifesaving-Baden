@@ -507,37 +507,121 @@ service cloud.firestore {
         && data.startMinute != data.endMinute
         && startOffset in [60, 120] && endOffset in [60, 120]
         && data.durationMinutes > 0 && data.durationMinutes <= 1500
-        && data.endedAt - data.startedAt == duration.value(data.durationMinutes, "m")
-        && data.endedAt <= request.time;
+        && data.endedAt - data.startedAt == duration.value(data.durationMinutes, "m");
     }
 
     function validWorktime(data) {
       return data.keys().hasAll([
           "day", "startMinute", "endMinute", "startedAt", "endedAt", "durationMinutes",
-          "title", "description", "category", "createdAt", "updatedAt"
+          "title", "description", "category", "organization", "organizationName", "createdAt", "updatedAt"
         ])
         && data.keys().hasOnly([
           "day", "startMinute", "endMinute", "startedAt", "endedAt", "durationMinutes",
-          "title", "description", "category", "createdAt", "updatedAt"
+          "title", "description", "category", "organization", "organizationName", "createdAt", "updatedAt"
         ])
         && data.day is timestamp && data.startedAt is timestamp && data.endedAt is timestamp
         && data.startMinute is int && data.endMinute is int && data.durationMinutes is int
         && data.createdAt is timestamp && data.updatedAt is timestamp
         && data.title is string && data.title.trim().size() > 0 && data.title.size() <= 120
         && data.description is string && data.description.size() <= 2000
-        && data.category in ["training", "competition", "organization", "athleteCare"]
+        && data.category in ["training", "competition", "organization", "athleteCare", "education", "other"]
+        && data.organization in [-1, 0, 1, 2]
+        && data.organizationName is string && data.organizationName.size() <= 80
+        && (data.organization == -1 ? data.organizationName == "" : data.organizationName.trim().size() > 0)
         && validWorktimeTimes(data);
+    }
+
+    function worktimeInterval(id, data) {
+      return { "id": id, "start": data.startedAt, "end": data.endedAt };
+    }
+
+    function worktimeOnDay(data, dayId) {
+      return dayId == string(data.day.toMillis())
+        || (data.endMinute < data.startMinute
+          && dayId == string(data.day.toMillis() + 86400000));
+    }
+
+    function worktimeDaySaved(uid, id, data, dayMillis, present) {
+      let path = /databases/$(database)/documents/users/$(uid)/worktimeDays/$(string(dayMillis));
+      let lock = getAfter(path).data;
+      return lock.entryId == id && lock.updatedAt == request.time
+        && lock.entries.hasAny([worktimeInterval(id, data)]) == present;
+    }
+
+    function worktimeDaysSaved(uid, id, data, present) {
+      return worktimeDaySaved(uid, id, data, data.day.toMillis(), present)
+        && (data.endMinute >= data.startMinute
+          || worktimeDaySaved(uid, id, data, data.day.toMillis() + 86400000, present));
+    }
+
+    function validWorktimeInsertion(entries, base, next, position) {
+      return position >= 0 && position < entries.size()
+        && entries.size() == base.size() + 1
+        && entries[position] == next
+        && entries.removeAll([next]) == base
+        && (position == 0 || entries[position - 1].end <= next.start)
+        && (position == entries.size() - 1 || next.end <= entries[position + 1].start);
+    }
+
+    function validWorktimeDayChange(uid, dayId, before) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/users/$(uid)/worktimeEntries/$(data.entryId);
+      let had = exists(path);
+      let has = existsAfter(path);
+      let old = had ? get(path).data : {};
+      let next = has ? getAfter(path).data : {};
+      let removed = had && worktimeOnDay(old, dayId);
+      let added = has && worktimeOnDay(next, dayId);
+      let base = removed ? before.removeAll([worktimeInterval(data.entryId, old)]) : before;
+      return (removed || added)
+        && (added
+          ? validWorktimeInsertion(data.entries, base, worktimeInterval(data.entryId, next), data.position)
+          : data.entries == base);
+    }
+
+    function validWorktimeDay(uid, dayId, before) {
+      let data = request.resource.data;
+      return data.keys().hasAll(["entries", "entryId", "position", "updatedAt"])
+        && data.keys().hasOnly(["entries", "entryId", "position", "updatedAt"])
+        && data.entries is list && data.entries.size() <= 1500
+        && data.entryId is string && data.entryId.size() > 0 && data.entryId.size() <= 128
+        && data.position is int && data.updatedAt == request.time
+        && validWorktimeDayChange(uid, dayId, before);
+    }
+
+    match /users/{uid}/worktimeDays/{dayId} {
+      allow read: if ownsWorktime(uid);
+      allow create: if ownsWorktime(uid) && validWorktimeDay(uid, dayId, []);
+      allow update: if ownsWorktime(uid) && validWorktimeDay(uid, dayId, resource.data.entries);
+      allow delete: if false;
+    }
+
+    match /users/{uid}/worktimeSettings/{settingsId} {
+      allow read: if ownsWorktime(uid);
+      allow create, update: if ownsWorktime(uid) && settingsId == "preferences"
+        && request.resource.data.keys().hasOnly(["organizations"])
+        && request.resource.data.organizations is list
+        && request.resource.data.organizations.size() == 3
+        && request.resource.data.organizations[0] is string && request.resource.data.organizations[0].size() <= 80
+        && request.resource.data.organizations[1] is string && request.resource.data.organizations[1].size() <= 80
+        && request.resource.data.organizations[2] is string && request.resource.data.organizations[2].size() <= 80;
+      allow delete: if false;
     }
 
     // Deliberately no administrator override: detailed entries belong only to their owner.
     match /users/{uid}/worktimeEntries/{entryId} {
-      allow read, delete: if ownsWorktime(uid);
+      allow read: if ownsWorktime(uid);
+      allow delete: if ownsWorktime(uid) && worktimeDaysSaved(uid, entryId, resource.data, false);
       allow create: if ownsWorktime(uid) && validWorktime(request.resource.data)
         && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && worktimeDaysSaved(uid, entryId, request.resource.data, true);
       allow update: if ownsWorktime(uid) && validWorktime(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && worktimeDaysSaved(uid, entryId, request.resource.data, true)
+        && (request.resource.data.startedAt == resource.data.startedAt && request.resource.data.endedAt == resource.data.endedAt
+          || worktimeDaysSaved(uid, entryId, resource.data, false));
     }
 
     match /timerParticipantDirectory/{candidateId} {

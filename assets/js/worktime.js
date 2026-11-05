@@ -5,6 +5,8 @@
   const form = $("wt-form");
   const editor = $("wt-editor");
   const deleteDialog = $("wt-delete-dialog");
+  const organizationsDialog = $("wt-organizations-dialog");
+  const mobile = window.matchMedia("(max-width: 700px)");
   const dateFormat = (date, options) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", ...options }).format(core.day(date));
   let user = null;
   let auth = null;
@@ -19,6 +21,12 @@
   let loaded = false;
   let busy = false;
   let collection = null;
+  let settingsRef = null;
+  let unsubscribeSettings = null;
+  let organizations = ["", "", ""];
+  let settingsLoaded = false;
+  let activeTab = "tasks";
+  const currentMode = () => activeTab === "tasks" || mobile.matches ? "month" : mode;
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -32,6 +40,7 @@
     $("wt-message").dataset.error = String(error);
   }
   function errorText(error) {
+    if (String(error?.code || "").startsWith("worktime/")) return error.message;
     if (error?.code === "permission-denied") return "Kein Zugriff auf diese Arbeitszeiten. Bitte lade die Seite neu.";
     if (error?.code === "not-found") return "Die Aufgabe wurde inzwischen gelöscht. Bitte lade die Übersicht neu.";
     return "Die Arbeitszeiten konnten nicht übertragen werden. Bitte prüfe deine Verbindung und versuche es erneut.";
@@ -40,17 +49,16 @@
     if (!user || auth?.currentUser?.uid !== user.uid) throw new Error("Die Anmeldung hat sich geändert. Bitte lade die Seite neu.");
   }
   function periodLabel() {
-    const range = core.period(mode, anchor);
-    if (mode === "month") return dateFormat(range.start, { month: "long", year: "numeric" });
-    if (mode === "day") return dateFormat(anchor, { day: "numeric", month: "short", year: "numeric" });
+    const range = core.period(currentMode(), anchor);
+    if (currentMode() === "month") return dateFormat(range.start, { month: "long", year: "numeric" });
+    if (currentMode() === "day") return dateFormat(anchor, { day: "numeric", month: "short", year: "numeric" });
     return `${dateFormat(range.start, { day: "numeric", month: "short" })} – ${dateFormat(core.shift(range.end, -1), { day: "numeric", month: "short", year: "numeric" })}`;
   }
   function updateControls() {
     $("wt-period-label").textContent = periodLabel();
     $("wt-anchor").value = anchor;
-    $("wt-anchor").max = core.today();
-    $("wt-next").disabled = core.period(mode, anchor).end > core.today();
-    $("wt-prev").disabled = core.period(mode, anchor).start <= "2000-01-01";
+    $("wt-next").disabled = false;
+    $("wt-prev").disabled = core.period(currentMode(), anchor).start <= "2000-01-01";
     document.querySelectorAll("[data-period]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.period === mode)));
   }
   function svgNode(tag, attrs = {}, text) {
@@ -60,30 +68,34 @@
     return element;
   }
   function chart(summary) {
-    const svg = svgNode("svg", { viewBox: "0 0 950 190", preserveAspectRatio: "none", "aria-hidden": "true" });
-    const width = 902;
+    const compact = mobile.matches;
+    const buckets = compact ? core.compactBuckets(summary) : summary.buckets;
+    const chartWidth = compact ? 340 : 950;
+    const svg = svgNode("svg", { viewBox: `0 0 ${chartWidth} 190`, preserveAspectRatio: "none", "aria-hidden": "true" });
+    const width = chartWidth - 48;
     const top = 12;
     const height = 145;
-    const peak = Math.max(60, ...summary.buckets.map((bucket) => bucket.minutes));
+    const peak = Math.max(60, ...buckets.map((bucket) => bucket.minutes));
     const maxHours = Math.ceil(peak / 60);
     for (let tick = 0; tick <= 2; tick += 1) {
       const y = top + height - tick * height / 2;
-      svg.append(svgNode("line", { x1: 30, x2: 945, y1: y, y2: y, class: "wt-grid-line" }));
+      svg.append(svgNode("line", { x1: 30, x2: chartWidth - 5, y1: y, y2: y, class: "wt-grid-line" }));
       svg.append(svgNode("text", { x: 22, y: y + 4, "text-anchor": "end" }, new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(tick * maxHours / 2)));
     }
-    const slot = width / summary.buckets.length;
-    summary.buckets.forEach((bucket, index) => {
+    const slot = width / buckets.length;
+    buckets.forEach((bucket, index) => {
       const x = 36 + index * slot;
       const barHeight = bucket.minutes / (maxHours * 60) * height;
-      const label = mode === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" });
+      const label = compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" });
       const bar = svgNode("rect", { x: x + slot * .2, y: top + height - barHeight, width: slot * .6, height: barHeight, rx: 2, class: "wt-bar" });
       bar.append(svgNode("title", {}, `${label}: ${core.duration(bucket.minutes)}`));
       svg.append(bar);
-      const showLabel = mode === "week" || (mode === "day" ? index % 4 === 0 : index === 0 || (index + 1) % 5 === 0);
-      if (showLabel) svg.append(svgNode("text", { x: x + slot / 2, y: 181, "text-anchor": "middle" }, mode === "day" ? String(index).padStart(2, "0") : mode === "week" ? dateFormat(bucket.key, { weekday: "short" }) : String(index + 1)));
+      const showLabel = compact || currentMode() === "week" || (currentMode() === "day" ? index % 4 === 0 : index === 0 || (index + 1) % 5 === 0);
+      if (showLabel) svg.append(svgNode("text", { x: x + slot / 2, y: 181, "text-anchor": "middle" }, compact ? bucket.label : currentMode() === "day" ? String(index).padStart(2, "0") : currentMode() === "week" ? dateFormat(bucket.key, { weekday: "short" }) : String(index + 1)));
     });
     $("wt-chart").replaceChildren(svg);
-    $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${summary.buckets.map((bucket) => `${mode === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}`).join("; ")}`);
+    $("wt-chart-unit").textContent = compact ? "Stunden · Tage im Monat" : "Stunden";
+    $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}`).join("; ")}`);
   }
   function actionButton(label, action, entry, path) {
     const button = node("button", "wt-icon-button");
@@ -99,8 +111,9 @@
   function render() {
     updateControls();
     if (!loaded) return;
-    const filter = $("wt-filter").value;
-    const summary = core.summarize(entries.filter((entry) => !filter || entry.category === filter), mode, anchor);
+    const filter = activeTab === "stats" && !mobile.matches ? $("wt-filter").value : "";
+    const organizationFilter = activeTab === "stats" && !mobile.matches ? $("wt-organization-filter").value : "";
+    const summary = core.summarize(entries.filter((entry) => (!filter || entry.category === filter) && (!organizationFilter || String(entry.organization) === organizationFilter)), currentMode(), anchor);
     $("wt-total").textContent = core.duration(summary.total);
     $("wt-count").textContent = summary.entries.length;
     $("wt-days").textContent = summary.days;
@@ -116,27 +129,40 @@
       return item;
     }));
     const list = $("wt-list");
+    $("wt-list-summary").textContent = core.duration(summary.total);
     list.setAttribute("aria-busy", "false");
     if (!summary.entries.length) {
       const empty = node("p", "wt-empty");
-      empty.append(node("strong", "", filter ? "Keine Aufgaben in dieser Kategorie" : "Noch keine Aufgaben in diesem Zeitraum"), node("span", "", "Erfasse deine absolvierte Arbeit über „Aufgabe erfassen“."));
+      empty.append(node("strong", "", filter ? "Keine passenden Aufgaben" : "Noch keine Aufgaben in diesem Zeitraum"), node("span", "", "Starte mit „Aufgabe erfassen“."));
       list.replaceChildren(empty);
       return;
     }
-    list.replaceChildren(...summary.entries.sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id)).map((entry) => {
+    const rows = [];
+    let lastDate = "";
+    for (const entry of summary.entries.sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id))) {
+      if (entry.date !== lastDate) {
+        rows.push(node("h3", "wt-day-heading", dateFormat(entry.date, { weekday: "short", day: "numeric", month: "long" })));
+        lastDate = entry.date;
+      }
       const item = node("article", "wt-task");
-      const date = node("div", "wt-task-date");
-      date.append(node("strong", "", Number(entry.date.slice(8))), node("span", "", dateFormat(entry.date, { month: "short" })));
       const info = node("div", "wt-task-info");
       const meta = node("div", "wt-task-meta");
-      meta.append(node("span", "", `${core.clock(entry.startMinute)} – ${core.clock(entry.endMinute)}${entry.endMinute < entry.startMinute ? " (+1 Tag)" : ""}`), node("span", "", core.categories[entry.category]));
+      meta.append(node("span", "", core.categories[entry.category]));
+      if (entry.organization >= 0) {
+        const dot = node("span", "wt-org-dot");
+        dot.dataset.organization = entry.organization;
+        dot.title = entry.organizationName;
+        dot.setAttribute("role", "img");
+        dot.setAttribute("aria-label", `Gliederung: ${entry.organizationName}`);
+        meta.append(dot);
+      }
       info.append(node("h3", "", entry.title), meta);
-      if (entry.description) info.append(node("p", "wt-task-description", entry.description));
       const actions = node("div", "wt-task-actions");
-      actions.append(actionButton("Bearbeiten", openEditor, entry, "m16 3 5 5M3 21l5-1L21 7a2 2 0 0 0-5-5L3 15v6Z"), actionButton("Löschen", openDelete, entry, "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"));
-      item.append(date, info, node("strong", "wt-task-duration", core.duration(entry.durationMinutes)), actions);
-      return item;
-    }));
+      actions.append(actionButton("Bearbeiten", openEditor, entry, "m16 3 5 5M3 21l5-1L21 7a2 2 0 0 0-5-5L3 15v6Z"));
+      item.append(info, node("strong", "wt-task-duration", core.duration(entry.durationMinutes)), actions);
+      rows.push(item);
+    }
+    list.replaceChildren(...rows);
   }
   function clearSummary() {
     loaded = false;
@@ -144,6 +170,7 @@
     for (const id of ["wt-total", "wt-count", "wt-days"]) $(id).textContent = "—";
     $("wt-chart").replaceChildren();
     $("wt-categories").replaceChildren();
+    $("wt-list-summary").textContent = "";
     $("wt-metrics").setAttribute("aria-busy", "true");
     $("wt-list").setAttribute("aria-busy", "true");
     $("wt-list").replaceChildren(node("p", "wt-empty", "Arbeitszeiten werden geladen …"));
@@ -154,7 +181,7 @@
     clearSummary();
     updateControls();
     if (!collection) return;
-    const range = core.period(mode, anchor);
+    const range = core.period(currentMode(), anchor);
     const stamp = window.firebase.firestore.Timestamp;
     const query = collection.where("day", ">=", stamp.fromDate(core.day(range.start))).where("day", "<", stamp.fromDate(core.day(range.end))).orderBy("day", "desc");
     unsubscribe = query.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
@@ -182,6 +209,15 @@
     auth = nextAuth;
     user = nextUser;
     collection = window.firebase.firestore().collection("users").doc(user.uid).collection("worktimeEntries");
+    settingsRef = window.firebase.firestore().collection("users").doc(user.uid).collection("worktimeSettings").doc("preferences");
+    const currentSession = sessionId;
+    unsubscribeSettings = settingsRef.onSnapshot((snapshot) => {
+      if (currentSession !== sessionId) return;
+      organizations = snapshot.exists ? snapshot.data().organizations : ["", "", ""];
+      settingsLoaded = true;
+      refreshOrganizations();
+      render();
+    }, () => { settingsLoaded = false; message("Gliederungen konnten nicht geladen werden. Bitte lade die Seite neu.", true); });
     $("wt-content").hidden = false;
     subscribe();
   }
@@ -189,14 +225,20 @@
     generation += 1;
     sessionId += 1;
     unsubscribe?.();
+    unsubscribeSettings?.();
     unsubscribe = null;
     collection = null;
+    settingsRef = null;
+    unsubscribeSettings = null;
+    organizations = ["", "", ""];
+    settingsLoaded = false;
     user = null;
     auth = null;
     editing = null;
     deleting = null;
     editor.close();
     deleteDialog.close();
+    organizationsDialog.close();
     form.reset();
     setBusy(false);
     $("wt-content").hidden = true;
@@ -206,7 +248,56 @@
     busy = value;
     editor.querySelectorAll("input, select, textarea, button").forEach((element) => { element.disabled = value; });
     deleteDialog.querySelectorAll("button").forEach((element) => { element.disabled = value; });
+    organizationsDialog.querySelectorAll("input, button").forEach((element) => { element.disabled = value; });
     $("wt-save").textContent = value ? "Wird gespeichert …" : "Speichern";
+  }
+  function refreshOrganizations(selected = form.elements.organization.value || "-1", previousName = form.elements.organization.selectedOptions[0]?.dataset.name || "") {
+    const slot = Number(String(selected).split(":")[0]);
+    const options = [node("option", "", "Keine Gliederung")];
+    options[0].value = "-1";
+    if (slot >= 0 && previousName && previousName !== organizations[slot]) {
+      const previous = node("option", "", previousName);
+      previous.value = `${slot}:previous`;
+      previous.dataset.name = previousName;
+      options.push(previous);
+      selected = previous.value;
+    }
+    organizations.forEach((name, index) => {
+      if (!name) return;
+      const option = node("option", "", name);
+      option.value = String(index);
+      option.dataset.name = name;
+      options.push(option);
+    });
+    form.elements.organization.replaceChildren(...options);
+    form.elements.organization.value = String(selected);
+    if (!form.elements.organization.value) form.elements.organization.value = "-1";
+    const filter = $("wt-organization-filter");
+    const filterValue = filter.value;
+    const all = node("option", "", "Alle Gliederungen");
+    all.value = "";
+    filter.replaceChildren(all, ...organizations.flatMap((name, index) => {
+      if (!name) return [];
+      const option = node("option", "", name);
+      option.value = String(index);
+      return [option];
+    }));
+    filter.value = filterValue;
+    if (!filter.value) filter.value = "";
+  }
+  function selectTab(tab, focus = false) {
+    const previousMode = currentMode();
+    activeTab = tab;
+    document.body.dataset.worktimeTab = tab;
+    for (const name of ["tasks", "stats"]) {
+      const selected = tab === name;
+      $( `wt-${name}-tab`).setAttribute("aria-selected", String(selected));
+      $( `wt-${name}-tab`).tabIndex = selected ? 0 : -1;
+      $( `wt-${name}-panel`).hidden = !selected;
+    }
+    if (focus) $( `wt-${tab}-tab`).focus();
+    if (previousMode !== currentMode()) subscribe();
+    else render();
   }
   function updateHint() {
     let hint = "Zeiten in Europe/Berlin.";
@@ -223,22 +314,26 @@
     form.reset();
     $("wt-editor-title").textContent = editing ? "Aufgabe bearbeiten" : "Aufgabe erfassen";
     form.elements.title.value = editing?.title || "";
-    form.elements.date.max = core.today();
     form.elements.date.value = editing?.date || core.today();
     form.elements.start.value = editing ? core.clock(editing.startMinute) : "";
     form.elements.end.value = editing ? core.clock(editing.endMinute) : "";
     form.elements.category.value = editing?.category || "training";
     form.elements.description.value = editing?.description || "";
+    refreshOrganizations(editing?.organization ?? -1, editing?.organizationName || "");
+    $("wt-editor-delete").hidden = !editing;
     $("wt-form-error").hidden = true;
     updateHint();
     editor.showModal();
+    editor.scrollTop = 0;
   }
   function openDelete(entry) {
     if (busy || !user) return;
     deleting = entry;
+    editor.close();
     $("wt-delete-name").textContent = entry.title;
     $("wt-delete-error").hidden = true;
     deleteDialog.showModal();
+    deleteDialog.scrollTop = 0;
   }
   form.addEventListener("input", updateHint);
   form.addEventListener("submit", async (event) => {
@@ -250,19 +345,22 @@
       requireUser();
       if (!navigator.onLine) throw new Error("Du bist offline. Bitte verbinde dich zum Speichern mit dem Internet.");
       const input = Object.fromEntries(new FormData(form));
+      input.organizationName = form.elements.organization.selectedOptions[0]?.dataset.name || "";
+      input.organization = input.organization.split(":")[0];
       const data = core.prepare(input);
       const stamp = window.firebase.firestore.Timestamp;
-      const timestamp = window.firebase.firestore.FieldValue.serverTimestamp;
-      const record = { ...data, day: stamp.fromDate(data.day), startedAt: stamp.fromDate(data.startedAt), endedAt: stamp.fromDate(data.endedAt), updatedAt: timestamp() };
+      const record = { ...data, day: stamp.fromDate(data.day), startedAt: stamp.fromDate(data.startedAt), endedAt: stamp.fromDate(data.endedAt) };
       const ref = editing ? collection.doc(editing.id) : collection.doc();
       const wasEditing = Boolean(editing);
       setBusy(true);
-      if (wasEditing) await ref.update(record);
-      else await ref.set({ ...record, createdAt: timestamp() });
+      await window.WorktimeStore.commit(window.firebase.firestore(), owner, ref.id, record, window.firebase.firestore, () => {
+        requireUser();
+        if (session !== sessionId) throw new Error("Die Anmeldung hat sich geändert.");
+      }, wasEditing);
       if (user?.uid !== owner || session !== sessionId) return;
       editor.close();
       const savedDate = core.key(data.day);
-      const range = core.period(mode, anchor);
+      const range = core.period(currentMode(), anchor);
       if (savedDate < range.start || savedDate >= range.end) { anchor = savedDate; subscribe(); }
       message(wasEditing ? "Aufgabe gespeichert." : "Aufgabe erfasst.");
     } catch (error) {
@@ -282,7 +380,10 @@
       requireUser();
       if (!navigator.onLine) throw new Error("Du bist offline. Bitte verbinde dich zum Löschen mit dem Internet.");
       setBusy(true);
-      await collection.doc(deleting.id).delete();
+      await window.WorktimeStore.commit(window.firebase.firestore(), owner, deleting.id, null, window.firebase.firestore, () => {
+        requireUser();
+        if (session !== sessionId) throw new Error("Die Anmeldung hat sich geändert.");
+      });
       if (user?.uid !== owner || session !== sessionId) return;
       deleteDialog.close();
       message("Aufgabe gelöscht.");
@@ -294,29 +395,76 @@
       if (session === sessionId) setBusy(false);
     }
   });
-  for (const dialog of [editor, deleteDialog]) dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
+  for (const dialog of [editor, deleteDialog, organizationsDialog]) dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
   document.querySelectorAll("[data-wt-close]").forEach((button) => button.addEventListener("click", () => { if (!busy) editor.close(); }));
   document.querySelectorAll("[data-wt-delete-close]").forEach((button) => button.addEventListener("click", () => { if (!busy) deleteDialog.close(); }));
   $("wt-create").addEventListener("click", () => openEditor());
+  $("wt-editor-delete").addEventListener("click", () => { if (editing) openDelete(editing); });
+  for (const tab of ["tasks", "stats"]) {
+    $( `wt-${tab}-tab`).addEventListener("click", () => selectTab(tab));
+    $( `wt-${tab}-tab`).addEventListener("keydown", (event) => {
+      if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        selectTab(event.key === "Home" ? "tasks" : event.key === "End" ? "stats" : activeTab === "tasks" ? "stats" : "tasks", true);
+      }
+    });
+  }
+  $("wt-organizations-open").addEventListener("click", () => {
+    if (busy || !user) return;
+    if (!settingsLoaded) { message("Deine Gliederungen werden noch geladen. Bitte versuche es gleich erneut.", true); return; }
+    const settingsForm = $("wt-organizations-form");
+    organizations.forEach((name, index) => { settingsForm.elements[`organization${index}`].value = name; });
+    $("wt-organizations-error").hidden = true;
+    organizationsDialog.showModal();
+    organizationsDialog.scrollTop = 0;
+  });
+  for (const id of ["wt-organizations-close", "wt-organizations-cancel"]) $(id).addEventListener("click", () => { if (!busy) organizationsDialog.close(); });
+  $("wt-organizations-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    const session = sessionId;
+    try {
+      requireUser();
+      if (!navigator.onLine) throw new Error("Bitte verbinde dich zum Speichern mit dem Internet.");
+      const values = [0, 1, 2].map((index) => $("wt-organizations-form").elements[`organization${index}`].value.trim());
+      setBusy(true);
+      await settingsRef.set({ organizations: values });
+      if (session !== sessionId) return;
+      organizations = values;
+      refreshOrganizations();
+      render();
+      organizationsDialog.close();
+      message("Gliederungen gespeichert.");
+    } catch (error) {
+      if (session !== sessionId) return;
+      $("wt-organizations-error").hidden = false;
+      $("wt-organizations-error").textContent = error.code ? errorText(error) : error.message;
+    } finally { if (session === sessionId) setBusy(false); }
+  });
   $("wt-filter").addEventListener("change", render);
+  $("wt-organization-filter").addEventListener("change", render);
   document.querySelectorAll("[data-period]").forEach((button) => button.addEventListener("click", () => {
     if (mode === button.dataset.period) return;
     mode = button.dataset.period;
     subscribe();
   }));
   for (const [id, direction] of [["wt-prev", -1], ["wt-next", 1]]) $(id).addEventListener("click", () => {
-    anchor = core.move(mode, anchor, direction);
+    anchor = core.move(currentMode(), anchor, direction);
     subscribe();
   });
   $("wt-today").addEventListener("click", () => { anchor = core.today(); subscribe(); });
   $("wt-anchor").addEventListener("change", () => {
     const value = $("wt-anchor").value;
     try { core.day(value); } catch { updateControls(); return; }
-    if (value > core.today()) { updateControls(); return; }
     anchor = value;
     subscribe();
   });
   window.addEventListener("online", () => { if (user && !loaded) subscribe(); });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") updateControls(); });
+  mobile.addEventListener("change", () => {
+    if (!user) return;
+    if (activeTab === "stats" && mode !== "month") subscribe();
+    else render();
+  });
   window.LifesavingWorktime = Object.freeze({ start, stop });
 })();

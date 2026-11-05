@@ -47,17 +47,34 @@ async function seed(records) {
   });
 }
 
-const worktime = (overrides = {}) => ({
-  day: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")), startMinute: 1320, endMinute: 60,
-  startedAt: sdk.Timestamp.fromDate(new Date("2026-01-01T21:00:00Z")),
-  endedAt: sdk.Timestamp.fromDate(new Date("2026-01-02T00:00:00Z")),
-  durationMinutes: 180, title: "Training", description: "", category: "training", ...timestampFields(), ...overrides,
-});
+const worktimeCore = require("../assets/js/worktime-core.js");
+const worktimeStore = require("../assets/js/worktime-store.js");
+function worktime(input = {}) {
+  const data = worktimeCore.prepare({ date: "2099-01-01", start: "22:00", end: "01:00", title: "Training", description: "", category: "training", ...input });
+  return { ...data, day: sdk.Timestamp.fromDate(data.day), startedAt: sdk.Timestamp.fromDate(data.startedAt), endedAt: sdk.Timestamp.fromDate(data.endedAt) };
+}
+function compatDb(db) {
+  const query = (name, filters = []) => ({
+    where(field, operator, value) { return query(name, [...filters, sdk.where(field, operator, value)]); },
+    get() { return sdk.getDocs(sdk.query(sdk.collection(db, name), ...filters)); },
+  });
+  const collection = (name) => ({ ...query(name), doc(id) {
+    const ref = sdk.doc(db, `${name}/${id}`);
+    return { id, native: ref, collection: (child) => collection(`${name}/${id}/${child}`) };
+  } });
+  return { collection, runTransaction: (action) => sdk.runTransaction(db, (transaction) => action({
+    async get(ref) { const snapshot = await transaction.get(ref.native); return { exists: snapshot.exists(), data: () => snapshot.data() }; },
+    set: (ref, data) => transaction.set(ref.native, data),
+    delete: (ref) => transaction.delete(ref.native),
+  })) };
+}
+const commitWorktime = (db, uid, id, data) => worktimeStore.commit(compatDb(db), uid, id, data, { Timestamp: sdk.Timestamp, FieldValue: { serverTimestamp: () => sdk.serverTimestamp() } });
 
 test("worktime is owner-only for trainers and higher, including against other admins", { skip: !enabled }, async () => {
   await env.clearFirestore();
   for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
-    await seed({ [`users/time-${role}`]: { role }, [`users/time-${role}/worktimeEntries/existing`]: worktime() });
+    await seed({ [`users/time-${role}`]: { role } });
+    if (["trainer", "organizer", "admin"].includes(role)) await assertSucceeds(commitWorktime(dbFor(`time-${role}`), `time-${role}`, "existing", worktime()));
   }
   for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
     const uid = `time-${role}`;
@@ -66,51 +83,119 @@ test("worktime is owner-only for trainers and higher, including against other ad
     const check = ["trainer", "organizer", "admin"].includes(role) ? assertSucceeds : assertFails;
     await check(sdk.getDoc(own));
     await check(sdk.getDocs(sdk.collection(db, `users/${uid}/worktimeEntries`)));
-    await check(sdk.setDoc(sdk.doc(db, `users/${uid}/worktimeEntries/new`), worktime()));
-    await check(sdk.updateDoc(own, { title: "Bearbeitet", updatedAt: sdk.serverTimestamp() }));
+    await check(commitWorktime(db, uid, "new", worktime({ date: "2099-01-03" })));
+    await check(commitWorktime(db, uid, "existing", worktime({ title: "Bearbeitet" })));
     for (const other of ["trainer", "organizer", "admin"].filter((other) => other !== role)) {
       const ref = sdk.doc(db, `users/time-${other}/worktimeEntries/existing`);
       await assertFails(sdk.getDoc(ref));
       await assertFails(sdk.getDocs(sdk.collection(db, `users/time-${other}/worktimeEntries`)));
-      await assertFails(sdk.setDoc(sdk.doc(db, `users/time-${other}/worktimeEntries/injected`), worktime()));
+      await assertFails(commitWorktime(db, `time-${other}`, "injected", worktime()));
       await assertFails(sdk.updateDoc(ref, { title: "Unzulässig", updatedAt: sdk.serverTimestamp() }));
       await assertFails(sdk.deleteDoc(ref));
+      await assertFails(sdk.getDocs(sdk.collection(db, `users/time-${other}/worktimeDays`)));
+      await assertFails(sdk.getDoc(sdk.doc(db, `users/time-${other}/worktimeSettings/preferences`)));
     }
-    await check(sdk.deleteDoc(own));
+    // Release reservations but keep a record for subsequent foreign-access checks.
+    await check(commitWorktime(db, uid, "new", null));
   }
   const guest = dbFor(null);
-  await assertFails(sdk.getDoc(sdk.doc(guest, "users/time-trainer/worktimeEntries/new")));
-  await assertFails(sdk.setDoc(sdk.doc(guest, "users/time-trainer/worktimeEntries/guest"), worktime()));
+  await assertFails(sdk.getDoc(sdk.doc(guest, "users/time-trainer/worktimeEntries/existing")));
+  await assertFails(commitWorktime(guest, "time-trainer", "guest", worktime()));
   const unverified = dbFor("time-trainer", { email_verified: false });
   await assertFails(sdk.getDocs(sdk.collection(unverified, "users/time-trainer/worktimeEntries")));
-  await assertFails(sdk.setDoc(sdk.doc(unverified, "users/time-trainer/worktimeEntries/unverified"), worktime()));
+  await assertFails(commitWorktime(unverified, "time-trainer", "unverified", worktime()));
 });
 
-test("worktime validates completed intervals, schema, immutable creation time and role revocation", { skip: !enabled }, async () => {
+test("worktime validates future intervals, organization settings and immutable creation time", { skip: !enabled }, async () => {
   await env.clearFirestore();
   await seed({ "users/clock-trainer": { role: "trainer" } });
   const db = dbFor("clock-trainer");
   const ref = sdk.doc(db, "users/clock-trainer/worktimeEntries/task");
-  await assertSucceeds(sdk.setDoc(ref, worktime()));
+  await assertSucceeds(commitWorktime(db, "clock-trainer", "task", worktime()));
   const original = (await sdk.getDoc(ref)).data();
-  await assertSucceeds(sdk.updateDoc(ref, { category: "athleteCare", updatedAt: sdk.serverTimestamp() }));
+  await assertSucceeds(commitWorktime(db, "clock-trainer", "task", worktime({ category: "education", organization: 1, organizationName: "Ettlingen" })));
+  assert.equal((await sdk.getDoc(ref)).data().createdAt.toMillis(), original.createdAt.toMillis());
   for (const overrides of [
-    { title: " " }, { title: "x".repeat(121) }, { description: "x".repeat(2001) }, { category: "other" },
+    { title: " " }, { title: "x".repeat(121) }, { description: "x".repeat(2001) }, { category: "invalid" },
     { startMinute: -1 }, { endMinute: 1440 }, { durationMinutes: 0 }, { durationMinutes: 200 },
-    { startMinute: 60, endMinute: 60 }, { day: "2026-01-01" }, { startedAt: "yesterday" },
-    { day: sdk.Timestamp.fromDate(new Date("2026-01-01T00:01:00Z")) }, { ownerUid: "other" },
-    { day: sdk.Timestamp.fromDate(new Date("2099-01-01T00:00:00Z")), startedAt: sdk.Timestamp.fromDate(new Date("2099-01-01T21:00:00Z")), endedAt: sdk.Timestamp.fromDate(new Date("2099-01-02T00:00:00Z")) },
-  ]) await assertFails(sdk.setDoc(sdk.doc(db, "users/clock-trainer/worktimeEntries/invalid"), worktime(overrides)));
+    { startMinute: 60, endMinute: 60 }, { day: "2099-01-01" }, { startedAt: "yesterday" },
+    { day: sdk.Timestamp.fromDate(new Date("2099-01-01T00:01:00Z")) }, { ownerUid: "other" },
+    { organization: 3 }, { organization: 0, organizationName: " " },
+  ]) await assert.rejects(commitWorktime(db, "clock-trainer", "invalid", { ...worktime({ date: "2099-01-03" }), ...overrides }));
   await assertFails(sdk.updateDoc(ref, { createdAt: sdk.Timestamp.fromMillis(0), updatedAt: sdk.serverTimestamp() }));
   await assertFails(sdk.updateDoc(ref, { updatedAt: sdk.Timestamp.fromMillis(0) }));
   await assertFails(sdk.updateDoc(ref, { title: sdk.deleteField(), updatedAt: sdk.serverTimestamp() }));
+  const preferences = sdk.doc(db, "users/clock-trainer/worktimeSettings/preferences");
+  await assertSucceeds(sdk.setDoc(preferences, { organizations: ["LV Baden", "Ettlingen", "Privat"] }));
+  for (const organizations of [["a", "b", "c", "d"], ["a"], ["a", "b", 42], ["a".repeat(81), "", ""]]) await assertFails(sdk.setDoc(preferences, { organizations }));
   await assertSucceeds(sdk.getDocs(sdk.query(sdk.collection(db, "users/clock-trainer/worktimeEntries"), sdk.where("day", ">=", original.day), sdk.orderBy("day", "desc"))));
   await seed({ "users/clock-trainer": { role: "athlete" } });
   await assertFails(sdk.getDoc(ref));
-  await assertFails(sdk.updateDoc(ref, { title: "Unzulässig", updatedAt: sdk.serverTimestamp() }));
-  await assertFails(sdk.deleteDoc(ref));
+  await assertFails(commitWorktime(db, "clock-trainer", "task", worktime()));
+  await assertFails(commitWorktime(db, "clock-trainer", "task", null));
   const claimDb = dbFor("claim-clock", { role: "trainer" });
-  await assertSucceeds(sdk.setDoc(sdk.doc(claimDb, "users/claim-clock/worktimeEntries/task"), worktime()));
+  await assertSucceeds(commitWorktime(claimDb, "claim-clock", "task", worktime()));
+});
+
+test("worktime prevents overlap across midnight and month boundaries, permits adjacency and releases edits", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/overlap": { role: "trainer" } });
+  const db = dbFor("overlap");
+  const save = (id, data) => commitWorktime(db, "overlap", id, data);
+  const first = worktime({ date: "2099-01-31" });
+  await assertSucceeds(save("first", first));
+  await assert.rejects(save("conflict", worktime({ date: "2099-02-01", start: "00:30", end: "02:00" })), { code: "worktime/overlap" });
+  await assert.rejects(save("conflict", worktime({ date: "2099-01-31", start: "21:00", end: "23:00" })), { code: "worktime/overlap" });
+  await assertSucceeds(save("adjacent", worktime({ date: "2099-02-01", start: "01:00", end: "02:00" })));
+  await assert.rejects(save("first", worktime({ date: "2099-02-01", start: "01:30", end: "03:00" })), { code: "worktime/overlap" });
+  await assertSucceeds(save("first", worktime({ date: "2099-02-02", start: "10:00", end: "11:00" })));
+  await assertSucceeds(save("reuse", first));
+  await assertSucceeds(save("reuse", null));
+  await assertSucceeds(save("replacement", first));
+});
+
+test("worktime rules reject direct writes and forged reservations even if client overlap checks are skipped", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/forgery": { role: "trainer" } });
+  const db = dbFor("forgery");
+  const first = worktime({ start: "10:00", end: "12:00" });
+  await assertSucceeds(commitWorktime(db, "forgery", "first", first));
+  const conflict = worktime({ start: "11:00", end: "13:00" });
+  const ref = sdk.doc(db, "users/forgery/worktimeEntries/conflict");
+  await assertFails(sdk.setDoc(ref, { ...conflict, ...timestampFields() }));
+  const lockRef = sdk.doc(db, `users/forgery/worktimeDays/${first.day.toMillis()}`);
+  const existing = (await sdk.getDoc(lockRef)).data().entries;
+  const interval = { id: "conflict", start: conflict.startedAt, end: conflict.endedAt };
+  for (const entries of [[...existing, interval], [interval]]) {
+    const batch = sdk.writeBatch(db);
+    batch.set(ref, { ...conflict, ...timestampFields() });
+    batch.set(lockRef, { entries, entryId: "conflict", position: entries.length - 1, updatedAt: sdk.serverTimestamp() });
+    await assertFails(batch.commit());
+  }
+  await assertFails(sdk.deleteDoc(sdk.doc(db, "users/forgery/worktimeEntries/first")));
+});
+
+test("worktime concurrent overlapping submissions allow only one task", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/race": { role: "trainer" } });
+  const db = dbFor("race");
+  const outcomes = await Promise.allSettled([
+    commitWorktime(db, "race", "a", worktime({ start: "10:00", end: "12:00" })),
+    commitWorktime(dbFor("race"), "race", "b", worktime({ start: "11:00", end: "13:00" })),
+  ]);
+  assert.equal(outcomes.filter((outcome) => outcome.status === "fulfilled").length, 1);
+  assert.equal((await sdk.getDocs(sdk.collection(db, "users/race/worktimeEntries"))).size, 1);
+});
+
+test("worktime detects existing V1 entries before creating an overlapping task", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const legacy = { ...worktime({ date: "2099-01-31" }), ...timestampFields() };
+  delete legacy.organization;
+  delete legacy.organizationName;
+  await seed({ "users/legacy-time": { role: "trainer" }, "users/legacy-time/worktimeEntries/old": legacy });
+  const db = dbFor("legacy-time");
+  await assert.rejects(commitWorktime(db, "legacy-time", "new", worktime({ date: "2099-02-01", start: "00:30", end: "02:00" })), { code: "worktime/overlap" });
+  await assertSucceeds(commitWorktime(db, "legacy-time", "old", worktime({ date: "2099-01-31", organization: 0, organizationName: "Baden" })));
 });
 
 test("all roles and legacy roles enforce the same event thresholds for reads and writes", { skip: !enabled }, async (t) => {
