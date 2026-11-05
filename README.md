@@ -483,6 +483,9 @@ Auf Handys stehen Kennzahlen, Diagramm und Kategorien in getrennten Bereichen.
 Der Button „Aufgabe hinzufügen“ bleibt unten im Inhaltsbereich und läuft beim
 Footer nach oben, sodass die Fußnavigation frei bleibt. Datum und Uhrzeit sind
 breitenbegrenzt; bei höchstens 360 px stehen sie pro Von-/Bis-Gruppe untereinander.
+Die mobile Zeiterfassung unterbindet Pinch- und Doppeltipp-Zoom in Aufgaben und
+Auswertung. Scrollen mit einem Finger bleibt möglich; Formulare verwenden auf
+Handys mindestens 16 px Schriftgröße gegen automatisches Zoomen beim Fokussieren.
 
 Die Daten liegen unter `users/{uid}/worktimeEntries/{entryId}`, die persönlichen
 Gliederungen unter `users/{uid}/worktimeSettings/preferences`. Das Feld `day`

@@ -7,6 +7,15 @@
   const deleteDialog = $("wt-delete-dialog");
   const organizationsDialog = $("wt-organizations-dialog");
   const mobile = window.matchMedia("(max-width: 700px)");
+  // iOS can ignore viewport zoom limits. Cancel its gesture events as well as
+  // multi-touch movement, leaving single-finger scrolling and field taps intact.
+  const preventMobileZoom = (event) => {
+    if ((mobile.matches || window.matchMedia("(any-pointer: coarse)").matches) && event.cancelable) event.preventDefault();
+  };
+  for (const type of ["gesturestart", "gesturechange"]) document.addEventListener(type, preventMobileZoom, { passive: false });
+  for (const type of ["touchstart", "touchmove"]) document.addEventListener(type, (event) => {
+    if (event.touches.length > 1) preventMobileZoom(event);
+  }, { passive: false });
   const dateFormat = (date, options) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", ...options }).format(core.day(date));
   let user = null;
   let auth = null;

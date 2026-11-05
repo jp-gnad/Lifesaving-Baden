@@ -131,6 +131,8 @@ body.auth-context-loading[data-page="worktime"] #wt-content { display: none; }
 .wt-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 [data-page="worktime"] button:focus-visible, [data-page="worktime"] a:focus-visible, [data-page="worktime"] select:focus-visible { outline: 2px solid rgba(81, 189, 147, .6); outline-offset: 3px; }
 [data-page="worktime"] button:disabled { cursor: default; opacity: .5; }
+/* Keep single-finger scrolling while disabling pinch and double-tap zoom. */
+body[data-page="worktime"] { touch-action: pan-x pan-y; }
 @media (max-width: 700px) {
   .wt-main { padding: 26px 18px 28px; min-width: 0; }
   .wt-heading { align-items: center; gap: 12px; margin-bottom: 24px; }
