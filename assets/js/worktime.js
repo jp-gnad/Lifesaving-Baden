@@ -162,7 +162,10 @@
     }));
     const list = $("wt-list");
     list.setAttribute("aria-busy", "false");
-    if (!summary.entries.length) {
+    // Keep the task list grouped by start date; statistics use actual time per day.
+    const range = core.period(currentMode(), anchor);
+    const listEntries = summary.entries.filter((entry) => entry.date >= range.start && entry.date < range.end);
+    if (!listEntries.length) {
       const empty = node("p", "wt-empty");
       empty.append(node("strong", "", filter ? "Keine passenden Aufgaben" : "Noch keine Aufgaben in diesem Zeitraum"), node("span", "", "Starte mit „Aufgabe hinzufügen“."));
       list.replaceChildren(empty);
@@ -171,7 +174,7 @@
     const rows = [];
     let lastDate = "";
     let card = null;
-    const ordered = [...summary.entries].sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id));
+    const ordered = [...listEntries].sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id));
     const dailyTotals = new Map();
     for (const entry of ordered) dailyTotals.set(entry.date, (dailyTotals.get(entry.date) || 0) + entry.durationMinutes);
     for (const entry of ordered) {
@@ -241,7 +244,11 @@
     if (!collection) return;
     const range = core.period(currentMode(), anchor);
     const stamp = window.firebase.firestore.Timestamp;
-    const query = collection.where("day", ">=", stamp.fromDate(core.day(range.start))).where("day", "<", stamp.fromDate(core.day(range.end))).orderBy("day", "desc");
+    // Include tasks starting before the selected period. summarize clips their
+    // elapsed time to the period; this single-field query needs no composite index.
+    const query = activeTab === "stats"
+      ? collection.where("endedAt", ">", stamp.fromDate(core.instant(range.start, 0))).orderBy("endedAt", "desc")
+      : collection.where("day", ">=", stamp.fromDate(core.day(range.start))).where("day", "<", stamp.fromDate(core.day(range.end))).orderBy("day", "desc");
     unsubscribe = query.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
       if (current !== generation || auth?.currentUser?.uid !== user?.uid) return;
       // Wait for the server before displaying a cached collection after a role change.
@@ -346,7 +353,6 @@
     if (!filter.value) filter.value = "";
   }
   function selectTab(tab, focus = false) {
-    const previousMode = currentMode();
     activeTab = tab;
     document.body.dataset.worktimeTab = tab;
     $("wt-add-bar").hidden = tab !== "tasks";
@@ -357,15 +363,14 @@
       $( `wt-${name}-panel`).hidden = !selected;
     }
     if (focus) $( `wt-${tab}-tab`).focus();
-    if (previousMode !== currentMode()) subscribe();
-    else render();
+    subscribe();
   }
   function updateHint() {
     let hint = "Zeiten in Europe/Berlin.";
     try {
       const start = core.instant(form.elements.startDate.value, core.minutes(form.elements.start.value));
       const end = core.instant(form.elements.endDate.value, core.minutes(form.elements.end.value));
-      if (end > start) hint = `${core.duration((end - start) / 60000)} · Zuordnung zum Startdatum.`;
+      if (end > start) hint = `${core.duration((end - start) / 60000)} · Auswertung je Kalendertag.`;
     } catch { /* Incomplete times keep the default hint. */ }
     $("wt-time-hint").textContent = hint;
   }

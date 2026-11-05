@@ -20,18 +20,22 @@ test("completed work uses Berlin time independently of the device timezone", () 
   assert.equal(core.prepare(input({ date: "2026-07-01" }), now).startedAt.toISOString(), "2026-07-01T16:00:00.000Z");
 });
 
-test("overnight entries keep all minutes on their start day, week and month", () => {
+test("overnight entries split at midnight across day, week and month boundaries", () => {
   const records = [entry({ date: "2026-08-31", start: "22:00", end: "01:00" }), entry({ date: "2026-11-01", start: "22:00", end: "01:00" })];
   assert.equal(records[0].durationMinutes, 180);
-  assert.equal(core.summarize(records, "month", "2026-08-01").total, 180);
-  assert.equal(core.summarize(records, "month", "2026-09-01").total, 0);
-  assert.equal(core.summarize(records, "week", "2026-11-01").total, 180);
-  assert.equal(core.summarize(records, "week", "2026-11-02").total, 0);
+  assert.equal(core.summarize(records, "month", "2026-08-01").total, 120);
+  assert.equal(core.summarize(records, "month", "2026-09-01").total, 60);
+  assert.equal(core.summarize(records, "week", "2026-11-01").total, 120);
+  assert.equal(core.summarize(records, "week", "2026-11-02").total, 60);
   const daily = core.summarize(records, "day", "2026-08-31");
-  assert.equal(daily.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), 180);
+  assert.equal(daily.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), 120);
   assert.equal(daily.buckets[22].minutes, 60);
   assert.equal(daily.buckets[23].minutes, 60);
-  assert.equal(daily.buckets[0].minutes, 60);
+  assert.equal(daily.buckets[0].minutes, 0);
+  const nextDay = core.summarize(records, "day", "2026-09-01");
+  assert.equal(nextDay.total, 60);
+  assert.equal(nextDay.buckets[0].minutes, 60);
+  assert.equal(nextDay.entries.length, 1);
 });
 
 test("DST duration uses elapsed minutes and rejects nonexistent Berlin times", () => {
@@ -105,17 +109,73 @@ test("statistics combine categories and active days without counting out-of-peri
   assert.equal(core.duration(0), "0 Std.");
 });
 
-test("explicit date ranges span multiple days and keep totals on the start date", () => {
+test("explicit date ranges distribute elapsed time across all calendar days", () => {
   const record = entry({ startDate: "2026-10-30", endDate: "2026-11-02", start: "09:00", end: "09:00" });
   assert.equal(record.durationMinutes, 72 * 60);
   assert.equal(core.recordEndDate(record), "2026-11-02");
-  assert.equal(core.summarize([record], "month", "2026-10-01").total, 4320);
-  assert.equal(core.summarize([record], "month", "2026-11-01").total, 0);
+  assert.equal(core.summarize([record], "month", "2026-10-01").total, 39 * 60);
+  assert.equal(core.summarize([record], "month", "2026-11-01").total, 33 * 60);
   const daily = core.summarize([record], "day", "2026-10-30");
-  assert.equal(daily.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), 4320);
+  assert.equal(daily.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), 15 * 60);
+  const wholeDay = core.summarize([record], "day", "2026-10-31");
+  assert.equal(wholeDay.total, 24 * 60);
+  assert.equal(wholeDay.buckets.every((bucket) => bucket.minutes === 60), true);
+  assert.equal(core.summarize([record], "day", "2026-11-02").total, 9 * 60);
   assert.throws(() => core.prepare(input({ startDate: "2026-11-02", endDate: "2026-11-01" })), /nach Von/);
   assert.throws(() => core.prepare(input({ startDate: "2026-11-02", endDate: "2026-11-02", start: "12:00", end: "11:00" })), /nach Von/);
   assert.equal(core.prepare(input({ startDate: "2026-10-24", endDate: "2026-10-26", start: "12:00", end: "12:00" })).durationMinutes, 49 * 60);
+});
+
+test("multi-day statistics preserve category and organization shares in mobile bins", () => {
+  const records = [entry({ startDate: "2026-11-07", endDate: "2026-11-09", start: "20:00", end: "04:00", category: "competition", organization: 1, organizationName: "Ettlingen" })];
+  const summary = core.summarize(records, "month", "2026-11-01");
+  assert.equal(summary.total, 32 * 60);
+  assert.equal(summary.days, 3);
+  assert.equal(summary.entries.length, 1);
+  assert.deepEqual(summary.buckets.filter((bucket) => bucket.minutes).map((bucket) => bucket.minutes), [240, 1440, 240]);
+  const compact = core.compactBuckets(summary);
+  assert.equal(compact[0].minutes, 240);
+  assert.equal(compact[1].minutes, 1680);
+  for (const buckets of [summary.buckets, compact]) {
+    assert.equal(buckets.reduce((sum, bucket) => sum + bucket.byCategory.competition, 0), summary.total);
+    assert.equal(buckets.reduce((sum, bucket) => sum + bucket.byOrganization[1], 0), summary.total);
+  }
+  assert.equal(core.summarize(records, "week", "2026-11-08").total, 28 * 60);
+  assert.equal(core.summarize(records, "week", "2026-11-09").total, 4 * 60);
+});
+
+test("midnight endpoints are exclusive and adjacent entries do not inflate days", () => {
+  const records = [
+    entry({ startDate: "2026-12-31", endDate: "2027-01-01", start: "22:00", end: "00:00" }),
+    entry({ startDate: "2027-01-01", endDate: "2027-01-02", start: "00:00", end: "00:00", category: "education" }),
+  ];
+  const january = core.summarize(records, "month", "2027-01-01");
+  assert.equal(january.total, 1440);
+  assert.equal(january.days, 1);
+  assert.equal(january.entries.length, 1);
+  assert.equal(january.byCategory.training, 0);
+  assert.equal(january.byCategory.education, 1440);
+  const after = core.summarize(records, "day", "2027-01-02");
+  assert.equal(after.total, 0);
+  assert.equal(after.days, 0);
+  assert.equal(after.entries.length, 0);
+});
+
+test("calendar-day totals respect 23- and 25-hour Berlin daylight-saving days", () => {
+  for (const [date, nextDate, hours, twoOClock] of [
+    ["2026-03-29", "2026-03-30", 23, 0],
+    ["2026-10-25", "2026-10-26", 25, 120],
+  ]) {
+    const record = entry({ startDate: core.shift(date, -1), endDate: nextDate, start: "12:00", end: "12:00", organization: 2, organizationName: "Privat" });
+    const daily = core.summarize([record], "day", date);
+    assert.equal(daily.total, hours * 60);
+    assert.equal(daily.byCategory.training, hours * 60);
+    assert.equal(daily.byOrganization[2], hours * 60);
+    assert.equal(daily.buckets[2].minutes, twoOClock);
+    const monthly = core.summarize([record], "month", date);
+    assert.equal(monthly.buckets.find((bucket) => bucket.key === date).minutes, hours * 60);
+    assert.equal(monthly.total, record.durationMinutes);
+  }
 });
 
 test("stacked organization totals survive compact charts and include unassigned entries", () => {

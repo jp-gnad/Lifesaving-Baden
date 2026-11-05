@@ -456,8 +456,10 @@ befindet sich als Papierkorb-Icon unten links im Bearbeitungsdialog. Gespeichert
 bleiben bei späteren Änderungen der persönlichen Auswahl in alten Aufgaben erhalten.
 
 Aufgaben können sich über mehrere Tage erstrecken. Bis-Datum und -Uhrzeit müssen
-nach Von-Datum und -Uhrzeit liegen; die gesamte Zeit gehört weiterhin zum
-Startdatum, auch an Wochen- und Monatsgrenzen. Ältere Einträge ohne Bis-Datum
+nach Von-Datum und -Uhrzeit liegen. In der Auswertung verteilt sich die Zeit auf die
+tatsächlichen Kalendertage, auch an Wochen-, Monats- und Jahresgrenzen. Die
+Aufgabenliste ordnet den vollständigen Eintrag weiterhin unter dem Startdatum ein.
+Ältere Einträge ohne Bis-Datum
 werden beim Bearbeiten mit ihrem bisherigen Enddatum geöffnet. Die Zeitzone ist unabhängig vom Gerät `Europe/Berlin`; die Dauer
 berücksichtigt Zeitumstellungen. Doppelte Uhrzeiten beim Herbstwechsel verwenden
 das erste Vorkommen; nicht existierende Uhrzeiten beim Frühjahrswechsel werden
@@ -467,9 +469,12 @@ Die Oberfläche trennt Aufgaben und Auswertung. Auf dem Handy zeigt die Auswertu
 den Monat mit höchstens fünf Balken (1.–7., 8.–14. usw.) und ohne Filter oder
 Zeitraum-Auswahl. Auf dem Desktop stehen Tag, Woche (ab Montag), Monat, Datumswahl,
 Kategorie- und Gliederungsfilter zur Verfügung. Die Aufgabenansicht zeigt jeweils
-einen Monat. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
-zugerechnet und an der jeweiligen Uhrzeit angezeigt. Summen enthalten alle erfassten
-Aufgaben im Zeitraum einschließlich zukünftiger Einträge. Diagramme stapeln die
+einen Monat. Das Tagesdiagramm zeigt nur die Stunden am ausgewählten Tag. Bei der
+Zeitumstellung hat ein Tag 23 bzw. 25 Stunden; die wiederholte Stunde wird im
+Herbst gemeinsam dargestellt. Summen, Kategorien und Gliederungen enthalten nur
+die Zeitanteile im ausgewählten Zeitraum einschließlich zukünftiger Einträge.
+Auch Aufgaben, die vor dem Zeitraum begonnen haben, werden dafür geladen.
+Diagramme stapeln die
 Stunden wahlweise nach Gliederungen oder Kategorien. Die Umschaltung steht auch
 auf dem Handy zur Verfügung. Gliederungen verwenden dieselben Farben wie die
 Aufgabenliste; nicht zugeordnete Zeiten sind grau. Kategorien haben jeweils eine

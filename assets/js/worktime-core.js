@@ -85,31 +85,42 @@
   }
   function summarize(entries, mode, anchor) {
     const range = period(mode, anchor);
-    const selected = entries.filter((entry) => entry.date >= range.start && entry.date < range.end);
+    const rangeStart = instant(range.start, 0).getTime();
+    const rangeEnd = instant(range.end, 0).getTime();
+    const selected = entries.filter((entry) => timestampMillis(entry.startedAt) < rangeEnd && timestampMillis(entry.endedAt) > rangeStart);
     const buckets = [];
+    const intervals = [];
     if (mode === "day") {
       for (let hour = 0; hour < 24; hour += 1) buckets.push({ key: hour, label: `${pad(hour)} Uhr`, minutes: 0, byOrganization: organizationTotals(), byCategory: categoryTotals() });
-      // The full entry belongs to its start date, including hours after midnight.
-      for (const entry of selected) {
-        const start = entry.startMinute;
-        const endDate = recordEndDate(entry);
-        const finish = entry.endMinute + (day(endDate) - day(entry.date)) / 60000;
-        const wallDuration = finish - start;
-        const fullDays = Math.floor(wallDuration / 1440);
-        const remainder = wallDuration % 1440;
-        const portions = new Array(24).fill(fullDays * 60);
-        for (let minute = start; minute < start + remainder; minute += 1) portions[Math.floor((minute % 1440) / 60)] += 1;
-        portions.forEach((portion, hour) => addMinutes(buckets[hour], entry, portion * entry.durationMinutes / wallDuration));
+      // Walk elapsed hours: spring has 23, autumn has 25 (two in the 02 Uhr bucket).
+      for (let start = rangeStart; start < rangeEnd; start += 3600000) {
+        intervals.push({ start, end: Math.min(start + 3600000, rangeEnd), date: range.start, bucket: buckets[Number(parts(new Date(start)).hour)] });
       }
     } else {
-      for (let date = range.start; date < range.end; date = shift(date, 1)) buckets.push({ key: date, label: date, minutes: 0, byOrganization: organizationTotals(), byCategory: categoryTotals() });
-      for (const entry of selected) addMinutes(buckets.find((bucket) => bucket.key === entry.date), entry, entry.durationMinutes);
+      for (let date = range.start; date < range.end; date = shift(date, 1)) {
+        const bucket = { key: date, label: date, minutes: 0, byOrganization: organizationTotals(), byCategory: categoryTotals() };
+        buckets.push(bucket);
+        intervals.push({ start: instant(date, 0).getTime(), end: instant(shift(date, 1), 0).getTime(), date, bucket });
+      }
     }
     const byCategory = categoryTotals();
-    for (const entry of selected) byCategory[entry.category] += entry.durationMinutes;
     const byOrganization = organizationTotals();
-    for (const entry of selected) byOrganization[entry.organization ?? -1] += entry.durationMinutes;
-    return { entries: selected, buckets, byCategory, byOrganization, total: selected.reduce((sum, entry) => sum + entry.durationMinutes, 0), days: new Set(selected.map((entry) => entry.date)).size };
+    const activeDays = new Set();
+    let total = 0;
+    for (const entry of selected) {
+      const start = timestampMillis(entry.startedAt);
+      const end = timestampMillis(entry.endedAt);
+      for (const interval of intervals) {
+        const minutes = (Math.min(end, interval.end) - Math.max(start, interval.start)) / 60000;
+        if (minutes <= 0) continue;
+        addMinutes(interval.bucket, entry, minutes);
+        byCategory[entry.category] += minutes;
+        byOrganization[entry.organization ?? -1] += minutes;
+        total += minutes;
+        activeDays.add(interval.date);
+      }
+    }
+    return { entries: selected, buckets, byCategory, byOrganization, total, days: activeDays.size };
   }
   function duration(value) {
     const rounded = Math.round(value);

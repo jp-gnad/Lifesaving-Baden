@@ -45,7 +45,7 @@
     return { doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), get: () => query(path, []).get(), where: (field, operator, value) => query(path, [[field, operator, value]]) };
   }
   function query(path, filters) {
-    const docs = () => [...records].filter(([name, data]) => name.startsWith(`${path}/`) && name.slice(path.length + 1).indexOf("/") === -1 && filters.every(([field, operator, value]) => operator === ">=" ? data[field].toMillis() >= value.toMillis() : data[field].toMillis() < value.toMillis())).map(([name, data]) => ({ id: name.split("/").pop(), data: () => data }));
+    const docs = () => [...records].filter(([name, data]) => name.startsWith(`${path}/`) && name.slice(path.length + 1).indexOf("/") === -1 && filters.every(([field, operator, value]) => operator === ">=" ? data[field].toMillis() >= value.toMillis() : operator === ">" ? data[field].toMillis() > value.toMillis() : data[field].toMillis() < value.toMillis())).map(([name, data]) => ({ id: name.split("/").pop(), data: () => data }));
     return {
       async get() { return { docs: docs() }; },
       where(field, operator, value) { return query(path, [...filters, [field, operator, value]]); },
