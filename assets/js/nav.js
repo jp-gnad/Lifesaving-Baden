@@ -101,6 +101,7 @@
     let revision = 0;
     let settle = null;
     let animations = [];
+    let navigationTarget = null;
 
     const items = (level) => Array.from(level.children)
       .filter((row) => !row.matches("script, template, [data-nav-submenu]"));
@@ -238,6 +239,7 @@
       cancelAnimations();
       desiredOpen = false;
       phase = "closed";
+      navigationTarget = null;
       nav.dataset.navState = phase;
       nav.classList.remove("is-open", "is-expanded", "is-closing", "is-instant", "is-navigating");
       toggle.setAttribute("aria-expanded", "false");
@@ -276,7 +278,10 @@
       phase = open ? "opening" : "closing";
       nav.dataset.navState = phase;
       nav.classList.add("is-open");
-      if (open) nav.classList.remove("is-navigating");
+      if (open) {
+        navigationTarget = null;
+        nav.classList.remove("is-navigating");
+      }
       nav.classList.toggle("is-expanded", open);
       nav.classList.toggle("is-closing", !open);
       nav.classList.toggle("is-instant", noMotion());
@@ -317,13 +322,18 @@
           if (open) {
             phase = "open";
             nav.dataset.navState = phase;
-          } else if (nav.classList.contains("is-navigating")) {
+          } else if (navigationTarget) {
             phase = "navigating";
             nav.dataset.navState = phase;
+            const destination = navigationTarget;
+            navigationTarget = null;
+            window.location.assign(destination);
           } else reset();
           resolve(true);
         };
-        if (duration) timer = window.setTimeout(finish, duration);
+        if (duration && navigationTarget) {
+          Promise.all(animations.map((animation) => animation.finished)).then(finish, () => {});
+        } else if (duration) timer = window.setTimeout(finish, duration);
         else finish();
       });
     }
@@ -358,7 +368,12 @@
       const currentPage = new URL(window.location.href);
       if ((target.protocol === "http:" || target.protocol === "https:")
         && (target.origin !== currentPage.origin || target.pathname !== currentPage.pathname || target.search !== currentPage.search)) {
+        event.preventDefault();
+        navigationTarget = target.href;
         nav.classList.add("is-navigating");
+        if (target.origin === currentPage.origin && !noMotion()) {
+          fetch(target.href, { mode: "same-origin" }).then((response) => response.arrayBuffer()).catch(() => {});
+        }
         transition(false);
         return;
       }
@@ -400,7 +415,9 @@
       }, { passive: false });
     });
     mobile.addEventListener("change", () => { reset(); if (mobile.matches) enterMobile(); });
-    reducedMotion.addEventListener("change", () => { if (phase !== "closed") transition(desiredOpen); });
+    reducedMotion.addEventListener("change", () => {
+      if (phase !== "closed" && phase !== "navigating") transition(desiredOpen);
+    });
     window.addEventListener("hashchange", updateActive);
     window.addEventListener("pagehide", () => {
       if (!nav.classList.contains("is-navigating")) reset();
