@@ -2141,13 +2141,18 @@ body.auth-context-loading .member-apps::after {
   color: var(--muted);
 }
 
+.account-modal-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+}
+
 .account-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
   display: grid;
   width: 40px;
   height: 40px;
+  padding: 0;
   place-items: center;
   border: 0;
   border-radius: 50%;
@@ -2170,7 +2175,8 @@ body.auth-context-loading .member-apps::after {
 }
 
 .account-email {
-  padding: 0 48px;
+  grid-column: 2;
+  overflow-wrap: anywhere;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -3863,7 +3869,6 @@ body.auth-context-loading .member-apps::after {
   }
 
   .account-email {
-    padding: 0 44px;
     font-size: 0.98rem;
   }
 
