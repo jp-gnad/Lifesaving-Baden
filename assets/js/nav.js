@@ -68,6 +68,7 @@
     const panel = nav?.querySelector("[data-nav-links]");
     const header = nav?.closest(".site-header");
     if (!panel || !header) return;
+    const brand = header.querySelector("a.brand[href]");
 
     toggle.replaceChildren(
       glyph("nav-menu-glyph nav-menu-glyph--open", "M3 6h18M3 12h18M3 18h18"),
@@ -111,6 +112,7 @@
     });
     const mainLink = (row) => row.matches("a") ? row : row.querySelector("a");
     const noMotion = () => reducedMotion.matches || typeof panel.animate !== "function";
+    const normalizePath = (path) => path.replace(/\/index\.html$/, "/");
 
     function prepare(level) {
       items(level).forEach((row) => {
@@ -177,19 +179,17 @@
     }
 
     function updateActive() {
-      const normalize = (path) => path.replace(/\/index\.html$/, "/");
       const here = new URL(window.location.href);
       const links = Array.from(panel.querySelectorAll("a[href]"))
         .filter((link) => !link.classList.contains("nav-registration"));
       let active = links.filter((link) => {
         const target = new URL(link.href);
         return link.getAttribute("aria-current") === "page"
-          || target.origin === here.origin && normalize(target.pathname) === normalize(here.pathname)
+          || target.origin === here.origin && normalizePath(target.pathname) === normalizePath(here.pathname)
           && (!target.hash || target.hash === here.hash);
       });
       if (!active.length) {
-        const home = header.querySelector(".brand[href]");
-        active = links.filter((link) => home && link.href === home.href);
+        active = links.filter((link) => brand && link.href === brand.href);
       }
       levels.forEach((level) => items(level).forEach((row) => row.classList.remove("is-current-section")));
       active.forEach((link) => {
@@ -355,20 +355,25 @@
       focus.focus({ preventScroll: true });
     }
 
-    toggle.addEventListener("click", () => transition(!desiredOpen));
-    panel.addEventListener("click", (event) => {
-      const link = event.target.closest("a[href]");
-      if (!mobile.matches || !link || event.defaultPrevented) return;
+    function followNavLink(event, link) {
+      if (event.defaultPrevented) return;
       if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
         || link.hasAttribute("download") || (link.target && link.target !== "_self")) {
+        if (desiredOpen) transition(false);
+        return;
+      }
+      event.preventDefault();
+      if (nav.classList.contains("is-navigating")) return;
+      const target = new URL(link.href);
+      const currentPage = new URL(window.location.href);
+      if (link === brand && target.origin === currentPage.origin
+        && normalizePath(target.pathname) === normalizePath(currentPage.pathname)
+        && target.search === currentPage.search && target.hash === currentPage.hash) {
         transition(false);
         return;
       }
-      const target = new URL(link.href);
-      const currentPage = new URL(window.location.href);
       if ((target.protocol === "http:" || target.protocol === "https:")
         && (target.origin !== currentPage.origin || target.pathname !== currentPage.pathname || target.search !== currentPage.search)) {
-        event.preventDefault();
         navigationTarget = target.href;
         nav.classList.add("is-navigating");
         if (target.origin === currentPage.origin && !noMotion()) {
@@ -377,10 +382,20 @@
         transition(false);
         return;
       }
-      event.preventDefault();
       transition(false).then((completed) => { if (completed) window.location.assign(link.href); });
+    }
+
+    toggle.addEventListener("click", () => transition(!desiredOpen));
+    panel.addEventListener("click", (event) => {
+      const link = event.target.closest("a[href]");
+      if (mobile.matches && link) followNavLink(event, link);
     });
     document.addEventListener("click", (event) => {
+      if (mobile.matches && brand?.contains(event.target)
+        && (desiredOpen || nav.classList.contains("is-navigating"))) {
+        followNavLink(event, brand);
+        return;
+      }
       if (!desiredOpen || nav.contains(event.target)) return;
       if (event.target.closest("a, button")) reset();
       else transition(false);
