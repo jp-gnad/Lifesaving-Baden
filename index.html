@@ -25,10 +25,10 @@
     </script>
     <style>
       .app-launch { display: none; }
-      .app-launching,
-      .app-launching body { background: #0f0f12; }
-      .app-launching body > :not(.app-launch) { display: none; }
-      .app-launching .app-launch {
+      :is(.app-launching, .app-launch-minimum),
+      :is(.app-launching, .app-launch-minimum) body { background: #0f0f12; }
+      :is(.app-launching, .app-launch-minimum) body > :not(.app-launch) { display: none; }
+      :is(.app-launching, .app-launch-minimum) .app-launch {
         position: fixed;
         inset: 0;
         z-index: 200;
@@ -65,6 +65,15 @@
       <img src="assets/img/lifesaving-baden-logo.png" width="96" height="96" alt="">
       <strong>Lifesaving Baden</strong>
     </div>
+    <script>
+      const launchClasses = document.documentElement.classList;
+      if (launchClasses.contains("app-launching")) {
+        launchClasses.add("app-launch-minimum");
+        window.requestAnimationFrame(() => {
+          window.setTimeout(() => launchClasses.remove("app-launch-minimum"), 650);
+        });
+      }
+    </script>
     <header class="site-header">
       <a class="brand" href="index.html" aria-label="Lifesaving Baden Startseite">
         <span class="brand-mark" aria-hidden="true">

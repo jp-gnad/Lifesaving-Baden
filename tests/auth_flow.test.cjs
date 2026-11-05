@@ -1070,16 +1070,20 @@ test("legacy timer login forwards verification flags and drops the old event tar
   assert.equal(destination.searchParams.get("verified"), "1");
 });
 
-test("standalone launch covers the landing page until Firebase resolves the session", () => {
-  const startScript = source("index.html").match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+test("standalone launch covers the landing page until the minimum time and session check have passed", () => {
+  const [startScript, minimumScript] = [...source("index.html").matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
+    .map((match) => match[1]);
   for (const [mode, user] of [
     ["ios", { uid: "member", emailVerified: true }],
-    ["standalone", null],
+    ["standalone-fast", null],
+    ["standalone-slow", null],
     ["browser", null],
     ["offline", null],
   ]) {
     const h = harness({ url: "https://example.test/club/", user });
     const classes = new Set();
+    const timers = new Map();
+    let firstFrame;
     const replacements = [];
     h.document.body.dataset.page = "landing";
     h.document.documentElement = { classList: {
@@ -1088,13 +1092,23 @@ test("standalone launch covers the landing page until Firebase resolves the sess
       remove: (name) => classes.delete(name),
     } };
     h.window.navigator = { standalone: mode === "ios" };
-    h.window.matchMedia = () => ({ matches: mode === "standalone" || mode === "offline" });
-    h.window.setTimeout = () => {};
+    h.window.matchMedia = () => ({ matches: mode.startsWith("standalone") || mode === "offline" });
+    h.window.requestAnimationFrame = (callback) => { firstFrame = callback; };
+    h.window.setTimeout = (callback, delay) => { timers.set(delay, callback); };
     h.window.location.replace = (url) => replacements.push(url);
     if (mode === "offline") delete h.window.firebase;
 
     vm.runInContext(startScript, h.context);
     assert.equal(classes.has("app-launching"), mode !== "browser");
+    vm.runInContext(minimumScript, h.context);
+    assert.equal(classes.has("app-launch-minimum"), mode !== "browser");
+    assert.equal(timers.has(650), false);
+    firstFrame?.();
+    if (mode === "standalone-slow") {
+      timers.get(650)();
+      assert.equal(classes.has("app-launching"), true);
+      assert.equal(classes.has("app-launch-minimum"), false);
+    }
     vm.runInContext(source("assets/js/auth.js"), h.context);
     assert.deepEqual(replacements, []);
     h.callbacks.auth?.(user);
@@ -1105,6 +1119,11 @@ test("standalone launch covers the landing page until Firebase resolves the sess
     } else {
       assert.deepEqual(replacements, []);
       assert.equal(classes.has("app-launching"), false);
+      if (mode === "standalone-fast" || mode === "offline") {
+        assert.equal(classes.has("app-launch-minimum"), true);
+        timers.get(650)();
+      }
+      assert.equal(classes.has("app-launch-minimum"), false);
     }
   }
 });
