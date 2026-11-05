@@ -441,13 +441,16 @@ h3 {
 }
 
 .button-google {
+  -webkit-appearance: none;
+  appearance: none;
   position: relative;
   margin-top: 10px;
   padding-inline: 52px;
   font-family: Arial, sans-serif;
   border-color: var(--line);
-  background: var(--surface);
+  background: transparent;
   color: var(--text);
+  transition: none;
 }
 
 .auth-panel .button {
@@ -3988,6 +3991,9 @@ body[data-page="login"] .auth-panel h1 {
 
 body[data-page="login"] .auth-google-options {
   order: 1;
+  display: grid;
+  border-radius: 5px;
+  background: var(--surface);
 }
 
 body[data-page="login"] .button-google,
