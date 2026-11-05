@@ -2,7 +2,7 @@
 <html lang="de">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Zeiterfassung · Lokale Prüfung</title><style>body{margin:0;background:#08080a;color:#fff;font:14px system-ui}nav{display:flex;align-items:center;justify-content:center;gap:16px;padding:12px}button{padding:8px 16px}iframe{display:block;border:0;margin:0 auto;background:#0f0f12;max-width:100%;width:100%;height:calc(100vh - 60px);min-height:500px}</style></head>
   <body>
-    <nav aria-label="Testansicht"><span>Lokale Testdaten · ohne Firebase-Verbindung</span><button id="desktop">Desktop</button><button id="mobile">Mobil · 390 px</button></nav>
+    <nav aria-label="Testansicht"><span>Lokale Testdaten · ohne Firebase-Verbindung</span><button id="desktop">Desktop</button><button id="mobile">Mobil · 390 px</button><button id="narrow">320 px</button></nav>
     <iframe title="Zeiterfassung mit Testdaten" id="preview"></iframe>
     <script>
       (async () => {
@@ -22,6 +22,7 @@
       })();
       document.getElementById("desktop").onclick = () => { document.getElementById("preview").style.width = "100%"; };
       document.getElementById("mobile").onclick = () => { document.getElementById("preview").style.width = "390px"; };
+      document.getElementById("narrow").onclick = () => { document.getElementById("preview").style.width = "320px"; };
     </script>
   </body>
 </html>

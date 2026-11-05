@@ -26,7 +26,10 @@
   let organizations = ["", "", ""];
   let settingsLoaded = false;
   let activeTab = "tasks";
+  let previousStartDate = "";
   const currentMode = () => activeTab === "tasks" || mobile.matches ? "month" : mode;
+  const organizationColor = (slot) => ({ "-1": "#898994", 0: "#51bd93", 1: "#77a9dc", 2: "#d6b66b" })[slot];
+  const organizationLabel = (slot, summary) => Number(slot) === -1 ? "Ohne Gliederung" : organizations[slot] || summary.entries.find((entry) => entry.organization === Number(slot))?.organizationName || `Gliederung ${Number(slot) + 1}`;
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -85,17 +88,31 @@
     const slot = width / buckets.length;
     buckets.forEach((bucket, index) => {
       const x = 36 + index * slot;
-      const barHeight = bucket.minutes / (maxHours * 60) * height;
       const label = compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" });
-      const bar = svgNode("rect", { x: x + slot * .2, y: top + height - barHeight, width: slot * .6, height: barHeight, rx: 2, class: "wt-bar" });
-      bar.append(svgNode("title", {}, `${label}: ${core.duration(bucket.minutes)}`));
-      svg.append(bar);
+      let accumulated = 0;
+      for (const organization of [0, 1, 2, -1]) {
+        const minutes = bucket.byOrganization[organization];
+        if (!minutes) continue;
+        const barHeight = minutes / (maxHours * 60) * height;
+        accumulated += barHeight;
+        const bar = svgNode("rect", { x: x + slot * .2, y: top + height - accumulated, width: slot * .6, height: barHeight, fill: organizationColor(organization), class: "wt-bar", "data-organization": organization });
+        bar.append(svgNode("title", {}, `${label} · ${organizationLabel(organization, summary)}: ${core.duration(minutes)}`));
+        svg.append(bar);
+      }
       const showLabel = compact || currentMode() === "week" || (currentMode() === "day" ? index % 4 === 0 : index === 0 || (index + 1) % 5 === 0);
       if (showLabel) svg.append(svgNode("text", { x: x + slot / 2, y: 181, "text-anchor": "middle" }, compact ? bucket.label : currentMode() === "day" ? String(index).padStart(2, "0") : currentMode() === "week" ? dateFormat(bucket.key, { weekday: "short" }) : String(index + 1)));
     });
     $("wt-chart").replaceChildren(svg);
+    $("wt-legend").replaceChildren(...[0, 1, 2, -1].filter((organization) => summary.byOrganization[organization] > 0).map((organization) => {
+      const label = node("span", "wt-legend-item");
+      const marker = node("i", "wt-org-stripe");
+      marker.style.backgroundColor = organizationColor(organization);
+      marker.setAttribute("aria-hidden", "true");
+      label.append(marker, node("span", "", organizationLabel(organization, summary)), node("strong", "", core.duration(summary.byOrganization[organization])));
+      return label;
+    }));
     $("wt-chart-unit").textContent = compact ? "Stunden · Tage im Monat" : "Stunden";
-    $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}`).join("; ")}`);
+    $("wt-chart").setAttribute("aria-label", `${periodLabel()}: ${core.duration(summary.total)}. ${buckets.map((bucket) => `${compact || currentMode() === "day" ? bucket.label : dateFormat(bucket.key, { day: "numeric", month: "short" })}: ${core.duration(bucket.minutes)}. ${[0, 1, 2, -1].filter((slot) => bucket.byOrganization[slot] > 0).map((slot) => `${organizationLabel(slot, summary)} ${core.duration(bucket.byOrganization[slot])}`).join(", ")}`).join("; ")}`);
   }
   function actionButton(label, action, entry, path) {
     const button = node("button", "wt-icon-button");
@@ -129,19 +146,24 @@
       return item;
     }));
     const list = $("wt-list");
-    $("wt-list-summary").textContent = core.duration(summary.total);
     list.setAttribute("aria-busy", "false");
     if (!summary.entries.length) {
       const empty = node("p", "wt-empty");
-      empty.append(node("strong", "", filter ? "Keine passenden Aufgaben" : "Noch keine Aufgaben in diesem Zeitraum"), node("span", "", "Starte mit „Aufgabe erfassen“."));
+      empty.append(node("strong", "", filter ? "Keine passenden Aufgaben" : "Noch keine Aufgaben in diesem Zeitraum"), node("span", "", "Starte mit „Aufgabe hinzufügen“."));
       list.replaceChildren(empty);
       return;
     }
     const rows = [];
     let lastDate = "";
+    let group = null;
     for (const entry of summary.entries.sort((a, b) => b.date.localeCompare(a.date) || b.startMinute - a.startMinute || a.id.localeCompare(b.id))) {
       if (entry.date !== lastDate) {
-        rows.push(node("h3", "wt-day-heading", dateFormat(entry.date, { weekday: "short", day: "numeric", month: "long" })));
+        group = node("section", "wt-day-group");
+        const heading = node("h2", "wt-day-heading", dateFormat(entry.date, { weekday: "long", day: "numeric", month: "long" }));
+        heading.id = `wt-day-${entry.date}`;
+        group.setAttribute("aria-labelledby", heading.id);
+        group.append(heading);
+        rows.push(group);
         lastDate = entry.date;
       }
       const item = node("article", "wt-task");
@@ -149,18 +171,18 @@
       const meta = node("div", "wt-task-meta");
       meta.append(node("span", "", core.categories[entry.category]));
       if (entry.organization >= 0) {
-        const dot = node("span", "wt-org-dot");
-        dot.dataset.organization = entry.organization;
-        dot.title = entry.organizationName;
-        dot.setAttribute("role", "img");
-        dot.setAttribute("aria-label", `Gliederung: ${entry.organizationName}`);
-        meta.append(dot);
+        const stripe = node("span", "wt-org-stripe");
+        stripe.dataset.organization = entry.organization;
+        stripe.title = entry.organizationName;
+        stripe.setAttribute("role", "img");
+        stripe.setAttribute("aria-label", `Gliederung: ${entry.organizationName}`);
+        item.append(stripe);
       }
       info.append(node("h3", "", entry.title), meta);
       const actions = node("div", "wt-task-actions");
       actions.append(actionButton("Bearbeiten", openEditor, entry, "m16 3 5 5M3 21l5-1L21 7a2 2 0 0 0-5-5L3 15v6Z"));
       item.append(info, node("strong", "wt-task-duration", core.duration(entry.durationMinutes)), actions);
-      rows.push(item);
+      group.append(item);
     }
     list.replaceChildren(...rows);
   }
@@ -170,7 +192,7 @@
     for (const id of ["wt-total", "wt-count", "wt-days"]) $(id).textContent = "—";
     $("wt-chart").replaceChildren();
     $("wt-categories").replaceChildren();
-    $("wt-list-summary").textContent = "";
+    $("wt-legend").replaceChildren();
     $("wt-metrics").setAttribute("aria-busy", "true");
     $("wt-list").setAttribute("aria-busy", "true");
     $("wt-list").replaceChildren(node("p", "wt-empty", "Arbeitszeiten werden geladen …"));
@@ -219,6 +241,7 @@
       render();
     }, () => { settingsLoaded = false; message("Gliederungen konnten nicht geladen werden. Bitte lade die Seite neu.", true); });
     $("wt-content").hidden = false;
+    $("wt-add-bar").hidden = activeTab !== "tasks";
     subscribe();
   }
   function stop() {
@@ -242,6 +265,7 @@
     form.reset();
     setBusy(false);
     $("wt-content").hidden = true;
+    $("wt-add-bar").hidden = true;
     clearSummary();
   }
   function setBusy(value) {
@@ -289,6 +313,7 @@
     const previousMode = currentMode();
     activeTab = tab;
     document.body.dataset.worktimeTab = tab;
+    $("wt-add-bar").hidden = tab !== "tasks";
     for (const name of ["tasks", "stats"]) {
       const selected = tab === name;
       $( `wt-${name}-tab`).setAttribute("aria-selected", String(selected));
@@ -302,9 +327,9 @@
   function updateHint() {
     let hint = "Zeiten in Europe/Berlin.";
     try {
-      const start = core.minutes(form.elements.start.value);
-      const end = core.minutes(form.elements.end.value);
-      if (end < start) hint = "Bis am Folgetag · Zuordnung zum Startdatum.";
+      const start = core.instant(form.elements.startDate.value, core.minutes(form.elements.start.value));
+      const end = core.instant(form.elements.endDate.value, core.minutes(form.elements.end.value));
+      if (end > start) hint = `${core.duration((end - start) / 60000)} · Zuordnung zum Startdatum.`;
     } catch { /* Incomplete times keep the default hint. */ }
     $("wt-time-hint").textContent = hint;
   }
@@ -312,9 +337,11 @@
     if (busy || !user) return;
     editing = entry?.id ? entry : null;
     form.reset();
-    $("wt-editor-title").textContent = editing ? "Aufgabe bearbeiten" : "Aufgabe erfassen";
+    $("wt-editor-title").textContent = editing ? "Aufgabe bearbeiten" : "Aufgabe hinzufügen";
     form.elements.title.value = editing?.title || "";
-    form.elements.date.value = editing?.date || core.today();
+    form.elements.startDate.value = editing?.date || core.today();
+    form.elements.endDate.value = editing ? core.recordEndDate(editing) : core.today();
+    previousStartDate = form.elements.startDate.value;
     form.elements.start.value = editing ? core.clock(editing.startMinute) : "";
     form.elements.end.value = editing ? core.clock(editing.endMinute) : "";
     form.elements.category.value = editing?.category || "training";
@@ -324,6 +351,9 @@
     $("wt-form-error").hidden = true;
     updateHint();
     editor.showModal();
+    const touchInput = window.matchMedia("(pointer: coarse)").matches;
+    const initialFocus = mobile.matches || touchInput ? $("wt-editor-title") : form.elements.title;
+    initialFocus.focus({ preventScroll: true });
     editor.scrollTop = 0;
   }
   function openDelete(entry) {
@@ -336,6 +366,13 @@
     deleteDialog.scrollTop = 0;
   }
   form.addEventListener("input", updateHint);
+  form.elements.startDate.addEventListener("change", () => {
+    const value = form.elements.startDate.value;
+    if (!value) return;
+    if (form.elements.endDate.value === previousStartDate || form.elements.endDate.value < value) form.elements.endDate.value = value;
+    previousStartDate = value;
+    updateHint();
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -349,7 +386,7 @@
       input.organization = input.organization.split(":")[0];
       const data = core.prepare(input);
       const stamp = window.firebase.firestore.Timestamp;
-      const record = { ...data, day: stamp.fromDate(data.day), startedAt: stamp.fromDate(data.startedAt), endedAt: stamp.fromDate(data.endedAt) };
+      const record = { ...data, day: stamp.fromDate(data.day), endDay: stamp.fromDate(data.endDay), startedAt: stamp.fromDate(data.startedAt), endedAt: stamp.fromDate(data.endedAt) };
       const ref = editing ? collection.doc(editing.id) : collection.doc();
       const wasEditing = Boolean(editing);
       setBusy(true);
@@ -362,7 +399,7 @@
       const savedDate = core.key(data.day);
       const range = core.period(currentMode(), anchor);
       if (savedDate < range.start || savedDate >= range.end) { anchor = savedDate; subscribe(); }
-      message(wasEditing ? "Aufgabe gespeichert." : "Aufgabe erfasst.");
+      message();
     } catch (error) {
       if (user?.uid !== owner || session !== sessionId) return;
       $("wt-form-error").hidden = false;
@@ -386,7 +423,7 @@
       });
       if (user?.uid !== owner || session !== sessionId) return;
       deleteDialog.close();
-      message("Aufgabe gelöscht.");
+      message();
     } catch (error) {
       if (user?.uid !== owner || session !== sessionId) return;
       $("wt-delete-error").hidden = false;
@@ -434,7 +471,7 @@
       refreshOrganizations();
       render();
       organizationsDialog.close();
-      message("Gliederungen gespeichert.");
+      message();
     } catch (error) {
       if (session !== sessionId) return;
       $("wt-organizations-error").hidden = false;

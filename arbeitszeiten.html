@@ -17,16 +17,16 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
-    <link rel="stylesheet" href="assets/css/worktime.css?v=20261105-worktime-v2">
+    <link rel="stylesheet" href="assets/css/worktime.css?v=20261105-worktime-v4">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/worktime-core.js?v=20261105-worktime-v2"></script>
-    <script defer src="assets/js/worktime-store.js?v=20261105-worktime-v2"></script>
-    <script defer src="assets/js/worktime.js?v=20261105-worktime-v2"></script>
+    <script defer src="assets/js/worktime-core.js?v=20261105-worktime-v3"></script>
+    <script defer src="assets/js/worktime-store.js?v=20261105-worktime-v3"></script>
+    <script defer src="assets/js/worktime.js?v=20261105-worktime-v5"></script>
     <script defer src="assets/js/auth.js?v=20261105-worktime-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="worktime">
@@ -41,6 +41,10 @@
             <img class="is-hidden" src="" alt="" data-account-photo-small>
             <span data-account-initials-small>?</span>
           </span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
+          <span class="account-linked is-hidden" data-link-indicator hidden aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          </span>
         </button>
       </nav>
     </header>
@@ -51,7 +55,7 @@
       <div id="wt-content" hidden>
         <section class="wt-heading" aria-labelledby="wt-title">
           <div class="wt-app-title"><img src="assets/img/worktime-app.svg?v=20261105-green-v2" alt=""><div><p class="eyebrow">Meine Zeit</p><h1 id="wt-title">Zeiterfassung</h1></div></div>
-          <div class="wt-heading-actions"><button class="wt-icon-button" id="wt-organizations-open" type="button" aria-label="Gliederungen verwalten" title="Gliederungen verwalten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg></button><button class="button button-primary" id="wt-create" type="button"><span aria-hidden="true">＋</span> Aufgabe erfassen</button></div>
+          <div class="wt-heading-actions"><button class="wt-icon-button" id="wt-organizations-open" type="button" aria-label="Gliederungen verwalten" title="Gliederungen verwalten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg></button></div>
         </section>
 
         <div class="wt-tabs" role="tablist" aria-label="Zeiterfassung">
@@ -68,7 +72,6 @@
         </div>
 
         <section class="wt-tasks" id="wt-tasks-panel" role="tabpanel" aria-labelledby="wt-tasks-tab">
-          <div class="wt-list-heading"><h2 id="wt-tasks-title">Deine Aufgaben</h2><span id="wt-list-summary"></span></div>
           <div id="wt-list" aria-live="polite" aria-busy="true"><p class="wt-empty">Zeiten werden geladen …</p></div>
         </section>
 
@@ -86,12 +89,13 @@
             <div class="wt-metric"><span>Aufgaben</span><strong id="wt-count">—</strong></div>
             <div class="wt-metric"><span>Aktive Tage</span><strong id="wt-days">—</strong></div>
           </div>
-          <div class="wt-chart-heading"><h2>Zeitverteilung</h2><span id="wt-chart-unit">Stunden</span></div>
-          <div class="wt-chart" id="wt-chart" role="img" aria-label="Arbeitsstunden im ausgewählten Zeitraum"></div>
+          <div class="wt-chart-panel"><div class="wt-chart-heading"><h2>Zeitverteilung</h2><span id="wt-chart-unit">Stunden</span></div>
+          <div class="wt-chart" id="wt-chart" role="img" aria-label="Arbeitsstunden im ausgewählten Zeitraum"></div><div class="wt-legend" id="wt-legend" aria-label="Gliederungen im Diagramm"></div></div>
           <div class="wt-categories" id="wt-categories" aria-label="Stunden je Kategorie"></div>
         </section>
 
       </div>
+      <div class="wt-add-bar" id="wt-add-bar" hidden><button class="button button-primary" id="wt-create" type="button"><span aria-hidden="true">＋</span> Aufgabe hinzufügen</button></div>
       <noscript><p>Bitte aktiviere JavaScript, um deine Zeiten zu erfassen.</p></noscript>
     </main>
 
@@ -99,24 +103,32 @@
 
     <dialog class="wt-dialog" id="wt-editor" aria-labelledby="wt-editor-title">
       <form id="wt-form">
-        <div class="wt-dialog-heading"><h2 id="wt-editor-title">Aufgabe erfassen</h2><button class="wt-icon-button" type="button" data-wt-close aria-label="Schließen">×</button></div>
-        <label class="wt-field">Titel<input name="title" maxlength="120" placeholder="Titel der Aufgabe" required autofocus></label>
-        <div class="wt-form-grid">
-          <label class="wt-field wt-field-date">Datum<input type="date" name="date" min="2000-01-01" required></label>
-          <label class="wt-field">Von<input type="time" name="start" step="60" required></label>
-          <label class="wt-field">Bis<input type="time" name="end" step="60" required></label>
-        </div>
+        <div class="wt-dialog-heading"><h2 id="wt-editor-title" tabindex="-1" autofocus>Aufgabe hinzufügen</h2><button class="wt-icon-button" type="button" data-wt-close aria-label="Schließen">×</button></div>
+        <label class="wt-field">Titel<input name="title" maxlength="120" placeholder="Titel der Aufgabe" required></label>
+        <fieldset class="wt-time-range"><legend>Von</legend><div class="wt-form-grid">
+          <label class="wt-field"><span class="wt-sr-only">Von Datum</span><input type="date" name="startDate" min="2000-01-01" required></label>
+          <label class="wt-field"><span class="wt-sr-only">Von Uhrzeit</span><input type="time" name="start" step="60" required></label>
+        </div></fieldset>
+        <fieldset class="wt-time-range"><legend>Bis</legend><div class="wt-form-grid">
+          <label class="wt-field"><span class="wt-sr-only">Bis Datum</span><input type="date" name="endDate" min="2000-01-01" required></label>
+          <label class="wt-field"><span class="wt-sr-only">Bis Uhrzeit</span><input type="time" name="end" step="60" required></label>
+        </div></fieldset>
         <p class="wt-time-hint" id="wt-time-hint" aria-live="polite">Zeiten in Europe/Berlin.</p>
         <label class="wt-field">Kategorie<select name="category" required><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option><option value="education">Fortbildungen</option><option value="other">Sonstiges</option></select></label>
         <label class="wt-field">Gliederung<select name="organization"><option value="-1">Keine Gliederung</option></select></label>
         <label class="wt-field">Beschreibung <span class="wt-optional">optional</span><textarea name="description" rows="3" maxlength="2000" placeholder="Weitere Details"></textarea></label>
         <p class="wt-form-error" id="wt-form-error" role="alert" hidden></p>
-        <div class="wt-dialog-actions"><button class="wt-delete-action" id="wt-editor-delete" type="button" hidden>Löschen</button><button class="button button-secondary" type="button" data-wt-close>Abbrechen</button><button class="button button-primary" type="submit" id="wt-save">Speichern</button></div>
+        <div class="wt-dialog-actions wt-editor-actions">
+          <button class="wt-delete-action" id="wt-editor-delete" type="button" aria-label="Aufgabe löschen" aria-haspopup="dialog" title="Aufgabe löschen" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>
+          </button>
+          <div class="wt-editor-primary-actions"><button class="button button-secondary" type="button" data-wt-close>Abbrechen</button><button class="button button-primary" type="submit" id="wt-save">Speichern</button></div>
+        </div>
       </form>
     </dialog>
 
     <dialog class="wt-dialog" id="wt-organizations-dialog" aria-labelledby="wt-organizations-title">
-      <form id="wt-organizations-form"><div class="wt-dialog-heading"><h2 id="wt-organizations-title">Deine Gliederungen</h2><button class="wt-icon-button" id="wt-organizations-close" type="button" aria-label="Schließen">×</button></div><p class="wt-settings-hint">Bis zu drei Gliederungen. Pro Aufgabe wählst du eine aus.</p>
+      <form id="wt-organizations-form"><div class="wt-dialog-heading"><h2 id="wt-organizations-title">Deine Gliederungen</h2><button class="wt-icon-button" id="wt-organizations-close" type="button" aria-label="Schließen">×</button></div>
         <label class="wt-field"><span><i class="wt-org-dot" data-organization="0" aria-hidden="true"></i>Gliederung 1</span><input name="organization0" maxlength="80" placeholder="z. B. LV Baden"></label>
         <label class="wt-field"><span><i class="wt-org-dot" data-organization="1" aria-hidden="true"></i>Gliederung 2</span><input name="organization1" maxlength="80" placeholder="z. B. Ettlingen"></label>
         <label class="wt-field"><span><i class="wt-org-dot" data-organization="2" aria-hidden="true"></i>Gliederung 3</span><input name="organization2" maxlength="80" placeholder="z. B. Privat"></label>
@@ -134,7 +146,11 @@
         <div class="account-avatar account-avatar-large"><img class="is-hidden" src="" alt="" data-account-photo-large><span data-account-initials-large>?</span></div>
         <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
         <p class="account-name-line account-role-line">Status: <strong data-account-role></strong></p>
-        <a class="button button-secondary account-manage" href="account-settings.html">Kontoeinstellungen</a>
+        <a class="button button-secondary account-manage" href="account-settings.html">
+          <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h2"></path><path d="M10 17h10"></path><circle cx="8" cy="17" r="2"></circle></svg>
+          <span>Kontoeinstellungen</span>
+          <span class="account-manage-attention is-hidden" data-account-manage-attention aria-hidden="true" hidden>!</span>
+        </a>
         <div class="account-actions"><button class="account-action" type="button" data-logout>Abmelden</button></div>
       </section>
     </div>

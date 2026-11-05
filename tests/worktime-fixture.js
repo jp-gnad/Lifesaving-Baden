@@ -7,7 +7,7 @@
   const listeners = new Set();
   let sequence = 0;
   const timestamp = (date) => ({ toDate: () => new Date(date), toMillis: () => new Date(date).getTime() });
-  const pack = (record) => ({ ...record, day: timestamp(record.day), startedAt: timestamp(record.startedAt), endedAt: timestamp(record.endedAt), createdAt: timestamp(new Date()), updatedAt: timestamp(new Date()) });
+  const pack = (record) => ({ ...record, day: timestamp(record.day), endDay: timestamp(record.endDay), startedAt: timestamp(record.startedAt), endedAt: timestamp(record.endedAt), createdAt: timestamp(new Date()), updatedAt: timestamp(new Date()) });
   const names = ["LV Baden", "Ettlingen", "Privat"];
   records.set(`${prefix}/worktimeSettings/preferences`, { organizations: names });
   for (const [index, title, category, start, end, organization] of [
@@ -20,19 +20,18 @@
     const id = `sample-${index}`;
     const record = pack(core.prepare({ date: core.shift(core.today(), -index), title, category, start, end, organization, organizationName: names[organization], description: "Details sind nur beim Bearbeiten sichtbar." }));
     records.set(`${prefix}/worktimeEntries/${id}`, record);
-    for (const day of core.lockDays(record)) {
-      const path = `${prefix}/worktimeDays/${day}`;
-      const entries = records.get(path)?.entries || [];
-      entries.push({ id, start: record.startedAt, end: record.endedAt });
-      entries.sort((a, b) => a.start.toMillis() - b.start.toMillis());
-      records.set(path, { entries, entryId: id, position: 0, updatedAt: timestamp(new Date()) });
-    }
+    const path = `${prefix}/worktimeSchedule/intervals`;
+    const entries = records.get(path)?.entries || [];
+    entries.push({ id, start: record.startedAt, end: record.endedAt });
+    entries.sort((a, b) => a.start.toMillis() - b.start.toMillis());
+    records.set(path, { entries, entryId: id, position: 0, updatedAt: timestamp(new Date()) });
   }
   const publish = () => queueMicrotask(() => listeners.forEach((listener) => listener()));
   function doc(path) {
     return {
       id: path.split("/").pop(), path, collection: (name) => collection(`${path}/${name}`),
       async set(data) { records.set(path, data); publish(); },
+      async get() { return { exists: records.has(path), data: () => records.get(path) }; },
       onSnapshot(receive) {
         const listener = () => receive({ exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } });
         listeners.add(listener); queueMicrotask(listener);
@@ -41,7 +40,7 @@
     };
   }
   function collection(path) {
-    return { doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), where: (field, operator, value) => query(path, [[field, operator, value]]) };
+    return { doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), get: () => query(path, []).get(), where: (field, operator, value) => query(path, [[field, operator, value]]) };
   }
   function query(path, filters) {
     const docs = () => [...records].filter(([name, data]) => name.startsWith(`${path}/`) && name.slice(path.length + 1).indexOf("/") === -1 && filters.every(([field, operator, value]) => operator === ">=" ? data[field].toMillis() >= value.toMillis() : data[field].toMillis() < value.toMillis())).map(([name, data]) => ({ id: name.split("/").pop(), data: () => data }));

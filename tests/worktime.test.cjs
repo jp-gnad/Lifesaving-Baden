@@ -68,8 +68,8 @@ test("overlap checks include overnight boundaries but allow adjacent intervals",
   const overnight = entry({ start: "22:00", end: "01:00" });
   assert.equal(core.overlaps(overnight, entry({ date: "2026-11-01", start: "00:30", end: "02:00" })), true);
   assert.equal(core.overlaps(overnight, entry({ date: "2026-11-01", start: "01:00", end: "02:00" })), false);
-  assert.equal(core.lockDays(overnight).length, 2);
-  assert.equal(core.lockDays(entry({})).length, 1);
+  assert.equal(core.recordEndDate(overnight), "2026-11-01");
+  assert.equal(core.recordEndDate(entry({})), "2026-10-31");
 });
 
 test("invalid dates, times, category and oversized text are rejected", () => {
@@ -103,4 +103,33 @@ test("statistics combine categories and active days without counting out-of-peri
   assert.equal(summary.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), summary.total);
   assert.equal(core.duration(270), "4 Std. 30 Min.");
   assert.equal(core.duration(0), "0 Std.");
+});
+
+test("explicit date ranges span multiple days and keep totals on the start date", () => {
+  const record = entry({ startDate: "2026-10-30", endDate: "2026-11-02", start: "09:00", end: "09:00" });
+  assert.equal(record.durationMinutes, 72 * 60);
+  assert.equal(core.recordEndDate(record), "2026-11-02");
+  assert.equal(core.summarize([record], "month", "2026-10-01").total, 4320);
+  assert.equal(core.summarize([record], "month", "2026-11-01").total, 0);
+  const daily = core.summarize([record], "day", "2026-10-30");
+  assert.equal(daily.buckets.reduce((sum, bucket) => sum + bucket.minutes, 0), 4320);
+  assert.throws(() => core.prepare(input({ startDate: "2026-11-02", endDate: "2026-11-01" })), /nach Von/);
+  assert.throws(() => core.prepare(input({ startDate: "2026-11-02", endDate: "2026-11-02", start: "12:00", end: "11:00" })), /nach Von/);
+  assert.equal(core.prepare(input({ startDate: "2026-10-24", endDate: "2026-10-26", start: "12:00", end: "12:00" })).durationMinutes, 49 * 60);
+});
+
+test("stacked organization totals survive compact charts and include unassigned entries", () => {
+  const records = [
+    entry({ start: "08:00", end: "13:00", organization: 0, organizationName: "Baden" }),
+    entry({ start: "13:00", end: "19:00", organization: 1, organizationName: "Ettlingen" }),
+    entry({ start: "19:00", end: "20:00" }),
+  ];
+  for (const mode of ["day", "week", "month"]) {
+    const summary = core.summarize(records, mode, "2026-10-31");
+    assert.equal(summary.byOrganization[0], 300);
+    assert.equal(summary.byOrganization[1], 360);
+    assert.equal(summary.byOrganization[-1], 60);
+    for (const slot of [-1, 0, 1, 2]) assert.equal(summary.buckets.reduce((sum, bucket) => sum + bucket.byOrganization[slot], 0), summary.byOrganization[slot]);
+    if (mode === "month") assert.equal(core.compactBuckets(summary).reduce((sum, bucket) => sum + bucket.byOrganization[1], 0), 360);
+  }
 });

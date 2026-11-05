@@ -439,18 +439,21 @@ für Trainer, Organisatoren und Admins erreichbar. Jeder sieht und bearbeitet nu
 seine eigenen Einträge. Auch Admins und Organisatoren erhalten keinen Zugriff auf
 fremde Detaildaten. Eine übergreifende Personenübersicht ist noch nicht enthalten.
 
-Ein Eintrag enthält Datum, Von-/Bis-Uhrzeit, Titel, eine optionale Beschreibung
+Ein Eintrag enthält Von-Datum/-Uhrzeit und Bis-Datum/-Uhrzeit, Titel, eine optionale Beschreibung
 und eine Kategorie: Training, Wettkampf, Organisation, Athletenbetreuung,
 Fortbildungen oder Sonstiges. Auch zukünftige Aufgaben sind erlaubt. Es gibt
 keine Pausen und keinen Freigabeprozess. Jeder kann bis zu drei eigene Gliederungen
 hinterlegen und pro Aufgabe eine davon auswählen. Die Aufgabenliste zeigt nur
-Titel, Dauer, Kategorie und einen Farbpunkt für die Gliederung. Details und die
+Titel, Dauer, Kategorie und einen senkrechten Farbstreifen für die Gliederung.
+Die Tagesgruppen haben größere Überschriften und eigene Abstände; die zusätzliche
+Überschrift „Deine Aufgaben“ und die Stundensumme in der Aufgabenansicht entfallen. Details und die
 Löschfunktion befinden sich im Bearbeitungsdialog. Gespeicherte Gliederungsnamen
 bleiben bei späteren Änderungen der persönlichen Auswahl in alten Aufgaben erhalten.
 
-Eine frühere Bis-Uhrzeit bezeichnet den Folgetag; die gesamte Zeit gehört zum
-Startdatum, auch an Wochen- und Monatsgrenzen. Gleiche Von-/Bis-Zeiten werden
-abgewiesen. Die Zeitzone ist unabhängig vom Gerät `Europe/Berlin`; die Dauer
+Aufgaben können sich über mehrere Tage erstrecken. Bis-Datum und -Uhrzeit müssen
+nach Von-Datum und -Uhrzeit liegen; die gesamte Zeit gehört weiterhin zum
+Startdatum, auch an Wochen- und Monatsgrenzen. Ältere Einträge ohne Bis-Datum
+werden beim Bearbeiten mit ihrem bisherigen Enddatum geöffnet. Die Zeitzone ist unabhängig vom Gerät `Europe/Berlin`; die Dauer
 berücksichtigt Zeitumstellungen. Doppelte Uhrzeiten beim Herbstwechsel verwenden
 das erste Vorkommen; nicht existierende Uhrzeiten beim Frühjahrswechsel werden
 abgewiesen. Direkt aneinander anschließende Aufgaben sind erlaubt.
@@ -461,25 +464,38 @@ Zeitraum-Auswahl. Auf dem Desktop stehen Tag, Woche (ab Montag), Monat, Datumswa
 Kategorie- und Gliederungsfilter zur Verfügung. Die Aufgabenansicht zeigt jeweils
 einen Monat. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
 zugerechnet und an der jeweiligen Uhrzeit angezeigt. Summen enthalten alle erfassten
-Aufgaben im Zeitraum einschließlich zukünftiger Einträge.
+Aufgaben im Zeitraum einschließlich zukünftiger Einträge. Diagramme stapeln die
+Stunden je Gliederung in derselben Farbe wie die Aufgabenliste; nicht zugeordnete
+Zeiten sind grau. Die Legende nennt die Gliederungen und die zugehörigen Summen.
+Auf Handys stehen Kennzahlen, Diagramm und Kategorien in getrennten Bereichen.
+Der Button „Aufgabe hinzufügen“ bleibt unten im Inhaltsbereich und läuft beim
+Footer nach oben, sodass die Fußnavigation frei bleibt. Datum und Uhrzeit sind
+breitenbegrenzt; bei höchstens 360 px stehen sie pro Von-/Bis-Gruppe untereinander.
 
 Die Daten liegen unter `users/{uid}/worktimeEntries/{entryId}`, die persönlichen
 Gliederungen unter `users/{uid}/worktimeSettings/preferences`. Das Feld `day`
-enthält das Startdatum als UTC-Mitternacht zur Kalenderzuordnung; `startedAt` und
+enthält das Startdatum, `endDay` das Enddatum als UTC-Mitternacht zur
+Kalenderzuordnung; `startedAt` und
 `endedAt` enthalten die tatsächlichen Zeitpunkte. Pro Ansicht werden nur die
 Einträge des gewählten Zeitraums geladen.
 
-Speichern, Bearbeiten und Löschen verwenden Firestore-Transaktionen mit geordneten
-Reservierungen unter `users/{uid}/worktimeDays/{dayMillis}`. Bei Mitternachtswechseln
-werden beide Kalendertage berücksichtigt. Die Sicherheitsregeln prüfen die
-benachbarten Intervalle sowie die vollständige Änderung der Reservierungsliste.
-Damit werden Überschneidungen auch bei gleichzeitiger Eingabe auf mehreren Geräten
-und bei direkten Datenbankzugriffen verhindert. Leere Reservierungsdokumente bleiben
-bestehen. Vor dem Speichern werden außerdem vorhandene Einträge der betroffenen
-Kalendertage einschließlich des Vortags vom Server geprüft, damit auch V1-Einträge
-ohne Reservierung bei der Überschneidungsprüfung berücksichtigt werden. Speichern
-und Löschen benötigen eine Internetverbindung. Die neuen
-Sicherheitsregeln müssen vor der ersten Nutzung veröffentlicht werden (siehe unten).
+Speichern, Bearbeiten und Löschen verwenden Firestore-Transaktionen mit einer
+geordneten Reservierungsliste unter `users/{uid}/worktimeSchedule/intervals`.
+Die Sicherheitsregeln prüfen die benachbarten Intervalle sowie die vollständige
+Änderung der Liste. Damit werden auch Überschneidungen an beliebigen mittleren
+Tagen eines mehrtägigen Eintrags und konkurrierende Schreibvorgänge verhindert.
+Die Liste ist auf 5.000 Einträge begrenzt und enthält nur IDs sowie Start- und
+Endzeitpunkte. Titel, Notizen und Gliederungen bleiben in den Einzeldokumenten.
+
+Vor dem Speichern werden die bestehenden Einträge vom Server geprüft. Einträge
+aus V1/V2, die noch nicht in der Reservierungsliste stehen, werden einzeln und
+transaktional übernommen. Titel, Gliederung, Zeitpunkte und Erstellungsdatum
+bleiben erhalten. Bereits bestehende Überschneidungen müssen durch Bearbeiten
+oder Löschen der betroffenen Aufgabe aufgelöst werden. Alte Tagesreservierungen
+unter `worktimeDays` bleiben unverändert, privat und schreibgeschützt.
+Speichern und Löschen benötigen eine Internetverbindung. Die neuen
+Sicherheitsregeln müssen vor der Nutzung dieser Version veröffentlicht werden
+(siehe unten).
 
 Lokale Prüfungen:
 

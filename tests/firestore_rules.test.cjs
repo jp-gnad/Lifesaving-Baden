@@ -51,7 +51,7 @@ const worktimeCore = require("../assets/js/worktime-core.js");
 const worktimeStore = require("../assets/js/worktime-store.js");
 function worktime(input = {}) {
   const data = worktimeCore.prepare({ date: "2099-01-01", start: "22:00", end: "01:00", title: "Training", description: "", category: "training", ...input });
-  return { ...data, day: sdk.Timestamp.fromDate(data.day), startedAt: sdk.Timestamp.fromDate(data.startedAt), endedAt: sdk.Timestamp.fromDate(data.endedAt) };
+  return { ...data, day: sdk.Timestamp.fromDate(data.day), endDay: sdk.Timestamp.fromDate(data.endDay), startedAt: sdk.Timestamp.fromDate(data.startedAt), endedAt: sdk.Timestamp.fromDate(data.endedAt) };
 }
 function compatDb(db) {
   const query = (name, filters = []) => ({
@@ -60,7 +60,7 @@ function compatDb(db) {
   });
   const collection = (name) => ({ ...query(name), doc(id) {
     const ref = sdk.doc(db, `${name}/${id}`);
-    return { id, native: ref, collection: (child) => collection(`${name}/${id}/${child}`) };
+    return { id, native: ref, async get() { const snapshot = await sdk.getDoc(ref); return { exists: snapshot.exists(), data: () => snapshot.data() }; }, collection: (child) => collection(`${name}/${id}/${child}`) };
   } });
   return { collection, runTransaction: (action) => sdk.runTransaction(db, (transaction) => action({
     async get(ref) { const snapshot = await transaction.get(ref.native); return { exists: snapshot.exists(), data: () => snapshot.data() }; },
@@ -163,7 +163,7 @@ test("worktime rules reject direct writes and forged reservations even if client
   const conflict = worktime({ start: "11:00", end: "13:00" });
   const ref = sdk.doc(db, "users/forgery/worktimeEntries/conflict");
   await assertFails(sdk.setDoc(ref, { ...conflict, ...timestampFields() }));
-  const lockRef = sdk.doc(db, `users/forgery/worktimeDays/${first.day.toMillis()}`);
+  const lockRef = sdk.doc(db, "users/forgery/worktimeSchedule/intervals");
   const existing = (await sdk.getDoc(lockRef)).data().entries;
   const interval = { id: "conflict", start: conflict.startedAt, end: conflict.endedAt };
   for (const entries of [[...existing, interval], [interval]]) {
@@ -196,6 +196,44 @@ test("worktime detects existing V1 entries before creating an overlapping task",
   const db = dbFor("legacy-time");
   await assert.rejects(commitWorktime(db, "legacy-time", "new", worktime({ date: "2099-02-01", start: "00:30", end: "02:00" })), { code: "worktime/overlap" });
   await assertSucceeds(commitWorktime(db, "legacy-time", "old", worktime({ date: "2099-01-31", organization: 0, organizationName: "Baden" })));
+});
+
+test("worktime protects middle days of multi-day intervals and releases the full range on edit and delete", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/multiday": { role: "trainer" } });
+  const db = dbFor("multiday");
+  const save = (id, input) => commitWorktime(db, "multiday", id, input === null ? null : worktime(input));
+  await assertSucceeds(save("long", { startDate: "2099-01-30", endDate: "2099-02-04", start: "09:00", end: "09:00" }));
+  await assert.rejects(save("middle", { date: "2099-02-02", start: "10:00", end: "12:00" }), { code: "worktime/overlap" });
+  await assertSucceeds(save("adjacent", { date: "2099-02-04", start: "09:00", end: "10:00" }));
+  const middle = worktime({ date: "2099-02-02", start: "10:00", end: "12:00" });
+  const lock = sdk.doc(db, "users/multiday/worktimeSchedule/intervals");
+  const forged = sdk.writeBatch(db);
+  const entries = (await sdk.getDoc(lock)).data().entries;
+  entries.splice(1, 0, { id: "middle", start: middle.startedAt, end: middle.endedAt });
+  forged.set(sdk.doc(db, "users/multiday/worktimeEntries/middle"), { ...middle, ...timestampFields() });
+  forged.set(lock, { entries, entryId: "middle", position: 1, updatedAt: sdk.serverTimestamp() });
+  await assertFails(forged.commit());
+  await assertSucceeds(save("long", { startDate: "2099-01-30", endDate: "2099-01-31", start: "09:00", end: "09:00" }));
+  await assertSucceeds(save("middle", { date: "2099-02-02", start: "10:00", end: "12:00" }));
+  await assertSucceeds(save("long", null));
+  await assertSucceeds(save("reused", { date: "2099-01-30", start: "10:00", end: "12:00" }));
+});
+
+test("worktime upgrades older entries without overwriting titles, creation dates or organization", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const old = { ...worktime({ date: "2099-01-31", title: "Bestehende Aufgabe", organization: 2, organizationName: "Privat" }), ...timestampFields() };
+  delete old.endDay;
+  await seed({ "users/upgrade": { role: "trainer" }, "users/upgrade/worktimeEntries/old": old });
+  const db = dbFor("upgrade");
+  const ref = sdk.doc(db, "users/upgrade/worktimeEntries/old");
+  const createdAt = (await sdk.getDoc(ref)).data().createdAt;
+  await assertSucceeds(commitWorktime(db, "upgrade", "new", worktime({ startDate: "2099-02-03", endDate: "2099-02-06", start: "09:00", end: "09:00" })));
+  const upgraded = (await sdk.getDoc(ref)).data();
+  assert.equal(upgraded.title, "Bestehende Aufgabe");
+  assert.equal(upgraded.organizationName, "Privat");
+  assert.equal(upgraded.createdAt.toMillis(), createdAt.toMillis());
+  assert.equal(upgraded.endDay.toDate().toISOString(), "2099-02-01T00:00:00.000Z");
 });
 
 test("all roles and legacy roles enforce the same event thresholds for reads and writes", { skip: !enabled }, async (t) => {
