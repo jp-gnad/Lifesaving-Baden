@@ -25,7 +25,8 @@
     </script>
     <style>
       .app-launch { display: none; }
-      .app-launching { background: #0f0f12; }
+      .app-launching,
+      .app-launching body { background: #0f0f12; }
       .app-launching body > :not(.app-launch) { display: none; }
       .app-launching .app-launch {
         position: fixed;
@@ -35,12 +36,20 @@
         place-content: center;
         justify-items: center;
         gap: 16px;
+        padding-bottom: min(72px, 10vh);
         background: #0f0f12;
         color: #fff;
-        font-size: 1.5rem;
+        font: 700 22.5px/28px system-ui, sans-serif;
         text-align: center;
       }
+      .app-launch img {
+        display: block;
+        width: 96px;
+        height: 96px;
+        object-fit: contain;
+      }
     </style>
+    <link rel="preload" href="assets/img/lifesaving-baden-logo.png" as="image">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261103-admin-accounts-v60">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261103-mobile-menu-v58">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
