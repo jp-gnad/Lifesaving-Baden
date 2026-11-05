@@ -1107,6 +1107,7 @@ test("standalone launch reveals its branding together and covers the landing pag
     let firstFrame;
     const replacements = [];
     h.document.body.dataset.page = "landing";
+    h.document.referrer = "";
     h.document.querySelector = (selector) => selector === ".app-launch" ? splash : null;
     h.document.documentElement = { classList: {
       add: (name) => classes.add(name),
@@ -1158,6 +1159,37 @@ test("standalone launch reveals its branding together and covers the landing pag
         timers.get(650)();
       }
       assert.equal(classes.has("app-launch-minimum"), false);
+    }
+  }
+});
+
+test("standalone home links, reloads and history traversals skip the startup screen", () => {
+  const startScript = source("index.html").match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+  for (const [referrer, type, launches] of [
+    ["", "navigate", true],
+    ["https://example.test/club/", "navigate", false],
+    ["https://example.test/club/login.html", "navigate", false],
+    ["https://example.test/club/timer/", "navigate", false],
+    ["https://example.test/club-other/", "navigate", true],
+    ["", "back_forward", false],
+    ["", "reload", false],
+  ]) {
+    const h = harness({ url: "https://example.test/club/index.html" });
+    const classes = new Set();
+    h.document.referrer = referrer;
+    h.document.documentElement = { classList: {
+      add: (name) => classes.add(name),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+    } };
+    h.window.navigator = { standalone: true };
+    h.window.performance = { getEntriesByType: () => [{ type }] };
+    h.window.setTimeout = () => {};
+    vm.runInContext(startScript, h.context);
+    assert.equal(classes.has("app-launching"), launches, `${type}: ${referrer}`);
+    if (launches) {
+      classes.add("app-launch-minimum");
+      h.callbacks.pagehide();
+      assert.equal(classes.size, 0);
     }
   }
 });

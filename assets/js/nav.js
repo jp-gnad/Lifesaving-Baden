@@ -239,7 +239,7 @@
       desiredOpen = false;
       phase = "closed";
       nav.dataset.navState = phase;
-      nav.classList.remove("is-open", "is-expanded", "is-closing", "is-instant");
+      nav.classList.remove("is-open", "is-expanded", "is-closing", "is-instant", "is-navigating");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "Menü öffnen");
       backdrop.style.removeProperty("opacity");
@@ -276,6 +276,7 @@
       phase = open ? "opening" : "closing";
       nav.dataset.navState = phase;
       nav.classList.add("is-open");
+      if (open) nav.classList.remove("is-navigating");
       nav.classList.toggle("is-expanded", open);
       nav.classList.toggle("is-closing", !open);
       nav.classList.toggle("is-instant", noMotion());
@@ -316,6 +317,9 @@
           if (open) {
             phase = "open";
             nav.dataset.navState = phase;
+          } else if (nav.classList.contains("is-navigating")) {
+            phase = "navigating";
+            nav.dataset.navState = phase;
           } else reset();
           resolve(true);
         };
@@ -350,6 +354,14 @@
         transition(false);
         return;
       }
+      const target = new URL(link.href);
+      const currentPage = new URL(window.location.href);
+      if ((target.protocol === "http:" || target.protocol === "https:")
+        && (target.origin !== currentPage.origin || target.pathname !== currentPage.pathname || target.search !== currentPage.search)) {
+        nav.classList.add("is-navigating");
+        transition(false);
+        return;
+      }
       event.preventDefault();
       transition(false).then((completed) => { if (completed) window.location.assign(link.href); });
     });
@@ -365,8 +377,11 @@
     document.addEventListener("keydown", (event) => {
       if (phase === "closed" || !mobile.matches) return;
       if (event.key === "Escape") {
-        event.preventDefault();
-        if (desiredOpen) transition(false);
+        if (nav.classList.contains("is-navigating")) reset();
+        else {
+          event.preventDefault();
+          if (desiredOpen) transition(false);
+        }
         toggle.focus({ preventScroll: true });
       } else if (event.key === "Tab" && desiredOpen) {
         const focusable = [toggle, ...current.querySelectorAll("a[href], button:not([disabled])")]
@@ -387,7 +402,10 @@
     mobile.addEventListener("change", () => { reset(); if (mobile.matches) enterMobile(); });
     reducedMotion.addEventListener("change", () => { if (phase !== "closed") transition(desiredOpen); });
     window.addEventListener("hashchange", updateActive);
-    window.addEventListener("pagehide", reset);
+    window.addEventListener("pagehide", () => {
+      if (!nav.classList.contains("is-navigating")) reset();
+    });
+    window.addEventListener("pageshow", (event) => { if (event.persisted) reset(); });
     if (mobile.matches) enterMobile();
     else reset();
   });

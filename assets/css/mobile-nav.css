@@ -335,6 +335,10 @@
     pointer-events: none;
   }
 
+  .site-header .nav.is-navigating .nav-links {
+    background: rgb(15, 15, 18);
+  }
+
   .nav.is-instant .nav-row {
     opacity: 1;
     transform: none;
