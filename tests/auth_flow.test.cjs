@@ -47,7 +47,10 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     async enablePersistence() {},
     async runTransaction(fn) {
       return fn({
-        async get() { return { exists: transactionData !== undefined, data: () => transactionData }; },
+        async get() {
+          const data = transactionData === undefined ? stored : transactionData;
+          return { exists: data !== null && data !== undefined, data: () => data };
+        },
         set(_, data) { counts.writes.push(data); },
       });
     },
@@ -77,7 +80,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   firebaseAuth.Auth = { Persistence: { LOCAL: "local" } };
   firebaseAuth.GoogleAuthProvider = class { setCustomParameters() {} };
   const firestore = () => db;
-  firestore.FieldValue = { serverTimestamp: () => "timestamp" };
+  firestore.FieldValue = { serverTimestamp: () => "timestamp", delete: () => "delete-field" };
   const location = new URL(url);
   Object.defineProperty(location, "href", {
     get: () => url,
@@ -1827,6 +1830,60 @@ test("password linking uses the entered address and keeps the Google email in th
   assert.equal(help.hidden, false);
   assert.match(help.textContent, /new-password@example.test/);
   assert.doesNotMatch(help.textContent, /Passwort-Mail:/);
+  assert.equal(h.counts.writes.at(-1).pendingEmailFrom, passwordEmail);
+
+  form.elements.email.value = passwordEmail;
+  await functions.savePasswordEmail({ preventDefault() {}, currentTarget: form }, h.auth);
+  assert.equal(h.counts.writes.at(-1).pendingEmail, "delete-field");
+  assert.equal(h.counts.writes.at(-1).pendingEmailFrom, "delete-field");
+  assert.equal(status.has("is-provider-active"), true);
+  assert.equal(help.hidden, true);
+
+  for (const nextEmail of ["first-change@example.test", "latest-change@example.test"]) {
+    form.elements.email.value = nextEmail;
+    await functions.savePasswordEmail({ preventDefault() {}, currentTarget: form }, h.auth);
+    assert.equal(h.counts.writes.at(-1).pendingEmail, nextEmail);
+    assert.equal(h.counts.writes.at(-1).pendingEmailFrom, passwordEmail);
+  }
+  assert.doesNotMatch(help.textContent, /first-change/);
+
+  h.window.confirm = () => true;
+  user.unlink = async () => { user.providerData = user.providerData.filter((provider) => provider.providerId !== "password"); };
+  await functions.unlinkPasswordAccount(h.auth, null);
+  assert.equal(h.counts.writes.at(-1).pendingEmail, "delete-field");
+  assert.equal(h.counts.writes.at(-1).pendingEmailFrom, "delete-field");
+  assert.doesNotMatch(help.textContent, /latest-change/);
+});
+
+test("profile synchronization clears obsolete email changes and preserves a newer request", async () => {
+  const oldEmail = "old@example.test";
+  const requestedEmail = "requested@example.test";
+  for (const [email, passwordLinked, from, replacement, clears] of [
+    [oldEmail, true, oldEmail, null, false],
+    [requestedEmail, true, oldEmail, null, true],
+    ["other@example.test", true, oldEmail, null, true],
+    [oldEmail, false, oldEmail, null, true],
+    [oldEmail, true, undefined, null, true],
+    [requestedEmail, true, oldEmail, { pendingEmail: "newer@example.test", pendingEmailFrom: requestedEmail }, false],
+  ]) {
+    const providerData = [{ providerId: "google.com", email: oldEmail }, ...(passwordLinked ? [{ providerId: "password" }] : [])];
+    const stored = {
+      uid: "u", email: oldEmail, firstName: "", lastName: "", displayName: "",
+      emailVerified: true, providerIds: providerData.map(provider => provider.providerId),
+      role: "standard", pendingEmail: requestedEmail,
+      ...(from ? { pendingEmailFrom: from } : {}),
+    };
+    const h = harness({
+      user: { uid: "u", email, emailVerified: true, providerData },
+      stored,
+      ...(replacement ? { transactionData: { ...stored, ...replacement } } : {}),
+    });
+    const functions = memberFunctions(h);
+    const { userData } = await functions.loadFreshUserContext(h.auth.currentUser);
+    assert.equal(userData.pendingEmail, clears ? undefined : replacement?.pendingEmail || requestedEmail);
+    assert.equal(h.counts.writes.at(-1)?.pendingEmail === "delete-field", clears);
+    if (clears) assert.equal(userData.pendingEmailFrom, undefined);
+  }
 });
 
 test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {

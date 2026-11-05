@@ -754,17 +754,20 @@
 
     requireCurrentUser(user);
     const updatePayload = getChangedIdentityFields(data, identity);
-    const shouldDeleteConfirmedPendingEmail = Boolean(
+    const shouldClearPendingEmail = Boolean(
       data?.pendingEmail
-      && identity.email
-      && String(data.pendingEmail).trim().toLowerCase() === identity.email.trim().toLowerCase()
+      && (!hasProvider(user, "password")
+        || !data.pendingEmailFrom
+        || String(data.pendingEmailFrom).toLowerCase() !== identity.email.toLowerCase()
+        || String(data.pendingEmail).trim().toLowerCase() === identity.email.toLowerCase())
     );
 
     const shouldDeleteLinkedRequest = isPersonLinked(data)
       && Object.prototype.hasOwnProperty.call(data, "personLinkRequest");
 
-    if (shouldDeleteConfirmedPendingEmail) {
+    if (shouldClearPendingEmail) {
       updatePayload.pendingEmail = fieldValue.delete();
+      updatePayload.pendingEmailFrom = fieldValue.delete();
     }
 
     if (shouldDeleteLinkedRequest) {
@@ -772,13 +775,32 @@
     }
 
     if (Object.keys(updatePayload).length) {
-      await userDoc.set({
+      const payload = {
         ...updatePayload,
         updatedAt: fieldValue.serverTimestamp()
-      }, { merge: true });
+      };
+      let pendingEmailReplaced = false;
+      let currentData;
+      if (shouldClearPendingEmail) {
+        await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(userDoc);
+          requireCurrentUser(user);
+          currentData = current.data() || {};
+          pendingEmailReplaced = currentData.pendingEmail !== data.pendingEmail
+            || currentData.pendingEmailFrom !== data.pendingEmailFrom;
+          const latestPayload = { ...payload };
+          if (pendingEmailReplaced) {
+            delete latestPayload.pendingEmail;
+            delete latestPayload.pendingEmailFrom;
+          }
+          transaction.set(userDoc, latestPayload, { merge: true });
+        });
+      } else {
+        await userDoc.set(payload, { merge: true });
+      }
 
       const cacheData = {
-        ...data,
+        ...(currentData || data),
         ...getChangedIdentityFields(data, identity)
       };
 
@@ -786,8 +808,9 @@
         delete cacheData.personLinkRequest;
       }
 
-      if (shouldDeleteConfirmedPendingEmail) {
+      if (shouldClearPendingEmail && !pendingEmailReplaced) {
         delete cacheData.pendingEmail;
+        delete cacheData.pendingEmailFrom;
       }
 
       return writeUserDocCache(user.uid, cacheData);
@@ -2873,13 +2896,20 @@
     if (!user || !hasProvider(user, "password")) return;
     const form = event.currentTarget;
     const email = form.elements.email.value.trim();
-    if (!email || email.toLowerCase() === user.email?.toLowerCase()) {
-      setPasswordEmailFormOpen(false);
-      return;
-    }
+    if (!email) return;
     const button = form.querySelector('button[type="submit"]');
+    if (button?.disabled) return;
     try {
       setLoading(button, true, "Speichern...");
+      await user.reload();
+      requireCurrentUser(user);
+      if (email.toLowerCase() === user.email?.toLowerCase()) {
+        await saveIdentitySnapshot(user, null);
+        setPasswordEmailFormOpen(false);
+        updatePasswordProviderStatus(user);
+        setPasswordMessage("Ausstehende E-Mail-Änderung verworfen.", true);
+        return;
+      }
       await user.verifyBeforeUpdateEmail(email, { url: getVerificationRedirectUrl() });
       requireCurrentUser(user);
       await saveIdentitySnapshot(user, email);
@@ -3142,7 +3172,7 @@
       await user.reload();
       const updatedData = await saveIdentitySnapshot(
         auth.currentUser,
-        null,
+        undefined,
         optionalProfileDetails,
         nameDetails
       );
@@ -3173,6 +3203,7 @@
   }
 
   async function saveIdentitySnapshot(user, pendingEmail, optionalProfileDetails, nameDetails = null) {
+    requireCurrentUser(user);
     if (!window.firebase.firestore) {
       return null;
     }
@@ -3196,13 +3227,25 @@
       cachePayload.gender = optionalProfileDetails.gender;
     }
 
-    if (pendingEmail) {
+    if (pendingEmail === null) {
+      payload.pendingEmail = window.firebase.firestore.FieldValue.delete();
+      payload.pendingEmailFrom = window.firebase.firestore.FieldValue.delete();
+    } else if (pendingEmail) {
       payload.pendingEmail = pendingEmail;
+      payload.pendingEmailFrom = user.email || "";
       cachePayload.pendingEmail = pendingEmail;
+      cachePayload.pendingEmailFrom = payload.pendingEmailFrom;
     }
 
+    requireCurrentUser(user);
     await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
-    return mergeUserDocCache(user.uid, cachePayload);
+    requireCurrentUser(user);
+    const updatedData = { ...cachedData, ...cachePayload };
+    if (pendingEmail === null) {
+      delete updatedData.pendingEmail;
+      delete updatedData.pendingEmailFrom;
+    }
+    return writeUserDocCache(user.uid, updatedData);
   }
 
   async function changeAccountPassword(event, auth) {
@@ -3338,7 +3381,7 @@
       await user.reload();
       updateAccountProfile(auth.currentUser);
       updateGoogleProviderStatus(auth.currentUser);
-      await saveIdentitySnapshot(auth.currentUser, null);
+      await saveIdentitySnapshot(auth.currentUser);
       setGoogleAccountMessage(googleWasUnlinked ? "Google-Konto wurde gewechselt." : "Google-Konto wurde verbunden.", true);
     } catch (error) {
       setGoogleAccountMessage(
@@ -3385,7 +3428,7 @@
       await user.reload();
       updateAccountProfile(auth.currentUser);
       updateGoogleProviderStatus(auth.currentUser);
-      await saveIdentitySnapshot(auth.currentUser, null);
+      await saveIdentitySnapshot(auth.currentUser);
       setGoogleAccountMessage("Google-Konto wurde abgemeldet.", true);
     } catch (error) {
       setGoogleAccountMessage(translateAuthError(error), false);
