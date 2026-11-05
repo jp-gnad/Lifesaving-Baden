@@ -552,26 +552,22 @@ h3 {
 }
 
 body[data-page="app"] .dashboard {
+  display: flex;
+  flex-direction: column;
   isolation: isolate;
   min-height: calc(100vh - 68px);
-  padding-top: 0;
+  padding-block: 0;
 }
 
-body[data-page="app"] .dashboard::after {
-  content: "";
-  position: absolute;
-  top: clamp(300px, 38vh, 430px);
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 0;
+body[data-page="app"] .dashboard > .dashboard-header {
+  margin-bottom: 0;
+}
+
+.member-dashboard-content {
+  flex: 1 0 auto;
+  margin-inline: calc(-1 * clamp(20px, 5vw, 64px));
+  padding: 28px clamp(20px, 5vw, 64px) clamp(34px, 5vw, 68px);
   background: radial-gradient(circle at 18% 0%, rgba(255, 237, 0, 0.09), transparent 24%);
-  pointer-events: none;
-}
-
-body[data-page="app"] .dashboard > * {
-  position: relative;
-  z-index: 1;
 }
 
 .section-grid {
@@ -3449,10 +3445,6 @@ body.auth-context-loading .member-apps::after {
       url("../img/hero-swimmer.jpg") center 34% / cover no-repeat;
   }
 
-  body[data-page="app"] .dashboard::after {
-    top: clamp(280px, 42vh, 380px);
-  }
-
   .hero {
     padding-top: 34px;
     background-position: 58% center;
@@ -3638,6 +3630,39 @@ body.auth-context-loading .member-apps::after {
     font-size: clamp(1.45rem, 7vw, 1.85rem);
   }
 
+  #persoenliche-daten .settings-profile h3 {
+    font-size: 1.2rem;
+    overflow-wrap: anywhere;
+  }
+
+  #persoenliche-daten .settings-profile p {
+    font-size: 0.96rem;
+  }
+
+  .profile-field-editor[data-active-field="birthDate"] [data-profile-edit-delete] {
+    display: none;
+  }
+
+  .profile-field-editor[data-active-field="birthDate"] .profile-field-edit-form,
+  .profile-field-editor[data-active-field="birthDate"] .profile-field-edit-form label {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-field-edit-form input[type="date"] {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .profile-field-editor:is([data-active-field="displayName"], [data-active-field="email"], [data-active-field="birthDate"]) .profile-field-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-field-actions [data-profile-email-change-cancel] {
+    grid-column: 1 / -1;
+  }
+
   .danger-zone-card {
     grid-column: auto;
   }
@@ -3686,6 +3711,10 @@ body.auth-context-loading .member-apps::after {
 
   .member-apps .eyebrow {
     margin: 0 0 16px;
+  }
+
+  .member-dashboard-content {
+    padding-top: 24px;
   }
 
   .member-app-grid {
