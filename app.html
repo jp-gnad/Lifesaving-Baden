@@ -17,6 +17,13 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
+    <style>
+      @view-transition { navigation: auto; }
+      ::view-transition-group(root) { animation-duration: 140ms; }
+    </style>
+    <script>
+      window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
+    </script>
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-account-modal-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>

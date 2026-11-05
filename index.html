@@ -18,6 +18,13 @@
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
     <script>
+      window.addEventListener("pageswap", (event) => {
+        const classes = document.documentElement.classList;
+        if ((!classes.contains("app-launching") && !classes.contains("app-launch-minimum"))
+          || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          event.viewTransition?.skipTransition();
+        }
+      });
       if (window.navigator.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches) {
         const appRoot = new URL("./", window.location.href).href;
         const navigationType = window.performance?.getEntriesByType?.("navigation")[0]?.type;
@@ -33,19 +40,31 @@
       }
     </script>
     <style>
-      .app-launch { display: none; }
-      :is(.app-launching, .app-launch-minimum),
-      :is(.app-launching, .app-launch-minimum) body { background: #0f0f12; }
-      :is(.app-launching, .app-launch-minimum) body > :not(.app-launch) { display: none; }
-      :is(.app-launching, .app-launch-minimum) .app-launch {
+      @view-transition { navigation: auto; }
+
+      .app-launch {
         position: fixed;
         inset: 0;
         z-index: 200;
-        display: block;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
         background: #0f0f12;
         color: #fff;
         font: 700 22.5px/28px system-ui, sans-serif;
         text-align: center;
+        transition: opacity 140ms ease-out, visibility 0s 140ms;
+      }
+      :is(.app-launching, .app-launch-minimum),
+      :is(.app-launching, .app-launch-minimum) body { background: #0f0f12; }
+      :is(.app-launching, .app-launch-minimum) body > :not(.app-launch) { display: none; }
+      :is(.app-launching, .app-launch-minimum) .app-launch {
+        visibility: visible;
+        opacity: 1;
+        transition: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-launch { transition: none; }
       }
       .app-launch-content:not([hidden]) {
         position: absolute;
