@@ -2,7 +2,7 @@
   const page = document.body.dataset.page;
   const {
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
-    normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
+    normalizeNamePart, formatFullName, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
@@ -326,17 +326,11 @@
       .trim();
   }
 
-  function getUserIdentityData(user, options = {}) {
-    const nameDetails = normalizeNameDetails(
-      options.nameDetails || splitDisplayNameIntoNameParts(user.displayName || "")
-    );
-
+  function getUserIdentityData(user, nameDetails) {
     return {
       uid: user.uid,
       email: user.email || "",
-      displayName: nameDetails.displayName || user.displayName || "",
-      firstName: nameDetails.firstName,
-      lastName: nameDetails.lastName,
+      ...nameDetails,
       emailVerified: Boolean(user.emailVerified),
       providerIds: getProviderIds(user)
     };
@@ -504,7 +498,6 @@
   }
 
   function initAppPage(auth) {
-    const userName = document.querySelector("[data-user-name]");
     const logoutButtons = document.querySelectorAll("[data-logout]");
     const accountOpenButton = document.querySelector("[data-account-open]");
     const accountOverlay = document.querySelector("[data-account-overlay]");
@@ -551,21 +544,18 @@
           return;
         }
 
-        if (userName) {
-          userName.textContent = getAccountName(activeUser);
-        }
-
-        updateAccountProfile(activeUser);
-        fillAccountManagementForms(activeUser);
         updateGoogleProviderStatus(activeUser);
 
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
+          if (!isCurrentUser(activeUser)) return;
           const role = getAccountRole(userData, claims);
           if (page === "admin-accounts" && !role.isAdmin) {
             redirectToApp();
             return;
           }
+          updateAccountProfile(activeUser);
+          fillAccountManagementForms(activeUser);
           updateRoleUi(role);
           const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest];
           for (const initialize of initializers) {
@@ -646,22 +636,8 @@
   }
 
   function getAccountName(user) {
-    if (!user) {
-      return "Mitglied";
-    }
-
-    const cachedData = user.uid ? readUserDocCache(user.uid) : null;
-    const nameDetails = getNameDetailsFromData(cachedData || {}, user);
-
-    if (nameDetails.displayName) {
-      return nameDetails.displayName;
-    }
-
-    if (user.email) {
-      return user.email.split("@")[0];
-    }
-
-    return "Mitglied";
+    const cachedData = user?.uid ? readUserDocCache(user.uid) : null;
+    return getNameDetailsFromData(cachedData, user).displayName;
   }
 
   function getInitials(user) {
@@ -714,7 +690,8 @@
 
     setTextForAll("[data-account-email]", accountEmail);
     setTextForAll("[data-account-name]", accountName);
-    setTextForAll("[data-account-greeting-name]", accountName);
+    setTextForAll("[data-user-name-separator]", accountName ? "," : "");
+    setTextForAll("[data-user-name]", accountName);
     setTextForAll("[data-link-account-email]", accountEmail);
     updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
@@ -726,7 +703,7 @@
     const fieldValue = window.firebase.firestore.FieldValue;
     const userDoc = db.collection("users").doc(user.uid);
 
-    const nameDetails = normalizeNameDetails(getNameDetailsFromData(data, user));
+    const nameDetails = getNameDetailsFromData(data, user);
 
     if (nameDetails.displayName && nameDetails.displayName !== (user.displayName || "")) {
       try {
@@ -736,7 +713,7 @@
       }
     }
 
-    const identity = getUserIdentityData(user, { nameDetails });
+    const identity = getUserIdentityData(user, nameDetails);
 
     requireCurrentUser(user);
     const updatePayload = getChangedIdentityFields(data, identity);
@@ -2227,7 +2204,6 @@
       label: "DLRG-Gliederung",
       type: "text",
       autocomplete: "organization",
-      canDelete: true,
       emptyLabel: "Nicht angegeben"
     },
     birthDate: {
@@ -2668,7 +2644,7 @@
       return;
     }
 
-    const nameDetails = getNameDetailsFromData({}, user);
+    const nameDetails = getNameDetailsFromData(readUserDocCache(user.uid), user);
 
     if (profileForm.elements.firstName) {
       profileForm.elements.firstName.value = nameDetails.firstName;
@@ -2678,7 +2654,7 @@
       profileForm.elements.lastName.value = nameDetails.lastName;
     }
 
-    profileForm.elements.displayName.value = nameDetails.displayName || getAccountName(user);
+    profileForm.elements.displayName.value = nameDetails.displayName;
     profileForm.elements.email.value = user.email || "";
     updateProfileFieldList(profileForm);
   }
@@ -3030,7 +3006,7 @@
       }
 
       if (profileForm.elements.displayName) {
-        profileForm.elements.displayName.value = nameDetails.displayName || getAccountName(user);
+        profileForm.elements.displayName.value = nameDetails.displayName;
       }
 
       if (profileForm.elements.email) {
@@ -3085,8 +3061,8 @@
       return false;
     }
 
-    if (!nameDetails.firstName || !nameDetails.lastName || !email) {
-      setProfileMessage("Bitte fülle Vorname, Nachname und E-Mail aus.", false);
+    if (!email) {
+      setProfileMessage("Bitte gib eine E-Mail-Adresse ein.", false);
       return false;
     }
 
@@ -3098,7 +3074,7 @@
     const activeEmail = String(user.email || "").trim().toLowerCase();
     const pendingEmail = String(readUserDocCache(user.uid)?.pendingEmail || "").trim().toLowerCase();
     const emailChanged = normalizedEmail !== activeEmail && normalizedEmail !== pendingEmail;
-    const displayNameChanged = displayName !== (user.displayName || "");
+    const displayNameChanged = Boolean(displayName && displayName !== (user.displayName || ""));
     const nameDetailsChanged = haveNameDetailsChanged(user, nameDetails);
     const profileDetailsChanged = haveOptionalProfileDetailsChanged(user, optionalProfileDetails);
 
@@ -3177,9 +3153,7 @@
     }
 
     const cachedData = readUserDocCache(user.uid) || {};
-    const identity = getUserIdentityData(user, {
-      nameDetails: nameDetails || getNameDetailsFromData(cachedData, user)
-    });
+    const identity = getUserIdentityData(user, nameDetails || getNameDetailsFromData(cachedData, user));
     const payload = {
       ...identity,
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
@@ -3917,7 +3891,7 @@
     const nameDetails = getNameDetailsFromData(readUserDocCache(user.uid) || {}, user);
     const payload = {
       email: user.email || "",
-      displayName: nameDetails.displayName || user.displayName || "",
+      displayName: nameDetails.displayName,
       firstName: nameDetails.firstName,
       lastName: nameDetails.lastName,
       keepPersonalDataUntilRevoked: shouldKeepData,
@@ -4545,7 +4519,7 @@
     const details = {
       ...editableDetails,
       accountEmail: user.email || "",
-      accountName: getAccountName(user),
+      accountName: getAccountName(user) || formatFullName(editableDetails.firstName, editableDetails.lastName),
       accountUid: user.uid
     };
     const cachedData = readUserDocCache(user.uid) || {};
@@ -4698,7 +4672,20 @@
         }
       }
 
-      await db.collection("users").doc(user.uid).update(updatePayload);
+      const userDoc = db.collection("users").doc(user.uid);
+      if (getAccountName(user)) {
+        await userDoc.update(updatePayload);
+      } else {
+        const savedName = await db.runTransaction(async (transaction) => {
+          const snapshot = await transaction.get(userDoc);
+          requireCurrentUser(user);
+          const currentName = getNameDetailsFromData(snapshot.data(), user);
+          const name = currentName.displayName ? currentName : normalizeNameDetails(details);
+          transaction.update(userDoc, currentName.displayName ? updatePayload : { ...updatePayload, ...name });
+          return name;
+        });
+        Object.assign(userCacheData, savedName);
+      }
 
       updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
       clearUserDocCache(user.uid);

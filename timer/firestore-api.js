@@ -181,7 +181,7 @@
     return;
   }
 
-  const { initFirebase, ensureLocalAuthPersistence, loadUserContext, getAccountRole, hasVerifiedAccess } = window.LifesavingAuth;
+  const { initFirebase, ensureLocalAuthPersistence, loadUserContext, getAccountRole, hasVerifiedAccess, getNameDetailsFromData } = window.LifesavingAuth;
   const auth = initFirebase();
   const db = window.firebase.firestore();
   const authPersistenceReady = ensureLocalAuthPersistence(auth);
@@ -232,11 +232,7 @@
     }
 
     const { value, isAdmin, isOrganizer, isTrainer, isAthlete, label } = getAccountRole(userData, claims);
-    const accountName = [userData.firstName, userData.lastName].filter(Boolean).join(" ")
-      || userData.displayName
-      || user?.displayName
-      || user?.email?.split("@")[0]
-      || "";
+    const accountName = userDataLoaded ? getNameDetailsFromData(userData, user).displayName : "";
     const isLinked = Boolean(userData.linkedPersonId || userData.personId);
     const linkRequested = isLinked
       || userData.personLinkStatus === "requested"

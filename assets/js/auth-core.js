@@ -4,7 +4,6 @@
   const persistencePromises = new WeakMap();
   const pendingReloads = new WeakMap();
   const pendingContexts = new WeakMap();
-  const registrationNames = new Map();
   const transientCodes = new Set(["network-request-failed", "unavailable", "deadline-exceeded", "aborted", "internal"]);
 
   function isTransientError(error) {
@@ -66,30 +65,10 @@
     return Boolean(user && (user.emailVerified || user.providerData?.some((provider) => provider.providerId === "google.com")));
   }
 
-  function rememberRegistrationName(uid, details) {
-    registrationNames.set(uid, details);
-    try {
-      window.sessionStorage?.setItem(`lifesaving-baden:registration:${uid}`, JSON.stringify(details));
-    } catch { /* The in-memory copy still works when storage is blocked. */ }
-  }
-
-  function readRegistrationName(uid) {
-    if (registrationNames.has(uid)) return registrationNames.get(uid);
-    try {
-      return JSON.parse(window.sessionStorage?.getItem(`lifesaving-baden:registration:${uid}`) || "null");
-    } catch { return null; }
-  }
-
-  function clearRegistrationName(uid) {
-    registrationNames.delete(uid);
-    try { window.sessionStorage?.removeItem(`lifesaving-baden:registration:${uid}`); } catch { /* Storage may be blocked. */ }
-  }
-
   async function createAccountDocument(user, ref) {
-    const name = normalizeNameDetails(readRegistrationName(user.uid) || splitDisplayNameIntoNameParts(user.displayName));
     const timestamp = window.firebase.firestore.FieldValue.serverTimestamp;
     const data = {
-      uid: user.uid, email: user.email || "", ...name,
+      uid: user.uid, email: user.email || "", firstName: "", lastName: "", displayName: "",
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
@@ -121,7 +100,6 @@
         const userData = snapshot.exists ? snapshot.data() || {}
           : isAdminAccount({}, token.claims) ? {} : await createAccountDocument(user, ref);
         requireCurrentUser(user);
-        clearRegistrationName(user.uid);
         return { userData, claims: token.claims || {} };
       }).finally(() => pendingContexts.delete(user));
       pendingContexts.set(user, pending);
@@ -263,16 +241,15 @@
   function getNameDetailsFromData(data = {}, user = null) {
     const storedFirstName = normalizeNamePart(data?.firstName);
     const storedLastName = normalizeNamePart(data?.lastName);
+    const sourceName = normalizeNamePart(data?.displayName ?? user?.displayName);
 
     if (storedFirstName || storedLastName) {
       return normalizeNameDetails({
         firstName: storedFirstName,
         lastName: storedLastName,
-        displayName: data?.displayName || user?.displayName || ""
+        displayName: sourceName
       });
     }
-
-    const sourceName = normalizeNamePart(data?.displayName || user?.displayName || "");
 
     return normalizeNameDetails({
       ...splitDisplayNameIntoNameParts(sourceName),
@@ -352,7 +329,7 @@
 
   window.LifesavingAuth = Object.freeze({
     initFirebase, ensureLocalAuthPersistence, isCurrentUser, requireCurrentUser, reloadUser, hasVerifiedAccess,
-    isTransientError, withRetry, loadUserContext, rememberRegistrationName,
+    isTransientError, withRetry, loadUserContext,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin,

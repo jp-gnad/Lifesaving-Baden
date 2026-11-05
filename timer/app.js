@@ -168,8 +168,7 @@ function timerLoginUrl() {
 }
 
 function timerAccountName(context = currentTimerAuth) {
-  const user = context?.user;
-  return String(context?.accountName || user?.displayName || user?.email?.split("@")[0] || "Account").trim() || "Account";
+  return context?.accountName || "Mitglied";
 }
 
 function timerAccountRole(context = currentTimerAuth) {

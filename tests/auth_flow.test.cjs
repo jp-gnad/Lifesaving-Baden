@@ -957,10 +957,16 @@ test("a missing Google credential is rejected before calling Firebase and the bu
 test("Google client loading is bounded, retryable, and does not lock the email forms", async () => {
   for (const failure of ["error", "timeout", "incomplete-load"]) {
     const h = directGoogleHarness();
+    const button = h.element("[data-google-login]");
+    const originalFace = '<img alt=""><span>Über Google anmelden</span>';
+    button.innerHTML = originalFace;
     const google = h.window.google;
     delete h.window.google;
     h.login();
     await new Promise(setImmediate);
+    assert.equal(button.innerHTML, originalFace);
+    assert.equal(button.hidden, false);
+    assert.equal(button.disabled, true);
     const concurrent = h.element("[data-google-login]").handlers.click();
     assert.equal(h.identity.scripts.length, 1);
     assert.equal(h.identity.scripts[0].src, "https://accounts.google.com/gsi/client?hl=de");
@@ -975,6 +981,7 @@ test("Google client loading is bounded, retryable, and does not lock the email f
     assert.equal(h.element("[data-google-login]").disabled, false);
     assert.match(h.element("[data-form-message=\"login\"]").textContent, /nicht geladen/);
     const retry = h.element("[data-google-login]").handlers.click();
+    assert.equal(button.innerHTML, originalFace);
     assert.equal(h.identity.scripts.length, 2);
     h.window.google = google;
     h.identity.scripts[1].handlers.load();
@@ -1008,17 +1015,27 @@ test("password reset links back to the shared login without a legacy timer targe
   assert.equal(new URL(h.counts.reset.options.url).searchParams.has("returnTo"), false);
 });
 
-test("new account documents preserve registration names and start with the standard role", async () => {
-  const h = harness({ user: { uid: "new", displayName: "Anna Maria von Baden" }, stored: null });
-  h.core.rememberRegistrationName("new", { firstName: "Anna Maria", lastName: "von Baden", displayName: "Anna Maria von Baden" });
-  const [first, second] = await Promise.all([h.core.loadUserContext(h.auth.currentUser), h.core.loadUserContext(h.auth.currentUser)]);
-  assert.equal(first, second);
-  assert.equal(h.counts.reads, 1);
-  assert.equal(h.counts.writes.length, 1);
-  assert.equal(first.userData.firstName, "Anna Maria");
-  assert.equal(first.userData.lastName, "von Baden");
-  assert.equal(first.userData.role, "standard");
-  assert.deepEqual(h.counts.tokens, [true]);
+test("new email and Google accounts start without a profile name", async () => {
+  for (const providerId of ["password", "google.com"]) {
+    const user = {
+      uid: "new",
+      email: "anna.baden@example.test",
+      displayName: providerId === "google.com" ? "Anna Baden" : null,
+      providerData: [{ providerId }],
+    };
+    const h = harness({ user, stored: null });
+    const [first, second] = await Promise.all([h.core.loadUserContext(user), h.core.loadUserContext(user)]);
+    assert.equal(first, second);
+    assert.equal(h.counts.reads, 1);
+    assert.equal(h.counts.writes.length, 1);
+    for (const field of ["firstName", "lastName", "displayName"]) {
+      assert.equal(first.userData[field], "");
+      assert.equal(h.core.getNameDetailsFromData(first.userData, user)[field], "");
+      assert.equal(h.counts.writes[0][field], "");
+    }
+    assert.equal(first.userData.role, "standard");
+    assert.deepEqual(h.counts.tokens, [true]);
+  }
 });
 
 test("account creation never overwrites an existing role from another tab", async () => {
@@ -1263,7 +1280,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1653,6 +1670,62 @@ test("admins can save personal profile fields without changing their role", asyn
   assert.equal("role" in h.counts.writes[0], false);
 });
 
+test("saving other settings keeps a new profile unnamed until the name is entered", async () => {
+  const email = "anna.baden@example.test";
+  const user = { uid: "u", email, displayName: "Google Name", emailVerified: true, providerData: [{ providerId: "google.com" }] };
+  const h = harness({ user, stored: null });
+  const functions = memberFunctions(h);
+  await functions.loadFreshUserContext(user);
+  const form = {
+    dataset: {},
+    elements: Object.fromEntries(Object.entries({
+      firstName: "", lastName: "", displayName: "", email,
+      dlrgBranch: "Baden", birthDate: "", gender: ""
+    }).map(([key, value]) => [key, { value }])),
+    querySelectorAll: () => [],
+  };
+  assert.equal(await functions.persistProfileDetails(h.auth, form, null), true);
+  assert.equal(h.counts.writes.at(-1).dlrgBranch, "Baden");
+  assert.equal(h.counts.writes.at(-1).displayName, "");
+  form.elements.firstName.value = "Anna";
+  form.elements.lastName.value = "Baden";
+  assert.equal(await functions.persistProfileDetails(h.auth, form, null), true);
+  assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
+});
+
+test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {
+  for (const displayName of ["", "Name aus den Einstellungen"]) {
+    const h = harness({ user: { uid: "u", email: "anna.baden@example.test" }, stored: null });
+    const functions = memberFunctions(h);
+    await functions.loadFreshUserContext(h.auth.currentUser);
+    const elements = Object.fromEntries(Object.entries({
+      firstName: "Anna", lastName: "Baden", birthDate: "2000-01-01", dlrgBranch: "Baden", identityHint: ""
+    }).map(([key, value]) => [key, { value }]));
+    const form = {
+      elements, dataset: {}, querySelectorAll: () => [],
+      querySelector: (selector) => ({
+        '[name="identityConfirmation"]': { checked: true },
+        '[name="dlrgBranch"]': elements.dlrgBranch,
+      })[selector] || null,
+    };
+    h.document.querySelector = (selector) => selector === "[data-link-request-form]" ? form : null;
+    h.window.firebase.firestore.FieldValue.delete = () => "delete";
+    const ref = {};
+    let saved;
+    const db = {
+      collection: () => ({ doc: () => ref }),
+      runTransaction: (run) => run({
+        get: async () => ({ data: () => ({ displayName }) }),
+        update: (_, payload) => { saved = payload; },
+      }),
+    };
+    await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
+    assert.equal(saved["personLinkRequest.firstName"], "Anna");
+    assert.equal(saved["personLinkRequest.lastName"], "Baden");
+    assert.equal(saved.displayName, displayName ? undefined : "Anna Baden");
+    assert.equal(h.counts.redirects.length, 1);
+  }
+});
 
 test("role refreshes preserve profile photos, names and email in cards for every role", () => {
   const h = harness();

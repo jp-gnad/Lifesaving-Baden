@@ -386,7 +386,7 @@
 
     function prepareDirectGoogle() {
       if (directGoogleReady || directGoogleLoading || loginRedirectStarted) return directGoogleLoading;
-      setLoading(googleButton, true, "Google laden...");
+      googleButton.disabled = true;
       directGoogleLoading = (async () => {
         try {
           const identity = await loadGoogleIdentity();

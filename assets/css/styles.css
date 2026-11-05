@@ -477,6 +477,10 @@ h3 {
   opacity: 0.62;
 }
 
+.button-google:disabled {
+  opacity: 1;
+}
+
 .full-width {
   width: 100%;
 }
@@ -3648,13 +3652,39 @@ body.auth-context-loading .member-apps::after {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .profile-field-editor[data-active-field="birthDate"] [data-profile-editor-control] {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding-inline: 10px;
+    background: var(--bg);
+  }
+
+  .profile-field-editor[data-active-field="birthDate"] [data-profile-editor-control]:focus-within {
+    outline: 1px solid rgba(255, 237, 0, 0.34);
+    outline-offset: 1px;
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
   .profile-field-edit-form input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
     display: block;
     min-width: 0;
     max-width: 100%;
+    min-height: 36px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font-size: 16px;
   }
 
-  .profile-field-editor:is([data-active-field="displayName"], [data-active-field="email"], [data-active-field="birthDate"]) .profile-field-actions {
+  .profile-field-edit-form input[type="date"]:focus {
+    outline: none;
+  }
+
+  .profile-field-editor:not(.is-choice-editor) .profile-field-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

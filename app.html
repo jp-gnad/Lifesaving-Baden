@@ -25,8 +25,8 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20261103-mobile-menu-v57"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth-core.js?v=20261105-account-setup-v12"></script>
-    <script defer src="assets/js/auth.js?v=20261105-account-setup-v17"></script>
+    <script defer src="assets/js/auth-core.js?v=20261105-manual-profile-name-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261105-manual-profile-name-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -54,7 +54,7 @@
       <p class="form-message" data-auth-error role="alert" hidden></p>
       <section class="dashboard-header">
         <p class="eyebrow">Mitgliederbereich</p>
-        <h1>Willkommen, <span class="dashboard-user-name" data-user-name>Mitglied</span></h1>
+        <h1>Willkommen<span data-user-name-separator></span><span class="dashboard-user-name" data-user-name></span></h1>
         <p>
           Dieser Bereich wird erst nach einem bestätigten Firebase-Login
           angezeigt. Wirklich vertrauliche Inhalte sollten weiterhin aus einer
