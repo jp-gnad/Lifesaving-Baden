@@ -1087,7 +1087,7 @@ test("legacy timer login forwards verification flags and drops the old event tar
   assert.equal(destination.searchParams.get("verified"), "1");
 });
 
-test("standalone launch covers the landing page until the minimum time and session check have passed", () => {
+test("standalone launch reveals its branding together and covers the landing page during the session check", async () => {
   const [startScript, minimumScript] = [...source("index.html").matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
     .map((match) => match[1]);
   for (const [mode, user] of [
@@ -1100,9 +1100,14 @@ test("standalone launch covers the landing page until the minimum time and sessi
     const h = harness({ url: "https://example.test/club/", user });
     const classes = new Set();
     const timers = new Map();
+    const decoded = deferred();
+    const logo = { decode: () => decoded.promise, style: {} };
+    const content = { firstElementChild: logo, hidden: true, style: {} };
+    const splash = { firstElementChild: content, clientHeight: 800 };
     let firstFrame;
     const replacements = [];
     h.document.body.dataset.page = "landing";
+    h.document.querySelector = (selector) => selector === ".app-launch" ? splash : null;
     h.document.documentElement = { classList: {
       add: (name) => classes.add(name),
       contains: (name) => classes.has(name),
@@ -1112,6 +1117,7 @@ test("standalone launch covers the landing page until the minimum time and sessi
     h.window.matchMedia = () => ({ matches: mode.startsWith("standalone") || mode === "offline" });
     h.window.requestAnimationFrame = (callback) => { firstFrame = callback; };
     h.window.setTimeout = (callback, delay) => { timers.set(delay, callback); };
+    h.window.clearTimeout = (delay) => timers.delete(delay);
     h.window.location.replace = (url) => replacements.push(url);
     if (mode === "offline") delete h.window.firebase;
 
@@ -1120,7 +1126,18 @@ test("standalone launch covers the landing page until the minimum time and sessi
     vm.runInContext(minimumScript, h.context);
     assert.equal(classes.has("app-launch-minimum"), mode !== "browser");
     assert.equal(timers.has(650), false);
+    assert.equal(content.hidden, true);
+    assert.equal(firstFrame, undefined);
+    if (mode === "offline") timers.get(250)();
+    else decoded.resolve();
+    await new Promise(setImmediate);
     firstFrame?.();
+    if (mode !== "browser") {
+      assert.equal(content.hidden, false);
+      assert.equal(content.style.top, "364px");
+      assert.equal(logo.style.visibility, mode === "offline" ? "hidden" : undefined);
+      assert.equal(timers.has(650), true);
+    }
     if (mode === "standalone-slow") {
       timers.get(650)();
       assert.equal(classes.has("app-launching"), true);

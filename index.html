@@ -32,15 +32,19 @@
         position: fixed;
         inset: 0;
         z-index: 200;
-        display: grid;
-        place-content: center;
-        justify-items: center;
-        gap: 16px;
-        padding-bottom: min(72px, 10vh);
+        display: block;
         background: #0f0f12;
         color: #fff;
         font: 700 22.5px/28px system-ui, sans-serif;
         text-align: center;
+      }
+      .app-launch-content:not([hidden]) {
+        position: absolute;
+        inset-inline: 0;
+        display: grid;
+        justify-items: center;
+        gap: 16px;
+        transform: translateY(-50%);
       }
       .app-launch img {
         display: block;
@@ -62,15 +66,31 @@
   </head>
   <body data-page="landing">
     <div class="app-launch" role="status" aria-label="Lifesaving Baden wird geöffnet">
-      <img src="assets/img/lifesaving-baden-logo.png" width="96" height="96" alt="">
-      <strong>Lifesaving Baden</strong>
+      <div class="app-launch-content" hidden>
+        <img src="assets/img/lifesaving-baden-logo.png" width="96" height="96" alt="">
+        <strong>Lifesaving Baden</strong>
+      </div>
     </div>
     <script>
       const launchClasses = document.documentElement.classList;
       if (launchClasses.contains("app-launching")) {
         launchClasses.add("app-launch-minimum");
-        window.requestAnimationFrame(() => {
-          window.setTimeout(() => launchClasses.remove("app-launch-minimum"), 650);
+        const splash = document.querySelector(".app-launch");
+        const content = splash.firstElementChild;
+        const logo = content.firstElementChild;
+        let logoTimeout;
+        Promise.race([
+          logo.decode().then(() => true, () => false),
+          new Promise((resolve) => { logoTimeout = window.setTimeout(() => resolve(false), 250); })
+        ]).then((logoReady) => {
+          window.clearTimeout(logoTimeout);
+          window.requestAnimationFrame(() => {
+            const height = splash.clientHeight;
+            content.style.top = `${height / 2 - Math.min(36, height * 0.05)}px`;
+            if (!logoReady) logo.style.visibility = "hidden";
+            content.hidden = false;
+            window.setTimeout(() => launchClasses.remove("app-launch-minimum"), 650);
+          });
         });
       }
     </script>
