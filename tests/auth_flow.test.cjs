@@ -1223,6 +1223,30 @@ test("the member page initializes an existing account with one document read and
   assert.equal(h.counts.writes.length, 0);
 });
 
+test("worktime opens only for trainers and higher and clears data on logout", async () => {
+  for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
+    const user = { uid: `time-${role}`, emailVerified: true };
+    const h = harness({ url: "https://example.test/club/arbeitszeiten.html", user, stored: { role } });
+    let starts = 0;
+    let stops = 0;
+    h.window.LifesavingWorktime = { start: () => { starts += 1; }, stop: () => { stops += 1; } };
+    h.document.body.dataset.page = "worktime";
+    h.document.body.classList = { remove() {} };
+    h.document.querySelector = () => null;
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(user);
+    await new Promise(setImmediate);
+    const allowed = ["trainer", "organizer", "admin"].includes(role);
+    assert.equal(starts, allowed ? 1 : 0, role);
+    if (!allowed) assert.equal(h.counts.redirects.at(-1), "https://example.test/club/app.html");
+    assert.equal(h.counts.warnings.length, 0, role);
+    h.auth.currentUser = null;
+    h.callbacks.auth(null);
+    assert.equal(stops, 2);
+    assert.equal(h.counts.redirects.at(-1), "https://example.test/club/login.html");
+  }
+});
+
 test("member initialization reports a permanent database error once", async () => {
   const h = harness({ url: "https://example.test/club/app.html", user: { uid: "u", emailVerified: true }, read: () => { throw { code: "permission-denied" }; } });
   h.document.body.dataset.page = "app";

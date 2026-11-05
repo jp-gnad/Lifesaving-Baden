@@ -385,7 +385,7 @@
     }
   }
 
-  if (["app", "settings", "link-request", "admin-accounts"].includes(page)) {
+  if (["app", "settings", "link-request", "admin-accounts", "worktime"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -578,6 +578,10 @@
             redirectToApp();
             return;
           }
+          if (page === "worktime" && !role.isTrainer) {
+            redirectToApp();
+            return;
+          }
           updateAccountProfile(activeUser);
           fillAccountManagementForms(activeUser);
           updateRoleUi(role);
@@ -587,6 +591,7 @@
             await initialize(auth, userData, claims);
           }
           if (!isCurrentUser(activeUser)) return;
+          if (page === "worktime") window.LifesavingWorktime.start(auth, activeUser);
           settingsLoadedForUser = activeUser.uid;
         }
 
@@ -612,6 +617,10 @@
     }
 
     auth.onAuthStateChanged((user) => {
+      if (page === "worktime") {
+        window.LifesavingWorktime.stop();
+        settingsLoadedForUser = null;
+      }
       initializeSignedInUser(user).catch((error) => {
         console.warn("Firebase-Konto konnte nicht initialisiert werden.", error);
       });
@@ -1041,6 +1050,7 @@
       "data-admin-only": role.isAdmin,
       "data-non-admin-only": !role.isAdmin,
       "data-organizer-only": role.isOrganizer,
+      "data-trainer-only": role.isTrainer,
       "data-athlete-only": role.isAthlete,
       "data-privileged-menu-divider": role.isOrganizer,
     };

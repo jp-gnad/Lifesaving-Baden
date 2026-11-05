@@ -492,6 +492,54 @@ service cloud.firestore {
       }
     }
 
+    function ownsWorktime(uid) {
+      return isOwner(uid) && verifiedUser() && callerRoleRank() >= 3;
+    }
+
+    function validWorktimeTimes(data) {
+      let nextDay = data.endMinute < data.startMinute ? 1440 : 0;
+      let startOffset = (data.day.toMillis() + data.startMinute * 60000 - data.startedAt.toMillis()) / 60000;
+      let endOffset = (data.day.toMillis() + (data.endMinute + nextDay) * 60000 - data.endedAt.toMillis()) / 60000;
+      return data.day == data.day.date()
+        && data.day >= timestamp.date(2000, 1, 1)
+        && data.startMinute >= 0 && data.startMinute < 1440
+        && data.endMinute >= 0 && data.endMinute < 1440
+        && data.startMinute != data.endMinute
+        && startOffset in [60, 120] && endOffset in [60, 120]
+        && data.durationMinutes > 0 && data.durationMinutes <= 1500
+        && data.endedAt - data.startedAt == duration.value(data.durationMinutes, "m")
+        && data.endedAt <= request.time;
+    }
+
+    function validWorktime(data) {
+      return data.keys().hasAll([
+          "day", "startMinute", "endMinute", "startedAt", "endedAt", "durationMinutes",
+          "title", "description", "category", "createdAt", "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "day", "startMinute", "endMinute", "startedAt", "endedAt", "durationMinutes",
+          "title", "description", "category", "createdAt", "updatedAt"
+        ])
+        && data.day is timestamp && data.startedAt is timestamp && data.endedAt is timestamp
+        && data.startMinute is int && data.endMinute is int && data.durationMinutes is int
+        && data.createdAt is timestamp && data.updatedAt is timestamp
+        && data.title is string && data.title.trim().size() > 0 && data.title.size() <= 120
+        && data.description is string && data.description.size() <= 2000
+        && data.category in ["training", "competition", "organization", "athleteCare"]
+        && validWorktimeTimes(data);
+    }
+
+    // Deliberately no administrator override: detailed entries belong only to their owner.
+    match /users/{uid}/worktimeEntries/{entryId} {
+      allow read, delete: if ownsWorktime(uid);
+      allow create: if ownsWorktime(uid) && validWorktime(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownsWorktime(uid) && validWorktime(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
     match /timerParticipantDirectory/{candidateId} {
       allow read: if isOrganizer();
       allow write: if false;

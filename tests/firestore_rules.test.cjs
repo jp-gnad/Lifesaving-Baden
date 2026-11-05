@@ -47,6 +47,72 @@ async function seed(records) {
   });
 }
 
+const worktime = (overrides = {}) => ({
+  day: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")), startMinute: 1320, endMinute: 60,
+  startedAt: sdk.Timestamp.fromDate(new Date("2026-01-01T21:00:00Z")),
+  endedAt: sdk.Timestamp.fromDate(new Date("2026-01-02T00:00:00Z")),
+  durationMinutes: 180, title: "Training", description: "", category: "training", ...timestampFields(), ...overrides,
+});
+
+test("worktime is owner-only for trainers and higher, including against other admins", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
+    await seed({ [`users/time-${role}`]: { role }, [`users/time-${role}/worktimeEntries/existing`]: worktime() });
+  }
+  for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
+    const uid = `time-${role}`;
+    const db = dbFor(uid);
+    const own = sdk.doc(db, `users/${uid}/worktimeEntries/existing`);
+    const check = ["trainer", "organizer", "admin"].includes(role) ? assertSucceeds : assertFails;
+    await check(sdk.getDoc(own));
+    await check(sdk.getDocs(sdk.collection(db, `users/${uid}/worktimeEntries`)));
+    await check(sdk.setDoc(sdk.doc(db, `users/${uid}/worktimeEntries/new`), worktime()));
+    await check(sdk.updateDoc(own, { title: "Bearbeitet", updatedAt: sdk.serverTimestamp() }));
+    for (const other of ["trainer", "organizer", "admin"].filter((other) => other !== role)) {
+      const ref = sdk.doc(db, `users/time-${other}/worktimeEntries/existing`);
+      await assertFails(sdk.getDoc(ref));
+      await assertFails(sdk.getDocs(sdk.collection(db, `users/time-${other}/worktimeEntries`)));
+      await assertFails(sdk.setDoc(sdk.doc(db, `users/time-${other}/worktimeEntries/injected`), worktime()));
+      await assertFails(sdk.updateDoc(ref, { title: "Unzulässig", updatedAt: sdk.serverTimestamp() }));
+      await assertFails(sdk.deleteDoc(ref));
+    }
+    await check(sdk.deleteDoc(own));
+  }
+  const guest = dbFor(null);
+  await assertFails(sdk.getDoc(sdk.doc(guest, "users/time-trainer/worktimeEntries/new")));
+  await assertFails(sdk.setDoc(sdk.doc(guest, "users/time-trainer/worktimeEntries/guest"), worktime()));
+  const unverified = dbFor("time-trainer", { email_verified: false });
+  await assertFails(sdk.getDocs(sdk.collection(unverified, "users/time-trainer/worktimeEntries")));
+  await assertFails(sdk.setDoc(sdk.doc(unverified, "users/time-trainer/worktimeEntries/unverified"), worktime()));
+});
+
+test("worktime validates completed intervals, schema, immutable creation time and role revocation", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/clock-trainer": { role: "trainer" } });
+  const db = dbFor("clock-trainer");
+  const ref = sdk.doc(db, "users/clock-trainer/worktimeEntries/task");
+  await assertSucceeds(sdk.setDoc(ref, worktime()));
+  const original = (await sdk.getDoc(ref)).data();
+  await assertSucceeds(sdk.updateDoc(ref, { category: "athleteCare", updatedAt: sdk.serverTimestamp() }));
+  for (const overrides of [
+    { title: " " }, { title: "x".repeat(121) }, { description: "x".repeat(2001) }, { category: "other" },
+    { startMinute: -1 }, { endMinute: 1440 }, { durationMinutes: 0 }, { durationMinutes: 200 },
+    { startMinute: 60, endMinute: 60 }, { day: "2026-01-01" }, { startedAt: "yesterday" },
+    { day: sdk.Timestamp.fromDate(new Date("2026-01-01T00:01:00Z")) }, { ownerUid: "other" },
+    { day: sdk.Timestamp.fromDate(new Date("2099-01-01T00:00:00Z")), startedAt: sdk.Timestamp.fromDate(new Date("2099-01-01T21:00:00Z")), endedAt: sdk.Timestamp.fromDate(new Date("2099-01-02T00:00:00Z")) },
+  ]) await assertFails(sdk.setDoc(sdk.doc(db, "users/clock-trainer/worktimeEntries/invalid"), worktime(overrides)));
+  await assertFails(sdk.updateDoc(ref, { createdAt: sdk.Timestamp.fromMillis(0), updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.updateDoc(ref, { updatedAt: sdk.Timestamp.fromMillis(0) }));
+  await assertFails(sdk.updateDoc(ref, { title: sdk.deleteField(), updatedAt: sdk.serverTimestamp() }));
+  await assertSucceeds(sdk.getDocs(sdk.query(sdk.collection(db, "users/clock-trainer/worktimeEntries"), sdk.where("day", ">=", original.day), sdk.orderBy("day", "desc"))));
+  await seed({ "users/clock-trainer": { role: "athlete" } });
+  await assertFails(sdk.getDoc(ref));
+  await assertFails(sdk.updateDoc(ref, { title: "Unzulässig", updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.deleteDoc(ref));
+  const claimDb = dbFor("claim-clock", { role: "trainer" });
+  await assertSucceeds(sdk.setDoc(sdk.doc(claimDb, "users/claim-clock/worktimeEntries/task"), worktime()));
+});
+
 test("all roles and legacy roles enforce the same event thresholds for reads and writes", { skip: !enabled }, async (t) => {
   await env.clearFirestore();
   const levels = { everyone: 0, authenticated: 1, athlete: 2, kader: 2, trainer: 3, organizer: 4, locked: 5 };

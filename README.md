@@ -432,6 +432,48 @@ Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
 Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von
 der Oberfläche.
 
+## Arbeitszeitenerfassung
+
+Die App unter `arbeitszeiten.html` ist über eine eigene Kachel im Mitgliederbereich
+für Trainer, Organisatoren und Admins erreichbar. Jeder sieht und bearbeitet nur
+seine eigenen Einträge. Die Firestore-Regeln erlauben auch Admins und Organisatoren
+keinen Zugriff auf fremde Detaildaten. Eine übergreifende Personenübersicht ist
+noch nicht enthalten.
+
+Ein Eintrag enthält Datum, Von-/Bis-Uhrzeit, Titel, eine optionale Beschreibung
+und eine Kategorie: Training, Wettkampf, Organisation oder Athletenbetreuung.
+Es werden nur abgeschlossene Aufgaben erfasst, ohne Pausen und Freigabeprozess.
+Eine frühere Bis-Uhrzeit bezeichnet den Folgetag; die gesamte Zeit gehört zum
+Startdatum, auch an Wochen- und Monatsgrenzen. Gleiche Von-/Bis-Zeiten werden
+abgewiesen. Die Zeitzone ist unabhängig vom Gerät `Europe/Berlin`; die Dauer
+berücksichtigt Zeitumstellungen. Doppelte Uhrzeiten beim Herbstwechsel verwenden
+das erste Vorkommen; nicht existierende Uhrzeiten beim Frühjahrswechsel werden
+abgewiesen.
+
+Die Monatsansicht öffnet sich standardmäßig. Tag, Woche (ab Montag), Monat,
+Datumsnavigation und Kategorienfilter steuern Diagramm, Summen und Aufgabenliste
+gemeinsam. Beim Tagesdiagramm werden Stunden nach Mitternacht dem Startdatum
+zugerechnet und an der jeweiligen Uhrzeit angezeigt.
+
+Die Daten liegen unter `users/{uid}/worktimeEntries/{entryId}`, getrennt vom
+Kontodokument. Das Feld `day` enthält das Startdatum als UTC-Mitternacht zur
+Kalenderzuordnung; `startedAt` und `endedAt` enthalten die tatsächlichen
+Zeitpunkte. Pro Ansicht werden nur die Einträge des gewählten Zeitraums geladen.
+Speichern und Löschen benötigen eine Internetverbindung. Neue Sicherheitsregeln
+müssen vor der ersten Nutzung veröffentlicht werden (siehe nächsten Abschnitt).
+
+Lokale Prüfungen:
+
+```powershell
+node --test tests/worktime.test.cjs tests/auth_flow.test.cjs
+```
+
+`tests/firestore_rules.test.cjs` prüft zusätzlich Zugriffsschutz und Datenvalidierung
+gegen den lokalen Firestore-Emulator. Die Browser-Testansicht
+`tests/worktime.browser.html` lädt die echte Oberfläche mit eigenen Daten im
+Arbeitsspeicher und ohne Firebase-Verbindung. Über den lokalen HTTP-Server lässt
+sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespeichert.
+
 ## Firestore-Regeln veröffentlichen
 
 Nach Änderungen an `firestore.rules` müssen die Regeln einmal in das bereits
