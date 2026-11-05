@@ -1760,15 +1760,28 @@ test("password linking uses the entered address and keeps the Google email in th
   const functions = memberFunctions(h);
   const accountEmail = h.element("account-email");
   h.document.querySelectorAll = (selector) => selector === "[data-account-email]" ? [accountEmail] : [];
-  const passwordRow = { querySelector: () => h.element("password-email-value") };
-  const googleRow = { querySelector: () => h.element("google-email-value") };
+  const passwordRow = { dataset: {}, querySelector: (selector) => h.element(selector === "strong" ? "password-email-label" : "password-email-value") };
+  const googleRow = { dataset: {}, querySelector: (selector) => h.element(selector === "strong" ? "google-email-label" : "google-email-value") };
+  const status = new Set();
+  const passwordItem = { classList: { toggle(name, on) { if (on) status.add(name); else status.delete(name); } } };
+  const summary = h.element("password-summary");
+  const help = h.element("password-help");
+  h.document.querySelectorAll = (selector) => ({
+    "[data-account-email]": [accountEmail],
+    "[data-password-provider-summary]": [summary],
+  })[selector] || [];
   h.document.querySelector = (selector) => ({
     '[data-sign-in-email="password"]': passwordRow,
     '[data-sign-in-email="google"]': googleRow,
+    "[data-password-provider-item]": passwordItem,
+    "[data-password-provider-summary]": summary,
+    "[data-password-provider-help]": help,
   })[selector] || null;
   functions.updateAccountProfile({ ...user, email: "legacy@example.test" });
   assert.equal(accountEmail.textContent, googleEmail);
   assert.equal(passwordRow.hidden, true);
+  assert.equal(h.element("google-email-label").textContent, "E-Mail");
+  assert.equal(googleRow.dataset.emailSection, "");
   h.window.firebase.auth.EmailAuthProvider = { credential: (email, password) => ({ email, password }) };
   const actions = [];
   user.linkWithCredential = async ({ email, password }) => {
@@ -1792,17 +1805,28 @@ test("password linking uses the entered address and keeps the Google email in th
   assert.equal(accountEmail.textContent, googleEmail);
   assert.equal(passwordRow.hidden, false);
   assert.equal(h.element("password-email-value").textContent, passwordEmail);
+  assert.equal(h.element("password-email-label").textContent, "Passwort-Mail");
+  assert.equal(googleRow.dataset.emailSection, "google");
   functions.updateAccountProfile({ ...user, email: googleEmail });
   assert.equal(passwordRow.hidden, true);
   assert.equal(googleRow.hidden, false);
+  assert.equal(h.element("google-email-label").textContent, "E-Mail");
+  assert.equal(googleRow.dataset.emailSection, "");
 
   const changedEmail = "new-password@example.test";
+  user.emailVerified = true;
   user.verifyBeforeUpdateEmail = async (email) => { actions.push(["change", email]); };
   form.elements.email.value = changedEmail;
   await functions.savePasswordEmail({ preventDefault() {}, currentTarget: form }, h.auth);
   assert.deepEqual(actions.at(-1), ["change", changedEmail]);
   assert.equal(h.counts.writes.at(-1).pendingEmail, changedEmail);
   assert.equal(user.email, passwordEmail);
+  assert.equal(summary.textContent, passwordEmail);
+  assert.equal(status.has("is-provider-warning"), true);
+  assert.equal(status.has("is-provider-active"), false);
+  assert.equal(help.hidden, false);
+  assert.match(help.textContent, /new-password@example.test/);
+  assert.doesNotMatch(help.textContent, /Passwort-Mail:/);
 });
 
 test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {

@@ -485,11 +485,15 @@
     document.querySelectorAll("[data-sign-in-email]").forEach((link) => {
       link.addEventListener("click", (event) => {
         event.preventDefault();
-        const section = document.querySelector(`[data-${link.dataset.signInEmail}-provider-item]`);
+        const provider = link.dataset.emailSection;
+        const section = provider ? document.querySelector(`[data-${provider}-provider-item]`) : null;
         setActiveItem("#sicherheit", { pushHash: isMobileSettingsView() });
         if (section) {
           section.open = true;
           section.querySelector("summary")?.focus();
+        } else {
+          document.querySelectorAll(".security-field-item").forEach((item) => { item.open = false; });
+          document.querySelector("#settings-security-title")?.focus();
         }
       });
     });
@@ -704,12 +708,13 @@
     const accountName = getAccountName(user);
     const googleEmail = getGoogleEmail(user);
     const passwordEmail = hasProvider(user, "password") ? user.email || "" : "";
+    const separateEmails = Boolean(googleEmail && passwordEmail && passwordEmail.toLowerCase() !== googleEmail.toLowerCase());
     const accountEmail = googleEmail || passwordEmail
       || (hasProvider(user, "google.com") ? "" : user.email) || "Keine E-Mail geladen.";
 
     setTextForAll("[data-account-email]", accountEmail);
-    updateSignInEmailRow("google", googleEmail);
-    updateSignInEmailRow("password", passwordEmail.toLowerCase() === googleEmail.toLowerCase() ? "" : passwordEmail);
+    updateSignInEmailRow("google", googleEmail, separateEmails);
+    updateSignInEmailRow("password", googleEmail && !separateEmails ? "" : passwordEmail, separateEmails);
     setTextForAll("[data-account-name]", accountName);
     setTextForAll("[data-user-name-separator]", accountName ? "," : "");
     setTextForAll("[data-user-name]", accountName);
@@ -718,10 +723,14 @@
     updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
   }
 
-  function updateSignInEmailRow(provider, email) {
+  function updateSignInEmailRow(provider, email, separateEmails) {
     const row = document.querySelector(`[data-sign-in-email="${provider}"]`);
     if (!row) return;
     row.hidden = !email;
+    row.dataset.emailSection = separateEmails ? provider : "";
+    row.querySelector("strong").textContent = separateEmails
+      ? (provider === "google" ? "Google-Mail" : "Passwort-Mail")
+      : "E-Mail";
     row.querySelector("[data-sign-in-email-value]").textContent = email;
   }
 
@@ -2776,25 +2785,25 @@
     const passwordVerified = passwordLinked && Boolean(user.emailVerified);
     const editLabel = passwordLinked ? "Passwort ändern" : "E-Mail-Konto hinzufügen";
     const submitLabel = passwordLinked ? "Passwort speichern" : "E-Mail-Konto hinzufügen";
-    const passwordStatus = !passwordLinked ? "inactive" : (passwordVerified ? "active" : "warning");
     const formIsOpen = form?.dataset.editing === "true";
-    const pendingEmail = passwordLinked ? String(readUserDocCache(user.uid)?.pendingEmail || "") : "";
+    const pendingEmail = passwordLinked ? String(readUserDocCache(user.uid)?.pendingEmail || "").trim() : "";
     const emailChangePending = pendingEmail && pendingEmail.toLowerCase() !== user.email?.toLowerCase();
+    const passwordStatus = !passwordLinked ? "inactive" : (passwordVerified && !emailChangePending ? "active" : "warning");
 
     setProviderStatusClass(passwordProviderItem, passwordStatus);
     updateText(
       "[data-password-provider-summary]",
-      !passwordLinked
-        ? "Nicht eingerichtet"
-        : (passwordVerified ? "Bestätigt" : "E-Mail nicht bestätigt")
+      passwordLinked ? emailLabel : "Nicht eingerichtet"
     );
 
     if (help) {
+      help.hidden = passwordVerified && !emailChangePending;
       if (!passwordLinked) {
         help.textContent = "Gib eine E-Mail-Adresse und ein Passwort ein, um eine weitere Anmeldemethode hinzuzufügen.";
+      } else if (emailChangePending) {
+        help.textContent = `Neue Adresse: ${pendingEmail} · Bestätigung ausstehend.`;
       } else {
-        help.textContent = `Passwort-Mail: ${emailLabel} · ${passwordVerified ? "Bestätigt" : "Bestätigung ausstehend"}.`
-          + (emailChangePending ? ` Neue Adresse: ${pendingEmail} · Bestätigung ausstehend.` : "");
+        help.textContent = "Bitte bestätige deine Passwort-Mail über den Link in deinem Postfach.";
       }
     }
 
