@@ -6,6 +6,9 @@
   const content = byId("se-content");
   const list = byId("se-list");
   const summary = byId("se-summary");
+  const seasonSwitch = byId("se-season-switch");
+  const currentSeason = byId("se-season-current");
+  const nextSeason = byId("se-season-next");
   const importButton = byId("se-import-open");
   const importDialog = byId("se-import-dialog");
   const search = byId("se-search");
@@ -81,13 +84,14 @@
 
   function render() {
     const day = core.today();
-    byId("se-season").textContent = `Wettkampfjahr ${day.slice(0, 4)}`;
+    byId("se-year-current").textContent = core.seasonYear(day);
+    byId("se-year-next").textContent = core.seasonYear(day, true);
     if (!active(session) || !session.loaded) return;
     session.day = day;
     const groups = new Map(core.groups.map((group) => [group, []]));
     const totals = { 1: 0, 2: 0, 3: 0 };
     for (const person of session.people.values()) {
-      const state = core.evaluate(person, day);
+      const state = core.evaluate(person, day, nextSeason.checked);
       groups.get(state.group).push({ person, state });
       totals[state.stage] += 1;
     }
@@ -131,6 +135,7 @@
       if (!active(owner) || snapshot.metadata.fromCache) return;
       owner.people = new Map(snapshot.docs.map((doc) => [doc.id, readPerson(doc)]));
       owner.loaded = true;
+      seasonSwitch.disabled = false;
       importButton.disabled = false;
       render();
     }, () => {
@@ -152,6 +157,8 @@
     editing = null;
     content.hidden = true;
     summary.hidden = true;
+    seasonSwitch.disabled = true;
+    currentSeason.checked = true;
     importButton.disabled = true;
     importDialog.close();
     editor.close();
@@ -273,13 +280,12 @@
     if (!active(session)) return;
     editing = person;
     const day = core.today();
-    const age = Number(day.slice(0, 4)) - person.birthYear;
-    const ageGroup = core.evaluate(person, day).group;
+    const { age, group } = core.evaluate(person, day, nextSeason.checked);
     const exams = age >= 16 && age < 50 ? ["rescueSilver", "combinedExercise"]
       : [age >= 13 ? "rescueBronze" : age >= 10 ? "swimGold" : "swimSilver"];
     const keys = ["healthDeclaration", ...exams];
     byId("se-editor-title").textContent = nameWithYear(person);
-    byId("se-editor-meta").textContent = [ageGroup, person.organization].filter(Boolean).join(" · ");
+    byId("se-editor-meta").textContent = [group, nextSeason.checked && core.seasonYear(day, true), person.organization].filter(Boolean).join(" · ");
     primaryDates.replaceChildren(...keys.map((key) => dateField(key, person[key], day)));
     const remaining = core.dateKeys.filter((key) => !keys.includes(key) && key !== "combinedExercise");
     extraDates.replaceChildren(...remaining.map((key) => dateField(key, person[key], day)));
@@ -317,6 +323,7 @@
     }
   }
 
+  seasonSwitch.addEventListener("change", render);
   importButton.addEventListener("click", () => {
     resetSearch();
     importDialog.showModal();

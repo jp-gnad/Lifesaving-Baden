@@ -45,3 +45,22 @@ test("health lasts 24 calendar months, including a clamped leap day and its fina
   assert.equal(today(new Date("2025-12-31T23:00:00Z")), "2026-01-01");
   assert.equal(normalizeSearch("  Céline Groß  "), "celinegross");
 });
+
+test("next season uses January 1, the new competition age and evidence recorded by today", () => {
+  const child = { birthYear: 2014, swimGold: "2024-09-01", healthDeclaration };
+  assert.equal(evaluate(child, day).group, "AK 12");
+  const preview = evaluate(child, day, true);
+  assert.equal(preview.group, "AK 13/14");
+  assert.equal(preview.stage, 3);
+  assert.equal(preview.issues[0].name, "RS Bronze");
+
+  const adult = { birthYear: 2000, rescueSilver: day, healthDeclaration };
+  assert.equal(evaluate(adult, day).stage, 1);
+  assert.equal(evaluate(adult, day, true).stage, 2);
+  assert.equal(evaluate({ ...adult, healthDeclaration: "2024-12-31" }, day, true).stage, 3);
+  assert.equal(evaluate({ ...adult, rescueSilver: "2027-01-01" }, day, true).issues[0].reason, "fehlt");
+
+  const senior = { birthYear: 1977, rescueBronze: "2024-01-01", healthDeclaration: "2026-01-01" };
+  assert.equal(evaluate(senior, day).stage, 3);
+  assert.equal(evaluate(senior, day, true).stage, 1);
+});

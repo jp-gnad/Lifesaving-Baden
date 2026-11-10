@@ -17,15 +17,15 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
-    <link rel="stylesheet" href="assets/css/start-eligibility.css">
+    <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-season-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/start-eligibility-core.js"></script>
-    <script defer src="assets/js/start-eligibility.js"></script>
+    <script defer src="assets/js/start-eligibility-core.js?v=20261110-season-v1"></script>
+    <script defer src="assets/js/start-eligibility.js?v=20261110-season-v1"></script>
     <script defer src="assets/js/auth.js?v=20261110-start-eligibility-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="startberechtigungen">
@@ -54,12 +54,22 @@
         <section class="wt-heading" aria-labelledby="se-title">
           <div class="wt-app-title">
             <img src="assets/img/startberechtigungen-app.svg" alt="">
-            <div><p class="eyebrow" id="se-season">Wettkampfjahr</p><h1 id="se-title">Startberechtigungen</h1></div>
+            <div><p class="eyebrow">Wettkampfjahr</p><h1 id="se-title">Startberechtigungen</h1></div>
           </div>
           <button class="button se-primary se-import" id="se-import-open" type="button" aria-label="Person importieren" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Importieren</span>
           </button>
         </section>
+        <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
+          <label>
+            <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
+            <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
+          </label>
+          <label>
+            <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
+            <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
+          </label>
+        </fieldset>
         <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
           <div class="se-stage" data-stage="3"><span><i></i>Offen</span><strong id="se-total-3">0</strong></div>
           <div class="se-stage" data-stage="2"><span><i></i>Läuft ab</span><strong id="se-total-2">0</strong></div>

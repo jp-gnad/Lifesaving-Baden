@@ -74,16 +74,21 @@
     return latest(gold, dates.swimSilver) ? {} : { name: "Schwimmabzeichen Silber", reason: "fehlt" };
   }
 
-  function evaluate(person, day = today()) {
-    const year = Number(day.slice(0, 4));
+  function seasonYear(day, nextSeason = false) {
+    return Number(day.slice(0, 4)) + Number(nextSeason);
+  }
+
+  function evaluate(person, day = today(), nextSeason = false) {
+    const year = seasonYear(day, nextSeason);
     const age = year - person.birthYear;
+    const checkDate = nextSeason ? `${year}-01-01` : day;
     const yearEnd = `${year}-12-31`;
     const dates = Object.fromEntries(dateKeys.map((key) => [key, validDate(person[key]) && person[key] <= day ? person[key] : ""]));
-    const exam = checkExam(dates, age, day);
+    const exam = checkExam(dates, age, checkDate);
     const healthUntil = dates.healthDeclaration ? addMonths(dates.healthDeclaration, 24) : "";
     const issues = [];
 
-    if (healthUntil < day) {
+    if (healthUntil < checkDate) {
       issues.push({ kind: "health", stage: 3, name: "Selbsterklärung", reason: healthUntil ? "abgelaufen" : "fehlt" });
     } else if (healthUntil < yearEnd) {
       issues.push({ kind: "health", stage: 2, name: "Selbsterklärung", until: healthUntil });
@@ -95,14 +100,14 @@
     }
 
     issues.sort((a, b) => b.stage - a.stage);
-    return { group: ageGroup(age), stage: issues[0]?.stage || 1, issues };
+    return { age, group: ageGroup(age), stage: issues[0]?.stage || 1, issues };
   }
 
   function normalizeSearch(value) {
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, "");
   }
 
-  const api = Object.freeze({ groups: Object.freeze(groups), labels, dateKeys: Object.freeze(dateKeys), today, asDate, dateKey, validDate, evaluate, normalizeSearch });
+  const api = Object.freeze({ groups: Object.freeze(groups), labels, dateKeys: Object.freeze(dateKeys), today, asDate, dateKey, validDate, seasonYear, evaluate, normalizeSearch });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StartEligibilityCore = api;
 })(typeof window === "undefined" ? globalThis : window);
