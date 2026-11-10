@@ -46,6 +46,10 @@
     return Boolean(owner && owner === session && owner.auth.currentUser?.uid === owner.uid);
   }
 
+  function nameWithYear({ name, birthYear }) {
+    return `${name} (${String(birthYear).slice(-2)})`;
+  }
+
   function rowFor(person, state) {
     const button = node("button", "se-person");
     button.id = `se-person-${person.id}`;
@@ -58,7 +62,7 @@
     status.append(icon(statusIcon), node("span", "wt-sr-only", stageNames[state.stage]));
 
     const details = node("span", "se-person-details");
-    details.append(node("strong", "se-person-name", person.name), node("span", "se-meta", person.birthYear));
+    details.append(node("strong", "se-person-name", nameWithYear(person)));
     if (state.issues.length) {
       const issues = node("span", "se-issues");
       for (const issue of state.issues) {
@@ -199,8 +203,9 @@
         button.disabled = owner.people.has(candidate.id);
         button.dataset.imported = button.disabled;
         const details = node("span", "se-person-details");
-        const meta = [candidate.birthYear, candidate.organization, button.disabled ? "Bereits importiert" : ""].filter(Boolean).join(" · ");
-        details.append(node("strong", "se-person-name", candidate.name), node("span", "se-meta", meta));
+        const meta = [candidate.organization, button.disabled ? "Bereits importiert" : ""].filter(Boolean).join(" · ");
+        details.append(node("strong", "se-person-name", nameWithYear(candidate)));
+        if (meta) details.append(node("span", "se-meta", meta));
         button.append(details, icon(button.disabled ? "m5 12 4 4L19 6" : "M12 5v14M5 12h14"));
         button.addEventListener("click", () => importPerson(owner, candidate, button));
         return button;
@@ -270,11 +275,11 @@
     const day = core.today();
     const age = Number(day.slice(0, 4)) - person.birthYear;
     const ageGroup = core.evaluate(person, day).group;
-    const exams = age >= 16 && age < 50 ? ["rescueSilver", "rescueGold", "combinedExercise"]
+    const exams = age >= 16 && age < 50 ? ["rescueSilver", "combinedExercise"]
       : [age >= 13 ? "rescueBronze" : age >= 10 ? "swimGold" : "swimSilver"];
     const keys = ["healthDeclaration", ...exams];
-    byId("se-editor-title").textContent = person.name;
-    byId("se-editor-meta").textContent = [person.birthYear, ageGroup, person.organization].filter(Boolean).join(" · ");
+    byId("se-editor-title").textContent = nameWithYear(person);
+    byId("se-editor-meta").textContent = [ageGroup, person.organization].filter(Boolean).join(" · ");
     primaryDates.replaceChildren(...keys.map((key) => dateField(key, person[key], day)));
     const remaining = core.dateKeys.filter((key) => !keys.includes(key) && key !== "combinedExercise");
     extraDates.replaceChildren(...remaining.map((key) => dateField(key, person[key], day)));
