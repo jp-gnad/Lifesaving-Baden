@@ -1,5 +1,9 @@
 (function () {
   const page = document.body.dataset.page;
+  const trainerApp = {
+    worktime: "LifesavingWorktime",
+    startberechtigungen: "LifesavingStartEligibility",
+  }[page];
   const {
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
     normalizeNamePart, formatFullName, normalizeNameDetails, getNameDetailsFromData,
@@ -385,7 +389,7 @@
     }
   }
 
-  if (["app", "settings", "link-request", "admin-accounts", "worktime"].includes(page)) {
+  if (["app", "settings", "link-request", "admin-accounts", "worktime", "startberechtigungen"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -578,7 +582,7 @@
             redirectToApp();
             return;
           }
-          if (page === "worktime" && !role.isTrainer) {
+          if (trainerApp && !role.isTrainer) {
             redirectToApp();
             return;
           }
@@ -591,7 +595,7 @@
             await initialize(auth, userData, claims);
           }
           if (!isCurrentUser(activeUser)) return;
-          if (page === "worktime") window.LifesavingWorktime.start(auth, activeUser);
+          if (trainerApp) window[trainerApp].start(auth, activeUser);
           settingsLoadedForUser = activeUser.uid;
         }
 
@@ -617,8 +621,8 @@
     }
 
     auth.onAuthStateChanged((user) => {
-      if (page === "worktime") {
-        window.LifesavingWorktime.stop();
+      if (trainerApp) {
+        window[trainerApp]?.stop();
         settingsLoadedForUser = null;
       }
       initializeSignedInUser(user).catch((error) => {

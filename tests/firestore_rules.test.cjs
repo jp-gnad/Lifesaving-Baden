@@ -269,7 +269,7 @@ test("all roles and legacy roles enforce the same event thresholds for reads and
   }
 });
 
-test("event administration and directory import stay exclusive to organizers and admins", { skip: !enabled }, async () => {
+test("event administration and unrestricted directory reads stay exclusive to organizers and admins", { skip: !enabled }, async () => {
   await env.clearFirestore();
   await seed({ "timerParticipantDirectory/p": { name: "Testperson" } });
   for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
@@ -281,6 +281,52 @@ test("event administration and directory import stay exclusive to organizers and
     await check(sdk.deleteDoc(sdk.doc(db, `timerEvents/${role}`)));
     await check(sdk.getDocs(sdk.collection(db, "timerParticipantDirectory")));
   }
+});
+
+test("start eligibility is private to its verified owner and only imports directory identities", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const candidate = { name: "Testperson", birthYear: 2010, organization: "Baden" };
+  const entry = () => ({ ...candidate, swimSilver: null, swimGold: null, rescueBronze: null, rescueSilver: null,
+    rescueGold: null, combinedExercise: null, healthDeclaration: null, ...timestampFields() });
+  await seed({ "timerParticipantDirectory/p": { ...candidate, searchName: "testperson" } });
+  const roles = ["standard", "athlete", "trainer", "organizer", "admin"];
+  const allowed = ["trainer", "organizer", "admin"];
+  for (const role of roles) await seed({ [`users/${role}`]: { role } });
+  for (const role of roles) {
+    const db = dbFor(role);
+    const directory = sdk.collection(db, "timerParticipantDirectory");
+    const search = sdk.query(directory, sdk.orderBy("searchName"), sdk.startAt("tes"), sdk.endAt("tes\uf8ff"), sdk.limit(10));
+    const own = sdk.doc(db, `users/${role}/startEligibility/p`);
+    const check = allowed.includes(role) ? assertSucceeds : assertFails;
+    await check(sdk.getDocs(search));
+    await check(sdk.setDoc(own, entry()));
+    await check(sdk.getDocs(sdk.collection(db, `users/${role}/startEligibility`)));
+    await check(sdk.updateDoc(own, { healthDeclaration: sdk.Timestamp.fromDate(new Date("2025-01-01T00:00:00Z")), updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.setDoc(sdk.doc(db, `users/${role}/startEligibility/manual`), entry()));
+    await assertFails(sdk.updateDoc(own, { birthYear: 2011, updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.updateDoc(own, { healthDeclaration: "2025-01-01", updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.updateDoc(own, { healthDeclaration: sdk.Timestamp.fromDate(new Date("2099-01-01T00:00:00Z")), updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.setDoc(sdk.doc(db, "timerParticipantDirectory/manual"), candidate));
+  }
+  for (const role of allowed) {
+    const db = dbFor(role);
+    for (const other of allowed.filter((item) => item !== role)) {
+      const otherEntry = sdk.doc(db, `users/${other}/startEligibility/p`);
+      await assertFails(sdk.getDoc(otherEntry));
+      await assertFails(sdk.getDocs(sdk.collection(db, `users/${other}/startEligibility`)));
+      await assertFails(sdk.updateDoc(otherEntry, { healthDeclaration: null, updatedAt: sdk.serverTimestamp() }));
+      await assertFails(sdk.deleteDoc(otherEntry));
+    }
+    const own = sdk.doc(db, `users/${role}/startEligibility/p`);
+    await assertSucceeds(sdk.deleteDoc(own));
+    await assertFails(sdk.setDoc(own, { ...entry(), name: "Erfundene Person" }));
+  }
+  const trainer = dbFor("trainer");
+  await assertFails(sdk.getDoc(sdk.doc(trainer, "timerParticipantDirectory/p")));
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(trainer, "timerParticipantDirectory"), sdk.limit(11))));
+  const unverified = dbFor("trainer", { email_verified: false });
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(unverified, "timerParticipantDirectory"), sdk.limit(10))));
+  await assertFails(sdk.getDocs(sdk.collection(unverified, "users/trainer/startEligibility")));
 });
 
 test("admins can edit their own profile but nobody can demote or delete admin accounts", { skip: !enabled }, async () => {

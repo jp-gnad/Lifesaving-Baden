@@ -492,8 +492,12 @@ service cloud.firestore {
       }
     }
 
+    function verifiedTrainer() {
+      return verifiedUser() && callerRoleRank() >= 3;
+    }
+
     function ownsWorktime(uid) {
-      return isOwner(uid) && verifiedUser() && callerRoleRank() >= 3;
+      return isOwner(uid) && verifiedTrainer();
     }
 
     function validWorktimeTimes(data) {
@@ -617,8 +621,47 @@ service cloud.firestore {
           || worktimeScheduleSaved(uid, entryId, resource.data, false));
     }
 
+    function startEligibilityDate(value) {
+      // The app stores Berlin calendar dates as UTC midnight. In Berlin the
+      // next UTC date can already have started up to two hours earlier.
+      return value == null || (value is timestamp && value == value.date()
+        && value >= timestamp.date(1900, 1, 1) && value <= request.time + duration.value(2, "h"));
+    }
+
+    function startEligibilityDates() {
+      return ["swimSilver", "swimGold", "rescueBronze", "rescueSilver", "rescueGold", "combinedExercise", "healthDeclaration"];
+    }
+
+    function validStartEligibilityDates(data) {
+      return startEligibilityDate(data.swimSilver) && startEligibilityDate(data.swimGold)
+        && startEligibilityDate(data.rescueBronze) && startEligibilityDate(data.rescueSilver)
+        && startEligibilityDate(data.rescueGold) && startEligibilityDate(data.combinedExercise)
+        && startEligibilityDate(data.healthDeclaration);
+    }
+
+    function validStartEligibilityImport(id, data) {
+      let source = get(/databases/$(database)/documents/timerParticipantDirectory/$(id)).data;
+      return data.keys().hasOnly(startEligibilityDates().concat(["name", "birthYear", "organization", "createdAt", "updatedAt"]))
+        && data.name == source.name && data.birthYear == source.birthYear && data.organization == source.organization
+        && data.name is string && data.name.size() > 0
+        && data.birthYear is int && data.birthYear >= 1900 && data.birthYear <= request.time.year() + 1
+        && data.organization is string
+        && validStartEligibilityDates(data)
+        && data.createdAt == request.time && data.updatedAt == request.time;
+    }
+
+    match /users/{uid}/startEligibility/{candidateId} {
+      allow read, delete: if isOwner(uid) && verifiedTrainer();
+      allow create: if isOwner(uid) && verifiedTrainer()
+        && validStartEligibilityImport(candidateId, request.resource.data);
+      allow update: if isOwner(uid) && verifiedTrainer()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(startEligibilityDates().concat(["updatedAt"]))
+        && validStartEligibilityDates(request.resource.data) && request.resource.data.updatedAt == request.time;
+    }
+
     match /timerParticipantDirectory/{candidateId} {
       allow read: if isOrganizer();
+      allow list: if verifiedTrainer() && request.query.limit is int && request.query.limit <= 10;
       allow write: if false;
     }
   }
