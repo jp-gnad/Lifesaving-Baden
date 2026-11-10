@@ -42,7 +42,7 @@
   const hours = (minutes) => `${hourFormat.format(minutes / 60)} Std.`;
   const organizationColor = (slot) => ({ "-1": "#898994", 0: "#51bd93", 1: "#77a9dc", 2: "#d6b66b" })[slot];
   const organizationLabel = (slot, summary) => Number(slot) === -1 ? "Ohne Gliederung" : organizations[slot] || summary.entries.find((entry) => entry.organization === Number(slot))?.organizationName || `Gliederung ${Number(slot) + 1}`;
-  const categoryColors = Object.freeze({ training: "#51bd93", competition: "#77a9dc", organization: "#d6b66b", athleteCare: "#b29bd6", education: "#69bbc2", other: "#92929d" });
+  const categoryColors = Object.freeze({ training: "#51bd93", competition: "#77a9dc", organization: "#d6b66b", athleteCare: "#b29bd6", education: "#69bbc2", publicRelations: "#d799a9", other: "#92929d" });
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -143,6 +143,7 @@
       organization: "M8 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3M8 3h8v4H8V3ZM7 12h10M7 16h6",
       athleteCare: "M12 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2",
       education: "m2 9 10-5 10 5-10 5L2 9ZM6 11v6c4 3 8 3 12 0v-6M22 9v7",
+      publicRelations: "M4 9h4l10-5v16l-10-5H4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2ZM6 15l2 6h3l-2-5M22 10v4",
       other: "M5 12h.01M12 12h.01M19 12h.01",
     };
     const icon = svgNode("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" });

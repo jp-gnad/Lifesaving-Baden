@@ -1,6 +1,14 @@
 (function (root) {
   "use strict";
-  const categories = Object.freeze({ training: "Training", competition: "Wettkampf", organization: "Organisation", athleteCare: "Athletenbetreuung", education: "Fortbildungen", other: "Sonstiges" });
+  const categories = Object.freeze({
+    training: "Trainer",
+    competition: "Wettkampf",
+    organization: "Organisation",
+    athleteCare: "Athletenbetreuung",
+    education: "Fortbildungen",
+    publicRelations: "Social Media / Öffentlichkeitsarbeit",
+    other: "Sonstiges",
+  });
   const berlin = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });

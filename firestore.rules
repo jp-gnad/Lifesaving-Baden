@@ -523,7 +523,7 @@ service cloud.firestore {
         && data.createdAt is timestamp && data.updatedAt is timestamp
         && data.title is string && data.title.trim().size() > 0 && data.title.size() <= 120
         && data.description is string && data.description.size() <= 2000
-        && data.category in ["training", "competition", "organization", "athleteCare", "education", "other"]
+        && data.category in ["training", "competition", "organization", "athleteCare", "education", "publicRelations", "other"]
         && data.organization in [-1, 0, 1, 2]
         && data.organizationName is string && data.organizationName.size() <= 80
         && (data.organization == -1 ? data.organizationName == "" : data.organizationName.trim().size() > 0)

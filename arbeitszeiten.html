@@ -24,9 +24,9 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/worktime-core.js?v=20261106-calendar-stats-v1"></script>
+    <script defer src="assets/js/worktime-core.js?v=20261110-categories-v1"></script>
     <script defer src="assets/js/worktime-store.js?v=20261105-worktime-v3"></script>
-    <script defer src="assets/js/worktime.js?v=20261106-mobile-zoom-v1"></script>
+    <script defer src="assets/js/worktime.js?v=20261110-categories-v1"></script>
     <script defer src="assets/js/auth.js?v=20261105-worktime-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="worktime">
@@ -82,7 +82,21 @@
               <button type="button" data-period="week" aria-pressed="false">Woche</button>
               <button type="button" data-period="month" aria-pressed="true">Monat</button>
             </div>
-            <div class="wt-filters"><label><span class="wt-sr-only">Kategorie filtern</span><select id="wt-filter"><option value="">Alle Kategorien</option><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option><option value="education">Fortbildungen</option><option value="other">Sonstiges</option></select></label><label><span class="wt-sr-only">Gliederung filtern</span><select id="wt-organization-filter"><option value="">Alle Gliederungen</option></select></label></div>
+            <div class="wt-filters">
+              <label><span class="wt-sr-only">Kategorie filtern</span>
+                <select id="wt-filter">
+                  <option value="">Alle Kategorien</option>
+                  <option value="training">Trainer</option>
+                  <option value="competition">Wettkampf</option>
+                  <option value="organization">Organisation</option>
+                  <option value="athleteCare">Athletenbetreuung</option>
+                  <option value="education">Fortbildungen</option>
+                  <option value="publicRelations">Social Media / Öffentlichkeitsarbeit</option>
+                  <option value="other">Sonstiges</option>
+                </select>
+              </label>
+              <label><span class="wt-sr-only">Gliederung filtern</span><select id="wt-organization-filter"><option value="">Alle Gliederungen</option></select></label>
+            </div>
           </div>
           <div class="wt-metrics" aria-live="polite" aria-busy="true" id="wt-metrics">
             <div class="wt-metric wt-metric-primary"><span>Gesamtzeit</span><strong id="wt-total">—</strong></div>
@@ -118,7 +132,17 @@
           <label class="wt-field"><span class="wt-sr-only">Bis Uhrzeit</span><input type="time" name="end" step="60" required></label>
         </div></fieldset>
         <p class="wt-time-hint" id="wt-time-hint" aria-live="polite">Zeiten in Europe/Berlin.</p>
-        <label class="wt-field">Kategorie<select name="category" required><option value="training">Training</option><option value="competition">Wettkampf</option><option value="organization">Organisation</option><option value="athleteCare">Athletenbetreuung</option><option value="education">Fortbildungen</option><option value="other">Sonstiges</option></select></label>
+        <label class="wt-field">Kategorie
+          <select name="category" required>
+            <option value="training">Trainer</option>
+            <option value="competition">Wettkampf</option>
+            <option value="organization">Organisation</option>
+            <option value="athleteCare">Athletenbetreuung</option>
+            <option value="education">Fortbildungen</option>
+            <option value="publicRelations">Social Media / Öffentlichkeitsarbeit</option>
+            <option value="other">Sonstiges</option>
+          </select>
+        </label>
         <label class="wt-field">Gliederung<select name="organization"><option value="-1">Keine Gliederung</option></select></label>
         <label class="wt-field">Beschreibung <span class="wt-optional">optional</span><textarea name="description" rows="3" maxlength="2000" placeholder="Weitere Details"></textarea></label>
         <p class="wt-form-error" id="wt-form-error" role="alert" hidden></p>

@@ -440,9 +440,9 @@ seine eigenen Einträge. Auch Admins und Organisatoren erhalten keinen Zugriff a
 fremde Detaildaten. Eine übergreifende Personenübersicht ist noch nicht enthalten.
 
 Ein Eintrag enthält Von-Datum/-Uhrzeit und Bis-Datum/-Uhrzeit, Titel, eine optionale Beschreibung
-und eine Kategorie: Training, Wettkampf, Organisation, Athletenbetreuung,
-Fortbildungen oder Sonstiges. Auch zukünftige Aufgaben sind erlaubt. Es gibt
-keine Pausen und keinen Freigabeprozess. Jeder kann bis zu drei eigene Gliederungen
+und eine Kategorie: Trainer, Wettkampf, Organisation, Athletenbetreuung,
+Fortbildungen, Social Media / Öffentlichkeitsarbeit oder Sonstiges. Auch zukünftige
+Aufgaben sind erlaubt. Es gibt keine Pausen und keinen Freigabeprozess. Jeder kann bis zu drei eigene Gliederungen
 hinterlegen und pro Aufgabe eine davon auswählen. Die Aufgabenliste kombiniert
 deutliche Tagesüberschriften mit einer gemeinsamen Box pro Tag. Jede Aufgabe ist
 eine vollständig anklickbare Zeile: links das Kategorie-Icon in Gliederungsfarbe,

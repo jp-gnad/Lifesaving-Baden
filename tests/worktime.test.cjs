@@ -60,11 +60,12 @@ test("new categories, organization selection and compact monthly totals are supp
   }
   assert.throws(() => core.prepare(input({ organization: "3", organizationName: "OG" })), /Gliederungen/);
   assert.throws(() => core.prepare(input({ organization: "0", organizationName: " " })), /Gliederungen/);
-  const summary = core.summarize([entry({}), entry({ date: "2026-10-02" })], "month", "2026-10-01");
+  const summary = core.summarize([entry({}), entry({ date: "2026-10-02", category: "publicRelations" })], "month", "2026-10-01");
   const compact = core.compactBuckets(summary);
   assert.equal(compact.length, 5);
   assert.equal(compact[0].label, "1–7");
   assert.equal(compact[4].label, "29–31");
+  assert.equal(compact[0].byCategory.publicRelations, 150);
   assert.equal(compact.reduce((sum, bucket) => sum + bucket.minutes, 0), summary.total);
 });
 

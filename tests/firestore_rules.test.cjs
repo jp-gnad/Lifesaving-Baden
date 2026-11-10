@@ -114,6 +114,8 @@ test("worktime validates future intervals, organization settings and immutable c
   await assertSucceeds(commitWorktime(db, "clock-trainer", "task", worktime()));
   const original = (await sdk.getDoc(ref)).data();
   await assertSucceeds(commitWorktime(db, "clock-trainer", "task", worktime({ category: "education", organization: 1, organizationName: "Ettlingen" })));
+  await assertSucceeds(commitWorktime(db, "clock-trainer", "task", worktime({ category: "publicRelations" })));
+  assert.equal((await sdk.getDoc(ref)).data().category, "publicRelations");
   assert.equal((await sdk.getDoc(ref)).data().createdAt.toMillis(), original.createdAt.toMillis());
   for (const overrides of [
     { title: " " }, { title: "x".repeat(121) }, { description: "x".repeat(2001) }, { category: "invalid" },
