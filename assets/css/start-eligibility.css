@@ -19,8 +19,8 @@ body[data-page="startberechtigungen"] { display: flex; flex-direction: column; m
 [data-stage="2"] { --se-tone: #f5bf65; --se-wash: #f5bf651a; }
 [data-stage="3"] { --se-tone: #ff9297; --se-wash: #ff92971a; }
 .se-stage { display: grid; gap: 6px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.se-stage span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .8rem; }
-.se-stage i { display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--se-tone); flex-shrink: 0; }
+.se-stage-caption { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .8rem; }
+.se-stage-caption svg { width: 14px; height: 14px; color: var(--se-tone); }
 .se-stage strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 .se-person, .se-candidate { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 12px 16px; border: 0; color: var(--text); background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .se-person { border-inline-start: 3px solid var(--se-tone); }
@@ -57,17 +57,21 @@ body[data-page="startberechtigungen"] { display: flex; flex-direction: column; m
 
 @media (max-width: 600px) {
   .se-main { padding: 27px 16px 44px; }
-  .se-main .wt-heading { gap: 8px; margin-bottom: 19px; }
+  .se-main .wt-heading { gap: 8px; margin-bottom: 12px; }
   .se-main .wt-app-title { gap: 9px; }
   .se-main .wt-app-title img { width: 38px; height: 38px; border-radius: 10px; }
   .se-main .wt-heading h1 { font-size: clamp(1.15rem, 5.1vw, 1.65rem); }
   .se-main .wt-heading .eyebrow { font-size: .62rem; margin-bottom: 4px; }
   .se-import { width: 44px; padding: 0; justify-content: center; border-radius: 11px; }
   .se-import span { display: none; }
-  .se-season-switch label > span { min-height: 44px; }
-  .se-summary { gap: 6px; margin-bottom: 23px; }
-  .se-stage { padding: 9px; }
-  .se-stage span { gap: 5px; font-size: .72rem; }
+  .se-overview { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 14px; }
+  .se-season-switch { gap: 2px; margin: 0; padding: 0; border: 0; background: transparent; }
+  .se-season-switch label { display: grid; align-items: center; min-height: 44px; cursor: pointer; }
+  .se-season-switch label > span { min-width: 44px; min-height: 30px; padding-inline: 5px; font-size: .78rem; }
+  .se-summary { display: flex; gap: 4px; margin: 0; }
+  .se-stage { display: flex; align-items: center; gap: 3px; min-height: 30px; padding: 3px 7px; border: 0; border-radius: 6px; background: var(--se-wash); }
+  .se-stage-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .se-stage strong { font-size: .85rem; }
   .se-person, .se-candidate { gap: 9px; padding: 10px; }
   .se-person-status { width: 28px; height: 28px; }
   .se-dialog { width: calc(100% - 20px); max-width: 500px; padding: 18px; }

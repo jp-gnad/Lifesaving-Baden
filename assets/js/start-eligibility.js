@@ -18,6 +18,7 @@
   const form = byId("se-form");
   const editorError = byId("se-editor-error");
   const primaryDates = byId("se-primary-dates");
+  const extraDetails = byId("se-other-dates");
   const extraDates = byId("se-extra-dates");
   const stageNames = { 1: "Bis Jahresende", 2: "Läuft ab", 3: "Offen" };
   const dateFormat = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
@@ -154,7 +155,6 @@
     session?.unsubscribe?.();
     window.clearInterval(session?.clock);
     session = null;
-    editing = null;
     content.hidden = true;
     summary.hidden = true;
     seasonSwitch.disabled = true;
@@ -164,10 +164,7 @@
     editor.close();
     resetSearch();
     setEditorBusy(false);
-    byId("se-editor-title").textContent = "";
-    byId("se-editor-meta").textContent = "";
-    primaryDates.replaceChildren();
-    extraDates.replaceChildren();
+    resetEditor();
     list.setAttribute("aria-busy", "true");
     const loading = node("p", "wt-empty", "Personen werden geladen …");
     loading.setAttribute("role", "status");
@@ -289,10 +286,19 @@
     primaryDates.replaceChildren(...keys.map((key) => dateField(key, person[key], day)));
     const remaining = core.dateKeys.filter((key) => !keys.includes(key) && key !== "combinedExercise");
     extraDates.replaceChildren(...remaining.map((key) => dateField(key, person[key], day)));
-    byId("se-other-dates").open = remaining.some((key) => person[key]);
+    extraDetails.open = remaining.some((key) => core.validDate(person[key]));
     setDeleteMode(false);
     setEditorBusy(false);
     editor.showModal();
+  }
+
+  function resetEditor() {
+    editing = null;
+    extraDetails.open = false;
+    byId("se-editor-title").textContent = "";
+    byId("se-editor-meta").textContent = "";
+    primaryDates.replaceChildren();
+    extraDates.replaceChildren();
   }
 
   function setDeleteMode(removing) {
@@ -348,11 +354,7 @@
   editor.addEventListener("close", () => {
     if (editor.open || !editing) return;
     if (active(session)) (byId(`se-person-${editing.id}`) || importButton).focus({ preventScroll: true });
-    editing = null;
-    byId("se-editor-title").textContent = "";
-    byId("se-editor-meta").textContent = "";
-    primaryDates.replaceChildren();
-    extraDates.replaceChildren();
+    resetEditor();
   });
   byId("se-remove").addEventListener("click", () => { setDeleteMode(true); byId("se-delete-cancel").focus(); });
   byId("se-delete-cancel").addEventListener("click", () => { setDeleteMode(false); byId("se-remove").focus(); });

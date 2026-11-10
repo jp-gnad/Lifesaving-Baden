@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
-    <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-season-v1">
+    <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -25,7 +25,7 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261110-season-v1"></script>
-    <script defer src="assets/js/start-eligibility.js?v=20261110-season-v1"></script>
+    <script defer src="assets/js/start-eligibility.js?v=20261110-editor-details-v1"></script>
     <script defer src="assets/js/auth.js?v=20261110-start-eligibility-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="startberechtigungen">
@@ -60,20 +60,31 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Importieren</span>
           </button>
         </section>
-        <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
-          <label>
-            <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
-            <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
-          </label>
-          <label>
-            <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
-            <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
-          </label>
-        </fieldset>
-        <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
-          <div class="se-stage" data-stage="3"><span><i></i>Offen</span><strong id="se-total-3">0</strong></div>
-          <div class="se-stage" data-stage="2"><span><i></i>Läuft ab</span><strong id="se-total-2">0</strong></div>
-          <div class="se-stage" data-stage="1"><span><i></i>Bis Jahresende</span><strong id="se-total-1">0</strong></div>
+        <div class="se-overview">
+          <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
+            <label>
+              <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
+              <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
+            </label>
+            <label>
+              <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
+              <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
+            </label>
+          </fieldset>
+          <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
+            <div class="se-stage" data-stage="3">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
+              <strong id="se-total-3">0</strong>
+            </div>
+            <div class="se-stage" data-stage="2">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/></svg><span class="se-stage-label">Läuft ab</span></span>
+              <strong id="se-total-2">0</strong>
+            </div>
+            <div class="se-stage" data-stage="1">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><span class="se-stage-label">Bis Jahresende</span></span>
+              <strong id="se-total-1">0</strong>
+            </div>
+          </div>
         </div>
         <div id="se-list" aria-busy="true"><p class="wt-empty" role="status">Personen werden geladen …</p></div>
       </div>
