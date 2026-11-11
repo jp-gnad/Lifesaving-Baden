@@ -17,7 +17,8 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-compact-accounts-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-compact-accounts-v2">
+    <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -27,7 +28,7 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/person-link-store.js?v=20261111-person-link-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261111-compact-accounts-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261111-compact-accounts-v2"></script>
   </head>
   <body class="auth-context-loading" data-page="admin-accounts">
     <header class="site-header">
@@ -51,12 +52,13 @@
       </nav>
     </header>
 
-    <main class="dashboard">
+    <main class="wt-main admin-accounts-main">
       <p class="form-message" data-auth-error role="alert" hidden></p>
-      <section class="dashboard-header">
-        <p class="eyebrow">Admin</p>
-        <h1>Kontenübersicht</h1>
-        <a class="button button-ghost" href="app.html">← Mitgliederbereich</a>
+      <section class="wt-heading" aria-labelledby="admin-accounts-title">
+        <div class="wt-app-title">
+          <img src="assets/img/accounts-app.svg" alt="">
+          <div><p class="eyebrow">Admin</p><h1 id="admin-accounts-title">Kontenübersicht</h1></div>
+        </div>
       </section>
       <section class="admin-account-panel is-hidden" data-admin-only data-admin-accounts aria-label="Konten verwalten">
         <div class="admin-panel-heading">
@@ -69,6 +71,7 @@
         </label>
         <p class="admin-search-summary" data-admin-account-search-summary role="status"></p>
         <p class="form-message" data-admin-account-message role="status"></p>
+        <div class="admin-account-columns" aria-hidden="true"><span>Konto</span><span>Ergebnisdatenbank</span></div>
         <div class="admin-account-list" data-admin-account-list></div>
       </section>
     </main>

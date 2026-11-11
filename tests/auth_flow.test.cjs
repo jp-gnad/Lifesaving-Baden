@@ -1677,7 +1677,7 @@ test("compact account cards separate profile and database identity and expose co
     tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
     append(...children) { this.children.push(...children); },
     setAttribute(key, value) { this.attributes[key] = value; },
-    getAttribute(key) { return this.attributes[key]; }, focus() {},
+    getAttribute(key) { return this.attributes[key]; }, focus() { this.focused = true; },
     querySelector(selector) {
       const key = selector.match(/^\[data-(.+)\]$/)[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
       return all(this).find((node) => key in node.dataset);
@@ -1685,17 +1685,22 @@ test("compact account cards separate profile and database identity and expose co
   });
   for (const role of ["admin", "standard"]) {
     const card = functions.createAdminAccountCard({ uid: role, data: {
-      role, firstName: "Anna", lastName: "Kontoname", birthDate: "1991-05-20", email: "anna@example.test", dlrgBranch: "Baden",
+      role, firstName: "Anna", lastName: "Kontoname", birthDate: "1991-05-20", email: "password@example.test", googleEmail: "anna@example.test", dlrgBranch: "Baden",
       personLink: { id: "1234567890abcdef", name: "Anna Datenbankname", birthYear: 2001, gender: "w", organization: "Heidelberg" },
     } });
     const summary = card.querySelector("[data-admin-account-edit]");
     const editor = card.querySelector("[data-admin-account-editor]");
     const values = all(summary).map((node) => node.textContent);
     assert.equal(summary.tagName, "button");
+    assert.equal(values.includes("password@example.test"), false);
+    assert.match(summary.attributes["aria-label"], /anna@example.test/);
+    assert.doesNotMatch(summary.attributes["aria-label"], /password@example.test/);
     for (const value of ["Anna Kontoname (91)", "Baden", "anna@example.test", "Anna Datenbankname (01)", "Heidelberg"]) {
       assert.equal(values.includes(value), true, value);
     }
     assert.equal(values.includes("Rolle"), false);
+    assert.equal(values.includes("Konto"), false);
+    assert.equal(values.includes("Ergebnisdatenbank"), false);
     assert.equal(all(summary).filter((node) => node.tagName === "button").length, 1);
     assert.equal(editor.hidden, true);
     assert.equal(all(editor).some((node) => "adminAccountLink" in node.dataset), true);
@@ -1703,6 +1708,14 @@ test("compact account cards separate profile and database identity and expose co
     functions.setAdminAccountEditMode(card, true);
     assert.equal(editor.hidden, false);
     assert.equal(summary.getAttribute("aria-expanded"), "true");
+    assert.notEqual(card.querySelector("[data-admin-account-role]")?.focused, true);
+    assert.equal(card.querySelector("[data-admin-account-cancel]"), undefined);
+    for (const key of ["adminAccountLink", "adminAccountUnlink", ...(role === "admin" ? [] : ["adminAccountSave"])]) {
+      const button = all(editor).find((node) => key in node.dataset);
+      assert.equal(button.textContent, "");
+      assert.ok(button.attributes["aria-label"]);
+      assert.match(button.innerHTML, /<svg/);
+    }
     functions.setAdminAccountEditMode(card, false);
     assert.equal(editor.hidden, true);
     assert.equal(summary.getAttribute("aria-expanded"), "false");
@@ -1798,6 +1811,20 @@ test("saving other settings keeps a new profile unnamed until the name is entere
   form.elements.lastName.value = "Baden";
   assert.equal(await functions.persistProfileDetails(h.auth, form, null), true);
   assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
+});
+
+test("Google email metadata follows Firebase providers and clears when Google is unlinked", async () => {
+  for (const [providerData, saved, expected] of [
+    [[{ providerId: "password" }, { providerId: "google.com", email: "google@example.test" }], "", "google@example.test"],
+    [[{ providerId: "password" }], "old-google@example.test", ""],
+  ]) {
+    const user = { uid: "u", email: "password@example.test", emailVerified: true, providerData };
+    const h = harness({ user, stored: { role: "standard", googleEmail: saved } });
+    const functions = memberFunctions(h);
+    await functions.loadFreshUserContext(user);
+    assert.equal(h.counts.writes.at(-1).googleEmail, expected);
+    assert.equal(h.counts.writes.at(-1).email, "password@example.test");
+  }
 });
 
 test("password linking uses the entered address and keeps the Google email in the profile", async () => {

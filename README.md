@@ -354,12 +354,25 @@ dezente Erinnerung `Kontokonfiguration offen` und ein Ausrufezeichen am
 Profilkreis. Nach einem Antrag wechselt der Hinweis zu `Antrag in Prüfung`.
 Admins verknüpfen Konten in der Kontenübersicht über eine Personensuche in
 derselben Importliste wie Timer und Startberechtigungen. Die Übersicht zeigt
-kompakte Karten mit zwei getrennten Bereichen: Kontoname, Jahrgang, Gliederung
+kompakte Karten mit zwei getrennten Spalten: Kontoname, Jahrgang, Gliederung
 und E-Mail links sowie Name, Jahrgang und Gliederung der Datenbankperson rechts.
-Ein Klick auf die Karte öffnet die Bearbeitung mit Rollenwahl, Verknüpfungsaktionen
-und gegebenenfalls dem Antrag. Außerhalb der Bearbeitung kennzeichnet die Farbe
-die Rolle. Jahrgänge hinter Namen werden zweistellig als `(JJ)` angezeigt.
-Das funktioniert für jede Kontorolle und auch ohne Antrag.
+Die Spaltenüberschriften stehen einmal über der Liste. Ein Klick auf eine Karte
+öffnet oder schließt die Bearbeitung. Rollenwahl und die Icons zum Speichern,
+Ändern und Aufheben der Zuordnung stehen gemeinsam in einer Zeile. Außerhalb
+der Bearbeitung kennzeichnet die Farbe die Rolle. Jahrgänge werden zweistellig
+als `(JJ)` angezeigt. Das funktioniert für jede Kontorolle und auch ohne Antrag.
+
+Bei mehreren Anmeldeadressen zeigt die Kontenübersicht bevorzugt die Google-Mail.
+Dafür wird `users/{uid}.googleEmail` beim Laden des eigenen Kontos aus dem Google-
+Anbieter von Firebase Auth aktualisiert. Die primäre `email` bleibt erhalten.
+Für bestehende Konten lässt sich dieser Wert einmalig abgleichen, ohne auf deren
+nächste Anmeldung zu warten. Mit `firebase-admin` und dem Servicekonto in
+`FIREBASE_SERVICE_ACCOUNT_JSON` zuerst die Vorschau prüfen und dann anwenden:
+
+```sh
+node tools/sync_account_google_emails.mjs
+node tools/sync_account_google_emails.mjs --apply
+```
 
 Die Zuordnung liegt separat unter `users/{uid}.personLink` mit `id`, `name`,
 `birthYear`, `gender` und `organization`. Änderungen am Kontonamen oder anderen

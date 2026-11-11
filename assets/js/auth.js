@@ -339,6 +339,7 @@
     return {
       uid: user.uid,
       email: user.email || "",
+      googleEmail: getGoogleEmail(user),
       ...nameDetails,
       emailVerified: Boolean(user.emailVerified),
       providerIds: getProviderIds(user)
@@ -349,6 +350,7 @@
     const changes = {};
 
     Object.entries(identity).forEach(([key, value]) => {
+      if (key === "googleEmail" && !value && !data?.googleEmail) return;
       if (Array.isArray(value)) {
         if (!arraysContainSameValues(value, Array.isArray(data?.[key]) ? data[key] : [])) {
           changes[key] = value;
@@ -1508,18 +1510,14 @@
     }
   }
 
-  function setAdminAccountEditMode(card, shouldOpen) {
+  function setAdminAccountEditMode(card, shouldOpen, { restoreFocus = true } = {}) {
     if (!card) return;
     card.classList.toggle("is-editing", shouldOpen);
     const summary = card.querySelector("[data-admin-account-edit]");
     const editor = card.querySelector("[data-admin-account-editor]");
     summary?.setAttribute("aria-expanded", String(shouldOpen));
     if (editor) editor.hidden = !shouldOpen;
-    if (shouldOpen) {
-      (card.querySelector("[data-admin-account-role]") || card.querySelector("[data-admin-account-link]"))?.focus();
-    } else {
-      summary?.focus();
-    }
+    if (!shouldOpen && restoreFocus) summary?.focus();
   }
 
   function resetAdminAccountEditValues(card) {
@@ -1666,7 +1664,7 @@
     const hasAttention = hasOpenRequest || hasOpenIssue;
     const profile = getNameDetailsFromData(data);
     const profileName = profile.displayName || formatFullName(profile.firstName, profile.lastName) || "Kein Name hinterlegt";
-    const accountEmail = data.email || "Keine E-Mail gespeichert";
+    const accountEmail = data.googleEmail || data.email || "Keine E-Mail gespeichert";
     const accountBranch = getAdminAccountBranch(data) || "Keine Gliederung hinterlegt";
     const editorId = `admin-account-editor-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
     const element = (tag, className, text) => {
@@ -1679,6 +1677,15 @@
       const button = element("button", "admin-account-small-button", label);
       button.type = "button";
       button.dataset[name] = "";
+      return button;
+    };
+    const iconAction = (label, name, path) => {
+      const button = action(label, name);
+      button.className = "admin-account-icon-button";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.textContent = "";
+      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
       return button;
     };
     const card = element("article", "admin-account-card");
@@ -1704,23 +1711,24 @@
     summary.setAttribute("aria-expanded", "false");
     summary.setAttribute("aria-controls", editorId);
     const account = element("span", "admin-account-source admin-account-profile");
-    const heading = element("span", "admin-account-source-label", "Konto");
+    const profileTitle = element("strong", "admin-account-person-name", `${profileName} (${getAdminAccountBirthYear(data)})`);
     if (hasAttention) {
-      const attention = element("span", "admin-account-alert", hasOpenIssue ? "Fehler gemeldet" : "Antrag offen");
-      heading.append(attention);
+      const attention = element("span", "admin-account-alert", "!");
+      attention.title = hasOpenIssue ? "Fehler gemeldet" : "Antrag offen";
+      attention.setAttribute("aria-label", attention.title);
+      profileTitle.append(attention);
     }
-    account.append(heading,
-      element("strong", "admin-account-person-name", `${profileName} (${getAdminAccountBirthYear(data)})`),
+    account.append(profileTitle,
       element("span", "admin-account-club", accountBranch),
       element("span", "admin-account-email", accountEmail));
     const database = element("span", "admin-account-source admin-account-database");
-    database.append(element("span", "admin-account-source-label", "Ergebnisdatenbank"));
     if (linkedPerson) {
       database.append(element("strong", "admin-account-person-name", `${linkedPerson.name} (${String(linkedPerson.birthYear).slice(-2)})`),
         element("span", "admin-account-club", linkedPerson.organization || "Keine Gliederung hinterlegt"));
     } else {
       database.append(element("span", "admin-account-unlinked", "Nicht verknüpft"));
     }
+    summary.setAttribute("aria-label", `Konto: ${profileName} (${getAdminAccountBirthYear(data)}), ${accountBranch}, ${accountEmail}. Ergebnisdatenbank: ${formatLinkedPerson(linkedPerson)}. Bearbeiten`);
     summary.append(account, database);
 
     const editor = element("div", "admin-account-editor");
@@ -1733,21 +1741,20 @@
     const roleSelect = createAdminAccountRoleSelect(item);
     if (roleSelect) {
       roleLabel.append(roleSelect);
-      toolbar.append(roleLabel, action("Speichern", "adminAccountSave"));
+      toolbar.append(roleLabel, iconAction("Speichern", "adminAccountSave", "m5 12 4 4L19 6"));
     } else {
       roleLabel.append(createAdminAccountRoleDisplay(roleValue));
       toolbar.append(roleLabel);
     }
-    toolbar.append(action("Schließen", "adminAccountCancel"));
-    editor.append(toolbar);
-    const linkActions = element("div", "admin-account-link-actions");
-    linkActions.append(action(linkedPerson ? "Person ändern" : "Person verknüpfen", "adminAccountLink"));
+    toolbar.append(iconAction(linkedPerson ? "Person ändern" : "Person verknüpfen", "adminAccountLink",
+      "M8 5H5v14h14v-3M14 4l6 6M10 14l2-6 5-5 4 4-5 5-6 2Z"));
     if (linkedPerson) {
-      const unlink = action("Verknüpfung aufheben", "adminAccountUnlink");
+      const unlink = iconAction("Verknüpfung aufheben", "adminAccountUnlink",
+        "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71M3 3l18 18");
       unlink.className += " is-danger";
-      linkActions.append(unlink);
+      toolbar.append(unlink);
     }
-    editor.append(linkActions);
+    editor.append(toolbar);
     if (hasAttention) {
       const details = element("dl", "admin-request-details");
       if (hasOpenIssue) {
@@ -1864,7 +1871,7 @@
         });
 
       requireCurrentUser(user);
-      adminAccountLinkOwners = new Map(accounts.filter((item) => isPersonLinked(item.data)).map((item) => [getAdminAccountLinkedId(item.data), { uid: item.uid, email: item.data.email || "Anderes Konto" }]));
+      adminAccountLinkOwners = new Map(accounts.filter((item) => isPersonLinked(item.data)).map((item) => [getAdminAccountLinkedId(item.data), { uid: item.uid, email: item.data.googleEmail || item.data.email || "Anderes Konto" }]));
       renderAdminAccounts(accounts);
     } catch (error) {
       setAdminAccountSummary("Konten konnten nicht geladen werden.");
@@ -2004,7 +2011,6 @@
         const issueActionButton = event.target.closest("[data-admin-account-issue-action]");
         const editAccountButton = event.target.closest("[data-admin-account-edit]");
         const saveAccountButton = event.target.closest("[data-admin-account-save]");
-        const cancelAccountButton = event.target.closest("[data-admin-account-cancel]");
 
         if (editAccountButton) {
           const card = editAccountButton.closest("[data-admin-account-card]");
@@ -2012,7 +2018,7 @@
           list.querySelectorAll("[data-admin-account-card].is-editing").forEach((openCard) => {
             if (openCard !== card) {
               resetAdminAccountEditValues(openCard);
-              setAdminAccountEditMode(openCard, false);
+              setAdminAccountEditMode(openCard, false, { restoreFocus: false });
             }
           });
           const shouldOpen = editAccountButton.getAttribute("aria-expanded") !== "true";
@@ -2023,14 +2029,6 @@
 
         if (saveAccountButton) {
           saveAdminAccountChanges(auth, saveAccountButton);
-          return;
-        }
-
-        if (cancelAccountButton) {
-          const card = cancelAccountButton.closest("[data-admin-account-card]");
-
-          resetAdminAccountEditValues(card);
-          setAdminAccountEditMode(card, false);
           return;
         }
 

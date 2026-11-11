@@ -1585,23 +1585,31 @@ body.auth-context-loading .member-apps::after {
 .admin-account-summary:focus-visible { outline: 2px solid var(--account-color); outline-offset: -3px; border-radius: 5px; }
 .admin-account-source { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .admin-account-database { padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
-.admin-account-source-label { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--muted); font-size: 0.65rem; line-height: 1.3; letter-spacing: 0.025em; }
+.admin-account-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding: 0 12px 0 15px; color: var(--muted); font-size: 0.7rem; }
+.admin-account-columns > span:last-child { padding-left: 14px; }
 .admin-account-person-name { color: var(--text); font-size: 0.9rem; line-height: 1.25; overflow-wrap: anywhere; }
 .admin-account-profile .admin-account-person-name { color: var(--account-color); }
 .admin-account-club, .admin-account-email, .admin-account-unlinked { color: var(--muted); font-size: 0.76rem; line-height: 1.3; overflow-wrap: anywhere; }
 .admin-account-email { color: #b9b9c7; font-size: 0.72rem; }
-.admin-account-alert { padding: 1px 4px; border-radius: 3px; background: rgba(255, 237, 0, 0.11); color: var(--primary); font-size: 0.6rem; line-height: 1.3; letter-spacing: 0; }
+.admin-account-alert { display: inline-block; margin-left: 4px; padding: 1px 4px; border-radius: 3px; background: rgba(255, 237, 0, 0.11); color: var(--primary); font-size: 0.6rem; line-height: 1.3; letter-spacing: 0; }
 
 .admin-account-editor { margin: 0 10px; padding: 9px 0 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
-.admin-account-editor-toolbar, .admin-account-link-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.admin-account-editor .admin-account-role-field { display: flex; align-items: center; gap: 6px; }
-.admin-account-role-field .admin-role-control { width: auto; min-height: 32px; padding: 4px 6px; font-size: 0.78rem; }
+.admin-account-editor-toolbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 5px; }
+.admin-account-link-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.admin-account-editor .admin-account-role-field { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 400; font-size: 0.76rem; }
+.admin-account-role-field .admin-role-control { width: auto; min-width: 0; min-height: 32px; padding: 4px 5px; font-size: 0.76rem; font-weight: 400; }
+.admin-account-role-field .admin-role-control:focus { border-color: rgba(255, 237, 0, 0.25); outline: 1px solid rgba(255, 237, 0, 0.07); box-shadow: none; }
+.admin-account-icon-button { display: inline-grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.admin-account-icon-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.admin-account-icon-button:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.admin-account-icon-button:focus-visible { outline: 1px solid rgba(255, 237, 0, 0.25); outline-offset: 1px; }
+.admin-account-icon-button:disabled { opacity: 0.5; cursor: default; }
+.admin-account-icon-button.is-danger { color: #dc8e95; }
 .admin-account-small-button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-height: 32px; padding: 5px 8px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 5px; background: rgba(255, 255, 255, 0.035); color: var(--text); font: inherit; font-size: 0.76rem; line-height: 1.2; cursor: pointer; }
 .admin-account-small-button:hover { background: rgba(255, 255, 255, 0.09); }
 .admin-account-small-button:focus-visible { outline: 2px solid var(--account-color); outline-offset: 2px; }
 .admin-account-small-button:disabled { opacity: 0.5; cursor: default; }
 .admin-account-small-button.is-danger { color: #f0969d; }
-.admin-account-editor-toolbar [data-admin-account-cancel] { margin-left: auto; }
 .admin-account-link-actions { margin-top: 8px; }
 .admin-account-editor .admin-request-details { margin: 10px 0 0; font-size: 0.78rem; }
 
@@ -1611,7 +1619,8 @@ body.auth-context-loading .member-apps::after {
   .admin-account-person-name { font-size: 0.78rem; }
   .admin-account-club { font-size: 0.7rem; }
   .admin-account-email { font-size: 0.67rem; }
-  .admin-account-source-label { font-size: 0.58rem; }
+  .admin-account-columns { gap: 9px; padding: 0 9px 0 12px; font-size: 0.65rem; }
+  .admin-account-columns > span:last-child { padding-left: 9px; }
   .admin-account-alert { font-size: 0.55rem; }
 }
 
@@ -3983,10 +3992,6 @@ body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-pa
 /* Keep the admin overview focused on the compact account list on phones. */
 .admin-account-panel [data-admin-account-message]:empty { display: none; }
 @media (max-width: 700px) {
-  body[data-page="admin-accounts"] .dashboard-header { margin-bottom: 12px; padding-block: 14px; }
-  body[data-page="admin-accounts"] .dashboard-header .eyebrow { margin: 0 0 3px; font-size: 0.68rem; }
-  body[data-page="admin-accounts"] .dashboard-header h1 { margin: 0; font-size: 1.4rem; }
-  body[data-page="admin-accounts"] .dashboard-header .button { width: fit-content; min-height: 24px; margin-top: 3px; padding: 2px 0; font-size: 0.72rem; }
   .admin-account-panel { gap: 8px; }
   .admin-account-panel .admin-panel-heading { flex-direction: row; align-items: center; gap: 8px; }
   .admin-account-panel .admin-panel-heading p { font-size: 0.73rem; line-height: 1.35; }
@@ -3995,3 +4000,7 @@ body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-pa
   .admin-account-panel .admin-account-search input { min-height: 40px; padding: 7px 9px; }
   .admin-account-panel .admin-search-summary { margin: 0; }
 }
+
+body[data-page="admin-accounts"] { display: flex; flex-direction: column; min-height: 100dvh; }
+body[data-page="admin-accounts"] .site-header { flex-shrink: 0; }
+.admin-accounts-main .admin-account-search { margin-top: 0; }
