@@ -1378,7 +1378,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1487,7 +1487,14 @@ test("admin account cards allow person linking while only other roles expose a r
     }
   }
   const issueCard = functions.createAdminAccountCard({ uid: "admin", data: { role: "admin", personLinkIssue: { status: "reported" } } });
-  assert.equal(all(issueCard).some((node) => "adminAccountIssueAction" in node.dataset), true);
+  const issueNodes = all(issueCard);
+  const issueActions = issueNodes.filter((node) => "adminAccountIssueAction" in node.dataset);
+  assert.equal(issueActions.length, 1);
+  assert.equal(issueActions[0].dataset.adminAccountIssueAction, "resolve");
+  assert.equal(issueActions[0].textContent, "");
+  assert.match(issueActions[0].innerHTML, /<svg/);
+  assert.equal(issueNodes.filter((node) => node.className === "admin-account-notification").length, 1);
+  assert.equal(issueNodes.some((node) => node.className === "admin-account-alert"), false);
 });
 
 test("role editing cannot change roles on admin cards or restore manual person IDs", async () => {
@@ -1746,6 +1753,36 @@ function settingsNavigationHarness({ mobile = true, hash = "" } = {}) {
   functions.initSettingsMenu();
   return { ...h, items, categories, back, history };
 }
+
+test("settings prevent zoom gestures while single-finger scrolling remains available", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  functions.initSettingsZoomProtection();
+  let prevented = 0;
+  const event = (details) => ({ preventDefault() { prevented++; }, ...details });
+  h.callbacks.gesturestart(event({}));
+  h.callbacks.gesturechange(event({}));
+  h.callbacks.touchstart(event({ touches: [{}, {}] }));
+  h.callbacks.touchmove(event({ touches: [{}, {}] }));
+  h.callbacks.wheel(event({ ctrlKey: true }));
+  assert.equal(prevented, 5);
+  h.callbacks.touchstart(event({ touches: [{}] }));
+  h.callbacks.touchmove(event({ touches: [{}] }));
+  h.callbacks.wheel(event({ ctrlKey: false }));
+  assert.equal(prevented, 5);
+});
+
+test("the account unlink action always targets the signed-in user", async () => {
+  const h = harness({ user: { uid: "own-account" } });
+  const functions = memberFunctions(h);
+  h.window.confirm = () => true;
+  const calls = [];
+  h.window.LifesavingPersonLinks.unlinkOwn = async (_, uid, __, checkSession) => {
+    checkSession(); calls.push(uid); return { role: "standard", personLinkStatus: "open" };
+  };
+  await functions.unlinkOwnPerson(h.auth, null);
+  assert.deepEqual(calls, ["own-account"]);
+});
 
 test("mobile settings stay in the menu when delayed role updates refresh navigation", () => {
   const h = settingsNavigationHarness();

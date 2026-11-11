@@ -406,7 +406,22 @@
   }
 
   if (page === "settings") {
+    initSettingsZoomProtection();
     initSettingsMenu();
+  }
+
+  function initSettingsZoomProtection() {
+    ["gesturestart", "gesturechange"].forEach((type) => {
+      document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+    });
+    ["touchstart", "touchmove"].forEach((type) => {
+      document.addEventListener(type, (event) => {
+        if (event.touches?.length > 1) event.preventDefault();
+      }, { passive: false });
+    });
+    document.addEventListener("wheel", (event) => {
+      if (event.ctrlKey) event.preventDefault();
+    }, { passive: false });
   }
 
   function initSettingsMenu() {
@@ -1712,9 +1727,9 @@
     summary.setAttribute("aria-controls", editorId);
     const account = element("span", "admin-account-source admin-account-profile");
     const profileTitle = element("strong", "admin-account-person-name", `${profileName} (${getAdminAccountBirthYear(data)})`);
-    if (hasAttention) {
+    if (hasOpenRequest && !hasOpenIssue) {
       const attention = element("span", "admin-account-alert", "!");
-      attention.title = hasOpenIssue ? "Fehler gemeldet" : "Antrag offen";
+      attention.title = "Antrag offen";
       attention.setAttribute("aria-label", attention.title);
       profileTitle.append(attention);
     }
@@ -1769,11 +1784,9 @@
       editor.append(details);
       const decisions = element("div", "admin-account-link-actions");
       if (hasOpenIssue) {
-        const resolve = action("Fehler erledigt", "adminAccountIssueAction");
+        const resolve = iconAction("Erledigt", "adminAccountIssueAction", "m5 12 4 4L19 6");
         resolve.dataset.adminAccountIssueAction = "resolve";
-        const cancel = action("Meldung schließen", "adminAccountIssueAction");
-        cancel.dataset.adminAccountIssueAction = "cancel";
-        decisions.append(resolve, cancel);
+        decisions.append(resolve);
       } else {
         const reject = action("Antrag ablehnen", "adminAccountRequestAction");
         reject.dataset.adminAccountRequestAction = "reject";
@@ -1783,6 +1796,13 @@
       editor.append(decisions);
     }
     card.append(summary, editor);
+    if (hasOpenIssue) {
+      const notification = element("span", "admin-account-notification", "1");
+      notification.title = "Fehler gemeldet";
+      notification.setAttribute("role", "status");
+      notification.setAttribute("aria-label", "1 gemeldeter Verknüpfungsfehler");
+      card.append(notification);
+    }
     return card;
   }
 
@@ -1946,8 +1966,8 @@
     const user = auth.currentUser;
     const card = button.closest("[data-admin-account-card]");
     const targetUid = card?.dataset.targetUid;
-    const action = button.dataset.adminAccountIssueAction;
-    const status = action === "resolve" ? "resolved" : "cancelled";
+    if (button.dataset.adminAccountIssueAction !== "resolve") return;
+    const status = "resolved";
 
     if (!user || !targetUid || !window.firebase.firestore) {
       setAdminAccountMessage("Aktion nicht möglich. Bitte lade die Seite neu.", false);
@@ -1961,7 +1981,7 @@
         control.disabled = true;
       });
       setAdminAccountMessage(
-        status === "resolved" ? "Fehlermeldung wird erledigt..." : "Fehlermeldung wird abgebrochen...",
+        "Fehlermeldung wird erledigt...",
         true
       );
 
@@ -1980,7 +2000,7 @@
 
       await loadAdminAccounts(auth);
       setAdminAccountMessage(
-        status === "resolved" ? "Fehlermeldung erledigt." : "Fehlermeldung abgebrochen.",
+        "Fehlermeldung erledigt.",
         true
       );
     } catch (error) {
@@ -3391,6 +3411,7 @@
       requestedPanel: document.querySelector("[data-link-requested-panel]"),
       linkedPanel: document.querySelector("[data-link-linked-panel]"),
       withdrawButton: document.querySelector("[data-link-request-withdraw]"),
+      unlinkButton: document.querySelector("[data-link-unlink]"),
       issueOpenButton: document.querySelector("[data-link-issue-open]"),
       issueWithdrawButton: document.querySelector("[data-link-issue-withdraw]"),
       issueCancelButton: document.querySelector("[data-link-issue-cancel]"),
@@ -3546,6 +3567,11 @@
       controls.withdrawButton.addEventListener("click", () => withdrawLinkRequest(auth, controls.withdrawButton));
     }
 
+    if (controls.unlinkButton && !controls.unlinkButton.dataset.listenerAttached) {
+      controls.unlinkButton.dataset.listenerAttached = "true";
+      controls.unlinkButton.addEventListener("click", () => unlinkOwnPerson(auth, controls.unlinkButton));
+    }
+
     if (controls.issueOpenButton && !controls.issueOpenButton.dataset.listenerAttached) {
       controls.issueOpenButton.dataset.listenerAttached = "true";
       controls.issueOpenButton.addEventListener("click", () => openLinkIssueForm());
@@ -3618,6 +3644,27 @@
   }
 
 
+
+  async function unlinkOwnPerson(auth, button) {
+    const user = auth.currentUser;
+    if (!user || !window.firebase.firestore) return;
+    if (!window.confirm("Verknüpfung zu deiner Datenbankperson wirklich aufheben?")) return;
+    try {
+      setLoading(button, true, "Hebe auf …");
+      setLinkManagementControlsDisabled(true);
+      const data = await window.LifesavingPersonLinks.unlinkOwn(window.firebase.firestore(), user.uid,
+        window.firebase.firestore.FieldValue, () => requireCurrentUser(user));
+      requireCurrentUser(user);
+      writeUserDocCache(user.uid, data);
+      updateLinkStatusUi(data);
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("Verknüpfung aufgehoben.", true);
+    } catch (error) { setLinkManagementMessage(translateFirestoreError(error), false); }
+    finally {
+      setLoading(button, false);
+      setLinkManagementControlsDisabled(false);
+    }
+  }
 
   async function reportLinkIssue(event, auth) {
     event.preventDefault();

@@ -91,10 +91,25 @@ service cloud.firestore {
         "adminGrantedBy",
         "kader",
         "isKaderAthlete",
-        "personLink",
         "personLinkDecision"
       ])
+      && (!changedKeys.hasAny(["personLink"]) || validOwnerUnlink(changedKeys))
       && ownerKeepsLinkFieldsSafe(changedKeys);
+    }
+
+    function validOwnerUnlink(changedKeys) {
+      return resource.data.get("personLink", null) is map
+        && !request.resource.data.keys().hasAny([
+          "personLink", "linkedPersonId", "personId", "personLinked",
+          "personLinkRequest", "personLinkIdentityHint", "personLinkIssue"
+        ])
+        && changedKeys.hasOnly([
+          "personLink", "linkedPersonId", "personId", "personLinked", "personLinkStatus",
+          "personLinkRequest", "personLinkIdentityHint", "personLinkIssue", "updatedAt"
+        ])
+        && request.resource.data.personLinkStatus == "open"
+        && request.resource.data.updatedAt == request.time
+        && linkReleased(resource.data.personLink);
     }
 
     function hasStoredLinkId() {
@@ -262,7 +277,8 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.personLink.id == personId;
       allow delete: if (isAdmin() || isOwner(resource.data.uid))
         && (!existsAfter(/databases/$(database)/documents/users/$(resource.data.uid))
-          || (isAdmin() && getAfter(/databases/$(database)/documents/users/$(resource.data.uid)).data.get("personLink", {}).get("id", "") != personId));
+          || (isAdmin() && getAfter(/databases/$(database)/documents/users/$(resource.data.uid)).data.get("personLink", {}).get("id", "") != personId)
+          || (isOwner(resource.data.uid) && getAfter(/databases/$(database)/documents/users/$(resource.data.uid)).data.get("personLink", null) == null));
     }
 
     match /users/{uid} {

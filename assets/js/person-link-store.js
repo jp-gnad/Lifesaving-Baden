@@ -51,6 +51,27 @@
     });
   }
 
+  async function unlinkOwn(db, uid, fieldValue, checkSession = () => {}) {
+    const ref = db.collection("users").doc(uid);
+    return db.runTransaction(async (transaction) => {
+      checkSession();
+      const snapshot = await transaction.get(ref);
+      checkSession();
+      if (!snapshot.exists) fail("person-link/account-missing");
+      const data = { ...snapshot.data() };
+      const person = linkedPerson(data);
+      if (!person) return data;
+      const cleared = ["personLink", "linkedPersonId", "personId", "personLinked", "personLinkRequest", "personLinkIdentityHint", "personLinkIssue"];
+      transaction.delete(db.collection("personAccountLinks").doc(person.id));
+      transaction.update(ref, {
+        ...Object.fromEntries(cleared.map((key) => [key, fieldValue.delete()])),
+        personLinkStatus: "open", updatedAt: fieldValue.serverTimestamp(),
+      });
+      cleared.forEach((key) => { delete data[key]; });
+      return { ...data, personLinkStatus: "open" };
+    });
+  }
+
   // Account deletion releases the reservation atomically with the profile document.
   async function deleteAccount(db, uid, checkSession = () => {}) {
     const ref = db.collection("users").doc(uid);
@@ -63,7 +84,7 @@
     });
   }
 
-  const api = { linkedPerson, commit, deleteAccount };
+  const api = { linkedPerson, commit, unlinkOwn, deleteAccount };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.LifesavingPersonLinks = api;
 })(typeof window === "object" ? window : globalThis);

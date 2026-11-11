@@ -441,6 +441,38 @@ test("changing, unlinking and deleting release reservations while users can only
   await assertSucceeds(commitLink(db, "two", secondPersonId));
 });
 
+test("every role may report an issue and atomically unlink its own person without gaining link rights", { skip: !enabled }, async () => {
+  for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
+    await seedLinks();
+    await seed({ "users/one": { role, displayName: "Eigener Name" } });
+    const adminDb = dbFor("admin");
+    await assertSucceeds(commitLink(adminDb, "one", personId));
+    const owner = dbFor("one");
+    const ref = sdk.doc(owner, "users/one");
+    await assertSucceeds(sdk.updateDoc(ref, { personLinkIssue: {
+      status: "reported", message: "Falsche Person", accountUid: "one", reportedAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp(),
+    } }));
+    // Removing only one side of the link is forbidden, even with a valid timestamp.
+    await assertFails(sdk.updateDoc(ref, { personLink: sdk.deleteField(), personLinkStatus: "open", updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.deleteDoc(sdk.doc(owner, `personAccountLinks/${personId}`)));
+    const fieldValue = { serverTimestamp: sdk.serverTimestamp, delete: sdk.deleteField };
+    const result = await assertSucceeds(personLinks.unlinkOwn(compatDb(owner), "one", fieldValue));
+    assert.equal(result.personLink, undefined);
+    const data = (await sdk.getDoc(ref)).data();
+    assert.equal(data.personLinkStatus, "open");
+    assert.equal(data.personLink, undefined);
+    assert.equal(data.personLinkIssue, undefined);
+    assert.equal(data.role, role);
+    assert.equal(data.displayName, "Eigener Name");
+    assert.equal((await sdk.getDoc(sdk.doc(adminDb, `personAccountLinks/${personId}`))).exists(), false);
+    await assertSucceeds(commitLink(adminDb, "two", personId));
+    if (role !== "admin") {
+      await assertFails(personLinks.unlinkOwn(compatDb(owner), "two", fieldValue));
+      await assertFails(commitLink(owner, "one", secondPersonId, "one"));
+    }
+  }
+});
+
 test("rules reject forged links at account creation, legacy manual IDs and altered source identities", { skip: !enabled }, async () => {
   await seedLinks();
   for (const fields of [{ linkedPersonId: personId }, { personId }, { personLinked: true },

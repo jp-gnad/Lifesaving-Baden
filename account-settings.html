@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="description" content="Kontoeinstellungen für Lifesaving Baden.">
     <meta name="theme-color" content="#0f0f12">
     <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
@@ -17,16 +17,16 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-person-link-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-link-issues-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/person-link-store.js?v=20261111-person-link-v1"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261111-own-unlink-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261111-compact-accounts-v2"></script>
+    <script defer src="assets/js/auth.js?v=20261111-link-issues-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="settings">
     <header class="site-header">
@@ -479,10 +479,11 @@
                     <p class="setting-help no-indent">
                       <strong data-linked-account-email></strong><br><span data-linked-person-details></span>
                     </p>
-                    <p class="setting-help no-indent">Die Zuordnung wird vom Admin verwaltet. Deine Profilangaben kannst du unabhängig davon ändern.</p>
+                    <p class="setting-help no-indent">Du kannst die Verknüpfung aufheben oder einen Fehler melden. Deine Profilangaben kannst du unabhängig davon ändern.</p>
                     <span class="security-button-row">
                       <button class="button button-secondary" type="button" data-link-issue-open>Fehler melden</button>
                       <button class="button button-secondary is-hidden" type="button" data-link-issue-withdraw hidden>Fehlermeldung zurückziehen</button>
+                      <button class="button button-danger" type="button" data-link-unlink>Verknüpfung aufheben</button>
                     </span>
                     <form class="setting-form link-issue-form is-hidden" data-link-issue-form hidden aria-hidden="true">
                       <label>

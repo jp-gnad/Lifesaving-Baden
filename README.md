@@ -376,8 +376,10 @@ node tools/sync_account_google_emails.mjs --apply
 
 Die Zuordnung liegt separat unter `users/{uid}.personLink` mit `id`, `name`,
 `birthYear`, `gender` und `organization`. Änderungen am Kontonamen oder anderen
-Profilangaben ändern diese Personendaten nicht. Nur Admins dürfen Zuordnungen
-anlegen, wechseln oder aufheben; Mitglieder können Fehler melden. Es lassen
+Profilangaben ändern diese Personendaten nicht. Admins dürfen Zuordnungen anlegen, wechseln oder aufheben. Jedes Mitglied darf
+seine eigene Verknüpfung aufheben oder einen Fehler melden. Das Aufheben gibt
+die Personenreservierung atomar frei. Gemeldete Fehler erscheinen im Adminbereich
+als rote Nachrichtenmarkierung; das einzelne Erledigt-Icon schließt die Meldung ab. Es lassen
 sich ausschließlich vorhandene Personen auswählen.
 
 `personAccountLinks/{candidateId}` reserviert jede Person für genau eine

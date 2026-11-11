@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v52";
+const staticCache = "lifesaving-timer-static-firebase-v53";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -8,7 +8,7 @@ const relativeAppShell = [
   "../assets/js/header.js?v=20261102-header-shadow-v1",
   "./app.js?v=20261105-manual-profile-name-v1",
   "./firestore-api.js?v=20261111-person-link-v1",
-  "../assets/js/person-link-store.js?v=20261111-person-link-v1",
+  "../assets/js/person-link-store.js?v=20261111-own-unlink-v1",
   "../assets/js/auth-core.js?v=20261105-required-setup-v1",
   "../assets/js/firebase-config.js?v=20261101-settings-v11",
   "../assets/img/elch-gelb.png",

@@ -1553,6 +1553,7 @@ body.auth-context-loading .member-apps::after {
 .admin-account-list { display: grid; gap: 6px; }
 
 .admin-account-card {
+  position: relative;
   --account-color: #a7a7b5;
   --account-glow: rgba(167, 167, 181, 0.04);
   min-width: 0;
@@ -1560,13 +1561,14 @@ body.auth-context-loading .member-apps::after {
   border-left: 3px solid var(--account-color);
   border-radius: 7px;
   background: linear-gradient(90deg, var(--account-glow), rgba(15, 15, 18, 0.58) 65%);
-  overflow: hidden;
+  overflow: visible;
 }
 .admin-account-card.is-admin-account { --account-color: #ef626c; --account-glow: rgba(227, 6, 19, 0.07); }
 .admin-account-card.is-organizer-account { --account-color: #69b1ff; --account-glow: rgba(60, 156, 255, 0.07); }
 .admin-account-card.is-athlete-account { --account-color: #ffed00; --account-glow: rgba(255, 237, 0, 0.05); }
 .admin-account-card.is-trainer-account { --account-color: #35cc80; --account-glow: rgba(28, 191, 105, 0.06); }
 .admin-account-card.is-editing { border-top-color: var(--account-color); }
+.admin-account-notification { position: absolute; top: -6px; right: -6px; z-index: 2; display: grid; place-items: center; width: 21px; height: 21px; border: 2px solid #15151b; border-radius: 50%; background: #e33042; color: #fff; font-size: 0.7rem; font-weight: 650; line-height: 1; pointer-events: none; }
 
 .admin-account-summary {
   display: grid;
@@ -1575,6 +1577,7 @@ body.auth-context-loading .member-apps::after {
   width: 100%;
   padding: 10px 12px;
   border: 0;
+  border-radius: 5px;
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -1612,6 +1615,7 @@ body.auth-context-loading .member-apps::after {
 .admin-account-small-button.is-danger { color: #f0969d; }
 .admin-account-link-actions { margin-top: 8px; }
 .admin-account-editor .admin-request-details { margin: 10px 0 0; font-size: 0.78rem; }
+.admin-account-card.has-link-issue .admin-request-details dd { font-weight: 400; }
 
 @media (max-width: 520px) {
   .admin-account-summary { gap: 9px; padding: 8px 9px; }
@@ -4004,3 +4008,8 @@ body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-pa
 body[data-page="admin-accounts"] { display: flex; flex-direction: column; min-height: 100dvh; }
 body[data-page="admin-accounts"] .site-header { flex-shrink: 0; }
 .admin-accounts-main .admin-account-search { margin-top: 0; }
+
+body[data-page="settings"] { touch-action: pan-x pan-y; }
+body[data-page="settings"] :is(input, textarea, select) { font-size: 16px; }
+body[data-page="settings"] .link-issue-form textarea,
+body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight: 400; }
