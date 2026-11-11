@@ -14,7 +14,7 @@ test("competition age changes with the calendar year and drives requirements wit
   assert.equal(check(13, { swimGold: "2024-06-01" }).issues[0].name, "RS Bronze");
   assert.equal(check(14).group, "AK 13/14");
   assert.equal(check(15, { rescueBronze: "2024-06-01" }).stage, 1);
-  assert.equal(check(16, { rescueBronze: "2024-06-01" }).issues[0].name, "RS Silber/Gold");
+  assert.equal(check(16, { rescueBronze: "2024-06-01" }).issues[0].name, "RS Silber");
   assert.equal(check(16).group, "AK 15/16");
   assert.equal(check(18).group, "AK 17/18");
   assert.equal(check(19).group, "Offen");
@@ -27,10 +27,31 @@ test("the longer valid rescue route determines status and the reason for renewal
   assert.equal(check(16, { rescueSilver: "2025-06-01" }).stage, 2);
   assert.deepEqual(check(16, { rescueSilver: "2025-06-01" }, "2026-06-02").issues[0],
     { kind: "exam", stage: 3, name: "Kombi-Übung", reason: "fehlt" });
-  assert.equal(check(22, { rescueGold: "2023-10-01", combinedExercise: "2026-05-01" }).issues[0].name, "RS Silber/Gold");
+  assert.equal(check(22, { rescueGold: "2023-10-01", combinedExercise: "2026-05-01" }).issues[0].name, "RS Silber");
   assert.equal(check(22, { rescueSilver: "2024-10-01", combinedExercise: "2025-11-01" }).issues[0].name, "Kombi-Übung");
   assert.equal(check(22, { rescueGold: "2024-10-01", combinedExercise: "2026-05-01" }).stage, 1);
   assert.equal(check(22, { rescueSilver: "2023-05-01", combinedExercise: "2026-05-01" }).issues[0].reason, "abgelaufen");
+});
+
+test("renewal advice prioritizes the combined exercise until the badge reaches 36 months", () => {
+  const freshBadge = { rescueSilver: "2025-09-01" };
+  const warning = check(22, freshBadge).issues[0];
+  assert.equal(warning.stage, 2);
+  assert.equal(warning.name, "Kombi-Übung");
+  assert.equal(warning.until, "2026-09-01");
+  assert.equal(check(22, { ...freshBadge, combinedExercise: "2024-01-01" }).issues[0].name, "Kombi-Übung");
+  assert.equal(check(22, { ...freshBadge, combinedExercise: "2026-06-01" }).stage, 1);
+
+  const finalBadgeYear = { rescueSilver: "2023-09-01", combinedExercise: "2026-06-01" };
+  assert.equal(check(22, finalBadgeYear).issues[0].name, "RS Silber");
+  assert.equal(check(22, finalBadgeYear).issues[0].until, "2026-09-01");
+  assert.equal(check(22, finalBadgeYear, "2026-09-02").issues[0].reason, "abgelaufen");
+  assert.equal(check(22, { combinedExercise: "2026-06-01" }).issues[0].name, "RS Silber");
+
+  const person = { birthYear: 2000, healthDeclaration: "2026-06-01", rescueSilver: "2026-06-01" };
+  const nextSeason = evaluate(person, day, true).issues.find((issue) => issue.kind === "exam");
+  assert.equal(nextSeason.name, "Kombi-Übung");
+  assert.equal(nextSeason.until, "2027-06-01");
 });
 
 test("health lasts 24 calendar months, including a clamped leap day and its final day", () => {

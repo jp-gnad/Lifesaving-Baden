@@ -278,7 +278,7 @@
     editing = person;
     const day = core.today();
     const { age, group } = core.evaluate(person, day, nextSeason.checked);
-    const exams = age >= 16 && age < 50 ? ["rescueSilver", "combinedExercise"]
+    const exams = age >= 16 && age < 50 ? ["combinedExercise", "rescueSilver"]
       : [age >= 13 ? "rescueBronze" : age >= 10 ? "swimGold" : "swimSilver"];
     const keys = ["healthDeclaration", ...exams];
     byId("se-editor-title").textContent = nameWithYear(person);

@@ -61,8 +61,11 @@
       const exerciseYear = dates.combinedExercise ? addMonths(dates.combinedExercise, 12) : "";
       const alternate = exerciseYear < badgeThreeYears ? exerciseYear : badgeThreeYears;
       const until = latest(badgeYear, alternate);
-      if (until >= day) return { until, name: alternate > badgeYear && alternate < badgeThreeYears ? "Kombi-Übung" : "RS Silber/Gold" };
-      if (badgeThreeYears < day) return { name: "RS Silber/Gold", reason: rescueDate ? "abgelaufen" : "fehlt" };
+      // Recommend the smallest renewal that extends eligibility beyond its
+      // current deadline. A combined exercise can extend the badge's first
+      // year, but cannot extend the badge beyond its three-year limit.
+      if (until >= day) return { until, name: until < badgeThreeYears ? "Kombi-Übung" : "RS Silber" };
+      if (badgeThreeYears < day) return { name: "RS Silber", reason: rescueDate ? "abgelaufen" : "fehlt" };
       return { name: "Kombi-Übung", reason: exerciseYear ? "abgelaufen" : "fehlt" };
     }
 
