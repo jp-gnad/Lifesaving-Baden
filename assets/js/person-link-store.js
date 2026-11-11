@@ -1,0 +1,69 @@
+(function (root) {
+  "use strict";
+
+  function linkedPerson(data) {
+    const person = data?.personLink;
+    return person && typeof person.id === "string" && /^[a-f0-9]{16}$/.test(person.id)
+      && typeof person.name === "string" && person.name.trim()
+      && Number.isInteger(person.birthYear) && person.birthYear >= 1900
+      && ["m", "w"].includes(person.gender) && typeof person.organization === "string" ? person : null;
+  }
+
+  function fail(code) { throw Object.assign(new Error(code), { code }); }
+
+  async function commit(db, uid, candidateId, actor, fieldValue, checkSession = () => {}) {
+    if (candidateId !== null && !/^[a-f0-9]{16}$/.test(candidateId)) fail("person-link/invalid-person");
+    const userRef = db.collection("users").doc(uid);
+    return db.runTransaction(async (transaction) => {
+      checkSession();
+      const account = await transaction.get(userRef);
+      if (!account.exists) fail("person-link/account-missing");
+      const previous = linkedPerson(account.data());
+      let person = null;
+      let reservation;
+      if (candidateId !== null) {
+        const source = await transaction.get(db.collection("timerParticipantDirectory").doc(candidateId));
+        if (!source.exists) fail("person-link/person-missing");
+        const { name, birthYear, gender, organization } = source.data();
+        person = linkedPerson({ personLink: { id: candidateId, name, birthYear, gender, organization } });
+        if (!person) fail("person-link/invalid-person");
+        reservation = db.collection("personAccountLinks").doc(candidateId);
+        const occupied = await transaction.get(reservation);
+        if (occupied.exists && occupied.data().uid !== uid) fail("person-link/already-linked");
+        if (!occupied.exists) transaction.set(reservation, { uid });
+      }
+      checkSession();
+      if (previous && previous.id !== candidateId) {
+        transaction.delete(db.collection("personAccountLinks").doc(previous.id));
+      }
+      transaction.update(userRef, {
+        personLink: person || fieldValue.delete(),
+        linkedPersonId: fieldValue.delete(), personId: fieldValue.delete(), personLinked: fieldValue.delete(),
+        personLinkStatus: person ? "linked" : "open",
+        personLinkRequest: fieldValue.delete(), personLinkIdentityHint: fieldValue.delete(), personLinkIssue: fieldValue.delete(),
+        personLinkDecision: {
+          status: person ? "linked" : "unlinked", personId: candidateId || "",
+          decidedByUid: actor.uid, decidedByEmail: actor.email || "", decidedAt: fieldValue.serverTimestamp(),
+        },
+        updatedAt: fieldValue.serverTimestamp(),
+      });
+      return person;
+    });
+  }
+
+  // Account deletion releases the reservation atomically with the profile document.
+  async function deleteAccount(db, uid, checkSession = () => {}) {
+    const ref = db.collection("users").doc(uid);
+    return db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      checkSession();
+      const person = linkedPerson(snapshot.data());
+      if (person) transaction.delete(db.collection("personAccountLinks").doc(person.id));
+      transaction.delete(ref);
+    });
+  }
+
+  const api = { linkedPerson, commit, deleteAccount };
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.LifesavingPersonLinks = api;
+})(typeof window === "object" ? window : globalThis);

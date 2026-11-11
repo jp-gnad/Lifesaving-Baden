@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-account-modal-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-person-link-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -25,8 +25,9 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20261105-menu-navigation-v3"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261111-person-link-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261105-required-setup-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261111-person-link-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="admin-accounts">
     <header class="site-header">
@@ -64,13 +65,31 @@
         </div>
         <label class="admin-account-search">
           Konten suchen
-          <input type="search" data-admin-account-search placeholder="Name, E-Mail, Gliederung oder Personen-ID" autocomplete="off">
+          <input type="search" data-admin-account-search placeholder="E-Mail, Kontoname oder verknüpfte Person" autocomplete="off">
         </label>
         <p class="admin-search-summary" data-admin-account-search-summary role="status"></p>
         <p class="form-message" data-admin-account-message role="status"></p>
         <div class="admin-account-list" data-admin-account-list></div>
       </section>
     </main>
+
+    <dialog class="admin-person-dialog" data-admin-person-dialog aria-labelledby="admin-person-title">
+      <div class="admin-person-heading">
+        <h2 id="admin-person-title">Person verknüpfen</h2>
+        <button type="button" class="admin-link-icon-button" data-admin-person-close aria-label="Schließen">×</button>
+      </div>
+      <p class="admin-person-email" data-admin-person-email></p>
+      <label class="admin-account-search">Person suchen
+        <input type="search" data-admin-person-search autocomplete="off" maxlength="80" placeholder="Name suchen …">
+      </label>
+      <p data-admin-person-note role="status">Mindestens 3 Buchstaben eingeben.</p>
+      <div class="admin-person-results" data-admin-person-results></div>
+      <p class="admin-person-selection" data-admin-person-selection hidden></p>
+      <div class="admin-person-actions">
+        <button type="button" class="button button-secondary" data-admin-person-close>Abbrechen</button>
+        <button type="button" class="button button-primary" data-admin-person-confirm disabled>Verknüpfen</button>
+      </div>
+    </dialog>
 
     <footer class="site-footer">
       <span class="footer-brand">

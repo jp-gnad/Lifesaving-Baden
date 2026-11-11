@@ -238,7 +238,7 @@
 
     const { value, isAdmin, isOrganizer, isTrainer, isAthlete, label } = getAccountRole(userData, claims);
     const accountName = userDataLoaded ? getNameDetailsFromData(userData, user).displayName : "";
-    const isLinked = Boolean(userData.linkedPersonId || userData.personId);
+    const isLinked = Boolean(window.LifesavingPersonLinks.linkedPerson(userData));
     const linkRequested = isLinked
       || userData.personLinkStatus === "requested"
       || userData.personLinkRequest?.status === "requested";

@@ -111,6 +111,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     constructor(form) { this.form = form; }
     get(name) { return this.form.fields[name]; }
   } });
+  vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
     login() {
@@ -1377,7 +1378,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1386,7 +1387,7 @@ test("deleting an account exits to a clean login without the deletion page as re
   const functions = memberFunctions(h);
   let profileDeleted = false;
   h.window.confirm = () => true;
-  h.window.firebase.firestore().collection("users").doc("old-uid").delete = async () => { profileDeleted = true; };
+  h.window.LifesavingPersonLinks.deleteAccount = async (_, uid) => { assert.equal(uid, "old-uid"); profileDeleted = true; };
   h.auth.currentUser.delete = async () => { h.auth.currentUser = null; };
   await functions.deleteCurrentAccount(h.auth, null);
   assert.equal(profileDeleted, true);
@@ -1479,8 +1480,9 @@ test("admin account cards allow person linking while only other roles expose a r
     } else {
       assert.deepEqual(select.children.map((option) => option.value), ["organizer", "trainer", "athlete", "standard"]);
     }
-    assert.equal(nodes.some((node) => node.tagName === "input"), true);
-    for (const action of ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction"]) {
+    assert.equal(nodes.some((node) => node.tagName === "input"), false);
+    assert.equal(nodes.some((node) => "adminAccountLink" in node.dataset), true);
+    for (const action of role === "admin" ? ["adminAccountRequestAction"] : ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction"]) {
       assert.equal(nodes.some((node) => action in node.dataset), true);
     }
   }
@@ -1488,39 +1490,30 @@ test("admin account cards allow person linking while only other roles expose a r
   assert.equal(all(issueCard).some((node) => "adminAccountIssueAction" in node.dataset), true);
 });
 
-test("saving a person link on own and other admin accounts never writes roles or admin flags", async () => {
-  for (const targetUid of ["admin", "other-admin"]) {
+test("role editing cannot change roles on admin cards or restore manual person IDs", async () => {
+  const h = harness({ user: { uid: "admin" } });
+  const functions = memberFunctions(h);
+  let writes = 0;
+  h.window.firebase.firestore = () => ({ collection: () => ({ doc: () => ({ update: async () => { writes += 1; } }) }) });
+  const card = { dataset: { targetUid: "admin", accountRoleValue: "admin" }, querySelector: () => ({ value: "standard" }) };
+  await functions.saveAdminAccountChanges(h.auth, { closest: () => card });
+  assert.equal(writes, 0);
+  assert.equal(source("assets/js/auth.js").includes("data-admin-account-link-id"), false);
+});
+
+test("rejecting an outdated request cannot overwrite a new person assignment or a withdrawn request", async () => {
+  const linked = { personLink: { id: "1234567890abcdef", name: "Anna", birthYear: 1991, gender: "w", organization: "Baden" } };
+  for (const [current, expectedWrites] of [[linked, 0], [{}, 0], [{ personLinkStatus: "requested" }, 1]]) {
     const h = harness({ user: { uid: "admin" } });
     const functions = memberFunctions(h);
     const writes = [];
-    const firestore = () => ({ collection: () => ({ doc: (uid) => ({ update: async (data) => writes.push({ uid, data }) }) }) });
-    firestore.FieldValue = { serverTimestamp: () => "timestamp", delete: () => "delete-field" };
-    h.window.firebase.firestore = firestore;
-    const controls = new Map();
-    for (const selector of ["[data-admin-account-role-display]", ".admin-link-display", ".admin-link-editor", "[data-admin-account-link-id]", "[data-admin-account-link-value]", "[data-admin-account-edit]", "[data-admin-account-save]", "[data-admin-account-cancel]"]) {
-      controls.set(selector, { dataset: {}, classList: { toggle() {} }, setAttribute() {}, focus() {}, select() {} });
-    }
-    const card = {
-      dataset: { targetUid, accountRoleValue: "admin", linkedPersonId: "" },
-      classList: { toggle() {} },
-      querySelector: (selector) => controls.get(selector),
-      querySelectorAll: () => [...controls.values()],
-    };
-    const button = { closest: () => card };
-    functions.setAdminAccountEditMode(card, true);
-    assert.equal(controls.get(".admin-link-editor").hidden, false);
-    assert.notEqual(controls.get("[data-admin-account-role-display]").hidden, true);
-    controls.get("[data-admin-account-link-id]").value = " person-123 ";
-    await functions.saveAdminAccountChanges(h.auth, button);
-    assert.equal(writes.length, 1);
-    assert.equal(writes[0].uid, targetUid);
-    assert.equal(writes[0].data.linkedPersonId, "person-123");
-    assert.equal(writes[0].data.personLinked, true);
-    assert.equal(card.dataset.accountRoleValue, "admin");
-    for (const field of ["role", "admin", "isAdmin", "kader", "isKaderAthlete"]) assert.equal(field in writes[0].data, false);
-    controls.set("[data-admin-account-role]", { value: "standard" });
-    await functions.saveAdminAccountChanges(h.auth, button);
-    assert.equal(writes.length, 1);
+    h.window.firebase.firestore().runTransaction = async (action) => action({
+      get: async () => ({ exists: true, data: () => current }), update: (_, payload) => writes.push(payload),
+    });
+    const button = { dataset: { adminAccountRequestAction: "reject" }, closest: () => ({ dataset: { targetUid: "target" } }) };
+    await functions.decideAdminAccountRequest(h.auth, button);
+    assert.equal(writes.length, expectedWrites);
+    if (writes.length) assert.equal(writes[0].personLinkStatus, "rejected");
   }
 });
 
@@ -1568,15 +1561,17 @@ test("the profile link badge follows the person link while other profile notices
     "[data-account-open]": [profile],
     "[data-account-attention], [data-account-manage-attention]": [red, manage],
   })[selector] || [];
-  for (const data of [{ linkedPersonId: "p-123" }, { personId: "legacy" }]) {
+  for (const data of [{ personLink: { id: "1234567890abcdef", name: "Anna", birthYear: 2001, gender: "w", organization: "Baden" } }]) {
     functions.updateLinkStatusUi(data);
     assert.equal(green.hidden, false);
     assert.equal(red.hidden, true);
     assert.equal(manage.hidden, false);
     assert.match(profile.attributes["aria-label"], /Konto verknüpft/);
   }
-  functions.updateLinkStatusUi({});
+  for (const data of [{}, { linkedPersonId: "old-id" }, { personId: "old-id", personLinked: true, personLinkStatus: "linked" }]) {
+  functions.updateLinkStatusUi(data);
   assert.equal(green.hidden, true);
+  }
   assert.equal(red.hidden, false);
   assert.match(profile.attributes["aria-label"], /nicht verknüpft/);
   functions.updateLinkStatusUi(null);
@@ -1674,7 +1669,7 @@ test("admin search combines name, email, branch, person ID and current role with
   assert.equal(summary.textContent, "");
 });
 
-test("every account name expands its email and branches have no added DLRG prefix", () => {
+test("account cards lead with email and keep personal profile details inside the expansion", () => {
   const h = harness();
   const functions = memberFunctions(h);
   h.document.createElement = (tagName) => ({
@@ -1690,7 +1685,8 @@ test("every account name expands its email and branches have no added DLRG prefi
     const details = nodes.find((node) => node.id === toggle.getAttribute("aria-controls"));
     assert.equal(details.hidden, true);
     assert.equal(all(details).some((node) => node.textContent === "anna@example.test"), true);
-    assert.equal(nodes.some((node) => node.tagName === "p" && node.textContent === "Baden"), true);
+    assert.equal(toggle.textContent, "anna@example.test");
+    assert.equal(nodes.some((node) => node.tagName === "p" && node.textContent === "Baden"), false);
     h.document.getElementById = () => details;
     functions.toggleAdminAccountDetails(toggle);
     assert.equal(details.hidden, false);

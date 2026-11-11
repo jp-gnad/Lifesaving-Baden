@@ -91,14 +91,14 @@ service cloud.firestore {
         "adminGrantedBy",
         "kader",
         "isKaderAthlete",
+        "personLink",
         "personLinkDecision"
       ])
       && ownerKeepsLinkFieldsSafe(changedKeys);
     }
 
     function hasStoredLinkId() {
-      return resource.data.keys().hasAny(["linkedPersonId"])
-        || resource.data.keys().hasAny(["personId"]);
+      return resource.data.get("personLink", null) is map;
     }
 
     function ownerKeepsLinkFieldsSafe(changedKeys) {
@@ -190,7 +190,9 @@ service cloud.firestore {
           "adminGrantedBy",
           "kader",
           "isKaderAthlete"
-        ]);
+        ])
+        && !request.resource.data.keys().hasAny(["personLink", "linkedPersonId", "personId", "personLinked", "personLinkDecision"])
+        && request.resource.data.get("personLinkStatus", "open") != "linked";
     }
 
     function adminKeepsAdminGrantSafe(uid) {
@@ -208,6 +210,7 @@ service cloud.firestore {
     function adminUpdatesOnlyPersonLink() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         "linkedPersonId",
+        "personLink",
         "personId",
         "personLinkStatus",
         "personLinked",
@@ -219,15 +222,59 @@ service cloud.firestore {
       ]);
     }
 
+    // A person reservation and the account must point to each other after every write.
+    // The transaction's create on the person ID enforces uniqueness across admins.
+    function validPersonSnapshot(person) {
+      let source = get(/databases/$(database)/documents/timerParticipantDirectory/$(person.id)).data;
+      return person.keys().hasAll(["id", "name", "birthYear", "gender", "organization"])
+        && person.keys().hasOnly(["id", "name", "birthYear", "gender", "organization"])
+        && person.id is string && person.id.matches('^[a-f0-9]{16}$')
+        && person.name == source.name && person.birthYear == source.birthYear
+        && person.gender == source.gender && person.organization == source.organization;
+    }
+
+    function linkReleased(person) {
+      return person == null
+        || !existsAfter(/databases/$(database)/documents/personAccountLinks/$(person.id));
+    }
+
+    function validAdminPersonLink(uid) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let previous = resource.data.get("personLink", null);
+      let next = request.resource.data.get("personLink", null);
+      return !changed.hasAny(["personLink", "linkedPersonId", "personId", "personLinked"])
+        || (
+          !request.resource.data.keys().hasAny(["linkedPersonId", "personId", "personLinked"])
+          && (next == null
+            ? linkReleased(previous) && request.resource.data.personLinkStatus != "linked"
+            : next is map && validPersonSnapshot(next)
+              && getAfter(/databases/$(database)/documents/personAccountLinks/$(next.id)).data.uid == uid
+              && request.resource.data.personLinkStatus == "linked"
+              && (previous == null || previous.id == next.id || linkReleased(previous)))
+        );
+    }
+
+    match /personAccountLinks/{personId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.keys().hasOnly(["uid"])
+        && request.resource.data.uid is string
+        && exists(/databases/$(database)/documents/timerParticipantDirectory/$(personId))
+        && getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.personLink.id == personId;
+      allow delete: if (isAdmin() || isOwner(resource.data.uid))
+        && (!existsAfter(/databases/$(database)/documents/users/$(resource.data.uid))
+          || (isAdmin() && getAfter(/databases/$(database)/documents/users/$(resource.data.uid)).data.get("personLink", {}).get("id", "") != personId));
+    }
+
     match /users/{uid} {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
       allow update: if (isOwner(uid) && ownerKeepsProtectedFieldsSafe())
-        || (isAdmin() && (adminAccount(resource.data)
+        || (isAdmin() && validAdminPersonLink(uid) && (adminAccount(resource.data)
           ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid)));
       allow delete: if !adminAccount(resource.data)
-        && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()));
+        && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()))
+        && linkReleased(resource.data.get("personLink", null));
     }
 
     function validTimerEvent(data) {

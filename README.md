@@ -352,12 +352,39 @@ Mitgliedsdaten übernommen.
 Solange ein Konto noch nicht verknüpft ist, zeigt der Mitgliederbereich eine
 dezente Erinnerung `Kontokonfiguration offen` und ein Ausrufezeichen am
 Profilkreis. Nach einem Antrag wechselt der Hinweis zu `Antrag in Prüfung`.
-Als verknüpft gilt ein Konto, wenn adminseitig eines dieser Felder gesetzt ist:
+Admins verknüpfen Konten in der Kontenübersicht über eine Personensuche in
+derselben Importliste wie Timer und Startberechtigungen. Die Übersicht zeigt
+zuerst die Anmelde-E-Mail und gegebenenfalls den Antrag. Nach der Auswahl und
+Bestätigung erscheinen Name, Jahrgang und Gliederung der Datenbankperson neben
+der E-Mail. Das funktioniert für jede Kontorolle und auch ohne Antrag.
 
-- `personLinkStatus: "linked"`
-- `personLinked: true`
-- `linkedPersonId`
-- `personId`
+Die Zuordnung liegt separat unter `users/{uid}.personLink` mit `id`, `name`,
+`birthYear`, `gender` und `organization`. Änderungen am Kontonamen oder anderen
+Profilangaben ändern diese Personendaten nicht. Nur Admins dürfen Zuordnungen
+anlegen, wechseln oder aufheben; Mitglieder können Fehler melden. Es lassen
+sich ausschließlich vorhandene Personen auswählen.
+
+`personAccountLinks/{candidateId}` reserviert jede Person für genau eine
+Firebase-UID. Zuordnung und Reservierung werden atomar geschrieben. Die
+Firestore-Regeln prüfen die Quellperson und beide Verweise, sodass auch
+gleichzeitige Adminaktionen keine Doppelverknüpfung erzeugen können. Beim
+Aufheben, Wechsel und Löschen des Kontos wird die Reservierung freigegeben.
+
+Frühere manuell gesetzte IDs und Statusfelder zählen nicht mehr als
+Verknüpfung. Für den Umstieg zuerst die neuen Firestore-Regeln bereitstellen
+und die Website aktualisieren. Danach die alten Felder einmalig mit dem
+Firebase-Servicekonto bereinigen (neue Zuordnungen und offene Anträge bleiben
+erhalten):
+
+```sh
+node tools/reset_legacy_person_links.mjs         # Vorschau, keine Änderungen
+node tools/reset_legacy_person_links.mjs --apply # Alte Zuordnungen zurücksetzen
+```
+
+Das Skript benötigt `firebase-admin` und `FIREBASE_SERVICE_ACCOUNT_JSON` und
+akzeptiert ausschließlich das Projekt `lifesaving-baden`. Personen bleiben
+nach der Verknüpfung mit ihren gespeicherten Angaben erkennbar, auch wenn sie
+bei einem späteren Quellenabgleich aus der Importliste verschwinden.
 
 Zusätzlich öffnet die Website eine vorbereitete E-Mail an `jpg.gnad@web.de`.
 Da GitHub Pages nur statische Dateien ausliefert, kann die Website diese E-Mail
@@ -562,6 +589,15 @@ Repository-Secrets benötigt:
 - `PARTICIPANT_SOURCE_URL`: URL der XLSX-Quelldatei.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: vollständiges JSON eines ausschließlich
   hierfür verwendeten Firebase-Servicekontos.
+
+Der Import berücksichtigt alle Wettkampfjahre der XLSX-Quelle. Die frühere
+Beschränkung auf das jüngste Jahr und dessen Vorjahr wurde entfernt. Pro
+normalisiertem Namen, Geburtsjahr und Geschlecht wird eine Person mit der
+zuletzt erfassten Gliederung übernommen; bestehende Personenreferenzen behalten
+ihre ID. Ein leerer oder unbrauchbarer Import wird vor dem Synchronisieren
+abgebrochen. Um ältere Personen sofort freizuschalten, nach Veröffentlichung
+den Workflow einmal manuell ausführen. Er kann nur Personen übernehmen, die
+tatsächlich in der Quelldatei stehen.
 
 Die globale Importliste ist nur für Organisatoren lesbar. Bereits in ein Event
 übernommene Personen richten sich nach den Zugriffsrechten des Events.

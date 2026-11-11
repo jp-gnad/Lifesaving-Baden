@@ -66,6 +66,7 @@ function compatDb(db) {
     async get(ref) { const snapshot = await transaction.get(ref.native); return { exists: snapshot.exists(), data: () => snapshot.data() }; },
     set: (ref, data) => transaction.set(ref.native, data),
     delete: (ref) => transaction.delete(ref.native),
+    update: (ref, data) => transaction.update(ref.native, data),
   })) };
 }
 const commitWorktime = (db, uid, id, data) => worktimeStore.commit(compatDb(db), uid, id, data, { Timestamp: sdk.Timestamp, FieldValue: { serverTimestamp: () => sdk.serverTimestamp() } });
@@ -368,38 +369,93 @@ test("only admins can assign non-admin roles; legacy athlete flags can be remove
   for (const role of ["athlete", "trainer", "organizer", "admin"]) await assertFails(sdk.setDoc(sdk.doc(dbFor(`new-${role}`), `users/new-${role}`), { role }));
 });
 
-test("admins can manage person links on admin accounts without changing protected account data", { skip: !enabled }, async () => {
+const personLinks = require("../assets/js/person-link-store.js");
+const personId = "1234567890abcdef";
+const secondPersonId = "abcdef1234567890";
+const directoryPerson = { name: "Anna Altbestand", birthYear: 1991, gender: "w", organization: "Baden", searchName: "annaaltbestand" };
+const commitLink = (db, uid, id, actor = "admin") => personLinks.commit(compatDb(db), uid, id,
+  { uid: actor, email: `${actor}@example.test` }, { serverTimestamp: sdk.serverTimestamp, delete: sdk.deleteField });
+
+async function seedLinks() {
   await env.clearFirestore();
-  await seed({ "users/admin": { role: "admin" }, "users/trainer": { role: "trainer" } });
-  for (const marker of [{ role: "admin" }, { role: " ADMIN " }, { admin: true }, { isAdmin: true }]) {
-    await seed({ "users/target-admin": marker });
-    for (const uid of ["admin", "target-admin"]) {
-      const ref = sdk.doc(dbFor(uid), "users/target-admin");
-      await assertSucceeds(sdk.updateDoc(ref, {
-        linkedPersonId: "person-123", personLinkStatus: "linked", personLinked: true,
-        personLinkRequest: sdk.deleteField(), personLinkIdentityHint: sdk.deleteField(),
-        personLinkDecision: { status: "linked", personId: "person-123", decidedByUid: uid },
-        updatedAt: sdk.serverTimestamp(),
-      }));
-      await assertSucceeds(sdk.updateDoc(ref, {
-        "personLinkIssue.status": "resolved", "personLinkIssue.decidedByUid": uid,
-        updatedAt: sdk.serverTimestamp(),
-      }));
-      const forbiddenChanges = [{ role: "standard" }, { admin: false }, { isAdmin: false }, { organizer: true }, { kader: true }];
-      if ("role" in marker) forbiddenChanges.push({ role: sdk.deleteField() });
-      for (const forbidden of forbiddenChanges) {
-        await assertFails(sdk.updateDoc(ref, { linkedPersonId: "person-456", ...forbidden }));
-      }
-      await assertFails(sdk.deleteDoc(ref));
-      await assertSucceeds(sdk.updateDoc(ref, {
-        linkedPersonId: sdk.deleteField(), personId: sdk.deleteField(), personLinkStatus: "open", personLinked: false,
-      }));
-    }
-    const trainer = sdk.doc(dbFor("trainer"), "users/target-admin");
-    await assertFails(sdk.updateDoc(trainer, { linkedPersonId: "person-123", personLinked: true }));
-    const otherAdmin = sdk.doc(dbFor("admin"), "users/target-admin");
-    await assertFails(sdk.updateDoc(otherAdmin, { linkedPersonId: "person-123", displayName: "Unzulässig" }));
+  await seed({ "users/admin": { role: "admin" }, "users/other-admin": { role: "admin" },
+    "users/one": { role: "standard", displayName: "Eigener Name" }, "users/two": { role: "trainer" },
+    [`timerParticipantDirectory/${personId}`]: directoryPerson,
+    [`timerParticipantDirectory/${secondPersonId}`]: { ...directoryPerson, name: "Ben Zweiter" },
+  });
+}
+
+test("only admins can assign existing people, including to themselves and other admins", { skip: !enabled }, async () => {
+  await seedLinks();
+  for (const uid of ["admin", "other-admin", "one", "two"]) {
+    await assertSucceeds(commitLink(dbFor("admin"), uid, personId));
+    const profile = (await sdk.getDoc(sdk.doc(dbFor(uid), `users/${uid}`))).data();
+    assert.equal(profile.personLink.name, directoryPerson.name);
+    assert.equal(profile.role, uid.includes("admin") ? "admin" : uid === "one" ? "standard" : "trainer");
+    if (uid === "one") assert.equal(profile.displayName, "Eigener Name");
+    assert.equal("linkedPersonId" in profile, false);
+    await assertSucceeds(commitLink(dbFor("admin"), uid, null));
   }
+  for (const [uid, role] of [["one", "standard"], ["two", "trainer"], ["organizer", "organizer"]]) {
+    await seed({ [`users/${uid}`]: { role } });
+    await assertFails(commitLink(dbFor(uid), uid, personId, uid));
+    await assertFails(sdk.updateDoc(sdk.doc(dbFor(uid), `users/${uid}`), { personLink: { id: personId, ...directoryPerson } }));
+  }
+  await assert.rejects(commitLink(dbFor("admin"), "one", "0000000000000000"), { code: "person-link/person-missing" });
+});
+
+test("person reservations prevent duplicates and concurrent admins can only link one account", { skip: !enabled }, async () => {
+  await seedLinks();
+  const outcomes = await Promise.allSettled([
+    commitLink(dbFor("admin"), "one", personId), commitLink(dbFor("other-admin"), "two", personId, "other-admin"),
+  ]);
+  assert.equal(outcomes.filter((result) => result.status === "fulfilled").length, 1);
+  const db = dbFor("admin");
+  const reservation = (await sdk.getDoc(sdk.doc(db, `personAccountLinks/${personId}`))).data();
+  const other = reservation.uid === "one" ? "two" : "one";
+  await assert.rejects(commitLink(db, other, personId), { code: "person-link/already-linked" });
+  // Bypassing the client must not bypass uniqueness or source verification.
+  const batch = sdk.writeBatch(db);
+  batch.update(sdk.doc(db, `users/${other}`), { personLink: { id: personId, ...directoryPerson }, personLinkStatus: "linked" });
+  batch.set(sdk.doc(db, `personAccountLinks/${personId}`), { uid: other });
+  await assertFails(batch.commit());
+  await assertFails(sdk.updateDoc(sdk.doc(db, `users/${other}`), { personLink: { id: secondPersonId, ...directoryPerson }, personLinkStatus: "linked" }));
+});
+
+test("changing, unlinking and deleting release reservations while users can only edit their own profile", { skip: !enabled }, async () => {
+  await seedLinks();
+  const db = dbFor("admin");
+  await assertSucceeds(commitLink(db, "one", personId));
+  const owner = dbFor("one");
+  const ref = sdk.doc(owner, "users/one");
+  await assertSucceeds(sdk.updateDoc(ref, { displayName: "Neuer Kontoname" }));
+  assert.equal((await sdk.getDoc(ref)).data().personLink.name, directoryPerson.name);
+  await assertFails(sdk.updateDoc(ref, { personLink: sdk.deleteField(), personLinkStatus: "open" }));
+  await assertFails(sdk.deleteDoc(sdk.doc(owner, `personAccountLinks/${personId}`)));
+  await assertFails(sdk.deleteDoc(ref));
+  await assertSucceeds(commitLink(db, "one", secondPersonId));
+  await assertSucceeds(commitLink(db, "two", personId));
+  await assertSucceeds(commitLink(db, "two", null));
+  await assertSucceeds(commitLink(db, "two", personId));
+  await assertSucceeds(personLinks.deleteAccount(compatDb(owner), "one"));
+  await assertSucceeds(commitLink(db, "two", secondPersonId));
+});
+
+test("rules reject forged links at account creation, legacy manual IDs and altered source identities", { skip: !enabled }, async () => {
+  await seedLinks();
+  for (const fields of [{ linkedPersonId: personId }, { personId }, { personLinked: true },
+    { personLinkStatus: "linked" }, { personLink: { id: personId } }]) {
+    await assertFails(sdk.setDoc(sdk.doc(dbFor("new"), "users/new"), { role: "standard", ...fields }));
+  }
+  const db = dbFor("admin");
+  await assertFails(sdk.updateDoc(sdk.doc(db, "users/one"), { linkedPersonId: personId, personLinked: true }));
+  const batch = sdk.writeBatch(db);
+  batch.update(sdk.doc(db, "users/one"), { personLink: { id: personId, name: "Gefälscht", birthYear: 1991, gender: "w", organization: "Baden" }, personLinkStatus: "linked" });
+  batch.set(sdk.doc(db, `personAccountLinks/${personId}`), { uid: "one" });
+  await assertFails(batch.commit());
+  await seed({ "users/one": { role: "standard", linkedPersonId: "legacy", personLinked: true, personLinkStatus: "linked" } });
+  await assertSucceeds(commitLink(db, "one", personId));
+  await assertFails(sdk.updateDoc(sdk.doc(dbFor("admin"), "users/other-admin"), { role: "standard" }));
 });
 
 test("notification aggregations count open requests and issues without returning account documents and stay admin-only", { skip: !enabled }, async () => {

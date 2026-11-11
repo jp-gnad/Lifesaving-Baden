@@ -33,7 +33,7 @@ test("the longer valid rescue route determines status and the reason for renewal
   assert.equal(check(22, { rescueSilver: "2023-05-01", combinedExercise: "2026-05-01" }).issues[0].reason, "abgelaufen");
 });
 
-test("renewal advice prioritizes the combined exercise until the badge reaches 36 months", () => {
+test("renewal advice prioritizes the combined exercise when the badge covers the season", () => {
   const freshBadge = { rescueSilver: "2025-09-01" };
   const warning = check(22, freshBadge).issues[0];
   assert.equal(warning.stage, 2);
@@ -52,6 +52,32 @@ test("renewal advice prioritizes the combined exercise until the badge reaches 3
   const nextSeason = evaluate(person, day, true).issues.find((issue) => issue.kind === "exam");
   assert.equal(nextSeason.name, "Kombi-Übung");
   assert.equal(nextSeason.until, "2027-06-01");
+});
+
+test("season planning recommends the badge directly when both renewals would fall in the same season", () => {
+  const person = { birthYear: 2000, healthDeclaration: "2026-06-01", rescueSilver: "2024-06-15" };
+  const exam = (dates, nextSeason = true) => evaluate({ ...person, ...dates }, "2026-11-11", nextSeason)
+    .issues.find((issue) => issue.kind === "exam");
+
+  // The existing exercise expires in February, then the badge in June.
+  assert.deepEqual(exam({ combinedExercise: "2026-02-01" }),
+    { kind: "exam", stage: 2, name: "RS Silber", until: "2027-02-01" });
+  // Without a valid exercise at season start, renewing the badge solves both gaps.
+  assert.deepEqual(exam({ combinedExercise: "2025-06-15" }),
+    { kind: "exam", stage: 3, name: "RS Silber", reason: "erneuern" });
+  assert.equal(exam({ combinedExercise: "2025-06-15" }, false).name, "Kombi-Übung");
+
+  // The current season also uses its year end when choosing the renewal.
+  assert.equal(exam({ rescueSilver: "2023-12-01", combinedExercise: "2025-11-20" }, false).name, "RS Silber");
+  // A badge valid through December 31 can cover the season with one exercise.
+  assert.equal(exam({ rescueSilver: "2024-12-31", combinedExercise: "2026-02-01" }).name, "Kombi-Übung");
+  assert.equal(exam({ rescueSilver: "2024-12-30", combinedExercise: "2026-02-01" }).name, "RS Silber");
+  assert.equal(exam({ rescueSilver: "2024-01-01", combinedExercise: "2026-02-01" }).until, "2027-01-01");
+  // A newer Gold qualification is an equally valid basis for the combined exercise.
+  assert.equal(exam({ rescueGold: "2025-01-01", combinedExercise: "2026-02-01" }).name, "Kombi-Übung");
+
+  const renewed = { rescueSilver: "2027-02-01", healthDeclaration: "2026-06-01" };
+  assert.equal(evaluate({ ...person, ...renewed }, "2027-02-01").stage, 1);
 });
 
 test("health lasts 24 calendar months, including a clamped leap day and its final day", () => {

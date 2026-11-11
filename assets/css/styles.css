@@ -1557,7 +1557,7 @@ body.auth-context-loading .member-apps::after {
 
 .admin-account-card {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(145px, 190px) minmax(180px, 260px) max-content;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 140px) minmax(0, 1.2fr) max-content;
   gap: 14px;
   align-items: center;
   padding: 12px 14px;
@@ -1773,32 +1773,31 @@ body.auth-context-loading .member-apps::after {
   font-weight: 500;
 }
 
-.admin-link-editor {
-  display: grid;
-  grid-template-columns: minmax(96px, 170px);
-  align-items: center;
-  gap: 6px;
-  justify-content: start;
+.admin-link-id-value.is-linked { color: var(--trainer-accent); }
+.admin-account-toggle { overflow-wrap: anywhere; text-align: left; }
+.admin-person-link-button { width: fit-content; }
+.admin-person-dialog {
+  width: min(620px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  color: var(--text);
+  background: #15151b;
 }
-
-.admin-link-editor[hidden],
-.admin-link-editor.is-hidden {
-  display: none;
+.admin-person-dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
+.admin-person-heading, .admin-person-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-person-heading h2 { margin: 0; }
+.admin-person-email { overflow-wrap: anywhere; color: var(--muted); }
+.admin-person-results { display: grid; gap: 8px; margin: 16px 0; }
+.admin-person-candidate {
+  width: 100%; padding: 14px; border: 1px solid #454550; border-radius: 8px;
+  background: #22222b; color: var(--text); text-align: left; font: inherit; cursor: pointer; overflow-wrap: anywhere;
 }
-
-.admin-link-editor input {
-  width: 170px;
-  max-width: 100%;
-  min-height: 32px;
-  padding: 6px 9px;
-  font-size: 0.9rem;
-  font-weight: 550;
-}
-
-.admin-account-field .admin-link-editor input:focus {
-  outline: 2px solid rgba(255, 237, 0, 0.12);
-  border-color: rgba(255, 237, 0, 0.34);
-}
+.admin-person-candidate[aria-pressed="true"] { border-color: var(--accent-light); background: #333323; }
+.admin-person-candidate:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
+.admin-person-candidate:disabled { opacity: 0.55; cursor: default; }
+.admin-person-selection { padding: 12px; border-left: 3px solid var(--trainer-accent); }
 
 .admin-link-icon-button {
   display: inline-grid;
@@ -3506,7 +3505,8 @@ body.auth-context-loading .member-apps::after {
   }
 
   .admin-account-card:not(.is-editing) .admin-account-field {
-    display: none;
+    display: grid;
+    grid-column: 1 / -1;
   }
 
   .admin-account-card.is-editing .admin-account-field {

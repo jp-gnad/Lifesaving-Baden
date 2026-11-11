@@ -53,7 +53,7 @@
     return dates.reduce((best, date) => date > best ? date : best, "");
   }
 
-  function checkExam(dates, age, day) {
+  function checkExam(dates, age, day, yearEnd) {
     const rescueDate = latest(dates.rescueSilver, dates.rescueGold);
     if (age >= 16 && age < 50) {
       const badgeYear = rescueDate ? addMonths(rescueDate, 12) : "";
@@ -61,11 +61,13 @@
       const exerciseYear = dates.combinedExercise ? addMonths(dates.combinedExercise, 12) : "";
       const alternate = exerciseYear < badgeThreeYears ? exerciseYear : badgeThreeYears;
       const until = latest(badgeYear, alternate);
-      // Recommend the smallest renewal that extends eligibility beyond its
-      // current deadline. A combined exercise can extend the badge's first
-      // year, but cannot extend the badge beyond its three-year limit.
-      if (until >= day) return { until, name: until < badgeThreeYears ? "Kombi-Übung" : "RS Silber" };
+      // Plan one exam renewal for the whole selected season. Recommend the
+      // badge directly if a combined exercise would only bridge the gap to
+      // the badge's three-year limit later in the same season.
+      const renewBadge = badgeThreeYears < yearEnd;
+      if (until >= day) return { until, name: renewBadge ? "RS Silber" : "Kombi-Übung" };
       if (badgeThreeYears < day) return { name: "RS Silber", reason: rescueDate ? "abgelaufen" : "fehlt" };
+      if (renewBadge) return { name: "RS Silber", reason: "erneuern" };
       return { name: "Kombi-Übung", reason: exerciseYear ? "abgelaufen" : "fehlt" };
     }
 
@@ -87,7 +89,7 @@
     const checkDate = nextSeason ? `${year}-01-01` : day;
     const yearEnd = `${year}-12-31`;
     const dates = Object.fromEntries(dateKeys.map((key) => [key, validDate(person[key]) && person[key] <= day ? person[key] : ""]));
-    const exam = checkExam(dates, age, checkDate);
+    const exam = checkExam(dates, age, checkDate, yearEnd);
     const healthUntil = dates.healthDeclaration ? addMonths(dates.healthDeclaration, 24) : "";
     const issues = [];
 
