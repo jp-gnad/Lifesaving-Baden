@@ -1740,8 +1740,6 @@
     if (linkedPerson) {
       database.append(element("strong", "admin-account-person-name", `${linkedPerson.name} (${String(linkedPerson.birthYear).slice(-2)})`),
         element("span", "admin-account-club", linkedPerson.organization || "Keine Gliederung hinterlegt"));
-    } else {
-      database.append(element("span", "admin-account-unlinked", "Nicht verknüpft"));
     }
     summary.setAttribute("aria-label", `Konto: ${profileName} (${getAdminAccountBirthYear(data)}), ${accountBranch}, ${accountEmail}. Ergebnisdatenbank: ${formatLinkedPerson(linkedPerson)}. Bearbeiten`);
     summary.append(account, database);
