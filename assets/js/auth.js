@@ -1488,21 +1488,8 @@
     return display;
   }
 
-  function createAdminAccountIconButton(label, icon, action) {
-    const button = document.createElement("button");
-
-    button.className = `admin-link-icon-button admin-account-${action}`;
-    button.type = "button";
-    button.textContent = icon;
-    button.title = label;
-    button.setAttribute("aria-label", label);
-    button.dataset[`adminAccount${action.charAt(0).toUpperCase()}${action.slice(1)}`] = "";
-
-    return button;
-  }
-
   function formatLinkedPerson(person) {
-    return person ? `${person.name} (${person.birthYear}) · ${person.organization || "Keine Gliederung"}` : "Nicht verknüpft";
+    return person ? `${person.name} (${String(person.birthYear).slice(-2).padStart(2, "0")}) · ${person.organization || "Keine Gliederung"}` : "Nicht verknüpft";
   }
 
   function setAdminAccountRoleDisplay(card, roleValue) {
@@ -1524,13 +1511,14 @@
   function setAdminAccountEditMode(card, shouldOpen) {
     if (!card) return;
     card.classList.toggle("is-editing", shouldOpen);
-    const display = card.querySelector("[data-admin-account-role-display]");
-    const select = card.querySelector("[data-admin-account-role]");
-    if (display && select) display.hidden = shouldOpen;
-    if (select) { select.hidden = !shouldOpen; select.focus(); }
-    for (const [action, hidden] of [["edit", shouldOpen], ["save", !shouldOpen], ["cancel", !shouldOpen]]) {
-      const button = card.querySelector(`[data-admin-account-${action}]`);
-      if (button) button.hidden = hidden;
+    const summary = card.querySelector("[data-admin-account-edit]");
+    const editor = card.querySelector("[data-admin-account-editor]");
+    summary?.setAttribute("aria-expanded", String(shouldOpen));
+    if (editor) editor.hidden = !shouldOpen;
+    if (shouldOpen) {
+      (card.querySelector("[data-admin-account-role]") || card.querySelector("[data-admin-account-link]"))?.focus();
+    } else {
+      summary?.focus();
     }
   }
 
@@ -1550,7 +1538,7 @@
     window.clearTimeout(adminPersonSearchTimer);
     adminPersonSearchSequence += 1;
     adminPersonSearch = { user: auth.currentUser, uid: card.dataset.targetUid, selected: null, busy: false };
-    dialog.querySelector("[data-admin-person-email]").textContent = card.querySelector("[data-admin-account-toggle]").textContent;
+    dialog.querySelector("[data-admin-person-email]").textContent = card.dataset.accountEmail;
     dialog.querySelector("[data-admin-person-search]").value = "";
     dialog.querySelector("[data-admin-person-note]").textContent = "Mindestens 3 Buchstaben eingeben.";
     dialog.querySelector("[data-admin-person-results]").replaceChildren();
@@ -1654,7 +1642,7 @@
   async function unlinkAdminPerson(auth, button) {
     const user = auth.currentUser;
     const card = button.closest("[data-admin-account-card]");
-    if (!user || !card || !window.confirm(`Verknüpfung für ${card.querySelector("[data-admin-account-toggle]").textContent} aufheben?`)) return;
+    if (!user || !card || !window.confirm(`Verknüpfung für ${card.dataset.accountEmail} aufheben?`)) return;
     try {
       button.disabled = true;
       await window.LifesavingPersonLinks.commit(window.firebase.firestore(), card.dataset.targetUid, null, user,
@@ -1671,180 +1659,124 @@
     const data = item.data || {};
     const request = data.personLinkRequest || {};
     const issue = data.personLinkIssue || {};
-    const accountName = getAdminAccountName(data);
-    const linkedId = getAdminAccountLinkedId(data);
     const linkedPerson = window.LifesavingPersonLinks.linkedPerson(data);
     const roleValue = getAdminAccountRoleValue(data);
     const hasOpenRequest = hasPendingLinkRequest(data);
     const hasOpenIssue = hasOpenLinkIssue(data);
     const hasAttention = hasOpenRequest || hasOpenIssue;
-    const detailsId = `admin-account-details-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
-    const card = document.createElement("article");
-    const identity = document.createElement("div");
-    const titleRow = document.createElement("div");
-    const name = document.createElement("button");
-    const roleLabel = document.createElement("label");
-    const roleText = document.createElement("span");
-    const roleDisplay = createAdminAccountRoleDisplay(roleValue);
-    const roleSelect = createAdminAccountRoleSelect(item);
-    const linkField = document.createElement("div");
-    const linkTitle = document.createElement("span");
-    const linkControls = document.createElement("div");
-    const linkDisplay = document.createElement("div");
-    const linkedIdValue = document.createElement("span");
-    const linkButton = document.createElement("button");
-    const cardActions = document.createElement("div");
-    const editAccountButton = createAdminAccountIconButton("Konto bearbeiten", "✎", "edit");
-    const saveAccountButton = createAdminAccountIconButton("Änderungen speichern", "✓", "save");
-    const cancelAccountButton = createAdminAccountIconButton("Bearbeitung abbrechen", "×", "cancel");
-    const detailsShell = document.createElement("div");
-    const details = document.createElement("dl");
-    const actions = document.createElement("div");
-    const approveButton = document.createElement("button");
-    const rejectButton = document.createElement("button");
-
-    card.className = "admin-account-card";
-    card.classList.toggle("has-open-request", hasAttention);
-    card.classList.toggle("has-link-issue", hasOpenIssue);
+    const profile = getNameDetailsFromData(data);
+    const profileName = profile.displayName || formatFullName(profile.firstName, profile.lastName) || "Kein Name hinterlegt";
+    const accountEmail = data.email || "Keine E-Mail gespeichert";
+    const accountBranch = getAdminAccountBranch(data) || "Keine Gliederung hinterlegt";
+    const editorId = `admin-account-editor-${item.uid.replace(/[^a-z0-9_-]/gi, "")}`;
+    const element = (tag, className, text) => {
+      const result = document.createElement(tag);
+      result.className = className;
+      if (text !== undefined) result.textContent = text;
+      return result;
+    };
+    const action = (label, name) => {
+      const button = element("button", "admin-account-small-button", label);
+      button.type = "button";
+      button.dataset[name] = "";
+      return button;
+    };
+    const card = element("article", "admin-account-card");
     card.dataset.adminAccountCard = "";
     card.dataset.targetUid = item.uid;
     card.dataset.hasPendingRequest = String(hasOpenRequest);
     card.dataset.hasLinkIssue = String(hasOpenIssue);
     card.dataset.hasAdminAttention = String(hasAttention);
-    card.dataset.accountName = accountName;
-    card.dataset.accountSearch = [accountName, data.email, request.accountEmail, issue.accountEmail, getAdminAccountBranch(data), linkedPerson?.name, linkedPerson?.birthYear, linkedPerson?.organization].filter(Boolean).join(" ");
-    card.dataset.linkedPersonId = linkedId;
+    card.dataset.accountName = getAdminAccountName(data);
+    card.dataset.accountEmail = accountEmail;
+    card.dataset.accountSearch = [profileName, accountEmail, accountBranch, request.firstName, request.lastName,
+      request.accountEmail, issue.accountEmail, linkedPerson?.name, linkedPerson?.birthYear,
+      linkedPerson ? String(linkedPerson.birthYear).slice(-2) : "", linkedPerson?.organization].filter(Boolean).join(" ");
+    card.dataset.linkedPersonId = getAdminAccountLinkedId(data);
+    card.classList.toggle("has-open-request", hasAttention);
+    card.classList.toggle("has-link-issue", hasOpenIssue);
     updateAdminAccountCardRole(card, roleValue);
 
-    identity.className = "admin-account-identity";
-    titleRow.className = "admin-account-title-row";
-
+    // One native button makes the complete summary a keyboard-accessible edit target.
+    const summary = element("button", "admin-account-summary");
+    summary.type = "button";
+    summary.dataset.adminAccountEdit = "";
+    summary.setAttribute("aria-expanded", "false");
+    summary.setAttribute("aria-controls", editorId);
+    const account = element("span", "admin-account-source admin-account-profile");
+    const heading = element("span", "admin-account-source-label", "Konto");
     if (hasAttention) {
-      const requestAlert = document.createElement("span");
-
-      requestAlert.className = "admin-account-alert";
-      requestAlert.textContent = "!";
-      requestAlert.title = hasOpenIssue ? "Gemeldeter Verknüpfungsfehler" : "Offener Verknüpfungsantrag";
-      titleRow.append(requestAlert);
+      const attention = element("span", "admin-account-alert", hasOpenIssue ? "Fehler gemeldet" : "Antrag offen");
+      heading.append(attention);
     }
-    name.className = "admin-request-toggle admin-account-toggle";
-    name.type = "button";
-    name.textContent = data.email || request.accountEmail || "Keine E-Mail gespeichert";
-    name.dataset.adminAccountToggle = "";
-    name.setAttribute("aria-expanded", "false");
-    name.setAttribute("aria-controls", detailsId);
-    titleRow.append(name);
-
-    identity.append(titleRow);
-
-    roleLabel.className = "admin-account-field";
-    roleText.textContent = "Rolle";
-    roleLabel.append(roleText, roleDisplay);
-
-    if (roleSelect) {
-      roleSelect.hidden = true;
-      roleSelect.setAttribute("aria-hidden", "true");
-      roleLabel.append(roleSelect);
-    }
-
-    linkField.className = "admin-account-field admin-account-link-field";
-    linkTitle.textContent = "Verknüpfung";
-    linkControls.className = "admin-account-link-controls";
-
-    linkDisplay.className = "admin-link-display";
-    linkedIdValue.className = "admin-link-id-value";
-    linkedIdValue.dataset.adminAccountLinkValue = "";
-    linkedIdValue.textContent = formatLinkedPerson(linkedPerson);
-    linkedIdValue.classList.toggle("is-linked", Boolean(linkedPerson));
-    linkedIdValue.classList.toggle("is-empty", !linkedId);
-    linkDisplay.append(linkedIdValue);
-
-    linkButton.type = "button";
-    linkButton.className = "button button-secondary admin-person-link-button";
-    linkButton.textContent = linkedPerson ? "Zuordnung ändern" : "Verknüpfen";
-    linkButton.dataset.adminAccountLink = "";
-    linkControls.append(linkDisplay, linkButton);
+    account.append(heading,
+      element("strong", "admin-account-person-name", `${profileName} (${getAdminAccountBirthYear(data)})`),
+      element("span", "admin-account-club", accountBranch),
+      element("span", "admin-account-email", accountEmail));
+    const database = element("span", "admin-account-source admin-account-database");
+    database.append(element("span", "admin-account-source-label", "Ergebnisdatenbank"));
     if (linkedPerson) {
-      const unlink = document.createElement("button");
-      unlink.type = "button";
-      unlink.className = "button button-ghost";
-      unlink.textContent = "Aufheben";
-      unlink.dataset.adminAccountUnlink = "";
-      linkControls.append(unlink);
+      database.append(element("strong", "admin-account-person-name", `${linkedPerson.name} (${String(linkedPerson.birthYear).slice(-2)})`),
+        element("span", "admin-account-club", linkedPerson.organization || "Keine Gliederung hinterlegt"));
+    } else {
+      database.append(element("span", "admin-account-unlinked", "Nicht verknüpft"));
     }
-    linkField.append(linkTitle, linkControls);
+    summary.append(account, database);
 
-    cardActions.className = "admin-account-actions";
-    saveAccountButton.hidden = true;
-    saveAccountButton.setAttribute("aria-hidden", "true");
-    cancelAccountButton.hidden = true;
-    cancelAccountButton.setAttribute("aria-hidden", "true");
-    if (roleSelect) cardActions.append(editAccountButton, saveAccountButton, cancelAccountButton);
-
-    card.append(identity, roleLabel, linkField, cardActions);
-
-    detailsShell.className = "admin-account-details-shell";
-    detailsShell.id = detailsId;
-    detailsShell.hidden = true;
-    detailsShell.setAttribute("aria-hidden", "true");
-
-    details.className = "admin-request-details";
-    appendAdminRequestDetail(details, "Kontoname", accountName);
-    appendAdminRequestDetail(details, "E-Mail", data.email || request.accountEmail || issue.accountEmail || "Keine E-Mail gespeichert");
-    if (hasOpenIssue) {
-      appendAdminRequestDetail(details, "Status", "Verknüpfungsfehler gemeldet");
-      appendAdminRequestDetail(details, "Datenbankperson", formatLinkedPerson(linkedPerson));
-      appendAdminRequestDetail(details, "Meldung", issue.message || "Verknüpfung stimmt nicht mit der Person überein.");
-    } else if (hasOpenRequest) {
-      appendAdminRequestDetail(details, "Beantragte Person", `${request.firstName || ""} ${request.lastName || ""}`.trim());
-      appendAdminRequestDetail(details, "Gliederung", request.dlrgBranch || data.dlrgBranch || "Nicht angegeben");
-      appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate || data.birthDate));
-      appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
-      appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
+    const editor = element("div", "admin-account-editor");
+    editor.dataset.adminAccountEditor = "";
+    editor.id = editorId;
+    editor.hidden = true;
+    const toolbar = element("div", "admin-account-editor-toolbar");
+    const roleLabel = element("label", "admin-account-field admin-account-role-field");
+    roleLabel.append(element("span", "", "Rolle"));
+    const roleSelect = createAdminAccountRoleSelect(item);
+    if (roleSelect) {
+      roleLabel.append(roleSelect);
+      toolbar.append(roleLabel, action("Speichern", "adminAccountSave"));
+    } else {
+      roleLabel.append(createAdminAccountRoleDisplay(roleValue));
+      toolbar.append(roleLabel);
     }
-
-    detailsShell.append(details);
+    toolbar.append(action("Schließen", "adminAccountCancel"));
+    editor.append(toolbar);
+    const linkActions = element("div", "admin-account-link-actions");
+    linkActions.append(action(linkedPerson ? "Person ändern" : "Person verknüpfen", "adminAccountLink"));
+    if (linkedPerson) {
+      const unlink = action("Verknüpfung aufheben", "adminAccountUnlink");
+      unlink.className += " is-danger";
+      linkActions.append(unlink);
+    }
+    editor.append(linkActions);
     if (hasAttention) {
-      actions.className = "admin-request-actions admin-account-request-actions";
-      approveButton.type = "button";
-      rejectButton.type = "button";
-
+      const details = element("dl", "admin-request-details");
       if (hasOpenIssue) {
-        approveButton.className = "button button-primary";
-        approveButton.textContent = "Erledigt";
-        approveButton.dataset.adminAccountIssueAction = "resolve";
-        rejectButton.className = "button button-secondary";
-        rejectButton.textContent = "Abbrechen";
-        rejectButton.dataset.adminAccountIssueAction = "cancel";
+        appendAdminRequestDetail(details, "Fehlermeldung", issue.message || "Die Zuordnung stimmt nicht.");
       } else {
-        approveButton.className = "button button-primary";
-        approveButton.textContent = "Verknüpfen";
-        approveButton.dataset.adminAccountRequestAction = "approve";
-        rejectButton.className = "button button-danger";
-        rejectButton.textContent = "Ablehnen";
-        rejectButton.dataset.adminAccountRequestAction = "reject";
+        appendAdminRequestDetail(details, "Beantragte Person", `${request.firstName || ""} ${request.lastName || ""}`.trim());
+        appendAdminRequestDetail(details, "Gliederung", request.dlrgBranch || "Nicht angegeben");
+        appendAdminRequestDetail(details, "Geburtsdatum", formatBirthDate(request.birthDate));
+        appendAdminRequestDetail(details, "Geschlecht", formatProfileFieldValue("gender", request.gender));
+        appendAdminRequestDetail(details, "Identitätsinfo", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
       }
-
-      actions.append(approveButton, rejectButton);
-      detailsShell.append(actions);
+      editor.append(details);
+      const decisions = element("div", "admin-account-link-actions");
+      if (hasOpenIssue) {
+        const resolve = action("Fehler erledigt", "adminAccountIssueAction");
+        resolve.dataset.adminAccountIssueAction = "resolve";
+        const cancel = action("Meldung schließen", "adminAccountIssueAction");
+        cancel.dataset.adminAccountIssueAction = "cancel";
+        decisions.append(resolve, cancel);
+      } else {
+        const reject = action("Antrag ablehnen", "adminAccountRequestAction");
+        reject.dataset.adminAccountRequestAction = "reject";
+        reject.className += " is-danger";
+        decisions.append(reject);
+      }
+      editor.append(decisions);
     }
-    card.append(detailsShell);
-
+    card.append(summary, editor);
     return card;
-  }
-
-  function toggleAdminAccountDetails(button) {
-    const details = document.getElementById(button.getAttribute("aria-controls"));
-
-    if (!details) {
-      return;
-    }
-
-    const shouldOpen = button.getAttribute("aria-expanded") !== "true";
-
-    button.setAttribute("aria-expanded", String(shouldOpen));
-    details.hidden = !shouldOpen;
-    details.setAttribute("aria-hidden", String(!shouldOpen));
   }
 
   function renderAdminAccounts(accounts) {
@@ -1949,6 +1881,7 @@
     const previousRole = card?.dataset.accountRoleValue;
     if (!user || !select || previousRole === "admin") return;
     if (!["standard", "athlete", "trainer", "organizer"].includes(select.value)) return;
+    if (select.value === previousRole) { setAdminAccountEditMode(card, false); return; }
     try {
       button.disabled = true;
       requireCurrentUser(user);
@@ -2067,17 +2000,11 @@
         const unlinkButton = event.target.closest("[data-admin-account-unlink]");
         if (linkButton) { openAdminPersonSearch(auth, linkButton.closest("[data-admin-account-card]")); return; }
         if (unlinkButton) { unlinkAdminPerson(auth, unlinkButton); return; }
-        const toggleButton = event.target.closest("[data-admin-account-toggle]");
         const actionButton = event.target.closest("[data-admin-account-request-action]");
         const issueActionButton = event.target.closest("[data-admin-account-issue-action]");
         const editAccountButton = event.target.closest("[data-admin-account-edit]");
         const saveAccountButton = event.target.closest("[data-admin-account-save]");
         const cancelAccountButton = event.target.closest("[data-admin-account-cancel]");
-
-        if (toggleButton) {
-          toggleAdminAccountDetails(toggleButton);
-          return;
-        }
 
         if (editAccountButton) {
           const card = editAccountButton.closest("[data-admin-account-card]");
@@ -2088,7 +2015,9 @@
               setAdminAccountEditMode(openCard, false);
             }
           });
-          setAdminAccountEditMode(card, true);
+          const shouldOpen = editAccountButton.getAttribute("aria-expanded") !== "true";
+          resetAdminAccountEditValues(card);
+          setAdminAccountEditMode(card, shouldOpen);
           return;
         }
 

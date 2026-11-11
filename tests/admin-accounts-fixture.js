@@ -7,10 +7,10 @@
   ];
   const { id, searchName, ...identity } = people[1];
   const records = new Map([
-    ["users/admin", { role: "admin", email: "admin@example.test", displayName: "Admin" }],
-    ["users/member", { role: "standard", email: "mitglied@example.test", displayName: "Eigener Kontoname", personLinkStatus: "requested",
+    ["users/admin", { role: "admin", email: "admin@example.test", firstName: "Martin", lastName: "Admin", birthDate: "1978-01-03", dlrgBranch: "Baden" }],
+    ["users/member", { role: "standard", email: "mitglied@example.test", firstName: "Anna", lastName: "Eigenname", birthDate: "1991-05-20", dlrgBranch: "Baden", personLinkStatus: "requested",
       personLinkRequest: { status: "requested", firstName: "Anna", lastName: "Archiv", birthDate: "1991-05-20", dlrgBranch: "Baden", identityHint: "Teilnahme 2010" } }],
-    ["users/linked", { role: "trainer", email: "anderes-konto@example.test", displayName: "Anderer Kontoname", personLink: { id, ...identity }, personLinkStatus: "linked" }],
+    ["users/linked", { role: "trainer", email: "anderes-konto@example.test", firstName: "Bea", lastName: "Kontoname", birthDate: "2001-02-14", dlrgBranch: "Ettlingen", personLink: { id, ...identity }, personLinkStatus: "linked" }],
     [`personAccountLinks/${id}`, { uid: "linked" }],
     ...people.map((person) => { const { id, ...data } = person; return [`timerParticipantDirectory/${id}`, data]; }),
   ]);
@@ -55,4 +55,5 @@
   document.body.classList.remove("auth-context-loading");
   document.querySelector("[data-admin-accounts]").classList.remove("is-hidden");
   await window.adminPreviewReady;
+  document.body.dataset.page = "admin-accounts";
 })();

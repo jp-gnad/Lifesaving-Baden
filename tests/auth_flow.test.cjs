@@ -1378,7 +1378,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, toggleAdminAccountDetails, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1482,7 +1482,7 @@ test("admin account cards allow person linking while only other roles expose a r
     }
     assert.equal(nodes.some((node) => node.tagName === "input"), false);
     assert.equal(nodes.some((node) => "adminAccountLink" in node.dataset), true);
-    for (const action of role === "admin" ? ["adminAccountRequestAction"] : ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction"]) {
+    for (const action of role === "admin" ? ["adminAccountEdit", "adminAccountRequestAction"] : ["adminAccountEdit", "adminAccountSave", "adminAccountRequestAction"]) {
       assert.equal(nodes.some((node) => action in node.dataset), true);
     }
   }
@@ -1669,29 +1669,43 @@ test("admin search combines name, email, branch, person ID and current role with
   assert.equal(summary.textContent, "");
 });
 
-test("account cards lead with email and keep personal profile details inside the expansion", () => {
+test("compact account cards separate profile and database identity and expose controls only in the editor", () => {
   const h = harness();
   const functions = memberFunctions(h);
+  const all = (node) => [node, ...node.children.flatMap(all)];
   h.document.createElement = (tagName) => ({
     tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
     append(...children) { this.children.push(...children); },
     setAttribute(key, value) { this.attributes[key] = value; },
-    getAttribute(key) { return this.attributes[key]; },
+    getAttribute(key) { return this.attributes[key]; }, focus() {},
+    querySelector(selector) {
+      const key = selector.match(/^\[data-(.+)\]$/)[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      return all(this).find((node) => key in node.dataset);
+    },
   });
-  const all = (node) => [node, ...node.children.flatMap(all)];
   for (const role of ["admin", "standard"]) {
-    const nodes = all(functions.createAdminAccountCard({ uid: role, data: { role, email: "anna@example.test", dlrgBranch: "Baden" } }));
-    const toggle = nodes.find((node) => "adminAccountToggle" in node.dataset);
-    const details = nodes.find((node) => node.id === toggle.getAttribute("aria-controls"));
-    assert.equal(details.hidden, true);
-    assert.equal(all(details).some((node) => node.textContent === "anna@example.test"), true);
-    assert.equal(toggle.textContent, "anna@example.test");
-    assert.equal(nodes.some((node) => node.tagName === "p" && node.textContent === "Baden"), false);
-    h.document.getElementById = () => details;
-    functions.toggleAdminAccountDetails(toggle);
-    assert.equal(details.hidden, false);
-    functions.toggleAdminAccountDetails(toggle);
-    assert.equal(details.hidden, true);
+    const card = functions.createAdminAccountCard({ uid: role, data: {
+      role, firstName: "Anna", lastName: "Kontoname", birthDate: "1991-05-20", email: "anna@example.test", dlrgBranch: "Baden",
+      personLink: { id: "1234567890abcdef", name: "Anna Datenbankname", birthYear: 2001, gender: "w", organization: "Heidelberg" },
+    } });
+    const summary = card.querySelector("[data-admin-account-edit]");
+    const editor = card.querySelector("[data-admin-account-editor]");
+    const values = all(summary).map((node) => node.textContent);
+    assert.equal(summary.tagName, "button");
+    for (const value of ["Anna Kontoname (91)", "Baden", "anna@example.test", "Anna Datenbankname (01)", "Heidelberg"]) {
+      assert.equal(values.includes(value), true, value);
+    }
+    assert.equal(values.includes("Rolle"), false);
+    assert.equal(all(summary).filter((node) => node.tagName === "button").length, 1);
+    assert.equal(editor.hidden, true);
+    assert.equal(all(editor).some((node) => "adminAccountLink" in node.dataset), true);
+    assert.equal(all(editor).some((node) => "adminAccountUnlink" in node.dataset), true);
+    functions.setAdminAccountEditMode(card, true);
+    assert.equal(editor.hidden, false);
+    assert.equal(summary.getAttribute("aria-expanded"), "true");
+    functions.setAdminAccountEditMode(card, false);
+    assert.equal(editor.hidden, true);
+    assert.equal(summary.getAttribute("aria-expanded"), "false");
   }
 });
 

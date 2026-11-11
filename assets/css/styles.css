@@ -1550,118 +1550,69 @@ body.auth-context-loading .member-apps::after {
   font-size: 0.92rem;
 }
 
-.admin-account-list {
-  display: grid;
-  gap: 8px;
-}
+.admin-account-list { display: grid; gap: 6px; }
 
 .admin-account-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(100px, 140px) minmax(0, 1.2fr) max-content;
-  gap: 14px;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  --account-color: #a7a7b5;
+  --account-glow: rgba(167, 167, 181, 0.04);
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 3px solid var(--account-color);
   border-radius: 7px;
-  background: rgba(15, 15, 18, 0.58);
+  background: linear-gradient(90deg, var(--account-glow), rgba(15, 15, 18, 0.58) 65%);
+  overflow: hidden;
 }
+.admin-account-card.is-admin-account { --account-color: #ef626c; --account-glow: rgba(227, 6, 19, 0.07); }
+.admin-account-card.is-organizer-account { --account-color: #69b1ff; --account-glow: rgba(60, 156, 255, 0.07); }
+.admin-account-card.is-athlete-account { --account-color: #ffed00; --account-glow: rgba(255, 237, 0, 0.05); }
+.admin-account-card.is-trainer-account { --account-color: #35cc80; --account-glow: rgba(28, 191, 105, 0.06); }
+.admin-account-card.is-editing { border-top-color: var(--account-color); }
 
-.admin-account-card.has-open-request {
-  border-color: rgba(255, 237, 0, 0.34);
-  background:
-    linear-gradient(90deg, rgba(255, 237, 0, 0.1), rgba(15, 15, 18, 0.58) 36%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-card.is-admin-account {
-  border-color: rgba(227, 6, 19, 0.2);
-  background:
-    linear-gradient(90deg, rgba(227, 6, 19, 0.1), rgba(15, 15, 18, 0.58) 34%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-card.is-organizer-account {
-  border-color: rgba(60, 156, 255, 0.2);
-  background:
-    linear-gradient(90deg, rgba(60, 156, 255, 0.1), rgba(15, 15, 18, 0.58) 34%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-card.is-athlete-account {
-  border-color: rgba(255, 237, 0, 0.22);
-  background:
-    linear-gradient(90deg, rgba(255, 237, 0, 0.09), rgba(15, 15, 18, 0.58) 34%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-card.is-trainer-account {
-  border-color: rgba(28, 191, 105, 0.22);
-  background:
-    linear-gradient(90deg, rgba(28, 191, 105, 0.09), rgba(15, 15, 18, 0.58) 34%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-card.has-open-request.is-admin-account,
-.admin-account-card.has-open-request.is-organizer-account,
-.admin-account-card.has-open-request.is-athlete-account {
-  border-color: rgba(255, 237, 0, 0.34);
-  background:
-    linear-gradient(90deg, rgba(255, 237, 0, 0.11), rgba(15, 15, 18, 0.58) 38%),
-    rgba(15, 15, 18, 0.58);
-}
-
-.admin-account-identity {
+.admin-account-summary {
   display: grid;
-  gap: 3px;
-  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.admin-account-summary:hover { background: rgba(255, 255, 255, 0.025); }
+.admin-account-summary:focus-visible { outline: 2px solid var(--account-color); outline-offset: -3px; border-radius: 5px; }
+.admin-account-source { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-account-database { padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.admin-account-source-label { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--muted); font-size: 0.65rem; line-height: 1.3; letter-spacing: 0.025em; }
+.admin-account-person-name { color: var(--text); font-size: 0.9rem; line-height: 1.25; overflow-wrap: anywhere; }
+.admin-account-profile .admin-account-person-name { color: var(--account-color); }
+.admin-account-club, .admin-account-email, .admin-account-unlinked { color: var(--muted); font-size: 0.76rem; line-height: 1.3; overflow-wrap: anywhere; }
+.admin-account-email { color: #b9b9c7; font-size: 0.72rem; }
+.admin-account-alert { padding: 1px 4px; border-radius: 3px; background: rgba(255, 237, 0, 0.11); color: var(--primary); font-size: 0.6rem; line-height: 1.3; letter-spacing: 0; }
 
-.admin-account-title-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
+.admin-account-editor { margin: 0 10px; padding: 9px 0 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.admin-account-editor-toolbar, .admin-account-link-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.admin-account-editor .admin-account-role-field { display: flex; align-items: center; gap: 6px; }
+.admin-account-role-field .admin-role-control { width: auto; min-height: 32px; padding: 4px 6px; font-size: 0.78rem; }
+.admin-account-small-button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-height: 32px; padding: 5px 8px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 5px; background: rgba(255, 255, 255, 0.035); color: var(--text); font: inherit; font-size: 0.76rem; line-height: 1.2; cursor: pointer; }
+.admin-account-small-button:hover { background: rgba(255, 255, 255, 0.09); }
+.admin-account-small-button:focus-visible { outline: 2px solid var(--account-color); outline-offset: 2px; }
+.admin-account-small-button:disabled { opacity: 0.5; cursor: default; }
+.admin-account-small-button.is-danger { color: #f0969d; }
+.admin-account-editor-toolbar [data-admin-account-cancel] { margin-left: auto; }
+.admin-account-link-actions { margin-top: 8px; }
+.admin-account-editor .admin-request-details { margin: 10px 0 0; font-size: 0.78rem; }
 
-.admin-account-toggle {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 1rem;
-}
-
-.admin-account-card.is-admin-account .admin-account-toggle {
-  color: var(--accent-light);
-}
-
-.admin-account-card.is-organizer-account .admin-account-toggle {
-  color: var(--organizer-accent);
-}
-
-.admin-account-card.is-athlete-account .admin-account-toggle {
-  color: var(--athlete-accent);
-}
-
-.admin-account-card.is-trainer-account .admin-account-toggle {
-  color: var(--trainer-accent);
-}
-
-.admin-account-alert {
-  display: inline-grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--primary);
-  color: var(--bg);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.admin-account-identity p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+@media (max-width: 520px) {
+  .admin-account-summary { gap: 9px; padding: 8px 9px; }
+  .admin-account-database { padding-left: 9px; }
+  .admin-account-person-name { font-size: 0.78rem; }
+  .admin-account-club { font-size: 0.7rem; }
+  .admin-account-email { font-size: 0.67rem; }
+  .admin-account-source-label { font-size: 0.58rem; }
+  .admin-account-alert { font-size: 0.55rem; }
 }
 
 .admin-account-field {
@@ -1744,38 +1695,6 @@ body.auth-context-loading .member-apps::after {
   color: var(--trainer-accent);
 }
 
-.admin-account-link-controls {
-  display: grid;
-  gap: 6px;
-}
-
-.admin-link-display {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-}
-
-.admin-link-display.is-hidden {
-  display: none;
-}
-
-.admin-link-id-value {
-  min-width: 0;
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 650;
-  overflow-wrap: anywhere;
-}
-
-.admin-link-id-value.is-empty {
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.admin-link-id-value.is-linked { color: var(--trainer-accent); }
-.admin-account-toggle { overflow-wrap: anywhere; text-align: left; }
-.admin-person-link-button { width: fit-content; }
 .admin-person-dialog {
   width: min(620px, calc(100% - 24px));
   max-height: calc(100dvh - 32px);
@@ -1824,64 +1743,6 @@ body.auth-context-loading .member-apps::after {
 .admin-link-icon-button:focus-visible {
   outline: 2px solid rgba(255, 237, 0, 0.28);
   outline-offset: 2px;
-}
-
-.admin-account-edit:hover,
-.admin-account-edit:focus-visible {
-  background: rgba(255, 237, 0, 0.08);
-  color: var(--accent);
-}
-
-.admin-account-save {
-  color: var(--muted);
-}
-
-.admin-account-save:hover,
-.admin-account-save:focus-visible {
-  background: rgba(28, 191, 105, 0.1);
-  color: var(--success);
-}
-
-.admin-account-cancel {
-  color: var(--muted);
-}
-
-.admin-account-cancel:hover,
-.admin-account-cancel:focus-visible {
-  background: rgba(227, 6, 19, 0.1);
-  color: var(--danger);
-}
-
-.admin-account-actions {
-  display: inline-grid;
-  grid-template-columns: 30px;
-  justify-content: end;
-  justify-self: end;
-  gap: 4px;
-}
-
-.admin-account-card.is-editing .admin-account-actions {
-  grid-template-columns: 30px 30px;
-}
-
-.admin-account-actions [hidden] {
-  display: none;
-}
-
-.admin-account-details-shell {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.admin-account-details-shell[hidden] {
-  display: none;
-}
-
-.admin-account-request-actions {
-  justify-content: flex-start;
 }
 
 .dashboard-action-card .button {
@@ -3488,41 +3349,6 @@ body.auth-context-loading .member-apps::after {
     grid-template-columns: 1fr;
   }
 
-  .admin-account-card {
-    grid-template-columns: minmax(0, 1fr) max-content;
-    align-items: start;
-  }
-
-  .admin-account-identity {
-    grid-column: 1;
-    min-width: 0;
-  }
-
-  .admin-account-actions {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-  }
-
-  .admin-account-card:not(.is-editing) .admin-account-field {
-    display: grid;
-    grid-column: 1 / -1;
-  }
-
-  .admin-account-card.is-editing .admin-account-field {
-    display: grid;
-    grid-column: 1 / -1;
-  }
-
-  .admin-account-card.is-editing .admin-account-actions {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .admin-account-details-shell {
-    grid-column: 1 / -1;
-  }
-
   .admin-decision-field {
     grid-template-columns: 1fr;
   }
@@ -3532,10 +3358,6 @@ body.auth-context-loading .member-apps::after {
   }
 
   .admin-request-details {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-account-link-controls {
     grid-template-columns: 1fr;
   }
 
@@ -4156,4 +3978,20 @@ body[data-page="login"] .auth-privacy a {
 
 body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-page="link-request"]) > main {
   visibility: hidden;
+}
+
+/* Keep the admin overview focused on the compact account list on phones. */
+.admin-account-panel [data-admin-account-message]:empty { display: none; }
+@media (max-width: 700px) {
+  body[data-page="admin-accounts"] .dashboard-header { margin-bottom: 12px; padding-block: 14px; }
+  body[data-page="admin-accounts"] .dashboard-header .eyebrow { margin: 0 0 3px; font-size: 0.68rem; }
+  body[data-page="admin-accounts"] .dashboard-header h1 { margin: 0; font-size: 1.4rem; }
+  body[data-page="admin-accounts"] .dashboard-header .button { width: fit-content; min-height: 24px; margin-top: 3px; padding: 2px 0; font-size: 0.72rem; }
+  .admin-account-panel { gap: 8px; }
+  .admin-account-panel .admin-panel-heading { flex-direction: row; align-items: center; gap: 8px; }
+  .admin-account-panel .admin-panel-heading p { font-size: 0.73rem; line-height: 1.35; }
+  .admin-account-panel .admin-panel-heading .button { width: auto; min-height: 32px; padding: 5px 8px; font-size: 0.73rem; }
+  .admin-account-panel .admin-account-search { gap: 4px; margin-top: 0; font-size: 0.74rem; }
+  .admin-account-panel .admin-account-search input { min-height: 40px; padding: 7px 9px; }
+  .admin-account-panel .admin-search-summary { margin: 0; }
 }
