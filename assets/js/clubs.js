@@ -9,7 +9,7 @@
   const list = byId("se-list");
   const collator = new Intl.Collator("de", { sensitivity: "base" });
   const formatDate = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
-  const roles = { trainer: "Trainer", organizer: "Organisator", admin: "Admin" };
+  const roles = { athlete: "Sportler", trainer: "Trainer", organizer: "Organisator", admin: "Admin" };
   const ranks = { standard: 1, athlete: 2, trainer: 3, organizer: 4, admin: 5 };
   const statusNames = { 1: "Bis Jahresende", 2: "Läuft ab", 3: "Offen" };
   const paths = {
@@ -65,7 +65,11 @@
     owner.view += 1;
     owner.rosterStop?.();
     owner.profileStops.forEach((stop) => stop());
+    owner.linkStops.forEach((stop) => stop());
     owner.profileStops.clear();
+    owner.linkStops.clear();
+    owner.personAccounts.clear();
+    owner.activityPending.clear();
     owner.profiles.clear();
     owner.roster.clear();
     owner.loaded = false;
@@ -93,7 +97,6 @@
       byId("se-season-switch").disabled = true;
       byId("se-season-current").checked = true;
       byId("club-person-title").textContent = "";
-      byId("club-person-years").replaceChildren();
     } else byId("club-create-open").disabled = true;
     document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
   }
@@ -102,8 +105,9 @@
     stop();
     const owner = {
       auth, uid: user.uid, role, db: window.firebase.firestore(), sdk: window.firebase.firestore,
-      stops: [], clubs: new Map(), view: 0, profileStops: new Map(),
-      profiles: new Map(), roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
+      stops: [], clubs: new Map(), view: 0, profileStops: new Map(), linkStops: new Map(),
+      profiles: new Map(), personAccounts: new Map(), activityPending: new Map(),
+      roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
     };
     session = owner;
     content.hidden = false;
@@ -167,8 +171,10 @@
 
   function peopleFor(owner) {
     return [...owner.roster.values()].map((person) => {
-      const profile = person.accountUid ? owner.profiles.get(person.accountUid) : null;
-      const identity = profile ? { ...person, ...profile } : person;
+      const uid = person.accountUid || owner.personAccounts.get(person.personId);
+      const profile = uid ? owner.profiles.get(uid) : null;
+      const identity = person.accountUid && profile ? { ...person, ...profile }
+        : profile?.personId === person.personId ? { ...person, role: profile.role } : person;
       const subjectId = identity.id;
       const dates = Object.fromEntries(eligibility.dateKeys.map((key) => [key, person[key] ? eligibility.dateKey(person[key].toDate()) : ""]));
       return { ...identity, ...dates, subjectId };
@@ -176,9 +182,24 @@
   }
 
   function reconcile(owner, view) {
+    const personIds = new Set([...owner.roster.values()].filter((person) => !person.accountUid).map((person) => person.personId));
+    for (const id of personIds) {
+      if (owner.linkStops.has(id)) continue;
+      owner.linkStops.set(id, owner.db.collection("personAccountLinks").doc(id).onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+        if (!active(owner, view) || snapshot.metadata.fromCache) return;
+        owner.personAccounts.set(id, snapshot.exists ? snapshot.data().uid : "");
+        reconcile(owner, view);
+      }, () => { if (active(owner, view)) message("Kontozuordnungen konnten nicht aktualisiert werden."); }));
+    }
+    for (const [id, unsubscribe] of owner.linkStops) {
+      if (!personIds.has(id)) { unsubscribe(); owner.linkStops.delete(id); owner.personAccounts.delete(id); }
+    }
+    const accountIds = new Set();
     for (const person of owner.roster.values()) {
-      if (!person.accountUid || owner.profileStops.has(person.accountUid)) continue;
-      const uid = person.accountUid;
+      const uid = person.accountUid || owner.personAccounts.get(person.personId);
+      if (!uid) continue;
+      accountIds.add(uid);
+      if (owner.profileStops.has(uid)) continue;
       owner.profileStops.set(uid, owner.db.collection("clubProfiles").doc(uid).onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
         if (!active(owner, view) || snapshot.metadata.fromCache) return;
         owner.profiles.set(uid, snapshot.exists ? snapshot.data() : null);
@@ -186,7 +207,7 @@
       }, () => { if (active(owner, view)) message("Kontorollen konnten nicht aktualisiert werden."); }));
     }
     for (const [uid, unsubscribe] of owner.profileStops) {
-      if (![...owner.roster.values()].some((person) => person.accountUid === uid)) { unsubscribe(); owner.profileStops.delete(uid); owner.profiles.delete(uid); }
+      if (!accountIds.has(uid)) { unsubscribe(); owner.profileStops.delete(uid); owner.profiles.delete(uid); }
     }
     render(owner);
   }
@@ -226,7 +247,7 @@
       const heading = node("div", "wt-day-header");
       heading.append(node("h2", "wt-day-heading", group), node("span", "wt-day-total", entries.length));
       const card = node("div", "wt-day-card");
-      card.append(...entries.map(({ person, state }) => personRow(owner, person, state, year)));
+      card.append(...entries.map(({ person, state }) => personRow(owner, person, state)));
       section.append(heading, card);
       sections.push(section);
     }
@@ -244,11 +265,11 @@
     }
   }
 
-  function personRow(owner, person, state, year) {
-    const row = node(tab === "team" ? "div" : "button", "se-person club-person");
+  function personRow(owner, person, state) {
+    const row = node(tab === "eligibility" ? "button" : "div", "se-person club-person");
     row.id = `club-person-${person.id}`;
-    if (tab !== "team") row.type = "button";
-    row.dataset.role = owner.clubs.get(owner.clubId)?.managerIds.includes(person.accountUid) ? person.role || "trainer" : "";
+    if (tab === "eligibility") row.type = "button";
+    row.dataset.role = roles[person.role] ? person.role : "";
     const details = node("span", "se-person-details");
     details.append(node("strong", "se-person-name", core.displayName(person)));
     if (roles[row.dataset.role]) details.append(node("span", "club-role", roles[row.dataset.role]));
@@ -271,16 +292,29 @@
         isCurrent: () => active(owner, view), requireCurrent: () => requireCurrent(owner, view),
       }));
     } else if (tab === "people") {
+      row.classList.add("club-person-roster");
+      const open = node("button", "club-person-open");
+      open.id = `club-person-open-${person.id}`;
+      open.type = "button";
+      open.setAttribute("aria-label", `${core.displayName(person)} verwalten`);
+      open.append(details, icon("next"));
+      open.addEventListener("click", () => openPerson(owner, person));
       const activity = node("span", "club-year-badges");
       const current = eligibility.seasonYear(eligibility.today());
       for (const activeYear of [current, current + 1]) {
-        const enabled = person.activeYears.includes(activeYear);
-        const badge = node("span", enabled ? "is-active" : "", `${String(activeYear).slice(-2)} ${enabled ? "✓" : "–"}`);
-        badge.setAttribute("aria-label", `${activeYear} ${enabled ? "aktiv" : "inaktiv"}`);
+        const key = `${person.id}/${activeYear}`;
+        const pending = owner.activityPending.get(key);
+        const enabled = pending === undefined ? person.activeYears.includes(activeYear) : pending;
+        const badge = node("button", "", `(${String(activeYear).slice(-2)})`);
+        badge.id = `club-year-${person.id}-${activeYear}`;
+        badge.type = "button";
+        badge.setAttribute("aria-disabled", String(pending !== undefined));
+        badge.setAttribute("aria-pressed", String(enabled));
+        badge.setAttribute("aria-label", `${core.displayName(person)}, ${activeYear} ${enabled ? "aktiv" : "inaktiv"}`);
+        badge.addEventListener("click", () => toggleActivity(owner, person, activeYear));
         activity.append(badge);
       }
-      row.addEventListener("click", () => openPerson(owner, person));
-      row.append(details, activity, icon("next"));
+      row.append(open, activity);
       return row;
     }
     row.append(details);
@@ -288,43 +322,35 @@
     return row;
   }
 
+  async function toggleActivity(owner, person, year) {
+    const view = owner.view;
+    const key = `${person.id}/${year}`;
+    if (!active(owner, view) || owner.activityPending.has(key)) return;
+    const current = owner.roster.get(person.id);
+    if (!current || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
+    const enabled = !current.activeYears.includes(year);
+    owner.activityPending.set(key, enabled);
+    render(owner);
+    try {
+      await store.setActive(owner.db, owner.clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
+    } catch (error) {
+      if (active(owner, view)) message(errorText(error));
+    } finally {
+      if (active(owner, view)) { owner.activityPending.delete(key); render(owner); }
+    }
+  }
+
   function openPerson(owner, person) {
     selectedPerson = person;
     byId("club-person-title").textContent = core.displayName(person);
     byId("club-person-error").hidden = true;
-    const view = owner.view;
-    const currentYear = eligibility.seasonYear(eligibility.today());
-    byId("club-person-years").replaceChildren(...[currentYear, currentYear + 1].map((year) => {
-      const label = node("label", "club-activity-year");
-      const input = node("input");
-      input.type = "checkbox";
-      input.checked = person.activeYears.includes(year);
-      input.setAttribute("aria-label", `${year} aktiv`);
-      const status = node("span", "", input.checked ? "Aktiv" : "Inaktiv");
-      label.append(node("strong", "", year), input, status);
-      input.addEventListener("change", async () => {
-        const enabled = input.checked;
-        byId("club-person-years").querySelectorAll("input").forEach((field) => { field.disabled = true; });
-        try {
-          await store.setActive(owner.db, owner.clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
-          if (active(owner, view)) status.textContent = enabled ? "Aktiv" : "Inaktiv";
-        } catch (error) {
-          if (!active(owner, view)) return;
-          input.checked = !enabled;
-          byId("club-person-error").textContent = errorText(error);
-          byId("club-person-error").hidden = false;
-        } finally {
-          if (active(owner, view)) byId("club-person-years").querySelectorAll("input").forEach((field) => { field.disabled = false; });
-        }
-      });
-      return label;
-    }));
     updatePersonPermissions(owner, person);
     byId("club-person-dialog").showModal();
   }
 
   function updatePersonPermissions(owner, person) {
     byId("club-person-meta").textContent = roles[person.role] || "";
+    byId("club-person-meta").dataset.role = person.role || "";
     const club = owner.clubs.get(owner.clubId);
     const manager = club.managerIds.includes(person.accountUid);
     const last = manager && club.managerIds.length === 1;
@@ -397,9 +423,11 @@
       owner.db.collection("clubDirectory").get({ source: "server" }),
     ]);
     requireCurrent(owner);
-    owner.accounts = accounts.docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" })).filter((account) => ranks[account.role] >= 3);
+    const accountProfiles = accounts.docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" }));
+    owner.accounts = accountProfiles.filter((account) => ranks[account.role] >= 3);
     const existing = new Map(profiles.docs.map((doc) => [doc.id, doc.data()]));
-    const updates = owner.accounts.filter((account) => { const { uid, email, ...data } = account; return JSON.stringify(existing.get(uid)) !== JSON.stringify(data); });
+    const updates = accountProfiles.filter((account) => account.personId || ranks[account.role] >= 3)
+      .filter((account) => { const { uid, email, ...data } = account; return Object.keys(data).some((key) => existing.get(uid)?.[key] !== data[key]); });
     for (let offset = 0; offset < updates.length; offset += 8) {
       requireCurrent(owner);
       const batch = owner.db.batch();

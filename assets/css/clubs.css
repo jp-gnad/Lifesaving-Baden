@@ -6,18 +6,20 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-tabs button { font-size: .85rem; }
 .club-tabs button[aria-current="page"] { border-bottom-color: #75d4ac; color: var(--text); }
 .club-role { font-size: .68rem; color: var(--club-role-color, var(--muted)); }
-[data-role="trainer"] { --club-role-color: #75d4ac; }
-[data-role="organizer"] { --club-role-color: #efbd76; }
-[data-role="admin"] { --club-role-color: #c3a1ee; }
+#club-person-meta { color: var(--club-role-color, var(--muted)); }
+[data-role="athlete"] { --club-role-color: var(--athlete-accent); }
+[data-role="trainer"] { --club-role-color: var(--trainer-accent); }
+[data-role="organizer"] { --club-role-color: var(--organizer-accent); }
+[data-role="admin"] { --club-role-color: var(--accent-light); }
 .club-person .se-person-name, .club-manager-name { color: var(--club-role-color, var(--text)); }
 .club-person:not([data-stage]) { border-inline-start-color: transparent; }
+.club-person-roster { cursor: default; }
+.club-person-open { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.club-person-open > svg { width: 14px; color: var(--muted); }
 .club-year-badges { display: flex; gap: 4px; flex-shrink: 0; }
-.club-year-badges span { padding: 4px 6px; border-radius: 5px; color: var(--muted); background: var(--bg); font-size: .72rem; font-variant-numeric: tabular-nums; }
-.club-year-badges .is-active { color: #75d4ac; background: #75d4ac16; }
-.club-activity { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.club-activity-year { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
-.club-activity-year input { width: 20px; height: 20px; margin: 0; accent-color: #39835f; }
-.club-activity-year > span { color: var(--muted); font-size: .8rem; }
+.club-year-badges button { min-width: 44px; min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--surface-muted); font: inherit; font-size: .76rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+.club-year-badges button[aria-pressed="true"] { color: var(--trainer-accent); border-color: #1cbf6944; background: #1cbf6920; }
+.club-year-badges button[aria-disabled="true"] { opacity: .6; cursor: wait; }
 .club-admin-card { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .club-admin-body { min-width: 0; }
 .club-admin-title { color: var(--text); font-weight: 700; overflow-wrap: anywhere; }
@@ -29,7 +31,6 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
   .club-toolbar { margin-bottom: 8px; }
   .club-tabs { gap: 0; justify-content: space-between; margin-bottom: 8px; }
   .club-tabs button { font-size: .73rem; padding: 12px 0; min-height: 44px; }
-  .club-year-badges span { padding: 4px; font-size: .68rem; }
   .club-admin-card { padding: 14px; }
   .club-person > svg { width: 14px; }
 }
