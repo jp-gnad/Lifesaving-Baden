@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login · Lokale Prüfung</title>
+    <style>
+      body{margin:0;background:#08080a;color:white;font:14px system-ui}
+      nav{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:10px}
+      button{padding:8px} iframe{display:block;margin:auto;border:0;width:100%;height:calc(100vh - 110px)}
+      p{text-align:center;margin:0 0 10px}
+    </style>
+  </head>
+  <body>
+    <nav>
+      <button data-mode="new">Neue Registrierung</button>
+      <button data-mode="resume">Namenseingabe fortsetzen</button>
+      <button data-width="100%">Desktop</button>
+      <button data-width="390px">Mobil · 390 px</button>
+      <button data-width="320px">320 px</button>
+    </nav>
+    <p id="status">Nur lokale Testdaten. Es werden keine Konten angelegt oder E-Mails verschickt.</p>
+    <iframe id="preview" title="Login mit lokalen Testdaten"></iframe>
+    <script>
+      async function preview(mode) {
+        const page = new DOMParser().parseFromString(await (await fetch("../login.html")).text(), "text/html");
+        page.querySelectorAll("script").forEach(script => {
+          if (!/assets\/js\/(auth-core|login|google-handoff|header|nav|login-background)\.js/.test(script.getAttribute("src") || "")) script.remove();
+        });
+        const base = page.createElement("base");
+        base.href = new URL("../", location.href).href;
+        page.head.prepend(base);
+        page.body.dataset.fixtureMode = mode;
+        const fixture = page.createElement("script");
+        fixture.src = "tests/login-fixture.js";
+        fixture.defer = true;
+        page.head.insertBefore(fixture, page.querySelector('script[src*="auth-core.js"]'));
+        document.getElementById("status").textContent = "Nur lokale Testdaten. Es werden keine Konten angelegt oder E-Mails verschickt.";
+        document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;
+      }
+      document.querySelectorAll("[data-mode]").forEach(button => button.onclick = () => preview(button.dataset.mode));
+      document.querySelectorAll("[data-width]").forEach(button => button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; });
+      window.addEventListener("message", event => {
+        if (event.source !== document.getElementById("preview").contentWindow || event.data?.type !== "login-fixture") return;
+        document.getElementById("status").textContent = event.data.message;
+      });
+      preview("new");
+    </script>
+  </body>
+</html>

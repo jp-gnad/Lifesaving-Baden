@@ -50,7 +50,8 @@
     } catch { /* Login remains usable when session storage is unavailable. */ }
   }
   const {
-    initFirebase, ensureLocalAuthPersistence, reloadUser, withRetry, isCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
+    initFirebase, ensureLocalAuthPersistence, reloadUser, withRetry, isCurrentUser, requireCurrentUser, hasVerifiedAccess, initPasswordVisibilityToggles,
+    loadUserContext, saveAccountName, normalizeNameDetails, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, setMessage, setLoading, translateAuthError,
   } = window.LifesavingAuth;
 
@@ -121,17 +122,24 @@
     const loginTitle = document.querySelector("#auth-title");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');
+    const firstNameInput = loginForm?.querySelector('input[name="firstName"]');
+    const lastNameInput = loginForm?.querySelector('input[name="lastName"]');
+    const nameStep = document.querySelector("[data-login-name-step]");
     const loginButton = loginForm?.querySelector('button[type="submit"]');
     let passwordStep = false;
+    let registrationUser = null;
+    const googleNameSaves = new Map();
     let emailSubmissionPending = false;
 
     function lockMobileInputs() {
       if (!mobileLoginQuery?.matches) return;
       if (emailInput) emailInput.readOnly = true;
       if (passwordInput) passwordInput.readOnly = true;
+      if (firstNameInput) firstNameInput.readOnly = true;
+      if (lastNameInput) lastNameInput.readOnly = true;
     }
 
-    [emailInput, passwordInput].forEach((input) => {
+    [emailInput, passwordInput, firstNameInput, lastNameInput].forEach((input) => {
       if (!input) return;
       input.readOnly = Boolean(mobileLoginQuery?.matches);
       input.addEventListener("pointerdown", () => { input.readOnly = false; });
@@ -145,31 +153,42 @@
     });
 
     function focusMobileHeading() {
-      if (!passwordStep && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
+      if (!passwordStep && !registrationUser && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
     }
 
     function updateEmailButton() {
-      if (loginButton) loginButton.disabled = emailSubmissionPending || !String(new FormData(loginForm).get("email") || "").trim();
+      if (loginButton) loginButton.disabled = emailSubmissionPending || (!registrationUser && !String(new FormData(loginForm).get("email") || "").trim());
     }
 
     function updateEmailStep() {
       updateEmailButton();
-      const emailStep = !passwordStep;
+      const emailStep = !passwordStep && !registrationUser;
       loginForm?.classList.toggle("is-email-step", emailStep);
+      loginForm?.classList.toggle("is-name-step", Boolean(registrationUser));
+      if (nameStep) nameStep.hidden = !registrationUser;
+      [firstNameInput, lastNameInput].forEach((input) => {
+        if (!input) return;
+        input.required = Boolean(registrationUser);
+        input.disabled = !registrationUser;
+      });
+      if (loginTitle) loginTitle.textContent = registrationUser ? "Wie heißt du?" : "Anmelden";
+      if (loginButton && !emailSubmissionPending) loginButton.textContent = registrationUser ? "Bestätigungsmail senden" : "Anmelden";
       if (emailSummary) {
         emailSummary.hidden = emailStep;
-        emailSummary.textContent = emailStep ? "" : String(new FormData(loginForm).get("email") || "").trim();
+        emailSummary.textContent = emailStep ? "" : registrationUser?.email || String(new FormData(loginForm).get("email") || "").trim();
       }
       if (dividerCopy) dividerCopy.hidden = !emailStep;
       if (changeEmailButton) changeEmailButton.hidden = emailStep;
       if (emailInput) emailInput.placeholder = "Deine E-Mail";
       if (passwordInput) {
-        passwordInput.required = !emailStep;
+        passwordInput.required = passwordStep && !registrationUser;
+        passwordInput.disabled = Boolean(registrationUser);
         passwordInput.placeholder = "Dein Passwort";
       }
     }
 
     emailInput?.addEventListener("input", () => {
+      if (authAction || registrationUser) return;
       if (passwordStep) {
         passwordStep = false;
         passwordInput.value = "";
@@ -177,8 +196,15 @@
       }
       updateEmailStep();
     });
-    changeEmailButton?.addEventListener("click", () => {
+    changeEmailButton?.addEventListener("click", async () => {
       if (authAction) return;
+      if (registrationUser) {
+        authAction = "logout";
+        try { await auth.signOut(); }
+        catch (error) { showLoginError(error); return; }
+        finally { authAction = null; }
+        registrationUser = null;
+      }
       passwordStep = false;
       passwordInput.value = "";
       setMessage("login", "");
@@ -189,8 +215,7 @@
     emailInput?.addEventListener("change", updateEmailButton);
     mobileLoginQuery?.addEventListener("change", () => {
       if (!mobileLoginQuery.matches) {
-        if (emailInput) emailInput.readOnly = false;
-        if (passwordInput) passwordInput.readOnly = false;
+        [emailInput, passwordInput, firstNameInput, lastNameInput].forEach((input) => { if (input) input.readOnly = false; });
       }
       updateEmailStep();
     });
@@ -247,12 +272,23 @@
 
         const verified = await hasVerifiedAccess(activeUser);
         if (!isCurrentUser(activeUser)) return;
+        // A registration must retain its name step even if verification happens in another tab.
+        if (registrationUser?.uid === activeUser.uid) return;
         if (!verified) {
           if (!authAction) setLoading(googleButton, false);
+          const { userData, claims } = await loadUserContext(activeUser);
+          if (!isCurrentUser(activeUser)) return;
+          if (!isAdminAccount(userData, claims) && (!userData.firstName || !userData.lastName)) {
+            showRegistrationName(activeUser, userData);
+            return;
+          }
           showResendButton(true);
           setMessage("login", "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du fortfährst.");
           return;
         }
+
+        await googleNameSaves.get(activeUser.uid);
+        if (!isCurrentUser(activeUser)) return;
 
         loginRedirectStarted = true;
         rememberGoogleAttempt(false);
@@ -265,6 +301,42 @@
       } finally {
         if (verifiedLoginPromise === pending) verifiedLoginPromise = null;
       }
+    }
+
+    function showRegistrationName(user, data = {}) {
+      if (!isCurrentUser(user)) return;
+      const changedUser = registrationUser?.uid !== user.uid;
+      registrationUser = user;
+      passwordStep = false;
+      if (passwordInput) passwordInput.value = "";
+      if (emailInput && user.email) emailInput.value = user.email;
+      if (changedUser) {
+        if (firstNameInput) firstNameInput.value = data.firstName || "";
+        if (lastNameInput) lastNameInput.value = data.lastName || "";
+      }
+      updateEmailStep();
+      showResendButton(false);
+      setMessage("login", "Bitte ergänze Vorname und Nachname. Danach senden wir dir die Bestätigungsmail.");
+      if (changedUser && firstNameInput) {
+        firstNameInput.readOnly = false;
+        firstNameInput.focus();
+      }
+    }
+
+    async function finishGoogleLogin(result) {
+      const user = result?.user;
+      if (!isCurrentUser(user)) return;
+      const profile = result.additionalUserInfo?.profile;
+      // Use Google's separate name fields, never guess surname boundaries from displayName.
+      if (profile && user.providerData?.some((provider) => provider.providerId === "google.com")) {
+        const name = normalizeNameDetails({ firstName: profile.given_name, lastName: profile.family_name });
+        if (name.firstName || name.lastName) {
+          const saving = saveAccountName(user, name, { onlyIfMissing: true });
+          googleNameSaves.set(user.uid, saving);
+          await saving;
+        }
+      }
+      await finishVerifiedLogin(user);
     }
 
     function showLoginError(error) {
@@ -348,7 +420,7 @@
         if (!result) return;
         googleHandoff?.clear();
         googleHandoffPending = false;
-        await finishVerifiedLogin(result.user);
+        await finishGoogleLogin(result);
       } catch (error) {
         if (!loginPageLeaving) showLoginError(error);
       } finally {
@@ -455,6 +527,10 @@
       if (redirectResultPending || googleHandoffPending) return;
       if (!user) {
         showResendButton(false);
+        registrationUser = null;
+        if (firstNameInput) firstNameInput.value = "";
+        if (lastNameInput) lastNameInput.value = "";
+        updateEmailStep();
         if (checkingGoogleReturn) {
           checkingGoogleReturn = false;
           rememberGoogleAttempt(false);
@@ -478,7 +554,8 @@
           redirectResultPending = false;
           const user = result?.user || auth.currentUser;
           if (user) {
-            await finishVerifiedLogin(user);
+            if (result?.user) await finishGoogleLogin(result);
+            else await finishVerifiedLogin(user);
             if (!isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
           } else if (checkingGoogleReturn) {
             showLoginError({ code: "app/google-session-missing" });
@@ -532,7 +609,36 @@
       event.preventDefault();
       const formData = new FormData(loginForm);
       const email = String(formData.get("email") || "").trim();
-      if (authAction || !email) return;
+      if (authAction || (!email && !registrationUser)) return;
+      if (registrationUser) {
+        const user = registrationUser;
+        const name = normalizeNameDetails({ firstName: formData.get("firstName"), lastName: formData.get("lastName") });
+        if (!name.firstName || !name.lastName) {
+          setMessage("login", "Bitte gib Vorname und Nachname ein.");
+          return;
+        }
+        authAction = "register";
+        emailSubmissionPending = true;
+        try {
+          setLoading(loginButton, true, "Speichern...");
+          await saveAccountName(user, name);
+          requireCurrentUser(user);
+          registrationUser = null;
+          updateEmailStep();
+          showResendButton(true);
+          await user.sendEmailVerification({ url: getVerificationRedirectUrl() });
+          requireCurrentUser(user);
+          setMessage("login", "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link in deinem Postfach. Danach kannst du dich anmelden.", true);
+        } catch (error) {
+          showLoginError(error);
+        } finally {
+          authAction = null;
+          setLoading(loginButton, false);
+          emailSubmissionPending = false;
+          updateEmailStep();
+        }
+        return;
+      }
       directGoogleAttempt = false;
       googleHandoff?.clear();
       rememberGoogleAttempt(false);
@@ -567,12 +673,7 @@
             throw registrationError;
           }
           if (!isCurrentUser(result.user)) return;
-          showResendButton(true);
-          await result.user.sendEmailVerification({ url: getVerificationRedirectUrl() });
-          passwordInput.value = "";
-          passwordStep = false;
-          updateEmailStep();
-          setMessage("login", "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link in deinem Postfach. Danach kannst du dich anmelden.", true);
+          showRegistrationName(result.user);
           return;
         }
         await finishVerifiedLogin(result.user);
@@ -582,7 +683,7 @@
         authAction = null;
         setLoading(button, false);
         emailSubmissionPending = false;
-        updateEmailButton();
+        updateEmailStep();
       }
     });
 
@@ -605,8 +706,9 @@
           await auth.signInWithRedirect(googleProvider);
           return;
         }
-        const { user } = await auth.signInWithPopup(googleProvider);
-        await finishVerifiedLogin(user);
+        const result = await auth.signInWithPopup(googleProvider);
+        const { user } = result;
+        await finishGoogleLogin(result);
         if (!loginRedirectStarted && !isCurrentUser(user)) showLoginError({ code: "app/google-session-missing" });
       } catch (error) {
         redirectStarted = false;
@@ -648,6 +750,7 @@
 
     resendButton?.addEventListener("click", async () => {
       const user = auth.currentUser;
+      if (authAction) return;
 
       if (!user) {
         setMessage("login", "Logge dich zuerst ein, um die Mail erneut zu senden.");
@@ -655,14 +758,23 @@
       }
 
       try {
+        authAction = "register";
         setLoading(resendButton, true, "Sende...");
+        const { userData, claims } = await loadUserContext(user);
+        requireCurrentUser(user);
+        if (!isAdminAccount(userData, claims) && (!userData.firstName || !userData.lastName)) {
+          showRegistrationName(user, userData);
+          return;
+        }
         await user.sendEmailVerification({
           url: getVerificationRedirectUrl()
         });
+        requireCurrentUser(user);
         setMessage("login", "Bestätigungs-Mail wurde erneut gesendet.", true);
       } catch (error) {
-        setMessage("login", translateAuthError(error));
+        showLoginError(error);
       } finally {
+        authAction = null;
         setLoading(resendButton, false);
       }
     });

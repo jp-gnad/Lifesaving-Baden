@@ -74,23 +74,58 @@
     }
   }
 
-  async function createAccountDocument(user, ref) {
-    const timestamp = window.firebase.firestore.FieldValue.serverTimestamp;
-    const data = {
+  function newAccountData(user) {
+    return {
       uid: user.uid, email: user.email || "", firstName: "", lastName: "", displayName: "",
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
       accountSetupRequired: true,
     };
+  }
+
+  async function createAccountDocument(user, ref) {
+    const timestamp = window.firebase.firestore.FieldValue.serverTimestamp;
+    const data = newAccountData(user);
     // Recheck inside the transaction so another tab's role/profile is never overwritten.
     return window.firebase.firestore().runTransaction(async (transaction) => {
       requireCurrentUser(user);
       const snapshot = await transaction.get(ref);
+      requireCurrentUser(user);
       if (snapshot.exists) return snapshot.data() || {};
       transaction.set(ref, { ...data, createdAt: timestamp(), updatedAt: timestamp(), lastSignInAt: timestamp() });
       return data;
     });
+  }
+
+  async function saveAccountName(user, details, { onlyIfMissing = false } = {}) {
+    requireCurrentUser(user);
+    const name = normalizeNameDetails(details);
+    if ((!name.firstName || !name.lastName) && !onlyIfMissing) {
+      throw { code: "app/name-required" };
+    }
+    if (!name.firstName && !name.lastName) return null;
+    const claims = onlyIfMissing ? (await user.getIdTokenResult()).claims || {} : {};
+    requireCurrentUser(user);
+    const db = window.firebase.firestore();
+    const ref = db.collection("users").doc(user.uid);
+    const timestamp = window.firebase.firestore.FieldValue.serverTimestamp;
+    const saved = await db.runTransaction(async (transaction) => {
+      requireCurrentUser(user);
+      const snapshot = await transaction.get(ref);
+      requireCurrentUser(user);
+      // Claim-only admins retain their existing bootstrap path; owners cannot create admin profiles.
+      if (!snapshot.exists && onlyIfMissing && isAdminAccount({}, claims)) return null;
+      const data = snapshot.exists ? snapshot.data() || {} : newAccountData(user);
+      // Provider data only seeds an empty profile. Never replace a chosen account name.
+      if (onlyIfMissing && (data.firstName || data.lastName || data.displayName)) return data;
+      const payload = { ...name, loginNameCaptured: Boolean(name.firstName && name.lastName), updatedAt: timestamp() };
+      if (snapshot.exists) transaction.update(ref, payload);
+      else transaction.set(ref, { ...data, ...payload, createdAt: timestamp(), lastSignInAt: timestamp() });
+      return { ...data, ...payload };
+    });
+    requireCurrentUser(user);
+    return saved;
   }
 
   function loadUserContext(user) {
@@ -198,6 +233,7 @@
       "auth/user-disabled": "Dieses Konto wurde deaktiviert.",
       "auth/user-mismatch": "Die erneute Anmeldung gehört nicht zu diesem Konto.",
       "auth/user-not-found": "E-Mail oder Passwort stimmt nicht.",
+      "app/name-required": "Bitte gib Vorname und Nachname ein.",
       "auth/weak-password": "Das Passwort muss mindestens 6 Zeichen haben.",
       "auth/wrong-password": "E-Mail oder Passwort stimmt nicht."
     };
@@ -346,7 +382,7 @@
 
   window.LifesavingAuth = Object.freeze({
     initFirebase, ensureLocalAuthPersistence, isCurrentUser, requireCurrentUser, reloadUser, hasVerifiedAccess,
-    isTransientError, withRetry, loadUserContext,
+    isTransientError, withRetry, loadUserContext, saveAccountName,
     normalizeNamePart, formatFullName, splitDisplayNameIntoNameParts, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, normalizeRole, hasRole, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, requiresAccountSetup, redirectToAccountSetup,

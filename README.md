@@ -118,8 +118,12 @@ Auf allen Bildschirmgrößen bleibt das Passwort zunächst verborgen und erschei
 erst nach Eingabe der E-Mail und Klick auf „Anmelden“ anstelle des E-Mail-Felds.
 Im Passwortschritt ersetzt die gewählte E-Mail den Text im Trennbereich. Der
 Zurück-Pfeil neben „Anmelden“ führt zum E-Mail-Schritt zurück. Auf Handys bis 600 px steht
-der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet; neue
-E-Mail-Konten werden angelegt und müssen die Bestätigungsmail öffnen. Weil
+der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet. Neue
+E-Mail-Konten werden zunächst unbestätigt angelegt. Danach fragt das gemeinsame
+Formular Vorname und Nachname ab und speichert sie atomar im eigenen Profil.
+Erst nach erfolgreichem Speichern wird die Bestätigungsmail verschickt. Bei einem
+Abbruch wird die Namenseingabe beim nächsten Login fortgesetzt; ein fehlgeschlagener
+Mailversand kann ohne erneute Namenseingabe wiederholt werden. Weil
 Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabprüfung
 liefert, wird erst nach Eingabe des Passworts zwischen Anmeldung und Registrierung
 unterschieden. Bestehende Konten werden bei falschem Passwort nicht verändert.
@@ -131,7 +135,13 @@ Footer folgt darunter und ist durch Scrollen erreichbar. Die Bildfläche bleibt
 bei wechselnder Formularhöhe unverändert;
 Bild und Kasten scrollen gemeinsam, der Abstand zum Kasten passt sich an. Bei niedrigen Fenstern scrollt nur der
 Formularbereich. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltbar.
-Neue Konten können ihren Namen in den Einstellungen ergänzen.
+Google-Anmeldungen übernehmen die getrennten Felder `given_name` und `family_name`
+aus dem von Firebase gelieferten Anbieterprofil in ein noch leeres Mitgliederprofil.
+Bereits gespeicherte Namen bleiben erhalten. Fehlende Namensbestandteile werden
+bei der Kontoeinrichtung abgefragt; Geschlecht und Geburtsdatum bleiben manuelle Angaben.
+Ein vollständig beim Login erfasster Name (`loginNameCaptured`) überspringt den
+Namensschritt in der erweiterten Kontoeinrichtung. Die weiteren optionalen Angaben
+und die getrennte Personenverknüpfung bleiben bestehen.
 
 Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
 wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue

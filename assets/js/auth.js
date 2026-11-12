@@ -1228,7 +1228,7 @@
     }
 
     const confirmed = window.confirm(
-      "Konto wirklich löschen? Dein Konto und deine Einstellungen werden entfernt. Die Clubpersonen und ihre Nachweise bleiben erhalten."
+      "Konto wirklich löschen? Dein Konto und deine Einstellungen werden entfernt."
     );
 
     if (!confirmed) {
@@ -3082,11 +3082,24 @@
     const db = window.firebase.firestore();
     const requiredSetup = requiresAccountSetup(userData, claims);
     controls.form.dataset.requiredSetup = String(requiredSetup);
+    const capturedName = requiredSetup && userData.loginNameCaptured === true
+      && normalizeNamePart(userData.firstName) && normalizeNamePart(userData.lastName);
+    const nameStep = controls.form.querySelector("[data-link-name-step]");
+    if (nameStep) {
+      if (capturedName) {
+        nameStep.removeAttribute("data-link-request-step");
+        nameStep.hidden = true;
+        nameStep.setAttribute("aria-hidden", "true");
+      } else nameStep.setAttribute("data-link-request-step", "");
+      controls.steps = Array.from(controls.form.querySelectorAll("[data-link-request-step]"));
+    }
     const brand = document.querySelector(".site-header .brand");
     if (requiredSetup) {
       document.title = "Konto einrichten – Lifesaving Baden";
       updateText("[data-setup-eyebrow], [data-setup-title]", "Konto einrichten");
-      updateText("[data-setup-description]", "Vorname und Nachname sind erforderlich. Alle weiteren Angaben kannst du überspringen und später ergänzen.");
+      updateText("[data-setup-description]", capturedName
+        ? "Dein Name ist bereits gespeichert. Alle weiteren Angaben kannst du überspringen und später ergänzen."
+        : "Vorname und Nachname sind erforderlich. Alle weiteren Angaben kannst du überspringen und später ergänzen.");
       document.querySelector("[data-link-progress]")?.setAttribute("aria-label", "Fortschritt der Kontoeinrichtung");
       const lastStep = controls.steps[controls.steps.length - 1];
       lastStep.dataset.stepLabel = "Prüfen & speichern";
@@ -3110,7 +3123,7 @@
         }
         const currentStep = getLinkRequestCurrentStep(controls.form);
 
-        if (currentStep < controls.steps.length - 1) {
+        if (currentStep < getLinkRequestControls().steps.length - 1) {
           event.preventDefault();
           goToNextLinkRequestStep(controls.form);
           return;

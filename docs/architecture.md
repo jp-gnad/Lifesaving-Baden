@@ -26,6 +26,17 @@ Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.
 
+Die gemeinsame Anmeldung lädt auch das Firestore-SDK, um neue E-Mail-Profile vor
+dem Versand der Bestätigungsmail mit Vor- und Nachnamen zu speichern.
+`auth-core.js` stellt dafür `saveAccountName` mit einer Transaktion auf dem eigenen
+Kontodokument bereit. Google-Anbieterprofile liefern getrennte Namensbestandteile;
+diese befüllen ausschließlich noch leere Profile. `loginNameCaptured` kennzeichnet
+vollständige Login-Namen, damit `auth.js` den Namensschritt der erweiterten
+Ersteinrichtung überspringt. `accountSetupRequired` gilt weiterhin für deren Abschluss.
+Unbestätigte E-Mail-Konten ohne vollständigen Namen nehmen die Namenseingabe nach
+einem Abbruch wieder auf. Bestehende bestätigte E-Mail-Konten benötigen für den
+Login weiterhin keinen Firestore-Lesezugriff.
+
 ## Timer-Module
 
 | Datei | Verantwortung und Schnittstelle |

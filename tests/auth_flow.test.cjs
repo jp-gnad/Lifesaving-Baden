@@ -30,7 +30,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
       textContent: "", innerHTML: "button", dataset: {}, disabled: false, hidden: false, style: { setProperty() {} },
       handlers: {}, fields: {}, classList: { toggle() {} },
       addEventListener(type, handler) { this.handlers[type] = handler; },
-      querySelector() { return element(`${key}:button`); },
+      querySelector(selector) { return element(`${key}:${selector.startsWith("input[") ? selector : "button"}`); },
       reset() { this.wasReset = true; },
       focus() { this.focused = true; },
     });
@@ -266,7 +266,7 @@ test("parallel auth events and email submission redirect once without any Firest
 });
 
 test("an unverified account can complete email verification after returning to the page", async () => {
-  const h = harness({ user: { uid: "u", emailVerified: false } });
+  const h = harness({ user: { uid: "u", emailVerified: false }, stored: { role: "standard", firstName: "Anna", lastName: "Baden" } });
   h.login();
   await h.submitPassword();
   assert.equal(h.counts.redirects.length, 0);
@@ -1011,15 +1011,22 @@ test("Google client loading is bounded, retryable, and does not lock the email f
   }
 });
 
-test("desktop registration uses the shared login form and sends verification without a database SDK", async () => {
-  const h = harness({ user: { uid: "new", emailVerified: false } });
-  delete h.window.firebase.firestore;
+test("desktop registration waits for a saved name before sending verification", async () => {
+  const h = harness({ user: { uid: "new", emailVerified: false }, stored: null });
   h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
   h.login();
   h.element('[data-auth-form="login"]').fields = { email: "test@example.test", password: "synthetic-password" };
   await h.submitPassword();
   assert.equal(h.auth.currentUser.uid, "new");
-  assert.equal(h.counts.reads, 0);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.counts.writes.length, 0);
+  const form = h.element('[data-auth-form="login"]');
+  form.fields.firstName = "Anna Maria";
+  form.fields.lastName = "von Baden";
+  await h.submit("login");
+  assert.equal(h.counts.writes[0].firstName, "Anna Maria");
+  assert.equal(h.counts.writes[0].lastName, "von Baden");
+  assert.equal(h.counts.writes[0].loginNameCaptured, true);
   assert.equal(h.counts.redirects.length, 0);
   assert.equal(new URL(h.counts.verification.url).searchParams.get("verified"), "1");
   assert.match(h.element('[data-form-message="login"]').textContent, /Konto erstellt/);
@@ -2183,17 +2190,20 @@ function mobileEmailHarness(options = {}) {
   const form = h.element('[data-auth-form="login"]');
   const email = h.element("mobile-email-input");
   const password = h.element("mobile-password-input");
+  const firstName = h.element("mobile-first-name-input");
+  const lastName = h.element("mobile-last-name-input");
   const button = h.element("mobile-submit");
   const classes = new Set();
   form.classList = { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }, contains: (name) => classes.has(name) };
   email.value = "anna@example.test";
   password.value = "";
   password.focus = () => { password.focused = true; };
-  form.querySelector = (selector) => selector === 'input[name="email"]' ? email : selector === 'input[name="password"]' ? password : button;
-  Object.defineProperties(form.fields, { email: { get: () => email.value }, password: { get: () => password.value } });
+  const inputs = { email, password, firstName, lastName };
+  form.querySelector = (selector) => inputs[selector.match(/^input\[name="(\w+)"\]$/)?.[1]] || button;
+  Object.defineProperties(form.fields, Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, { get: () => input.value }])));
   const mobile = { matches: true, addEventListener(type, fn) { this.changed = fn; } };
   h.window.matchMedia = (query) => query === "(max-width: 700px)" ? mobile : { matches: false };
-  return { ...h, form, email, password, mobile };
+  return { ...h, form, email, password, firstName, lastName, mobile };
 }
 
 test("opening or restoring mobile login focuses the heading without opening the email keyboard", () => {
@@ -2308,6 +2318,11 @@ test("mobile new accounts wait for email verification and continue to member hom
   h.login();
   await h.submit("login");
   h.password.value = "new-password";
+  await h.submit("login");
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.form.querySelector('button[type="submit"]').textContent, "Bestätigungsmail senden");
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
   const submitted = h.submit("login");
   await new Promise(setImmediate);
   assert.equal(h.counts.redirects.length, 0);
@@ -2317,7 +2332,7 @@ test("mobile new accounts wait for email verification and continue to member hom
   assert.equal(h.counts.redirects.length, 0);
   assert.match(h.element('[data-form-message="login"]').textContent, /Konto erstellt.*bestätige/);
   assert.equal(h.password.value, "");
-  assert.equal(h.counts.writes.length, 0);
+  assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
   user.emailVerified = true;
   h.callbacks.visibilitychange();
   await new Promise(setImmediate);
@@ -2364,7 +2379,7 @@ test("mobile transient and known-account errors never attempt account creation; 
 
 
 test("a mobile verification mail failure keeps the new account unverified and offers sending the mail again", async () => {
-  const h = mobileEmailHarness();
+  const h = mobileEmailHarness({ read: async () => ({ exists: true, data: () => h.counts.writes.at(-1) || {} }) });
   h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/user-not-found" }; };
   let sends = 0;
   const user = h.prepareUser({ uid: "new", emailVerified: false, sendEmailVerification: async () => {
@@ -2375,6 +2390,10 @@ test("a mobile verification mail failure keeps the new account unverified and of
   h.login();
   await h.submit("login");
   h.password.value = "new-password";
+  await h.submit("login");
+  assert.equal(sends, 0);
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
   await h.submit("login");
   assert.equal(h.auth.currentUser.uid, "new");
   assert.equal(h.counts.redirects.length, 0);
@@ -2460,4 +2479,222 @@ test("returning from the password step preserves the email and clears the passwo
   assert.equal(h.element("[data-login-divider-copy]").hidden, false);
   assert.equal(h.element("[data-change-email]").hidden, true);
   assert.equal(requests, 0);
+});
+
+test("restored registrations require both names and block resending until the transaction commits", async () => {
+  const user = { uid: "unfinished", email: "anna@example.test", emailVerified: false };
+  const h = mobileEmailHarness({ user, stored: null });
+  h.login();
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  assert.equal(h.form.classList.contains("is-name-step"), true);
+  assert.equal(h.password.required, false);
+  assert.equal(h.password.disabled, true);
+  assert.equal(h.firstName.required, true);
+  assert.equal(h.lastName.required, true);
+  await h.element("[data-resend-verification]").handlers.click();
+  assert.equal(h.counts.verification, undefined);
+  const beforeNames = h.counts.writes.length;
+  h.firstName.value = "Anna";
+  h.lastName.value = "   ";
+  await h.submit("login");
+  assert.equal(h.counts.writes.length, beforeNames);
+  assert.equal(h.counts.verification, undefined);
+  h.lastName.value = " von Baden ";
+  const commit = deferred();
+  const db = h.window.firebase.firestore();
+  const transaction = db.runTransaction;
+  db.runTransaction = async (operation) => { const value = await transaction(operation); await commit.promise; return value; };
+  const saving = h.submit("login");
+  await new Promise(setImmediate);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.form.querySelector('button[type="submit"]').disabled, true);
+  commit.resolve();
+  await saving;
+  assert.equal(h.counts.writes.at(-1).lastName, "von Baden");
+  assert.equal(h.counts.writes.at(-1).accountSetupRequired, true);
+  assert.ok(h.counts.verification);
+});
+
+test("a failed name save retains the entries for retry and never sends verification", async () => {
+  const h = mobileEmailHarness({ user: { uid: "unfinished", emailVerified: false }, stored: { role: "standard" } });
+  h.login();
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  h.firstName.value = " Anna  Maria ";
+  h.lastName.value = "Baden";
+  const db = h.window.firebase.firestore();
+  const transaction = db.runTransaction;
+  db.runTransaction = async () => { throw { code: "permission-denied" }; };
+  await h.submit("login");
+  assert.equal(h.form.classList.contains("is-name-step"), true);
+  assert.equal(h.firstName.value, " Anna  Maria ");
+  assert.equal(h.counts.verification, undefined);
+  db.runTransaction = transaction;
+  await h.submit("login");
+  assert.equal(h.counts.writes.at(-1).firstName, "Anna Maria");
+  assert.ok(h.counts.verification);
+});
+
+test("leaving an unfinished name step signs out and a restored account resumes it", async () => {
+  const h = mobileEmailHarness({ user: { uid: "unfinished", email: "anna@example.test", emailVerified: false }, stored: null });
+  h.login();
+  const user = h.auth.currentUser;
+  h.callbacks.auth(user);
+  await new Promise(setImmediate);
+  h.firstName.value = "Anna";
+  await h.element("[data-change-email]").handlers.click();
+  assert.equal(h.auth.currentUser, null);
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.firstName.value, "");
+  assert.equal(h.firstName.required, false);
+  assert.equal(h.counts.verification, undefined);
+  h.auth.currentUser = user;
+  h.callbacks.auth(user);
+  await new Promise(setImmediate);
+  assert.equal(h.form.classList.contains("is-name-step"), true);
+});
+
+test("a new session during a name transaction prevents stale writes and verification", async () => {
+  const h = mobileEmailHarness({ user: { uid: "unfinished", emailVerified: false }, stored: {} });
+  h.login();
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate);
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
+  const read = deferred();
+  const db = h.window.firebase.firestore();
+  db.runTransaction = (operation) => operation({
+    get: () => read.promise,
+    set: () => assert.fail("stale write"), update: () => assert.fail("stale write"),
+  });
+  const saving = h.submit("login");
+  h.auth.currentUser = h.prepareUser({ uid: "other", emailVerified: false });
+  read.resolve({ exists: true, data: () => ({ role: "standard" }) });
+  await saving;
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.counts.redirects.length, 0);
+});
+
+test("Google names preserve compound given names and surnames before redirecting", async () => {
+  for (const mode of ["popup", "direct", "redirect"]) {
+    const h = mode === "direct" ? directGoogleHarness({ stored: null }) : harness({ stored: null });
+    const user = h.prepareUser({ uid: "google", emailVerified: true, providerData: [{ providerId: "google.com" }] });
+    const result = { user, additionalUserInfo: { profile: { given_name: "Anna Maria", family_name: "von Baden", gender: "female", birthday: "2000-01-01" } } };
+    const commit = deferred();
+    const db = h.window.firebase.firestore();
+    const transaction = db.runTransaction;
+    db.runTransaction = async (operation) => { const value = await transaction(operation); await commit.promise; return value; };
+    const signIn = async () => { h.auth.currentUser = user; h.callbacks.auth(user); return result; };
+    if (mode === "redirect") {
+      h.window.navigator = { standalone: true };
+      h.window.firebaseConfig.authDomain = "example.test";
+      h.auth.getRedirectResult = signIn;
+    } else if (mode === "direct") h.auth.signInWithCredential = signIn;
+    else h.auth.signInWithPopup = signIn;
+    h.login();
+    let completing;
+    if (mode === "direct") {
+      await new Promise(setImmediate);
+      h.identity.click();
+      completing = h.identity.receive({ credential: "synthetic-token" });
+    } else if (mode === "popup") completing = h.element("[data-google-login]").handlers.click();
+    await new Promise(setImmediate);
+    assert.equal(h.counts.redirects.length, 0, mode);
+    assert.equal(h.counts.writes.at(-1).firstName, "Anna Maria");
+    assert.equal(h.counts.writes.at(-1).lastName, "von Baden");
+    assert.equal(h.counts.writes.at(-1).gender, undefined);
+    assert.equal(h.counts.writes.at(-1).birthDate, undefined);
+    commit.resolve();
+    await completing;
+    await new Promise(setImmediate);
+    assert.equal(h.counts.redirects.length, 1, mode);
+  }
+});
+
+test("Google seeds only an empty profile and never replaces a saved name or role", async () => {
+  for (const stored of [null, { role: "trainer", firstName: "Eigener", lastName: "Name", displayName: "Eigener Name" }]) {
+    const h = harness({ user: { uid: "google", providerData: [{ providerId: "google.com" }] }, stored });
+    const saved = await h.core.saveAccountName(h.auth.currentUser, { firstName: "Google", lastName: "Name" }, { onlyIfMissing: true });
+    assert.equal(saved.role, stored?.role || "standard");
+    assert.equal(saved.firstName, stored?.firstName || "Google");
+    assert.equal(h.counts.writes.length, stored ? 0 : 1);
+  }
+});
+
+test("a missing Google surname remains incomplete instead of guessing from the full name", async () => {
+  const h = harness({ user: { uid: "google", displayName: "Anna Maria von Baden", providerData: [{ providerId: "google.com" }] }, stored: null });
+  const saved = await h.core.saveAccountName(h.auth.currentUser, { firstName: "Anna Maria" }, { onlyIfMissing: true });
+  assert.equal(saved.firstName, "Anna Maria");
+  assert.equal(saved.lastName, "");
+  assert.equal(saved.loginNameCaptured, false);
+  assert.equal(saved.accountSetupRequired, true);
+});
+
+test("Google profile capture preserves claim-only admin login without creating a standard account", async () => {
+  const h = harness({ user: { uid: "admin", emailVerified: true, providerData: [{ providerId: "google.com" }] }, stored: null, token: async () => ({ claims: { admin: true } }) });
+  h.auth.signInWithPopup = async () => ({ user: h.auth.currentUser, additionalUserInfo: { profile: { given_name: "Anna", family_name: "Baden" } } });
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.writes.length, 0);
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("a failed Google name transaction blocks redirect and can be retried", async () => {
+  const h = harness({ user: { uid: "google", emailVerified: true, providerData: [{ providerId: "google.com" }] }, stored: null });
+  h.auth.signInWithPopup = async () => {
+    h.callbacks.auth(h.auth.currentUser);
+    return { user: h.auth.currentUser, additionalUserInfo: { profile: { given_name: "Anna", family_name: "Baden" } } };
+  };
+  const db = h.window.firebase.firestore();
+  const transaction = db.runTransaction;
+  db.runTransaction = async () => { throw { code: "permission-denied" }; };
+  h.login();
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.redirects.length, 0);
+  db.runTransaction = transaction;
+  await h.element("[data-google-login]").handlers.click();
+  assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
+  assert.equal(h.counts.redirects.length, 1);
+});
+
+test("extended setup skips a captured name while retaining optional steps and legacy name entry", async () => {
+  for (const captured of [true, false]) {
+    const h = harness({ user: { uid: "u", email: "anna@example.test" } });
+    h.window.requestAnimationFrame = fn => fn();
+    const functions = memberFunctions(h);
+    const controls = Object.fromEntries(Object.entries({ firstName: "", lastName: "", birthDate: "", dlrgBranch: "", identityHint: "" }).map(([key, value]) => [key, { value }]));
+    controls.identityConfirmation = { checked: false };
+    const submit = { dataset: {}, disabled: false };
+    const save = { dataset: {}, disabled: false };
+    const steps = ["Name", "Geschlecht", "Prüfen"].map(label => ({
+      included: true, hidden: false, dataset: { stepLabel: label },
+      setAttribute(name) { if (name === "data-link-request-step") this.included = true; },
+      removeAttribute(name) { if (name === "data-link-request-step") this.included = false; },
+      querySelector: selector => selector === "h3 span" ? { textContent: "" } : null,
+      querySelectorAll: () => [],
+    }));
+    const handlers = {};
+    const form = {
+      dataset: {}, elements: controls,
+      addEventListener: (name, fn) => { handlers[name] = fn; },
+      querySelectorAll: selector => selector === "[data-link-request-step]" ? steps.filter(step => step.included) : [],
+      querySelector: selector => ({
+        "[data-link-name-step]": steps[0], "[data-link-submit]": submit, "[data-account-setup-save]": save,
+        ...Object.fromEntries(Object.entries(controls).map(([key, control]) => [`[name="${key}"]`, control])),
+      })[selector] || null,
+    };
+    h.document.querySelector = selector => selector === "[data-link-request-form]" ? form : null;
+    await functions.initLinkRequest(h.auth, {
+      accountSetupRequired: true, loginNameCaptured: captured, firstName: "Anna", lastName: "Baden",
+    }, {});
+    assert.equal(steps[0].hidden, captured);
+    assert.equal(steps[1].hidden, !captured);
+    assert.equal(controls.firstName.value, "Anna");
+    assert.equal(controls.lastName.value, "Baden");
+    assert.equal(form.dataset.requiredSetup, "true");
+    handlers.submit({ preventDefault() {} });
+    assert.equal(form.dataset.currentStep, "1");
+    assert.equal(steps[2].hidden, !captured);
+  }
 });

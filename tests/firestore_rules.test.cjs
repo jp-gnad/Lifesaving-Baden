@@ -2,6 +2,7 @@ const { before, after, test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host)) {
@@ -101,11 +102,38 @@ function compatDb(db) {
     return { set: (ref, value) => native.set(ref.native, value), delete: (ref) => native.delete(ref.native), commit: () => native.commit() };
   }, runTransaction: (action) => sdk.runTransaction(db, (transaction) => action({
     async get(ref) { const snapshot = await transaction.get(ref.native); return { exists: snapshot.exists(), data: () => snapshot.data() }; },
-    set: (ref, data) => transaction.set(ref.native, data),
+    set: (ref, data) => transaction.set(ref.native, { ...data }),
     delete: (ref) => transaction.delete(ref.native),
-    update: (ref, data) => transaction.update(ref.native, data),
+    update: (ref, data) => transaction.update(ref.native, { ...data }),
   })) };
 }
+
+test("unverified registrations can save their own name atomically without changing permissions", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const user = { uid: "registration", email: "anna@example.test", emailVerified: false, providerData: [{ providerId: "password" }] };
+  const db = dbFor(user.uid, { email_verified: false });
+  const firestore = () => compatDb(db);
+  firestore.FieldValue = { serverTimestamp: sdk.serverTimestamp };
+  const window = { firebase: { apps: [{}], auth: () => ({ currentUser: user }), firestore } };
+  const context = vm.createContext({ window, document: { currentScript: { src: "https://example.test/club/assets/js/auth-core.js" } }, URL });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../assets/js/auth-core.js"), "utf8"), context);
+  await assertSucceeds(window.LifesavingAuth.saveAccountName(user, { firstName: "Anna Maria", lastName: "von Baden" }));
+  const ref = sdk.doc(db, `users/${user.uid}`);
+  let saved = (await sdk.getDoc(ref)).data();
+  assert.equal(saved.role, "standard");
+  assert.equal(saved.firstName, "Anna Maria");
+  assert.equal(saved.lastName, "von Baden");
+  assert.equal(saved.loginNameCaptured, true);
+  assert.equal(saved.accountSetupRequired, true);
+  await assertSucceeds(window.LifesavingAuth.saveAccountName(user, { firstName: "Anna", lastName: "Baden" }));
+  saved = (await sdk.getDoc(ref)).data();
+  assert.equal(saved.displayName, "Anna Baden");
+  await assertFails(sdk.getDoc(sdk.doc(dbFor("other", { email_verified: false }), `users/${user.uid}`)));
+  await assertFails(sdk.updateDoc(sdk.doc(dbFor("other", { email_verified: false }), `users/${user.uid}`), { firstName: "Fremd" }));
+  await assertFails(sdk.updateDoc(ref, { role: "trainer" }));
+  await seed({ "timerEvents/private-registration": event("authenticated"), "timerEvents/private-registration/participants/p": participant() });
+  await assertFails(sdk.getDoc(sdk.doc(db, "timerEvents/private-registration/participants/p")));
+});
 const commitWorktime = (db, uid, id, data) => worktimeStore.commit(compatDb(db), uid, id, data, { Timestamp: sdk.Timestamp, FieldValue: { serverTimestamp: () => sdk.serverTimestamp() } });
 const commitParticipant = (db, eventId, id, data, create = false) => {
   const compat = compatDb(db);

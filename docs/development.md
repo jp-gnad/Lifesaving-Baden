@@ -78,6 +78,8 @@ Nach Start des lokalen HTTP-Servers:
 - `tests/account_links.browser.html`: eigene Personenverknüpfung.
 - `tests/worktime.browser.html`: Arbeitszeiten.
 - `tests/mobile_nav.browser.html`: mobile Navigation.
+- `tests/login.browser.html`: Registrierung und wiederaufgenommene Namenseingabe,
+  mit simuliertem Speichern und Mailversand auf Desktop sowie bei 390/320 px.
 
 Diese Fixtures verwenden eigene Daten. Funktionstests mit vereinfachtem DOM
 prüfen Verhalten, ersetzen aber keine Layoutkontrolle im Browser.

@@ -25,16 +25,17 @@
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
     <script src="assets/js/login-background.js?v=20261102-random-background-v43"></script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261112-message-weight-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20261105-menu-navigation-v3"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/google-handoff.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/login.js?v=20261105-sign-in-email-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261112-login-name-v1"></script>
+    <script defer src="assets/js/login.js?v=20261112-login-name-v1"></script>
   </head>
   <body data-page="login">
     <div class="auth-screen">
@@ -115,6 +116,16 @@
                 </button>
               </span>
             </label>
+            <div data-login-name-step hidden>
+              <label>
+                Vorname
+                <input name="firstName" type="text" autocomplete="given-name" maxlength="100" disabled>
+              </label>
+              <label>
+                Nachname
+                <input name="lastName" type="text" autocomplete="family-name" maxlength="100" disabled>
+              </label>
+            </div>
             <p class="form-message" data-form-message="login" role="status"></p>
             <button class="button button-primary full-width" type="submit" disabled>Anmelden</button>
             <button class="inline-action" type="button" data-reset-password>
