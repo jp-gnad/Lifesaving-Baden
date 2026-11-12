@@ -25,6 +25,7 @@
 - `assets/js/*-store.js`: database mutations and transaction invariants for clubs, links and worktime.
 - `timer/core.js`: shared, immutable discipline definitions and timing/formatting functions used by UI and adapter.
 - `timer/firestore-api.js`: timer authentication, Firestore adapter, permissions and view-scoped caches.
+- `timer/result-feed.js`: one visible, bounded result-page listener; paging, visibility cleanup and explicit full-export traversal.
 - `timer/participant-store.js`: atomic participant/identity writes and legacy index migration.
 - `timer/views/people.js`: participant view factory. Pass dependencies explicitly; do not reach into another view's private state.
 - `timer/offline-store.js`: IndexedDB persistence only. Queue synchronization stays in `timer/app.js`.

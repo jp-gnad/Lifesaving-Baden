@@ -8,6 +8,13 @@ const store = require("../timer/participant-store.js");
 function memoryDb(records) {
   const data = new Map(Object.entries(records));
   const reads = new Map();
+  const queries = [];
+  const listeners = [];
+  const listen = (path, filters, receive, fail) => {
+    const entry = { path, filters, receive, fail, stopped: false };
+    listeners.push(entry);
+    return () => { entry.stopped = true; };
+  };
   const count = (key) => reads.set(key, (reads.get(key) || 0) + 1);
   const snapshot = (ref) => ({ id: ref.id, ref, exists: data.has(ref.path), data: () => ({ ...data.get(ref.path) }) });
   const doc = (name) => ({
@@ -16,21 +23,30 @@ function memoryDb(records) {
     async set(value) { data.set(name, value); },
     async update(value) { data.set(name, { ...data.get(name), ...value }); },
     async delete() { data.delete(name); },
+    onSnapshot(receive, fail) { return listen(name, null, receive, fail); },
   });
   const collection = (name, filters = {}) => ({
     doc: (id) => doc(`${name}/${id}`),
-    orderBy: () => collection(name, filters),
+    orderBy: (order) => collection(name, { ...filters, order }),
+    startAfter: (after) => collection(name, { ...filters, after }),
     startAt: (start) => collection(name, { ...filters, start }),
     endAt: (end) => collection(name, { ...filters, end }),
     limit: (limit) => collection(name, { ...filters, limit }),
     async get() {
       count(name);
+      queries.push({ path: name, ...filters });
       const docs = [...data.keys()].filter((key) => key.startsWith(`${name}/`) && key.slice(name.length + 1).indexOf("/") < 0)
         .map((key) => snapshot(doc(key)))
         .filter((item) => (!filters.start || item.data().searchName >= filters.start) && (!filters.end || item.data().searchName <= filters.end))
+        .filter((item) => !filters.after || item.id > filters.after)
+        .sort((left, right) => {
+          const key = (item) => filters.order === "__name__" ? item.id : String(item.data()[filters.order] || "");
+          return key(left) < key(right) ? -1 : key(left) > key(right) ? 1 : 0;
+        })
         .slice(0, filters.limit ?? Infinity);
       return { docs, empty: !docs.length, metadata: { fromCache: false } };
     },
+    onSnapshot(receive, fail) { return listen(name, filters, receive, fail); },
   });
   const batch = () => {
     const writes = [];
@@ -53,7 +69,7 @@ function memoryDb(records) {
     tail = run.catch(() => {});
     return run;
   } };
-  return { db, data, reads };
+  return { db, data, reads, queries, listeners };
 }
 
 const person = (name, input = {}) => ({ name, birthYear: 5, gender: "female", organization: "Baden", ageGroup: "Offen", createdAt: "2026-01-01", updatedAt: "2026-01-01", ...input });
@@ -68,8 +84,9 @@ async function adapter(records) {
   const auth = { currentUser: { uid: "organizer" }, onAuthStateChanged(fn) { callback = fn; }, async signOut() { auth.currentUser = null; callback(null); } };
   const firestore = () => h.db;
   firestore.FieldValue = sdk;
+  firestore.FieldPath = { documentId: () => "__name__" };
   const window = {
-    location: { origin: "https://example.test" }, TimerParticipantStore: store, TimerCore: require("../timer/core.js"),
+    location: { origin: "https://example.test" }, TimerParticipantStore: store, TimerCore: require("../timer/core.js"), TimerResultFeed: require("../timer/result-feed.js"),
     firebase: { auth: () => auth, firestore }, isFirebaseConfigured: true,
     LifesavingPersonLinks: { linkedPerson: () => null },
     LifesavingAuth: {
@@ -186,3 +203,54 @@ test("two imports of the same identity admit one participant; different identiti
 });
 
 module.exports = { memoryDb, person, event, sdk };
+
+test("event and result pages retain legacy documents, stay bounded and traverse every ID", async () => {
+  const records = { "timerEvents/e": event({ resultsAccess: "everyone" }) };
+  for (let i = 122; i >= 0; i--) {
+    const id = String(i).padStart(3, "0");
+    records[`timerEvents/event-${id}`] = event();
+    records[`timerEvents/e/results/${id}`] = {
+      discipline: "normal", participant: { name: `Person ${id}`, gender: "male" },
+      segments: [123 - i], totalCentiseconds: 123 - i,
+    };
+  }
+  const h = await adapter(records);
+  for (const [url, key, expected] of [["/events", "events", 124], ["/events/e/results", "results", 123]]) {
+    const found = new Set();
+    let cursor = null, requests = 0;
+    do {
+      const page = await h.api.request(url + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""));
+      requests++;
+      assert.ok(page[key].length <= 50);
+      for (const row of page[key]) {
+        assert.equal(found.has(row.id), false);
+        found.add(row.id);
+      }
+      if (key === "results" && page.results.length) {
+        assert.equal(page.nextCursor, requests === 1 ? "049" : requests === 2 ? "099" : "122", "cursor follows document order rather than displayed time order");
+        assert.ok(page.results[0].total_centiseconds <= page.results.at(-1).total_centiseconds);
+      }
+      if (!page.hasMore) break;
+      cursor = page.nextCursor;
+    } while (requests < 10);
+    assert.equal(found.size, expected);
+    assert.equal(requests, 3);
+  }
+  assert.ok(h.queries.every((query) => query.limit === 50));
+  await assert.rejects(h.api.request("/events?cursor=bad%2Fid"), { status: 400 });
+});
+
+test("result view avoids the participant scan until editing, and event deletion removes every result page", async () => {
+  const records = { "timerEvents/e": event({ resultsAccess: "everyone" }), "timerEvents/e/participants/p": person("Anna") };
+  for (let i = 0; i < 101; i++) records[`timerEvents/e/results/${String(i).padStart(3, "0")}`] = {};
+  const h = await adapter(records);
+  const view = await h.api.request("/events/e?participants=0");
+  assert.equal(view.participants.length, 0);
+  assert.equal(h.reads.has("timerEvents/e/participants"), false);
+  assert.equal((await h.api.request("/events/e")).participants.length, 1);
+  assert.equal(h.reads.get("timerEvents/e/participants"), 1);
+  await h.api.request("/events/e", { method: "DELETE" });
+  assert.equal([...h.data.keys()].some((key) => key.startsWith("timerEvents/e")), false);
+  assert.equal(h.queries.filter((query) => query.path.endsWith("/results")).length, 3);
+  assert.ok(h.queries.filter((query) => query.path.endsWith("/results")).every((query) => query.limit === 50));
+});

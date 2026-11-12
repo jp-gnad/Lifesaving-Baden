@@ -38,6 +38,25 @@ damit diese Umsetzung produktiv wirksam wird. Der Firebase-Tarif wurde nicht ge�
 
 ## Aussagekraft und Kostenabsicherung
 
+### Weiterer Umsetzungsstand: begrenzte Listen und Ergebnislistener
+
+Event- und Ergebnisabfragen liefern jetzt höchstens 50 Dokumente pro Seite;
+die Regeln erzwingen das Limit auch außerhalb der Oberfläche. Ergebnisansichten
+verwenden nur einen Live-Listener für die angezeigte Seite, ohne vorgeschaltete
+vollständige Ergebnisabfrage. Filter und Event-Metadaten verwenden die Verbindung
+weiter, ausgeblendete Tabs pausieren sie. Speichern/Löschen erzeugt keine zweite
+Ergebnisabfrage. Teilnehmer werden dort erst beim Bearbeiten geladen.
+
+Ein vollständiger PDF-Export sowie das Löschen eines Events durchlaufen weiterhin
+alle Ergebnisse, jeweils in begrenzten Abfragen. Tests mit 123 Ergebnissen prüfen
+das vollständige Nachladen; Emulator-Tests prüfen Limit und Rollenrechte. Die
+späteren ursprünglichen Fundstellen sind damit für diese beiden Timer-Lesewege
+historisch. Details: [Architektur](architecture.md#begrenzte-event--und-ergebnisabfragen).
+Spark wurde inzwischen vom Nutzer bestätigt. App Check bleibt zurückgestellt;
+die Begrenzung ist kein Rate-Limit und verhindert keine wiederholten Angriffsabfragen.
+
+### Einordnung der ursprünglichen Prüfung
+
 - 37 % des üblichen kostenlosen Firestore-Lesekontingents entsprechen ungefähr
   18.500 Dokumentlesevorgängen. Die 50.000 Reads gelten **pro Tag**; sie sind
   kein monatlicher Vorrat. Der Reset erfolgt ungefähr um Mitternacht Pacific Time.

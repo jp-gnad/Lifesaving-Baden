@@ -4,6 +4,7 @@
   const DISCIPLINES = window.TimerCore.disciplines;
 
   const DEFAULT_DISCIPLINES = Object.keys(DISCIPLINES);
+  const PAGE_SIZE = 50;
   const ACCESS_LEVELS = new Set(["everyone", "authenticated", "athlete", "trainer", "organizer", "locked"]);
   const DEFAULT_ACCESS = Object.freeze({
     timerAccess: "locked",
@@ -158,7 +159,7 @@
       request: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
       getAuthContext: async () => ({ authenticated: false, isOrganizer: false, isAdmin: false, isAthlete: false, isTrainer: false }),
       signOut: async () => { throw appError("Firebase ist für den Lifesaving Timer noch nicht verfügbar.", 503); },
-      watchResults: () => () => {},
+      watchResults: () => ({ stop() {}, next: () => false, previous: () => false, refresh() {} }),
     };
     return;
   }
@@ -435,34 +436,57 @@
     });
   }
 
+  function pageQuery(collection, cursor = null) {
+    // Document IDs include legacy records without dates and remain stable on edits.
+    let query = collection.orderBy(window.firebase.firestore.FieldPath.documentId()).limit(PAGE_SIZE);
+    if (cursor) {
+      if (typeof cursor !== "string" || /[\/\\\u0000-\u001f]/.test(cursor)) throw appError("Ungültige Seitennavigation.");
+      query = query.startAfter(cursor);
+    }
+    return query;
+  }
+
+  function pageInfo(snapshot) {
+    return {
+      hasMore: snapshot.docs.length === PAGE_SIZE,
+      nextCursor: snapshot.docs.at(-1)?.id || null,
+    };
+  }
+
   function watchResults(eventId, onValue, onError = () => {}) {
-    let disposed = false;
-    let unsubscribeResults = () => {};
-    const reportError = (error) => {
-      if (!disposed) onError(translateFirebaseError(error));
-    };
-    const unsubscribeEvent = eventsCollection.doc(eventId).onSnapshot((snapshot) => {
-      if (disposed) return;
-      unsubscribeResults();
-      unsubscribeResults = () => {};
-      if (!snapshot.exists) {
-        onError(appError("Event nicht gefunden.", 404));
-        return;
-      }
-      const event = mapEvent(snapshot);
-      if (!event.can_view_results) {
-        onValue({ event, results: [] });
-        return;
-      }
-      unsubscribeResults = snapshot.ref.collection("results").onSnapshot((resultsSnapshot) => {
-        if (!disposed) onValue({ event, results: visibleResults(resultsSnapshot) });
-      }, reportError);
-    }, reportError);
-    return () => {
-      disposed = true;
-      unsubscribeResults();
-      unsubscribeEvent();
-    };
+    const eventRef = eventsCollection.doc(decodeURIComponent(eventId));
+    const checkSession = participantSessionCheck();
+    const reportError = (error) => onError(error?.status ? error : translateFirebaseError(error));
+    return window.TimerResultFeed.create({
+      visibility: document,
+      canView: (event) => Boolean(event?.can_view_results),
+      onValue,
+      onError: reportError,
+      listenEvent: (receive, fail) => eventRef.onSnapshot((snapshot) => {
+        try {
+          checkSession();
+          if (!snapshot.exists) throw appError("Event nicht gefunden.", 404);
+          receive(mapEvent(snapshot));
+        } catch (error) { fail(error); }
+      }, fail),
+      listenPage: (cursor, receive, fail) => pageQuery(eventRef.collection("results"), cursor).onSnapshot((snapshot) => {
+        try {
+          checkSession();
+          receive({ results: visibleResults(snapshot), ...pageInfo(snapshot) });
+        } catch (error) { fail(error); }
+      }, fail),
+    });
+  }
+
+  async function allResultDocuments(eventRef) {
+    const documents = [];
+    let cursor = null;
+    do {
+      const snapshot = await pageQuery(eventRef.collection("results"), cursor).get();
+      documents.push(...snapshot.docs);
+      if (snapshot.docs.length < PAGE_SIZE) return documents;
+      cursor = snapshot.docs.at(-1).id;
+    } while (true);
   }
 
   function directoryIsReady() {
@@ -588,7 +612,7 @@
     const eventRef = eventsCollection.doc(eventId);
     const [participants, results] = await Promise.all([
       eventRef.collection("participants").get(),
-      eventRef.collection("results").get(),
+      allResultDocuments(eventRef),
     ]);
     const event = await eventSnapshot(eventId);
     await prepareParticipantIndex(event, mapEvent(event));
@@ -597,7 +621,7 @@
       await participantStore.commit(db, eventRef, person.id, null, fieldValue, check);
     }
     const identities = await eventRef.collection("participantIdentities").get();
-    await deleteDocuments([...identities.docs, ...results.docs]);
+    await deleteDocuments([...identities.docs, ...results]);
     await eventRef.delete();
     participantCache.delete(eventId);
   }
@@ -618,8 +642,9 @@
 
     try {
       if (parts.length === 1 && method === "GET") {
-        const snapshot = await eventsCollection.get();
-        return { events: snapshot.docs.map(mapEvent) };
+        const snapshot = await pageQuery(eventsCollection, url.searchParams.get("cursor")).get();
+        checkSession();
+        return { events: snapshot.docs.map(mapEvent), ...pageInfo(snapshot) };
       }
 
       if (parts.length === 1 && method === "POST") {
@@ -650,12 +675,13 @@
       if (parts.length === 2 && method === "GET") {
         const snapshot = await eventSnapshot(eventId);
         const event = mapEvent(snapshot);
-        const participants = event.can_view_participants || event.can_use_timer || event.can_edit_results
+        const participants = url.searchParams.get("participants") !== "0" && (event.can_view_participants || event.can_use_timer || event.can_edit_results)
           ? await listParticipants(eventId)
           : [];
         if (url.searchParams.get("prepareImport") === "1" && event.can_import_participants) {
           await prepareParticipantIndex(snapshot, event, checkSession);
         }
+        checkSession();
         return { event, participants };
       }
 
@@ -799,7 +825,8 @@
 
       if (parts[2] === "results" && parts.length === 3 && method === "GET") {
         requirePermission(event, "can_view_results");
-        const results = await snapshot.ref.collection("results").get();
+        const results = await pageQuery(snapshot.ref.collection("results"), url.searchParams.get("cursor")).get();
+        checkSession();
         const filtered = results.docs.map(mapResult).filter((result) => {
           const discipline = url.searchParams.get("discipline");
           const gender = url.searchParams.get("gender");
@@ -809,7 +836,7 @@
           const rightTime = right.official_centiseconds ?? right.total_centiseconds;
           return leftTime - rightTime || left.created_at.localeCompare(right.created_at);
         });
-        return { results: filtered };
+        return { results: filtered, ...pageInfo(results) };
       }
 
       async function resultWritePayload(body, existingData = null) {

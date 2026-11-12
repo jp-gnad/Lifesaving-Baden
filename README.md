@@ -45,6 +45,7 @@ timer/core.js             Gemeinsame Timer-Fachlogik
 timer/views/              Abgegrenzte Timer-Ansichten
 timer/*-store.js           Teilnehmer- und Offline-Persistenz
 timer/results-pdf.js      Ergebnisexport
+timer/result-feed.js      Begrenzte Live-Ergebnisseiten und vollständige Exportabfragen
 timer/firestore-api.js    Firestore-Adapter, Authentifizierung und Caches
 firestore.rules           Verbindliche serverseitige Berechtigungen
 tools/                    Lokale Prüfungen und kontrollierte Wartungs-CLIs
@@ -458,9 +459,16 @@ Personenanzeige technisch mit ein.
 
 Der Timer zeigt in der Kopfzeile immer den aktuellen Account beziehungsweise
 für Gäste einen Login-Link. Auch in der kompakten Stoppuhransicht bleibt ein
-Account-Trigger sichtbar. Ergebnisansichten verwenden Firestore-Live-Listener;
-neue, bearbeitete oder gelöschte Ergebnisse erscheinen dadurch ohne manuelles
-Neuladen auf anderen Geräten.
+Account-Trigger sichtbar. Event- und Ergebnislisten laden höchstens 50 Dokumente
+pro Abfrage. Weitere Events lassen sich nachladen; Ergebnisse haben eine
+Seitennavigation und sind innerhalb der angezeigten Seite nach Zeit sortiert.
+Nur die sichtbare Ergebnisseite ist live verbunden; im ausgeblendeten Tab
+pausiert die Verbindung. Filterwechsel und Speichern erzeugen keine zusätzliche
+Vollabfrage. Ein PDF lädt auf ausdrücklichen Klick sämtliche Ergebnisse nach.
+
+Für diese Begrenzung zuerst die neue Website veröffentlichen, anschließend die
+aktuellen Firestore-Regeln. Alte Browserstände müssen danach aktualisiert werden.
+Zusätzliche Indizes, App Check oder ein Tarifwechsel sind dafür nicht erforderlich.
 
 ### Sparsame Teilnehmerimporte
 
@@ -543,8 +551,18 @@ Groß-/Kleinschreibung eindeutig. Zusätze wie `DLRG` oder `OG` bleiben Bestandt
 des Namens. Der Verzeichnisabgleich erzeugt zusätzlich `clubDirectory`. Bis zum
 ersten Abgleich ermittelt die Admin-App die Namen aus dem Personenverzeichnis.
 
-Rollenwechsel und Kontolöschung prüfen alle verwalteten Clubs. Die letzte
-verantwortliche Person muss vorher ersetzt oder der Club gelöscht werden.
+Rollenwechsel und normale Austritte prüfen alle verwalteten Clubs. Die letzte
+verantwortliche Person muss dafür vorher ersetzt oder der Club gelöscht werden.
+Bei einer Kontolöschung darf dagegen auch die letzte Verantwortung entfallen.
+Ein unveränderlicher `accountDeletionStartedAt` markiert zunächst den Beginn der
+Löschung und sperrt die bisherigen Rollenrechte. Danach werden ausschließlich die
+eigenen Clubverantwortungen transaktional freigegeben; ein unterbrochener Ablauf
+kann erneut gestartet werden. Die bestehende DB-Person bleibt mit ihren
+Aktivjahren und Nachweisen Mitglied. Das Personenverzeichnis wird nicht gelöscht.
+Clubs ohne Verantwortliche tragen `needsResponsible: true`. Admins sehen dafür
+einen roten Zähler an der App und je Club eine Meldung. Die Hinweise verschwinden
+bei neuer Zuordnung oder Club-Löschung. Ein Club kann weiterhin nicht einfach
+ohne Ersatz verlassen werden.
 Verantwortliche können selbst austreten, wenn eine weitere verantwortliche Person
 bleibt. Die Admin-App kann Verantwortung entziehen, ohne Mitgliedschaft,
 Aktivjahre oder Nachweise zu löschen.

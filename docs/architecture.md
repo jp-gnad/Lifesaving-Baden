@@ -11,7 +11,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 |---|---|---|
 | `index.html` | Öffentliche Startseite und Weiterleitung bestehender Sitzungen | `auth-core.js`, `auth.js`, `nav.js`, `header.js` |
 | `login.html` | Anmeldung, Registrierung, Verifikation und Passwort-Reset | `auth-core.js`, `login.js`, `google-handoff.js`, `login-background.js` |
-| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js` |
+| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js`, `clubs-notifications.js` |
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Ersteinrichtung und Zuordnungsanträge | `auth.js`, `person-link-store.js` |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
@@ -34,6 +34,7 @@ Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschied
 | `timer/app.js` | DOM-Einstieg, Hash-Routing, Uhr, Ergebnisansichten, Synchronisation vorgemerkter Ergebnisse. Verbindet die übrigen Module. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
 | `timer/firestore-api.js` | `timerFirestoreApi`: `request`, Auth-Kontext, Ergebnislistener und Cache-Lebenszyklus. Kennt die Firestore-Struktur. |
+| `timer/result-feed.js` | `TimerResultFeed.create(...)`: Listener-Lebenszyklus, Seitennavigation und Sichtbarkeit; `readAll(...)` ausschließlich für ausdrückliche vollständige Exporte. Abhängigkeiten werden übergeben. |
 | `timer/participant-store.js` | `TimerParticipantStore`: Identitätsschlüssel, Migration und atomare Teilnehmeränderungen. |
 | `timer/offline-store.js` | `TimerOfflineStore`: pending Ergebnisse in IndexedDB lesen/schreiben/löschen. Bestätigt Schreibvorgänge erst nach Transaktionsabschluss. |
 | `timer/results-pdf.js` | `TimerResultsPdf.create(...)`: PDF-Ausgabe und optionales Eventbild. |
@@ -65,6 +66,13 @@ Snapshots in Ergebnissen bleiben auch dann nutzbar, wenn sich die ursprüngliche
 Person später ändert. Bestehende Teilnehmer-IDs werden bei der Indexmigration
 beibehalten, damit Ergebnisverweise gültig bleiben.
 
+`clubs-notifications.js` stellt eine Factory für den Admin-Zähler bereit.
+Sie hört ausschließlich auf Clubs mit `needsResponsible == true`, pausiert bei
+verborgener Seite und verwirft Rückmeldungen alter Sitzungen oder Listener.
+`clubs-store.js` aktualisiert dieses Kennzeichen atomar mit den Verantwortlichen
+und ihrem Kontoindex. Die Gliederungsansicht verwendet ihren bestehenden
+Clublistener für die Meldung am jeweiligen Club.
+
 ## Datenfluss beim Teilnehmerimport
 
 1. Personenansicht lädt den Kader einmal über den Adapter.
@@ -75,6 +83,29 @@ beibehalten, damit Ergebnisverweise gültig bleiben.
 4. Der Import prüft und schreibt Teilnehmer und Identitätszuordnung atomar.
 5. Die Anzeige übernimmt die zurückgegebene Person. Eine vollständige Liste wird
    erst bei ausdrücklichem Aktualisieren oder neuem Ansichtsaufruf wieder geladen.
+
+## Begrenzte Event- und Ergebnisabfragen
+
+Eventlisten und Ergebnisse werden nach Dokument-ID mit `limit(50)` und
+`startAfter(id)` abgefragt. Diese Reihenfolge schließt Altbestände ohne Datumsfeld
+ein; Änderungen an Zeiten verschieben die Seitengrenzen nicht. Die Firestore-Regeln
+verlangen für beide Listen ein Limit von höchstens 50, auch bei Admins. Einzelne
+Dokumentzugriffe und die bestehenden Rollenrechte bleiben getrennt geregelt.
+
+Die Eventübersicht lädt weitere Seiten ausdrücklich nach und sortiert/filtert die
+geladenen Events lokal nach Datum. In Ergebnisansichten ist genau eine Seite live;
+die Anzeige sortiert deren Ergebnisse nach Zeit und kennzeichnet den Seitenumfang.
+Ein Disziplin-/Geschlechtswechsel innerhalb derselben Ergebnisansicht verwendet
+diese Daten weiter. Metadatenänderungen starten den Ergebnislistener nicht neu.
+Ausgeblendete Tabs pausieren beide Listener, das Verlassen beendet sie endgültig.
+
+Die Ergebnisansicht lädt zunächst keine Teilnehmer. Erst das Bearbeiten benötigt
+die vorhandene Teilnehmerliste. Speichern und Löschen nutzen die Rückmeldung des
+Live-Listeners. PDF-Exporte laden auf ausdrücklichen Klick alle Ergebnisse in
+begrenzten Seiten, filtern/sortieren anschließend die vollständige gewählte Gruppe
+und erzeugen bei Ladefehlern kein unvollständiges PDF. Auch das Löschen eines Events
+durchläuft alle Ergebnisseiten. Seitenabfragen sind keine gemeinsame Momentaufnahme
+über mehrere Anfragen; gleichzeitige Neuanlagen können einen erneuten Export erfordern.
 
 ## Wartungs- und Testcode
 

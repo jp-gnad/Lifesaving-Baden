@@ -21,7 +21,9 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-year-badges button { min-width: 48px; min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--surface-muted); font: inherit; font-size: .76rem; font-variant-numeric: tabular-nums; cursor: pointer; }
 .club-year-badges button[aria-pressed="true"] { color: var(--trainer-accent); border-color: #1cbf6944; background: #1cbf6920; }
 .club-year-badges button[aria-disabled="true"] { opacity: .6; cursor: wait; }
-.club-admin-card { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.club-admin-card { position: relative; display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.club-notification { position: absolute; top: -7px; right: -7px; display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid var(--bg); border-radius: 50%; background: #ff3b30; color: #fff; font-size: 12px; font-weight: 400; line-height: 1; }
+.club-no-responsible { color: var(--accent-light); font-size: .8rem; font-weight: 400; }
 .club-admin-body { min-width: 0; }
 .club-admin-actions { display: flex; gap: 2px; flex-shrink: 0; }
 .club-responsible-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }

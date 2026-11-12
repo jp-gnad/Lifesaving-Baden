@@ -15,6 +15,16 @@
   den zugehörigen Datensätzen atomar geändert werden. Parallelzugriffe sind Teil
   des unterstützten Verhaltens und werden mit Emulator-Tests geprüft.
 
+Eine letzte Clubverantwortung darf nur bei begonnener Kontolöschung entfallen.
+Der unveränderliche Kontomarker `accountDeletionStartedAt` entzieht die bisherigen
+Rollenrechte und ist kein austauschbarer Austrittsparameter. Danach erlauben die
+Regeln nur die eigene Clubbereinigung und die abschließende Kontolöschung;
+gewöhnliche Austritte und Rollenwechsel behalten die Ersatzpflicht. Ein Club ohne
+Verantwortliche muss `needsResponsible: true` tragen. Das Kennzeichen kann nicht
+unabhängig von der Verantwortlichenliste geändert werden. Die verknüpfte
+DB-Person, Aktivjahre und clubbezogene Nachweise bleiben bei der Kontolöschung
+erhalten. Der Admin-Zähler verwendet nur die gefilterte Menge offener Clubmeldungen.
+
 ## Nicht vertrauenswürdige Eingaben
 
 Namen, Dokument-IDs, externe Links und bereits vorhandene Firestore-Daten sind
@@ -64,6 +74,18 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
 Das Projekt soll kostenlos bleiben. Dieser Umbau benötigt keinen neuen Firebase-
 Dienst und ändert weder Tarif noch Abrechnung. Codeoptimierung ist keine
 serverseitige Kostenbegrenzung; keine Billing-Verknüpfung im Rahmen von Codearbeit anlegen.
+
+Event- und Ergebnislisten verlangen serverseitig `limit(1..50)`. Die Oberfläche
+verwendet Seiten mit bis zu 50 Dokumenten. Diese Grenze gilt pro Abfrage, nicht
+pro Nutzer oder Zeitraum: Wiederholte Anfragen und einzelne Dokumentzugriffe
+können weiterhin Kontingent verbrauchen. Rollen-/Eventrechte sind unverändert
+zusätzlich erforderlich; Teilnehmerlisten haben weiterhin ihre bisherigen Regeln.
+App Check ist nicht eingerichtet oder aktiviert worden.
+
+Für diesen Umstieg zuerst die neue Website veröffentlichen und anschließend die
+verschärften Regeln. Alte Browserstände mit unbegrenzten Listen werden danach
+abgewiesen und müssen aktualisiert werden. Neue zusammengesetzte Indizes oder
+Datenmigrationen sind nicht erforderlich.
 
 Tests laufen ausschließlich mit Mocks oder einem lokalen Demo-Emulator. Ein
 Regeldeploy, ein Personen-Sync oder ein Konto-Cleanup gegen `lifesaving-baden`

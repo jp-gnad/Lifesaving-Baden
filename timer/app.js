@@ -73,6 +73,7 @@ let dialogRestoreTimer = null;
 let offlineSyncPromise = null;
 let routeCleanup = null;
 let routeVersion = 0;
+let activeResultView = null;
 let eventListTab = "current";
 let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
 
@@ -504,11 +505,17 @@ new MutationObserver(() => {
 }).observe(app, { childList: true, subtree: true });
 
 async function renderHome() {
+  const version = routeVersion;
   setDocumentTitle("");
-  const [{ events }, authContext] = await Promise.all([
+  const [firstPage, authContext] = await Promise.all([
     api("/events"),
     window.timerFirestoreApi.getAuthContext(),
   ]);
+  if (version !== routeVersion) return;
+  const events = firstPage.events;
+  let nextCursor = firstPage.nextCursor;
+  let hasMore = firstPage.hasMore === true;
+  let disposed = false;
   app.innerHTML = `
     <div class="page-head">
       <h1>Events</h1>
@@ -520,6 +527,7 @@ async function renderHome() {
       <button type="button" id="events-past-tab" role="tab" data-event-tab="past" aria-controls="event-list">Vergangene</button>
     </div>
     <section class="section event-list-section" id="event-list" role="tabpanel" tabindex="0"></section>
+    <div class="list-pagination"><span id="event-page-status" role="status"></span><button class="button secondary" id="more-events" type="button" ${hasMore ? "" : "hidden"}>Weitere Events laden</button></div>
     <dialog id="event-dialog"><form class="dialog-body" id="event-form">
       <h2>Neues Event</h2>
       <div class="form-grid">
@@ -565,8 +573,32 @@ async function renderHome() {
           <span class="event-row-arrow">${icon("arrow-right")}</span>
         </a>`).join("")}</div>` : `<div class="empty">${!events.length
       ? `Noch kein Event vorhanden.${authContext.isOrganizer ? " Lege das erste Event an." : ""}`
+      : hasMore ? "Auf den geladenen Seiten gibt es hier keine Events. Weitere Events können nachgeladen werden."
       : past ? "Noch keine vergangenen Events vorhanden." : "Keine aktuellen Events vorhanden."}</div>`;
   };
+  const moreEvents = document.querySelector("#more-events");
+  const pageStatus = document.querySelector("#event-page-status");
+  const updatePageStatus = () => {
+    moreEvents.hidden = !hasMore;
+    pageStatus.textContent = hasMore ? `${events.length} Events geladen` : "";
+  };
+  updatePageStatus();
+  moreEvents.addEventListener("click", async () => {
+    if (disposed || moreEvents.disabled || !hasMore) return;
+    moreEvents.disabled = true;
+    try {
+      const page = await api(`/events?cursor=${encodeURIComponent(nextCursor)}`);
+      if (disposed) return;
+      const existing = new Set(events.map((event) => event.id));
+      events.push(...page.events.filter((event) => !existing.has(event.id)));
+      nextCursor = page.nextCursor;
+      hasMore = page.hasMore === true;
+      renderEventList();
+      updatePageStatus();
+    } catch (error) {
+      if (!disposed) pageStatus.textContent = error.message;
+    } finally { if (!disposed) moreEvents.disabled = false; }
+  });
   eventTabs.forEach((button, index) => {
     const select = () => {
       eventListTab = button.dataset.eventTab;
@@ -597,6 +629,7 @@ async function renderHome() {
   };
   document.addEventListener("visibilitychange", resumeEventDates);
   routeCleanup = () => {
+    disposed = true;
     clearTimeout(midnightTimer);
     document.removeEventListener("visibilitychange", resumeEventDates);
   };
@@ -1591,9 +1624,14 @@ async function renderTimer(id) {
 }
 
 async function renderViewer(id, initialDiscipline = null, initialGender = null, options = {}) {
-  const eventResponse = await api(`/events/${id}`);
+  const version = routeVersion;
+  const eventResponse = await api(`/events/${id}?participants=0`);
+  if (version !== routeVersion) return;
   let event = eventResponse.event;
-  const participants = eventResponse.participants;
+  let participants = [];
+  let participantsReady = false;
+  let participantsLoading = null;
+  const isCurrent = () => version === routeVersion;
   const resultsOnly = options.resultsOnly === true;
   const viewerRoot = `#/${resultsOnly ? "results" : "viewer"}/${id}`;
   const officialResultsUrl = safeExternalUrl(event.result_url);
@@ -1602,10 +1640,10 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     app.innerHTML = `${resultsOnly ? "" : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
-  participants.sort(compareParticipantsByOrganization);
   let eventPdfImage = null;
   let eventPdfImageReady = false;
   loadEventPdfImage(event).then((image) => {
+    if (!isCurrent()) return;
     eventPdfImage = image;
     eventPdfImageReady = true;
     document.querySelector("#create-results-pdf")?.removeAttribute("disabled");
@@ -1624,6 +1662,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       ${event.results_access === "everyone" ? `<button class="button secondary icon-button viewer-refresh-button" id="copy-results-link" type="button" aria-label="Öffentlichen Ergebnis-Link kopieren" title="Ergebnis-Link kopieren">${icon("link")}</button>` : ""}
       <button class="button secondary icon-button viewer-refresh-button" id="refresh-results" aria-label="Ergebnisse aktualisieren" title="Ergebnisse aktualisieren">${icon("refresh")}</button></div></div></div>
     <div id="results"><div class="loading">Ergebnisse werden geladen …</div></div>
+    <nav class="list-pagination" aria-label="Ergebnisseiten">
+      <button class="button secondary" id="results-previous" type="button" disabled>Zurück</button>
+      <span id="results-page-status" role="status">Ergebnisse werden geladen …</span>
+      <button class="button secondary" id="results-next" type="button" disabled>Weiter</button>
+    </nav>
     <dialog id="result-edit-dialog"><form class="dialog-body result-edit-form" id="result-edit-form">
       <div class="dialog-title-row"><h2>Ergebnis bearbeiten</h2><button type="button" class="button secondary icon-button" data-close aria-label="Schließen">${icon("x")}</button></div>
       <div id="result-edit-fields"></div>
@@ -1659,8 +1702,14 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
   const resultParticipantFilters = document.querySelector("#result-participant-filters");
   const resultParticipantFilterToggle = document.querySelector("#result-participant-filter-toggle");
   const resultParticipantAgeFilter = document.querySelector("#result-participant-age-filter");
-  let loading = false;
-  let allResults = [];
+  let pageResults = [];
+  let exporting = false;
+  let pageIndex = 0;
+  let hasMore = false;
+  let pagePending = true;
+  const previousPage = document.querySelector("#results-previous");
+  const nextPage = document.querySelector("#results-next");
+  const pageStatus = document.querySelector("#results-page-status");
   let editingResult = null;
   let resultEditLapGroups = [];
   let resultEditGlueHistory = [];
@@ -1763,7 +1812,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     overviewHead.hidden = false;
     setDocumentTitle(`Ergebnisse – ${event.name}`);
     const counts = new Map();
-    allResults.forEach((result) => {
+    pageResults.forEach((result) => {
       const key = `${result.discipline}:${result.gender}`;
       counts.set(key, (counts.get(key) || 0) + 1);
     });
@@ -1772,7 +1821,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       item,
       femaleCount: counts.get(`${disciplineId}:female`) || 0,
       maleCount: counts.get(`${disciplineId}:male`) || 0,
-    })).filter(({ femaleCount, maleCount }) => femaleCount > 0 || maleCount > 0);
+    })).filter(({ femaleCount, maleCount }) => hasMore || pageIndex > 0 || femaleCount > 0 || maleCount > 0);
     if (!resultSelectionCategory) {
       resultSelectionCategory = availableDisciplines.length > 0
         && availableDisciplines.every(({ item }) => item.group === "team")
@@ -1784,8 +1833,8 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       : availableDisciplines
         .filter(({ item }) => item.group !== "team")
         .sort((left, right) => Number(left.disciplineId === "normal") - Number(right.disciplineId === "normal"));
-    const resultButton = (disciplineId, item, gender, count) => count
-      ? `<button class="result-choice ${gender === "female" ? "female" : "male"}" data-discipline="${disciplineId}" data-gender="${gender}" aria-label="${escapeHtml(item.name)}, ${genderName(gender)}, ${count} ${count === 1 ? "Ergebnis" : "Ergebnisse"}"><strong>${escapeHtml(item.name)}</strong><span>${genderName(gender)}</span></button>`
+    const resultButton = (disciplineId, item, gender, count) => count || hasMore || pageIndex > 0
+      ? `<button class="result-choice ${gender === "female" ? "female" : "male"}" data-discipline="${disciplineId}" data-gender="${gender}" aria-label="${escapeHtml(item.name)}, ${genderName(gender)}, ${count} ${count === 1 ? "Ergebnis" : "Ergebnisse"} auf dieser Seite"><strong>${escapeHtml(item.name)}</strong><span>${genderName(gender)}</span></button>`
       : `<span class="result-choice-space" aria-hidden="true"></span>`;
     resultsRoot.innerHTML = `<div class="result-selection" aria-label="Ergebnisgruppen">
       <div class="result-category-tabs" role="tablist" aria-label="Ergebnisart">
@@ -1795,7 +1844,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       ${categoryEntries.length
         ? `<div class="result-selection-group-rows" role="tabpanel">${categoryEntries.map(({ disciplineId, item, femaleCount, maleCount }) =>
           item.mixed
-            ? `<div class="result-selection-row"><button class="result-choice mixed" data-discipline="${disciplineId}" data-gender="mixed" aria-label="${escapeHtml(item.name)}, Mixed, ${femaleCount + maleCount} Ergebnisse"><strong>${escapeHtml(item.name)}</strong><span>Mixed</span></button></div>`
+            ? `<div class="result-selection-row"><button class="result-choice mixed" data-discipline="${disciplineId}" data-gender="mixed" aria-label="${escapeHtml(item.name)}, Mixed, ${femaleCount + maleCount} Ergebnisse auf dieser Seite"><strong>${escapeHtml(item.name)}</strong><span>Mixed</span></button></div>`
             : `<div class="result-selection-row ${disciplineId === "normal" ? "custom-result-row" : ""}">${resultButton(disciplineId, item, "female", femaleCount)}${resultButton(disciplineId, item, "male", maleCount)}</div>`
         ).join("")}</div>`
         : `<div class="empty">Noch keine ${resultSelectionCategory === "team" ? "Mannschafts" : "Einzel"}ergebnisse.</div>`}
@@ -1810,7 +1859,17 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     }));
   }
 
-  function openResultEditor(result) {
+  async function openResultEditor(result) {
+    try {
+      if (!participantsReady) {
+        participantsLoading ||= api(`/events/${id}`).finally(() => { participantsLoading = null; });
+        const data = await participantsLoading;
+        if (!isCurrent()) return;
+        participants = data.participants.sort(compareParticipantsByOrganization);
+        participantsReady = true;
+      }
+      if (!eventCan(event, "can_edit_results")) return;
+    } catch (error) { if (isCurrent()) showToast(error.message); return; }
     editingResult = result;
     resultEditError.textContent = "";
     resultEditForm.querySelector('button[type="submit"], button:not([type])').disabled = false;
@@ -2024,7 +2083,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       });
       resultEditDialog.close();
       editingResult = null;
-      await loadResults();
+      // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
       submitButton.disabled = false;
@@ -2038,7 +2097,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       await api(`/events/${id}/results/${encodeURIComponent(editingResult.id)}`, { method: "DELETE" });
       resultEditDialog.close();
       editingResult = null;
-      await loadResults();
+      // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
     } finally {
@@ -2051,12 +2110,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const item = disciplines[selected.discipline];
     overviewHead.hidden = true;
     setDocumentTitle(`${item.name} · ${genderName(selected.gender)} – ${event.name}`);
-    const results = allResults.filter((result) => result.discipline === selected.discipline && (item.mixed || result.gender === selected.gender));
-    const savedLapCount = results.reduce((maximum, result) => {
-      const coveredLaps = resultLapGroups(result).flat();
-      return Math.max(maximum, coveredLaps.length ? Math.max(...coveredLaps) : result.segments.length);
-    }, 0);
-    const lapCount = item.flexible ? savedLapCount : item.laps;
+    const results = pageResults.filter((result) => result.discipline === selected.discipline && (item.mixed || result.gender === selected.gender));
     const cardView = `<div class="result-list">
       ${results.map((result) => {
         const teamMembers = result.team_members || [];
@@ -2096,50 +2150,68 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       }).join("")}</div>`;
     resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="${viewerRoot}" ${resultsOnly ? "" : "data-history-back"}>${icon("arrow-left")} Ergebnisse</a>
       <div class="viewer-list-heading"><div class="viewer-list-title"><p class="eyebrow">${genderName(selected.gender)}</p><h2>${escapeHtml(item.name)}</h2></div>
-        <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${eventPdfImageReady ? "" : "disabled"}>PDF</button></div>
-      ${results.length ? cardView : `<div class="empty">Noch keine Ergebnisse.</div>`}`;
+        <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${eventPdfImageReady && !exporting ? "" : "disabled"}>PDF</button></div>
+      ${results.length ? cardView : `<div class="empty">${hasMore || pageIndex > 0 ? "Keine Ergebnisse dieser Gruppe auf dieser Seite. Weitere Seiten sind über die Seitennavigation erreichbar." : "Noch keine Ergebnisse."}</div>`}`;
     resultsRoot.querySelectorAll(".edit-result").forEach((button) => button.addEventListener("click", () => {
       const result = results.find((entry) => entry.id === button.dataset.id);
       if (result) openResultEditor(result);
     }));
-    document.querySelector("#create-results-pdf").addEventListener("click", () => {
-      const headers = [
-        "Name",
-        "AK",
-        ...Array.from({ length: lapCount }, (_, lap) => disciplineLapLabel(selected.discipline, lap + 1)),
-        "Gesamtzeit",
-      ];
-      const rows = results.map((result) => {
-        const teamMembers = result.team_members || [];
-        const person = teamMembers.length
-          ? teamMembers.map((member) => `${member.position}. ${member.name} (${birthYearText(member.birth_year)})`).join(" / ")
-          : `${result.participant_name} (${birthYearText(result.birth_year)})`;
-        const ageGroup = teamMembers.length
-          ? [...new Set(teamMembers.map((member) => member.age_group).filter(Boolean))].join("/")
-          : result.age_group;
-        const stoppedTime = result.segments.reduce((sum, value) => sum + (Number.isInteger(value) && value > 0 ? value : 0), 0);
-        const lapCells = Array.from({ length: lapCount }, () => "–");
-        const groups = resultLapGroups(result);
-        result.segments.forEach((value, index) => {
-          const group = groups[index] || [index + 1];
-          const frequency = Number.isInteger(result.frequencies?.[index]) ? `${result.frequencies[index]}/min` : "";
-          lapCells[group[0] - 1] = {
-            main: value == null ? "–" : formatReviewTime(value),
-            secondary: value == null ? "" : frequency,
-            tone: "frequency",
-            colSpan: group.length,
+    document.querySelector("#create-results-pdf").addEventListener("click", async (click) => {
+      if (exporting) return;
+      exporting = true;
+      const button = click.currentTarget;
+      const exportSelection = { ...selected };
+      button.disabled = true;
+      try {
+        const all = await window.TimerResultFeed.readAll(
+          (cursor) => api(`/events/${id}/results${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+          () => { if (!isCurrent()) throw new Error("Ansicht wurde geschlossen."); },
+        );
+        const results = all.filter((result) => result.discipline === exportSelection.discipline && (item.mixed || result.gender === exportSelection.gender))
+          .sort((left, right) => (left.official_centiseconds ?? left.total_centiseconds) - (right.official_centiseconds ?? right.total_centiseconds) || left.created_at.localeCompare(right.created_at));
+        const lapCount = item.flexible ? results.reduce((max, result) => Math.max(max, ...resultLapGroups(result).flat(), result.segments.length), 0) : item.laps;
+        const headers = [
+          "Name",
+          "AK",
+          ...Array.from({ length: lapCount }, (_, lap) => disciplineLapLabel(exportSelection.discipline, lap + 1)),
+          "Gesamtzeit",
+        ];
+        const rows = results.map((result) => {
+          const teamMembers = result.team_members || [];
+          const person = teamMembers.length
+            ? teamMembers.map((member) => `${member.position}. ${member.name} (${birthYearText(member.birth_year)})`).join(" / ")
+            : `${result.participant_name} (${birthYearText(result.birth_year)})`;
+          const ageGroup = teamMembers.length
+            ? [...new Set(teamMembers.map((member) => member.age_group).filter(Boolean))].join("/")
+            : result.age_group;
+          const stoppedTime = result.segments.reduce((sum, value) => sum + (Number.isInteger(value) && value > 0 ? value : 0), 0);
+          const lapCells = Array.from({ length: lapCount }, () => "–");
+          const groups = resultLapGroups(result);
+          result.segments.forEach((value, index) => {
+            const group = groups[index] || [index + 1];
+            const frequency = Number.isInteger(result.frequencies?.[index]) ? `${result.frequencies[index]}/min` : "";
+            lapCells[group[0] - 1] = {
+              main: value == null ? "–" : formatReviewTime(value),
+              secondary: value == null ? "" : frequency,
+              tone: "frequency",
+              colSpan: group.length,
+            };
+            group.slice(1).forEach((lap) => { lapCells[lap - 1] = { skip: true }; });
+          });
+          const timeCell = {
+            main: formatTime(stoppedTime),
+            bold: true,
+            secondary: result.official_centiseconds == null ? "" : `offi. ${formatTime(result.official_centiseconds)}`,
+            tone: "muted",
           };
-          group.slice(1).forEach((lap) => { lapCells[lap - 1] = { skip: true }; });
+          return [person, ageGroup, ...lapCells, timeCell];
         });
-        const timeCell = {
-          main: formatTime(stoppedTime),
-          bold: true,
-          secondary: result.official_centiseconds == null ? "" : `offi. ${formatTime(result.official_centiseconds)}`,
-          tone: "muted",
-        };
-        return [person, ageGroup, ...lapCells, timeCell];
-      });
-      openPdf(createResultsPdf(event.name, `${item.name} - ${genderName(selected.gender)}`, headers, rows, eventPdfImage));
+        openPdf(createResultsPdf(event.name, `${item.name} - ${genderName(exportSelection.gender)}`, headers, rows, eventPdfImage));
+      } catch (error) { if (isCurrent()) showToast(error.message); }
+      finally {
+        exporting = false;
+        if (isCurrent()) document.querySelector("#create-results-pdf")?.toggleAttribute("disabled", !eventPdfImageReady);
+      }
     });
   }
 
@@ -2171,43 +2243,72 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     cooldownTimer = setInterval(updateButton, 1000);
   }
 
-  async function loadResults(silent = false) {
-    if (loading) return;
-    loading = true;
-    try {
-      const data = await api(`/events/${id}/results`);
-      allResults = data.results;
-      renderContent();
-    } catch (err) {
-      if (!silent) resultsRoot.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
-    } finally { loading = false; }
-  }
-  refreshButton.addEventListener("click", () => {
-    startManualCooldown();
-    loadResults();
+  const feed = window.timerFirestoreApi.watchResults(id, (data) => {
+    if (!isCurrent()) return;
+    event = data.event;
+    pageResults = data.results;
+    pageIndex = data.pageIndex;
+    hasMore = data.hasMore;
+    pagePending = false;
+    previousPage.disabled = pageIndex === 0 || !eventCan(event, "can_view_results");
+    nextPage.disabled = !hasMore || !eventCan(event, "can_view_results");
+    pageStatus.textContent = `Seite ${pageIndex + 1} · ${pageResults.length} Ergebnisse auf dieser Seite (nach Zeit sortiert)`;
+    if (!eventCan(event, "can_view_results")) {
+      selected = null;
+      overviewHead.hidden = false;
+      pageStatus.textContent = "";
+      resultsRoot.innerHTML = `<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
+      return;
+    }
+    renderContent();
+  }, (error) => {
+    if (!isCurrent()) return;
+    pageResults = [];
+    hasMore = false;
+    pagePending = false;
+    refreshButton.disabled = false;
+    previousPage.disabled = true;
+    nextPage.disabled = true;
+    resultsRoot.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   });
-  await loadResults();
-  if (typeof window.timerFirestoreApi.watchResults === "function") {
-    routeCleanup = window.timerFirestoreApi.watchResults(id, (data) => {
-      event = data.event || event;
-      allResults = data.results || [];
-      if (!eventCan(event, "can_view_results")) {
-        selected = null;
-        overviewHead.hidden = false;
-        resultsRoot.innerHTML = `<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
-        return;
-      }
-      renderContent();
-    }, (error) => {
-      resultsRoot.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
-    });
-  } else {
-    refreshTimer = setInterval(() => loadResults(true), 60_000);
-  }
+  const changePage = (direction) => {
+    if (pagePending) return;
+    if (!feed[direction]()) return;
+    pagePending = true;
+    previousPage.disabled = true;
+    nextPage.disabled = true;
+    pageStatus.textContent = "Ergebnisse werden geladen …";
+  };
+  previousPage.addEventListener("click", () => changePage("previous"));
+  nextPage.addEventListener("click", () => changePage("next"));
+  refreshButton.addEventListener("click", () => {
+    if (pagePending) return;
+    startManualCooldown();
+    feed.refresh();
+  });
+  activeResultView = {
+    id, page: resultsOnly ? "results" : "viewer",
+    select(discipline, gender) {
+      const item = disciplines[discipline];
+      selected = item && (item.mixed ? gender === "mixed" : ["female", "male"].includes(gender)) ? { discipline, gender } : null;
+      if (eventCan(event, "can_view_results")) renderContent();
+    },
+  };
+  routeCleanup = () => {
+    feed.stop();
+    activeResultView = null;
+  };
 }
 
-async function renderRoute() {
+async function renderRoute(change) {
+  const current = route();
+  if (change?.type === "hashchange" && activeResultView?.id === current.id && activeResultView.page === current.page) {
+    activeResultView.select(current.discipline, current.gender);
+    app.focus({ preventScroll: true });
+    return;
+  }
   routeVersion += 1;
+  const version = routeVersion;
   window.timerFirestoreApi.clearParticipantCache?.();
   if (routeCleanup) {
     routeCleanup();
@@ -2219,7 +2320,6 @@ async function renderRoute() {
   cooldownTimer = null;
   cancelAnimationFrame(animationFrame);
   app.innerHTML = `<div class="loading">Wird geladen …</div>`;
-  const current = route();
   document.body.classList.toggle("timer-page", current.page === "timer");
   document.body.classList.toggle("home-page", current.page === "home");
   document.body.classList.toggle("event-page", current.page === "event");
@@ -2241,9 +2341,9 @@ async function renderRoute() {
     if (current.page === "results") return await renderViewer(current.id, current.discipline, current.gender, { resultsOnly: true });
     throw new Error("Diese Seite gibt es nicht.");
   } catch (error) {
-    renderError(error);
+    if (version === routeVersion) renderError(error);
   } finally {
-    app.focus({ preventScroll: true });
+    if (version === routeVersion) app.focus({ preventScroll: true });
   }
 }
 
@@ -2279,7 +2379,7 @@ timerAccountLogout?.addEventListener("click", async () => {
 });
 window.addEventListener("timer-auth-change", (event) => {
   refreshTimerAccount().catch(() => {});
-  if (event.detail?.participantsInvalidated && document.querySelector("#person-form")) renderRoute();
+  if (event.detail?.participantsInvalidated && (activeResultView || document.querySelector("#person-form"))) renderRoute();
 });
 window.addEventListener("hashchange", renderRoute);
 window.addEventListener("online", () => syncPendingResults({ includeBlocked: true }).catch(() => {}));

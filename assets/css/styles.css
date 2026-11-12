@@ -1011,7 +1011,7 @@ body[data-page="app"] .dashboard > .dashboard-header {
   min-height: 18px;
   margin: 0;
   color: var(--accent);
-  font-weight: 650;
+  font-weight: 400;
 }
 
 .form-message.success {

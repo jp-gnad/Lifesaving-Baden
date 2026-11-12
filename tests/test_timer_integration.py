@@ -91,7 +91,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('id="timer-account-control"', html)
         self.assertIn('id="timer-account-dialog"', html)
         self.assertIn("watchResults", app)
-        self.assertIn('collection("results").onSnapshot', adapter)
+        self.assertIn('pageQuery(eventRef.collection("results"), cursor).onSnapshot', adapter)
 
     def test_stopwatch_view_has_no_account_trigger(self):
         app = (ROOT / "timer" / "app.js").read_text(encoding="utf-8")

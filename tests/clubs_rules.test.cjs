@@ -348,3 +348,84 @@ test("legacy automatic permissions are blocked and migrated without losing membe
   await store.migrateResponsibilities(compat(dbFor("admin")), id, api());
   await succeeds(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
 });
+
+test("the last organizer cannot leave or forge an orphan alert without beginning account deletion", { skip: !enabled }, async () => {
+  const id = await create("Verlassen gesperrt", "o");
+  await assert.rejects(store.removePerson(compat(dbFor("o")), id, "account_o", api()), { code: "clubs/last-manager" });
+  const db = dbFor("o");
+  const batch = sdk.writeBatch(db);
+  batch.update(sdk.doc(db, `clubs/${id}`), { managerIds: [], needsResponsible: true, changedManagerId: "o", updatedAt: sdk.serverTimestamp() });
+  batch.update(sdk.doc(db, "clubAccounts/o"), { clubIds: [], changedClubId: id, updatedAt: sdk.serverTimestamp() });
+  await fails(batch.commit());
+  await assert.rejects(store.prepareAccountChange(compat(dbFor("admin")), "o", api()), { code: "clubs/last-manager" });
+  assert.equal((await sdk.getDoc(sdk.doc(db, "users/o"))).data().accountDeletionStartedAt, undefined);
+});
+
+test("deleting the sole organizer preserves the database member and evidence and alerts admins until reassigned", { skip: !enabled }, async () => {
+  const id = await create("Ohne Verantwortlichen", "o");
+  const owner = dbFor("o");
+  const db = compat(owner);
+  const year = new Date().getUTCFullYear();
+  const evidence = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+  await store.setActive(db, id, "account_o", year, true, api());
+  await store.saveDates(db, id, "account_o", { rescueSilver: evidence }, api());
+  await store.prepareAccountDeletion(db, "o", api());
+  await links.deleteAccount(db, "o");
+  const admin = dbFor("admin");
+  const club = (await sdk.getDoc(sdk.doc(admin, `clubs/${id}`))).data();
+  assert.deepEqual(club.managerIds, []);
+  assert.equal(club.needsResponsible, true);
+  assert.equal(club.status, "active");
+  assert.equal((await sdk.getDoc(sdk.doc(admin, "users/o"))).exists(), false);
+  assert.equal((await sdk.getDoc(sdk.doc(admin, "clubProfiles/o"))).exists(), false);
+  const person = (await sdk.getDoc(rosterRef(admin, id, p3))).data();
+  assert.equal(person.accountUid, "");
+  assert.deepEqual(person.activeYears, [year]);
+  assert.equal(person.rescueSilver.toMillis(), evidence.toMillis());
+  assert.equal((await sdk.getDoc(rosterRef(admin, id, "account_o"))).exists(), false);
+  assert.equal((await sdk.getDoc(sdk.doc(admin, `timerParticipantDirectory/${p3}`))).exists(), true);
+  const alerts = sdk.query(sdk.collection(admin, "clubs"), sdk.where("needsResponsible", "==", true));
+  assert.equal((await sdk.getDocs(alerts)).size, 1);
+  await fails(sdk.getDocs(sdk.query(sdk.collection(dbFor("outsider"), "clubs"), sdk.where("needsResponsible", "==", true))));
+  await assign(id, "a");
+  assert.equal((await sdk.getDocs(alerts)).size, 0);
+  assert.equal((await sdk.getDoc(rosterRef(dbFor("a"), id, p3))).data().rescueSilver.toMillis(), evidence.toMillis());
+});
+
+test("account deletion cleanup is restartable across multiple clubs and cannot be cancelled into an ordinary departure", { skip: !enabled }, async () => {
+  const first = await create("Eins", "b");
+  const second = await create("Zwei", "b");
+  const third = await create("Drei", "b");
+  await assign(third, "a");
+  const b = dbFor("b");
+  await store.prepareAccountDeletion(compat(b), "b", api());
+  await fails(sdk.updateDoc(sdk.doc(b, "users/b"), { accountDeletionStartedAt: sdk.deleteField() }));
+  await fails(sdk.updateDoc(sdk.doc(b, "users/b"), { role: "organizer" }));
+  await assert.rejects(assign(third, "b"), { code: "clubs/account-deleting" });
+  await store.prepareAccountDeletion(compat(b), "b", api());
+  await links.deleteAccount(compat(b), "b");
+  const admin = dbFor("admin");
+  for (const id of [first, second, third]) {
+    assert.equal((await sdk.getDoc(rosterRef(admin, id, p2))).exists(), true);
+    assert.equal((await sdk.getDoc(sdk.doc(admin, `clubs/${id}`))).data().needsResponsible, id !== third);
+  }
+  assert.deepEqual((await sdk.getDoc(sdk.doc(admin, "clubAccounts/b"))).data().clubIds, []);
+});
+
+test("parallel account deletions may leave an orphan club with exactly one unresolved alert", { skip: !enabled }, async () => {
+  const id = await create("Beide löschen", "b").catch(error => { error.message = `create: ${error.message}`; throw error; });
+  await assign(id, "o").catch(error => { error.message = `assign: ${error.message}`; throw error; });
+  const results = await Promise.allSettled(["b", "o"].map(async uid => {
+    await store.prepareAccountDeletion(compat(dbFor(uid)), uid, api()).catch(error => { error.message = `prepare ${uid}: ${error.message}`; throw error; });
+    await links.deleteAccount(compat(dbFor(uid)), uid).catch(error => { error.message = `delete ${uid}: ${error.message}`; throw error; });
+  }));
+  for (const result of results) if (result.status === "rejected") throw result.reason;
+  const admin = dbFor("admin");
+  const club = (await sdk.getDoc(sdk.doc(admin, `clubs/${id}`))).data();
+  assert.deepEqual(club.managerIds, []);
+  assert.equal(club.needsResponsible, true);
+  assert.equal((await sdk.getDoc(rosterRef(admin, id, p2))).exists(), true);
+  assert.equal((await sdk.getDoc(rosterRef(admin, id, p3))).exists(), true);
+  await store.deleteClub(compat(admin), id, api()).catch(error => { error.message = `delete club: ${error.message}`; throw error; });
+  assert.equal((await sdk.getDocs(sdk.query(sdk.collection(admin, "clubs"), sdk.where("needsResponsible", "==", true)))).size, 0);
+});

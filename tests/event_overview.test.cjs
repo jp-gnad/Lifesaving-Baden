@@ -9,7 +9,7 @@ const source = fs.readFileSync(path.join(__dirname, "../timer/app.js"), "utf8");
 const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 const code = section("async function renderHome()", "async function renderEvent(");
 
-function overview(events, time, isOrganizer = false) {
+function overview(events, time, isOrganizer = false, pages = null) {
   let clock = new Date(time).getTime();
   class ClockDate extends Date {
     constructor(...args) { super(...(args.length ? args : [clock])); }
@@ -42,13 +42,13 @@ function overview(events, time, isOrganizer = false) {
   let sequence = 0;
   let reads = 0;
   const context = vm.createContext({
-    ...require("../timer/core.js"), Date: ClockDate, document, app: node("app"), eventListTab: "current", routeCleanup: null,
+    ...require("../timer/core.js"), Date: ClockDate, document, app: node("app"), eventListTab: "current", routeCleanup: null, routeVersion: 1,
     window: { timerFirestoreApi: { async getAuthContext() { return { isOrganizer }; } } },
     async api(url, options) {
-      assert.equal(url, "/events");
+      if (!pages) assert.equal(url, "/events");
       assert.equal(options, undefined, "The tabs must never write event data");
       reads += 1;
-      return { events: [...events] };
+      return pages ? pages[url] : { events: [...events] };
     },
     setTimeout(fn, delay) { const id = ++sequence; timers.set(id, { fn, delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
@@ -150,4 +150,22 @@ test("empty tabs explain their own state and undated events remain current", asy
   assert.match(h.list(), /#\/event\/undated/);
   h.tabs[1].click();
   assert.match(h.list(), /Noch keine vergangenen Events vorhanden/);
+});
+
+test("additional event pages are loaded explicitly, deduplicated and filtered locally", async () => {
+  const first = { id: 'a?"', name: "First", event_date: "2020-01-01" };
+  const second = { id: "b", name: "Second", event_date: "2026-11-12" };
+  const h = overview([], "2026-11-12T12:00:00", false, {
+    "/events": { events: [first], hasMore: true, nextCursor: first.id },
+    [`/events?cursor=${encodeURIComponent(first.id)}`]: { events: [first, second], hasMore: false, nextCursor: "b" },
+  });
+  await h.render();
+  assert.match(h.list(), /Weitere Events/);
+  assert.equal(h.node("#more-events").hidden, false);
+  await h.node("#more-events").handlers.click();
+  assert.match(h.list(), /Second/);
+  assert.equal(h.node("#more-events").hidden, true);
+  h.tabs[1].click();
+  assert.equal((h.list().match(/First/g) || []).length, 2, "one card with name and accessible label");
+  assert.equal(h.reads(), 2);
 });

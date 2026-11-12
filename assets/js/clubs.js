@@ -455,9 +455,16 @@
     if (!active(owner)) return;
     const cards = [...owner.clubs.values()].sort((a, b) => collator.compare(a.name, b.name)).map((club) => {
       const card = node("article", "club-admin-card");
+      if (club.status === "active" && club.managerIds.length === 0) {
+        const badge = node("span", "club-notification", "1");
+        badge.setAttribute("role", "status");
+        badge.setAttribute("aria-label", "1 Meldung: Kein Verantwortlicher");
+        card.append(badge);
+      }
       const title = node("a", "club-admin-title", club.name);
       title.href = `club-verwaltung.html?club=${encodeURIComponent(club.id)}`;
       const names = node("div", "club-manager-names");
+      if (!club.managerIds.length && club.status === "active") names.append(node("span", "club-no-responsible", "Kein Verantwortlicher"));
       for (const uid of club.managerIds) {
         const profile = owner.profiles.get(uid);
         const manager = node("span", "club-manager-name", profile ? core.displayName(profile) : "Verantwortlicher");

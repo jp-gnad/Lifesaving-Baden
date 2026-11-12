@@ -44,9 +44,10 @@ service cloud.firestore {
     }
 
     function callerRoleRank() {
+      let profile = adminData();
       let claimsRank = accountRoleRank(request.auth.token, true);
-      let profileRank = accountRoleRank(adminData(), false);
-      return claimsRank > profileRank ? claimsRank : profileRank;
+      let profileRank = accountRoleRank(profile, false);
+      return profile.get("accountDeletionStartedAt", null) != null ? 1 : claimsRank > profileRank ? claimsRank : profileRank;
     }
 
     function isOrganizer() {
@@ -91,7 +92,8 @@ service cloud.firestore {
         "adminGrantedBy",
         "kader",
         "isKaderAthlete",
-        "personLinkDecision"
+        "personLinkDecision",
+        "accountDeletionStartedAt"
       ])
       && (!changedKeys.hasAny(["personLink"]) || validOwnerUnlink(changedKeys))
       && ownerKeepsLinkFieldsSafe(changedKeys);
@@ -286,9 +288,15 @@ service cloud.firestore {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
-      allow update: if clubRoleChangeSafe(uid) && ((isOwner(uid) && ownerKeepsProtectedFieldsSafe())
+      allow update: if resource.data.get("accountDeletionStartedAt", null) == null
+        && request.resource.data.get("accountDeletionStartedAt", null) == null
+        && clubRoleChangeSafe(uid) && ((isOwner(uid) && ownerKeepsProtectedFieldsSafe())
         || (isAdmin() && validAdminPersonLink(uid) && (adminAccount(resource.data)
           ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid))));
+      allow update: if verifiedUser() && isOwner(uid) && !isAdmin()
+        && !adminAccount(resource.data) && resource.data.get("accountDeletionStartedAt", null) == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["accountDeletionStartedAt", "updatedAt"])
+        && request.resource.data.accountDeletionStartedAt == request.time && request.resource.data.updatedAt == request.time;
       allow delete: if !adminAccount(resource.data)
         && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()))
         && linkReleased(resource.data.get("personLink", null)) && noClubResponsibilities(uid);
@@ -593,8 +601,13 @@ service cloud.firestore {
         ]);
     }
 
+    function boundedTimerList() {
+      return request.query.limit is int && request.query.limit > 0 && request.query.limit <= 50;
+    }
+
     match /timerEvents/{eventId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if boundedTimerList();
       allow create: if isOrganizer()
         && validTimerEvent(request.resource.data)
         && request.resource.data.participantIndexVersion == 1
@@ -639,8 +652,8 @@ service cloud.firestore {
         allow get: if isAdmin()
           || eventAllows(eventId, "timerAccess")
           || eventAllows(eventId, "resultsAccess");
-        allow list: if isAdmin()
-          || eventAllows(eventId, "resultsAccess");
+        allow list: if boundedTimerList() && (isAdmin()
+          || eventAllows(eventId, "resultsAccess"));
         allow create: if eventAllows(eventId, "timerAccess")
           && validResultCreate();
         allow update: if eventAllows(eventId, "resultsAccess")
@@ -802,6 +815,15 @@ service cloud.firestore {
       return !existsAfter(path) || getAfter(path).data.clubIds.size() == 0;
     }
 
+    function deletingOwnAccount() {
+      return verifiedUser() && adminData().get("accountDeletionStartedAt", null) != null;
+    }
+
+    function releasesOwnClub(id) {
+      return deletingOwnAccount()
+        && request.auth.uid in get(/databases/$(database)/documents/clubs/$(id)).data.managerIds;
+    }
+
     function clubRoleChangeSafe(uid) {
       return accountRoleRank(request.resource.data, false) >= 3 || noClubResponsibilities(uid);
     }
@@ -828,7 +850,7 @@ service cloud.firestore {
     }
 
     match /clubProfiles/{uid} {
-      allow get: if verifiedTrainer() || isOwner(uid);
+      allow get: if isOwner(uid) || verifiedTrainer();
       allow list: if verifiedUser() && isAdmin();
       allow create, update: if verifiedUser() && (isAdmin() || isOwner(uid)) && validClubProfile(uid, request.resource.data);
       allow delete: if verifiedUser() && (isAdmin() || isOwner(uid))
@@ -850,16 +872,18 @@ service cloud.firestore {
     match /clubAccounts/{uid} {
       allow get: if verifiedUser() && (isOwner(uid) || isAdmin());
       allow create: if verifiedTrainer() && validClubIndex(uid, request.resource.data, []);
-      allow update: if verifiedTrainer() && validClubIndex(uid, request.resource.data, resource.data.clubIds);
+      allow update: if ((isOwner(uid) && deletingOwnAccount()) || verifiedTrainer())
+        && validClubIndex(uid, request.resource.data, resource.data.clubIds);
     }
 
     function validClubBase(id, data) {
-      return data.keys().hasOnly(["name", "managerIds", "changedManagerId", "status", "responsibilityVersion", "createdAt", "updatedAt"])
+      return data.keys().hasOnly(["name", "managerIds", "changedManagerId", "status", "responsibilityVersion", "needsResponsible", "createdAt", "updatedAt"])
         && data.get("responsibilityVersion", 1) in [1, 2]
         && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
         && id == data.name.trim().lower().toUtf8().toHexString().lower()
         && data.managerIds is list && data.managerIds.size() == data.managerIds.toSet().size()
-        && data.status in ["active", "deleting"] && (data.status == "deleting" || data.managerIds.size() > 0)
+        && data.status in ["active", "deleting"]
+        && data.get("needsResponsible", false) == (data.status == "active" && data.managerIds.size() == 0)
         && data.updatedAt == request.time;
     }
 
@@ -869,13 +893,31 @@ service cloud.firestore {
       let account = getAfter(/databases/$(database)/documents/users/$(uid)).data;
       let index = getAfter(/databases/$(database)/documents/clubAccounts/$(uid)).data;
       return next.managerIds.removeAll([uid]) == previous.removeAll([uid])
-        && (added ? isAdmin() && accountRoleRank(account, false) >= 3
+        && (added ? isAdmin() && accountRoleRank(account, false) >= 3 && account.get("accountDeletionStartedAt", null) == null
           && existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + uid))
-          : (isAdmin() || uid == request.auth.uid))
+          : (uid == request.auth.uid || isAdmin()))
+        && (next.status != "active" || next.managerIds.size() > 0
+          || (uid == request.auth.uid && deletingOwnAccount()))
         && (id in index.clubIds) == added && index.changedClubId == id && index.updatedAt == request.time;
     }
 
+    function validOwnDeletionRelease(id, next, previous) {
+      let uid = request.auth.uid;
+      return deletingOwnAccount() && uid in previous.managerIds
+        && next.diff(previous).affectedKeys().hasOnly(["managerIds", "needsResponsible", "changedManagerId", "updatedAt"])
+        && next.managerIds == previous.managerIds.removeAll([uid])
+        && next.needsResponsible == (next.status == "active" && next.managerIds.size() == 0)
+        && next.changedManagerId == uid && next.updatedAt == request.time
+        && ownDeletionReleaseIndexed(id);
+    }
+
+    function ownDeletionReleaseIndexed(id) {
+      let index = getAfter(/databases/$(database)/documents/clubAccounts/$(request.auth.uid)).data;
+      return !(id in index.clubIds) && index.changedClubId == id && index.updatedAt == request.time;
+    }
+
     match /clubs/{id} {
+      allow get: if releasesOwnClub(id);
       allow get, list: if verifiedTrainer() && (isAdmin() || (resource.data.status == "active"
         && resource.data.get("responsibilityVersion", 1) == 2 && request.auth.uid in resource.data.managerIds));
       allow create: if verifiedUser() && isAdmin() && validClubBase(id, request.resource.data)
@@ -883,19 +925,24 @@ service cloud.firestore {
         && request.resource.data.responsibilityVersion == 2
         && request.resource.data.createdAt == request.time
         && validManagerChange(id, request.resource.data, []);
+      allow update: if validOwnDeletionRelease(id, request.resource.data, resource.data);
       allow update: if validClubBase(id, request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name
-        && (isAdmin() || request.resource.data.get("responsibilityVersion", 1) == resource.data.get("responsibilityVersion", 1))
+        && (request.resource.data.get("responsibilityVersion", 1) == resource.data.get("responsibilityVersion", 1) || isAdmin())
         && ((managesClub(id) && request.resource.data.status == resource.data.status
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["managerIds", "changedManagerId", "updatedAt"])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["managerIds", "needsResponsible", "changedManagerId", "updatedAt"])
           && validManagerChange(id, request.resource.data, resource.data.managerIds))
           || (verifiedUser() && isAdmin() && (request.resource.data.managerIds == resource.data.managerIds
             || validManagerChange(id, request.resource.data, resource.data.managerIds))));
       allow delete: if verifiedUser() && isAdmin() && resource.data.status == "deleting" && resource.data.managerIds.size() == 0;
 
       match /people/{personId} {
+        allow get: if releasesOwnClub(id) && (personId == "account_" + request.auth.uid
+          || personId == adminData().get("personLink", {}).get("id", ""));
         allow read: if managesClub(id) || (verifiedUser() && isAdmin());
-        allow create: if (managesClub(id) || (verifiedUser() && isAdmin())) && validClubPerson(id, personId, request.resource.data)
+        allow create: if ((releasesOwnClub(id) && personId == adminData().get("personLink", {}).get("id", "") && request.resource.data.accountUid == "")
+          || managesClub(id) || (verifiedUser() && isAdmin()))
+          && validClubPerson(id, personId, request.resource.data)
           && (request.resource.data.accountUid == "" || (isAdmin()
             && request.resource.data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
           && (request.resource.data.activeYears.size() == 0
@@ -904,16 +951,21 @@ service cloud.firestore {
             || (request.resource.data.accountUid == "" && exists(/databases/$(database)/documents/personAccountLinks/$(personId))
               && get(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + get(/databases/$(database)/documents/personAccountLinks/$(personId)).data.uid)).data.activeYears == request.resource.data.activeYears))
           && request.resource.data.createdAt == request.time;
-        allow update: if managesClub(id) && validClubPerson(id, personId, request.resource.data)
+        allow update: if ((releasesOwnClub(id)
+            && personId == adminData().get("personLink", {}).get("id", "") && request.resource.data.accountUid == "") || managesClub(id))
+          && validClubPerson(id, personId, request.resource.data)
           && request.resource.data.accountUid == resource.data.accountUid
           && (validClubActivity(request.resource.data.activeYears, resource.data.activeYears)
             || (request.resource.data.accountUid != "" && request.resource.data.personId != ""
               && !existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId))
-              && request.resource.data.activeYears.toSet() == resource.data.activeYears.toSet().union(get(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId)).data.activeYears.toSet())))
+              && request.resource.data.activeYears.toSet() == resource.data.activeYears.toSet().union(get(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId)).data.activeYears.toSet()))
+            || (releasesOwnClub(id) && personId == adminData().get("personLink", {}).get("id", "")
+              && request.resource.data.activeYears.toSet() == resource.data.activeYears.toSet().union(get(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + request.auth.uid)).data.activeYears.toSet())))
           && request.resource.data.createdAt == resource.data.createdAt;
-        allow delete: if (managesClub(id) || (verifiedUser() && isAdmin()))
+        allow delete: if ((releasesOwnClub(id) && personId == "account_" + request.auth.uid)
+          || managesClub(id) || (verifiedUser() && isAdmin()))
           && (resource.data.accountUid == "" || !(resource.data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
-          && (resource.data.accountUid == "" || isAdmin() || resource.data.accountUid == request.auth.uid
+          && (resource.data.accountUid == "" || resource.data.accountUid == request.auth.uid || isAdmin()
             || !(resource.data.accountUid in get(/databases/$(database)/documents/clubs/$(id)).data.managerIds));
       }
     }
@@ -951,6 +1003,7 @@ service cloud.firestore {
     }
 
     match /timerParticipantDirectory/{candidateId} {
+      allow get: if deletingOwnAccount() && candidateId == adminData().get("personLink", {}).get("id", "");
       allow read: if isOrganizer();
       allow get: if verifiedTrainer();
       allow list: if verifiedTrainer() && request.query.limit is int && request.query.limit <= 10;

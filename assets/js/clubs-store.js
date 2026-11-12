@@ -36,11 +36,12 @@
       checkSession();
       if (existing.exists) fail("clubs/duplicate", "Diese Gliederung besteht bereits.");
       if (!account.exists) fail("clubs/account-missing", "Das Konto besteht nicht mehr.");
+      if (account.data().accountDeletionStartedAt) fail("clubs/account-deleting", "Die Kontolöschung wurde bereits begonnen.");
       const manager = core.profile(account.data());
       if (!["trainer", "organizer", "admin"].includes(manager.role)) fail("clubs/role", "Bitte ein Trainer-, Organisator- oder Adminkonto wählen.");
       transaction.set(db.collection("clubProfiles").doc(uid), manager);
       transaction.set(club, {
-        name: core.clubName(name), managerIds: [uid], changedManagerId: uid, status: "active",
+        name: core.clubName(name), managerIds: [uid], changedManagerId: uid, status: "active", needsResponsible: false,
         responsibilityVersion: 2, createdAt: stamp(sdk), updatedAt: stamp(sdk),
       });
       transaction.set(people.doc(managerKey(uid)), personRecord({ ...manager, accountUid: uid }, sdk));
@@ -81,6 +82,7 @@
       const assigned = clubDoc.data().managerIds.includes(uid);
       if (reconcileOnly && !assigned) return;
       if (!account.exists) fail("clubs/account-missing", "Das Konto besteht nicht mehr.");
+      if (account.data().accountDeletionStartedAt) fail("clubs/account-deleting", "Die Kontolöschung wurde bereits begonnen.");
       const profile = core.profile(account.data());
       if (!["trainer", "organizer", "admin"].includes(profile.role)) fail("clubs/role", "Bitte ein Trainer-, Organisator- oder Adminkonto wählen.");
       const plain = profile.personId ? await transaction.get(people.doc(profile.personId)) : null;
@@ -93,7 +95,7 @@
       });
       if (plain?.exists) transaction.delete(people.doc(profile.personId));
       if (!assigned) {
-        transaction.update(club, { managerIds: [...clubDoc.data().managerIds, uid], changedManagerId: uid, updatedAt: stamp(sdk) });
+        transaction.update(club, { managerIds: [...clubDoc.data().managerIds, uid], needsResponsible: false, changedManagerId: uid, updatedAt: stamp(sdk) });
         indexManager(transaction, db, uid, clubId, true, sdk);
       }
     });
@@ -124,40 +126,59 @@
     return editMember(db, clubId, personId, (person) => ({ activeYears: core.activeYears(person.activeYears, year, enabled) }), sdk, checkSession, expectedCreatedAt);
   }
 
-  async function removePerson(db, clubId, personId, sdk, checkSession = () => {}, keepPerson = false) {
+  async function removePerson(db, clubId, personId, sdk, checkSession = () => {}, keepPerson = false, accountDeletion = false) {
     const { club, people } = references(db, clubId);
-    await db.runTransaction(async (transaction) => {
-      const [clubDoc, person] = await Promise.all([transaction.get(club), transaction.get(people.doc(personId))]);
-      if (!clubDoc.exists || !person.exists) return;
-      const data = clubDoc.data();
-      const uid = person.data().accountUid;
-      const manager = uid && data.managerIds.includes(uid);
-      const profileDoc = uid ? await transaction.get(db.collection("clubProfiles").doc(uid)) : null;
-      const linkedId = profileDoc?.data()?.personId || person.data().personId;
-      const source = keepPerson && linkedId ? await transaction.get(db.collection("timerParticipantDirectory").doc(linkedId)) : null;
-      const plainPerson = keepPerson && linkedId ? await transaction.get(people.doc(linkedId)) : null;
-      checkSession();
-      if (manager) {
-        if (data.status === "active" && data.managerIds.length <= 1) fail("clubs/last-manager", "Zuerst durch einen Admin einen weiteren Verantwortlichen zuordnen lassen.");
-        transaction.update(club, { managerIds: data.managerIds.filter((value) => value !== uid), changedManagerId: uid, updatedAt: stamp(sdk) });
-        indexManager(transaction, db, uid, clubId, false, sdk);
-      }
-      if (!keepPerson) {
-        transaction.delete(people.doc(personId));
-      } else if (source?.exists) {
-        const years = [...new Set([...(person.data().activeYears || []), ...(plainPerson.data()?.activeYears || [])])].sort((a, b) => a - b);
-        transaction.set(people.doc(linkedId), {
-          ...personRecord({ ...source.data(), ...core.proofDates(person.data(), plainPerson.data()), personId: linkedId }, sdk, years),
-          createdAt: plainPerson.exists ? plainPerson.data().createdAt : stamp(sdk),
+    let revision;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await db.runTransaction(async (transaction) => {
+          const [clubDoc, person] = await Promise.all([transaction.get(club), transaction.get(people.doc(personId))]);
+          if (!clubDoc.exists || !person.exists) return;
+          const data = clubDoc.data();
+          revision = data.updatedAt;
+          const uid = person.data().accountUid;
+          const manager = uid && data.managerIds.includes(uid);
+          const profileDoc = uid ? await transaction.get(db.collection("clubProfiles").doc(uid)) : null;
+          const linkedId = profileDoc?.data()?.personId || person.data().personId;
+          const source = keepPerson && linkedId ? await transaction.get(db.collection("timerParticipantDirectory").doc(linkedId)) : null;
+          const plainPerson = keepPerson && linkedId ? await transaction.get(people.doc(linkedId)) : null;
+          checkSession();
+          if (manager) {
+            if (!accountDeletion && data.status === "active" && data.managerIds.length <= 1) fail("clubs/last-manager", "Zuerst durch einen Admin einen weiteren Verantwortlichen zuordnen lassen.");
+            const managerIds = data.managerIds.filter((value) => value !== uid);
+            transaction.update(club, { managerIds, needsResponsible: data.status === "active" && managerIds.length === 0, changedManagerId: uid, updatedAt: stamp(sdk) });
+            indexManager(transaction, db, uid, clubId, false, sdk);
+          }
+          if (!keepPerson) {
+            transaction.delete(people.doc(personId));
+          } else if (source?.exists) {
+            const years = [...new Set([...(person.data().activeYears || []), ...(plainPerson.data()?.activeYears || [])])].sort((a, b) => a - b);
+            transaction.set(people.doc(linkedId), {
+              ...personRecord({ ...source.data(), ...core.proofDates(person.data(), plainPerson.data()), personId: linkedId }, sdk, years),
+              createdAt: plainPerson.exists ? plainPerson.data().createdAt : stamp(sdk),
+            });
+            transaction.delete(people.doc(personId));
+          }
         });
-        transaction.delete(people.doc(personId));
+        return;
+      } catch (error) {
+        if (accountDeletion && error.code === "permission-denied" && attempt < 2 && revision) {
+          checkSession();
+          const current = await club.get({ source: "server" });
+          checkSession();
+          // A concurrent release may make the transaction's old manager list
+          // fail rules before Firestore reports a retryable conflict. Retry
+          // only when the club actually changed, with fresh authorization.
+          if (current.exists && !revision.isEqual(current.data().updatedAt)) continue;
+        }
+        throw error;
       }
-    });
+    }
   }
 
   async function deleteClub(db, clubId, sdk, checkSession = () => {}) {
     const { club, people } = references(db, clubId);
-    await club.update({ status: "deleting", updatedAt: stamp(sdk) });
+    await club.update({ status: "deleting", needsResponsible: false, updatedAt: stamp(sdk) });
     const roster = await people.get({ source: "server" });
     for (const person of roster.docs) {
       checkSession();
@@ -177,6 +198,32 @@
     }
     for (const club of clubs) {
       if (club.exists) await removePerson(db, club.id, managerKey(uid), sdk, checkSession, true);
+    }
+  }
+
+  async function prepareAccountDeletion(db, uid, sdk, checkSession = () => {}) {
+    const index = await db.collection("clubAccounts").doc(uid).get({ source: "server" });
+    checkSession();
+    let ids = index.data()?.clubIds || [];
+    if (index.data()?.clubIds?.length) {
+      // Starting deletion is irreversible. Rules revoke the account's staff
+      // access and only allow its own responsibility cleanup from this point.
+      ids = await db.runTransaction(async (transaction) => {
+        const ref = db.collection("users").doc(uid);
+        const [account, responsibilities] = await Promise.all([
+          transaction.get(ref), transaction.get(db.collection("clubAccounts").doc(uid)),
+        ]);
+        checkSession();
+        if (!account.exists) fail("clubs/account-missing", "Das Konto besteht nicht mehr.");
+        if (core.profile(account.data()).role === "admin") fail("app/admin-account-protected", "Admin-Konten können nicht gelöscht werden.");
+        if (!account.data().accountDeletionStartedAt) transaction.update(ref, { accountDeletionStartedAt: stamp(sdk), updatedAt: stamp(sdk) });
+        return responsibilities.data()?.clubIds || [];
+      });
+    }
+    for (const id of ids) {
+      // Each release updates the responsibility index and the admin alert in
+      // the same transaction. Retrying an interrupted deletion is safe.
+      await removePerson(db, id, managerKey(uid), sdk, checkSession, true, true);
     }
   }
 
@@ -213,7 +260,7 @@
     return true;
   }
 
-  const api = Object.freeze({ createClub, importPerson, assignResponsible, setActive, removePerson, deleteClub, prepareAccountChange, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
+  const api = Object.freeze({ createClub, importPerson, assignResponsible, setActive, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsStore = api;
 })(typeof window === "object" ? window : globalThis);

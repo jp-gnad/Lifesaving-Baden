@@ -11,6 +11,7 @@
     getDefaultAccountRole, getAccountRole, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, requiresAccountSetup, redirectToAccountSetup, setLoading, translateAuthError,
   } = window.LifesavingAuth;
+  const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
     initAdminAccounts, initAdminAccountBadge, updateAdminAccountCardRole, setAdminAccountRoleAppearance, formatLinkedPerson, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, filterAdminAccounts
   } = window.LifesavingAdminAccounts.create({
@@ -1076,13 +1077,17 @@
 
       updateRoleUi(role);
       if (page === "admin-accounts") await initAdminAccounts(auth, role);
-      if (page === "app" && role.isAdmin) initAdminAccountBadge(auth);
+      if (page === "app" && role.isAdmin) {
+        initAdminAccountBadge(auth);
+        clubNotifications?.start(auth);
+      }
     } catch (error) {
       updateRoleUi(getDefaultAccountRole());
     }
   }
 
   function updateRoleUi(role = getDefaultAccountRole()) {
+    if (!role.isAdmin) clubNotifications?.stop();
     const visibility = {
       "data-admin-only": role.isAdmin,
       "data-non-admin-only": !role.isAdmin,
@@ -1223,7 +1228,7 @@
     }
 
     const confirmed = window.confirm(
-      "Konto wirklich löschen? Diese Aktion entfernt dein Konto und deine gespeicherten Einstellungen."
+      "Konto wirklich löschen? Dein Konto und deine Einstellungen werden entfernt. Die Clubpersonen und ihre Nachweise bleiben erhalten."
     );
 
     if (!confirmed) {
@@ -1235,7 +1240,7 @@
       setLoading(deleteButton, true, "Löschen...");
 
       if (window.firebase.firestore) {
-        await window.ClubsStore.prepareAccountChange(window.firebase.firestore(), user.uid, window.firebase.firestore, () => requireCurrentUser(user));
+        await window.ClubsStore.prepareAccountDeletion(window.firebase.firestore(), user.uid, window.firebase.firestore, () => requireCurrentUser(user));
         await window.LifesavingPersonLinks.deleteAccount(window.firebase.firestore(), user.uid, () => requireCurrentUser(user));
       }
 

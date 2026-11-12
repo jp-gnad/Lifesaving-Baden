@@ -42,6 +42,30 @@ const event = (level) => ({
 const dbFor = (uid, claims = {}) => uid
   ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore()
   : env.unauthenticatedContext().firestore();
+
+test("timer event and result lists require bounded queries, including admins and cursor pages", { skip: !enabled }, async () => {
+  const records = { "users/paging-admin": { role: "admin" }, "timerEvents/paging": event("everyone"), "timerEvents/private-page": event("locked") };
+  for (let i = 0; i < 53; i++) {
+    const id = String(i).padStart(3, "0");
+    records[`timerEvents/page-${id}`] = event("everyone");
+    records[`timerEvents/paging/results/${id}`] = result();
+  }
+  await seed(records);
+  for (const db of [dbFor(null), dbFor("paging-admin")]) {
+    for (const name of ["timerEvents", "timerEvents/paging/results"]) {
+      const collection = sdk.collection(db, name);
+      await assertFails(sdk.getDocs(collection));
+      await assertFails(sdk.getDocs(sdk.query(collection, sdk.limit(51))));
+      const first = await assertSucceeds(sdk.getDocs(sdk.query(collection, sdk.orderBy(sdk.documentId()), sdk.limit(50))));
+      assert.equal(first.size, 50);
+      const second = await assertSucceeds(sdk.getDocs(sdk.query(collection, sdk.orderBy(sdk.documentId()), sdk.startAfter(first.docs.at(-1).id), sdk.limit(50))));
+      assert.ok(second.size > 0);
+      assert.equal(new Set([...first.docs, ...second.docs].map((doc) => doc.id)).size, first.size + second.size);
+    }
+    await assertSucceeds(sdk.getDoc(sdk.doc(db, "timerEvents/paging/results/000")));
+  }
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(dbFor(null), "timerEvents/private-page/results"), sdk.limit(50))));
+});
 async function seed(records) {
   await env.withSecurityRulesDisabled(async (context) => {
     for (const [name, data] of Object.entries(records)) await sdk.setDoc(sdk.doc(context.firestore(), name), data);
@@ -278,7 +302,7 @@ test("all roles and legacy roles enforce the same event thresholds for reads and
       for (const [level, threshold] of Object.entries(levels)) {
         const check = rank >= threshold ? assertSucceeds : assertFails;
         await check(sdk.getDoc(sdk.doc(db, `timerEvents/${level}/participants/p`)));
-        await check(sdk.getDocs(sdk.collection(db, `timerEvents/${level}/results`)));
+        await check(sdk.getDocs(sdk.query(sdk.collection(db, `timerEvents/${level}/results`), sdk.limit(50))));
         await check(commitParticipant(db, level, `new-${uid || "guest"}`, { ...participant(), name: `Neue Person ${uid || "guest"}` }, true));
         await check(sdk.setDoc(sdk.doc(db, `timerEvents/${level}/results/new-${uid || "guest"}`), result()));
         await check(commitParticipant(db, level, "p", { ...participant(), name: "Geändert" }));

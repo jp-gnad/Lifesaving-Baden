@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261111-link-issues-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261112-message-weight-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -25,11 +25,11 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261112-responsible-v3"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261112-orphan-clubs-v2"></script>
     <script defer src="assets/js/person-link-store.js?v=20261112-responsible-v2"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261112-structure-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261112-orphan-clubs-v2"></script>
   </head>
   <body class="auth-context-loading" data-page="settings">
     <header class="site-header">
@@ -540,7 +540,7 @@
             </div>
             <article class="card danger-zone danger-zone-card is-hidden" data-non-admin-only>
               <h3>Konto löschen</h3>
-              <p>Das Konto und die gespeicherten Einstellungen werden entfernt.</p>
+              <p>Das Konto und die Einstellungen werden entfernt. Clubpersonen und Nachweise bleiben erhalten.</p>
               <button class="danger-button" type="button" data-delete-account>Konto löschen</button>
               <p class="form-message" data-delete-message role="status"></p>
             </article>
