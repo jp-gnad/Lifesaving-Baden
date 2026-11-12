@@ -26,10 +26,10 @@
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/clubs-store.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/person-link-store.js?v=20261112-responsible-v2"></script>
-    <script defer src="assets/js/auth-core.js?v=20261112-login-name-v1"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261112-login-name-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="settings">
     <header class="site-header">
@@ -442,7 +442,6 @@
                     <p class="setting-help no-indent">
                       Beantrage die Zuordnung deines Kontos zu deiner Person in der Datenbank.
                     </p>
-                    <a class="button button-primary" href="link-request.html">Verknüpfung beantragen</a>
                   </div>
 
                   <div class="link-management-panel is-hidden" data-link-requested-panel hidden aria-hidden="true">
@@ -473,10 +472,20 @@
                       </div>
                     </dl>
                     <span class="security-button-row">
-                      <a class="button button-secondary" href="link-request.html?edit=1">Antrag bearbeiten</a>
-                      <button class="button button-danger" type="button" data-link-request-withdraw>Antrag zurückziehen</button>
+                      <button class="button button-danger" type="button" data-link-request-withdraw>Anfrage zurückziehen</button>
                     </span>
                   </div>
+
+                  <form class="setting-form link-management-panel" data-link-apply-form hidden>
+                    <p class="setting-help no-indent" id="link-apply-requirements" data-link-apply-requirements></p>
+                    <a class="inline-action" href="#persoenliche-daten">Persönliche Daten bearbeiten</a>
+                    <label>
+                      <span>Hinweistext (optional)</span>
+                      <textarea name="identityHint" rows="3" maxlength="200" placeholder="Zum Beispiel ein früherer Name oder eine frühere Gliederung."></textarea>
+                    </label>
+                    <p class="setting-help no-indent">Mit dem Absenden bestätigst du, dass die gespeicherten Angaben zu deiner Person gehören.</p>
+                    <button class="button button-primary" type="submit" data-link-apply aria-describedby="link-apply-requirements" disabled>Verknüpfung beantragen</button>
+                  </form>
 
                   <div class="link-management-panel is-hidden" data-link-linked-panel hidden aria-hidden="true">
                     <p class="setting-help no-indent">

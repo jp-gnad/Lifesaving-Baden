@@ -144,10 +144,11 @@ Formularbereich. Die Zwischenansicht von 601 bis 1199 px bleibt separat gestaltb
 Google-Anmeldungen übernehmen die getrennten Felder `given_name` und `family_name`
 aus dem von Firebase gelieferten Anbieterprofil in ein noch leeres Mitgliederprofil.
 Bereits gespeicherte Namen bleiben erhalten. Fehlende Namensbestandteile werden
-bei der Kontoeinrichtung abgefragt; Geschlecht und Geburtsdatum bleiben manuelle Angaben.
-Ein vollständig beim Login erfasster Name (`loginNameCaptured`) überspringt den
-Namensschritt in der erweiterten Kontoeinrichtung. Die weiteren optionalen Angaben
-und die getrennte Personenverknüpfung bleiben bestehen.
+in den persönlichen Profileinstellungen ergänzt; Geschlecht und Geburtsdatum bleiben manuelle Angaben.
+Nach dem bestätigten Login öffnet sich direkt der Mitgliederbereich. Eine
+verpflichtende Kontoeinrichtung gibt es auch für bestehende Konten mit altem
+`accountSetupRequired`-Kennzeichen nicht mehr. Weitere Profilangaben und die
+Personenverknüpfung werden freiwillig in den Einstellungen gepflegt.
 
 Die Loginseite lädt das Firestore-SDK für das Speichern der Namen bei Registrierung
 und Google-Anmeldung sowie die Wiederaufnahme bereits angelegter unbestätigter
@@ -346,11 +347,17 @@ Passwort-Login vorhanden ist, damit der Zugang zum Konto erhalten bleibt.
 
 ## Personenverknüpfung beantragen
 
-Im Mitgliederbereich erscheint eine Karte `Person verknüpfen`. Der Button
-`Jetzt verknüpfen` führt auf `link-request.html`. Dort kann ein Nutzer die
-Verknüpfung seines Kontos mit einer Person aus der späteren Datenbank
-beantragen. Der Antrag wird im eigenen Firestore-Dokument unter
-`users/{uid}.personLinkRequest` gespeichert.
+Die Personenverknüpfung ist unabhängig vom Login und optional. Unter
+`account-settings.html#verknuepfungen` kann ein Nutzer die Verknüpfung per Button
+anfragen. Vorname, Nachname, Geschlecht, Geburtsdatum und DLRG-Gliederung müssen
+zuvor unter „Persönliche Daten“ gespeichert sein. Ein optionaler Hinweistext
+(höchstens 200 Zeichen) kann direkt unter „Verknüpfungen“ ergänzt werden.
+Der Button bleibt bei fehlenden Pflichtangaben deaktiviert; eine Transaktion
+prüft beim Absenden die aktuellen gespeicherten Daten und bestehende Zuordnungen.
+Die Anfrage wird im eigenen Dokument unter `users/{uid}.personLinkRequest`
+gespeichert und kann dort aktualisiert oder zurückgezogen werden. Es gibt keinen
+separaten Antragsassistenten mehr. Alte URLs auf `link-request.html` leiten zu
+den Einstellungen weiter.
 Geburtsdatum und DLRG-Gliederung aus dem Antrag werden zusätzlich als
 `users/{uid}.birthDate` und `users/{uid}.dlrgBranch` in die Profil- und
 Mitgliedsdaten übernommen.

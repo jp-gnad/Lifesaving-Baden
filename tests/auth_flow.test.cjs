@@ -1328,13 +1328,13 @@ test("member initialization reports a permanent database error once", async () =
   assert.match(error.textContent, /Firestore-Regeln/);
 });
 
-test("new profiles must complete setup while existing profiles keep their access", async () => {
-  for (const [stored, expected] of [
-    [null, true],
-    [{ role: "standard" }, false],
-    [{ role: "standard", accountSetupRequired: true }, true],
-    [{ role: "standard", accountSetupPending: true }, false],
-    [{ role: "admin", accountSetupRequired: true }, false],
+test("new and legacy profiles enter member home without mandatory setup", async () => {
+  for (const stored of [
+    null,
+    { role: "standard" },
+    { role: "standard", accountSetupRequired: true },
+    { role: "standard", accountSetupPending: true },
+    { role: "admin", accountSetupRequired: true },
   ]) {
     const h = harness({ url: "https://example.test/club/app.html", user: { uid: "new-uid", emailVerified: true }, stored });
     h.document.body.dataset.page = "app";
@@ -1343,13 +1343,12 @@ test("new profiles must complete setup while existing profiles keep their access
     vm.runInContext(source("assets/js/auth.js"), h.context);
     h.callbacks.auth(h.auth.currentUser);
     await new Promise(setImmediate);
-    assert.deepEqual(h.counts.redirects, expected ? ["https://example.test/club/link-request.html"] : []);
-    if (stored === null) assert.equal(h.counts.writes[0].accountSetupRequired, true);
-    assert.equal(h.counts.writes.some(write => write.accountSetupRequired === false), false);
+    assert.deepEqual(h.counts.redirects, []);
+    if (stored === null) assert.equal(h.counts.writes[0].accountSetupRequired, false);
   }
 });
 
-test("a new account cannot bypass setup through the timer", async () => {
+test("legacy setup markers do not block authenticated timer access", async () => {
   const h = harness({
     url: "https://example.test/club/timer/",
     user: { uid: "new-user", emailVerified: true },
@@ -1358,7 +1357,8 @@ test("a new account cannot bypass setup through the timer", async () => {
   vm.runInContext(source("timer/firestore-api.js"), h.context);
   h.callbacks.auth(h.auth.currentUser);
   await new Promise(setImmediate);
-  assert.deepEqual(h.counts.redirects, ["https://example.test/club/link-request.html"]);
+  assert.deepEqual(h.counts.redirects, []);
+  assert.equal((await h.window.timerFirestoreApi.getAuthContext()).authenticated, true);
 });
 
 test("timer initialization uses the shared Kader role and clears it on logout", async () => {
@@ -1436,7 +1436,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, saveAccountSetup, initLinkRequest, changeAccountPassword, savePasswordEmail, submitLinkRequest, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -2056,98 +2056,6 @@ test("profile synchronization clears obsolete email changes and preserves a newe
   }
 });
 
-test("setup saves only the name without a link request and stays required if saving fails", async () => {
-  const h = harness({ user: { uid: "u", email: "new@example.test" } });
-  const functions = memberFunctions(h);
-  const elements = Object.fromEntries(Object.entries({
-    firstName: " Anna ", lastName: " Baden ", gender: "", birthDate: "", dlrgBranch: "", identityHint: ""
-  }).map(([key, value]) => [key, { value }]));
-  elements.identityConfirmation = { checked: false };
-  const save = { disabled: false, dataset: {}, innerHTML: "Speichern" };
-  const submit = { disabled: false, dataset: {}, innerHTML: "Antrag absenden" };
-  const form = {
-    elements, dataset: { requiredSetup: "true" },
-    querySelectorAll: () => [],
-    querySelector: selector => ({
-      "[data-account-setup-save]": save,
-      "[data-link-submit]": submit,
-      '[name="identityConfirmation"]': elements.identityConfirmation,
-      '[name="gender"]:checked': elements.gender,
-      '[name="dlrgBranch"]': elements.dlrgBranch,
-    })[selector] || null,
-  };
-  h.document.querySelector = selector => selector === "[data-link-request-form]" ? form : null;
-  let fails = true;
-  const writes = [];
-  const db = { collection: () => ({ doc: () => ({
-    update: async payload => {
-      if (fails) throw { code: "unavailable" };
-      writes.push(payload);
-    },
-  }) }) };
-  await functions.saveAccountSetup(h.auth, db, form);
-  assert.deepEqual(h.counts.redirects, []);
-  assert.equal(submit.disabled, true);
-  assert.equal(writes.length, 0);
-  fails = false;
-  await functions.saveAccountSetup(h.auth, db, form);
-  assert.equal(writes[0].firstName, "Anna");
-  assert.equal(writes[0].lastName, "Baden");
-  assert.equal(writes[0].accountSetupRequired, false);
-  assert.equal("personLinkRequest" in writes[0], false);
-  assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html"]);
-
-  const count = writes.length;
-  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
-  assert.equal(writes.length, count);
-  elements.gender.value = "weiblich";
-  elements.birthDate.value = "2000-01-01";
-  elements.dlrgBranch.value = "Baden";
-  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
-  assert.equal(writes.length, count);
-  elements.identityConfirmation.checked = true;
-  await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
-  assert.equal(writes.at(-1).accountSetupRequired, false);
-  assert.equal(writes.at(-1)["personLinkRequest.status"], "requested");
-  assert.equal(writes.at(-1).firstName, "Anna");
-  assert.equal(writes.at(-1).lastName, "Baden");
-});
-
-test("a link request sets a missing profile name without overwriting one saved concurrently", async () => {
-  for (const displayName of ["", "Name aus den Einstellungen"]) {
-    const h = harness({ user: { uid: "u", email: "anna.baden@example.test" }, stored: null });
-    const functions = memberFunctions(h);
-    await functions.loadFreshUserContext(h.auth.currentUser);
-    const elements = Object.fromEntries(Object.entries({
-      firstName: "Anna", lastName: "Baden", gender: "weiblich", birthDate: "2000-01-01", dlrgBranch: "Baden", identityHint: ""
-    }).map(([key, value]) => [key, { value }]));
-    const form = {
-      elements, dataset: {}, querySelectorAll: () => [],
-      querySelector: (selector) => ({
-        '[name="identityConfirmation"]': { checked: true },
-        '[name="gender"]:checked': elements.gender,
-        '[name="dlrgBranch"]': elements.dlrgBranch,
-      })[selector] || null,
-    };
-    h.document.querySelector = (selector) => selector === "[data-link-request-form]" ? form : null;
-    h.window.firebase.firestore.FieldValue.delete = () => "delete";
-    const ref = {};
-    let saved;
-    const db = {
-      collection: () => ({ doc: () => ref }),
-      runTransaction: (run) => run({
-        get: async () => ({ data: () => ({ displayName }) }),
-        update: (_, payload) => { saved = payload; },
-      }),
-    };
-    await functions.submitLinkRequest({ preventDefault() {} }, h.auth, db);
-    assert.equal(saved["personLinkRequest.firstName"], "Anna");
-    assert.equal(saved["personLinkRequest.lastName"], "Baden");
-    assert.equal(saved.displayName, displayName ? undefined : "Anna Baden");
-    assert.equal(h.counts.redirects.length, 1);
-  }
-});
-
 test("role refreshes preserve profile photos, names and email in cards for every role", () => {
   const h = harness();
   const functions = memberFunctions(h);
@@ -2530,7 +2438,7 @@ test("restored registrations require both names and block resending until the tr
   commit.resolve();
   await saving;
   assert.equal(h.counts.writes.at(-1).lastName, "von Baden");
-  assert.equal(h.counts.writes.at(-1).accountSetupRequired, true);
+  assert.equal(h.counts.writes.at(-1).accountSetupRequired, false);
   assert.ok(h.counts.verification);
 });
 
@@ -2646,7 +2554,7 @@ test("a missing Google surname remains incomplete instead of guessing from the f
   assert.equal(saved.firstName, "Anna Maria");
   assert.equal(saved.lastName, "");
   assert.equal(saved.loginNameCaptured, false);
-  assert.equal(saved.accountSetupRequired, true);
+  assert.equal(saved.accountSetupRequired, false);
 });
 
 test("Google profile capture preserves claim-only admin login without creating a standard account", async () => {
@@ -2674,47 +2582,6 @@ test("a failed Google name transaction blocks redirect and can be retried", asyn
   await h.element("[data-google-login]").handlers.click();
   assert.equal(h.counts.writes.at(-1).displayName, "Anna Baden");
   assert.equal(h.counts.redirects.length, 1);
-});
-
-test("extended setup skips a captured name while retaining optional steps and legacy name entry", async () => {
-  for (const captured of [true, false]) {
-    const h = harness({ user: { uid: "u", email: "anna@example.test" } });
-    h.window.requestAnimationFrame = fn => fn();
-    const functions = memberFunctions(h);
-    const controls = Object.fromEntries(Object.entries({ firstName: "", lastName: "", birthDate: "", dlrgBranch: "", identityHint: "" }).map(([key, value]) => [key, { value }]));
-    controls.identityConfirmation = { checked: false };
-    const submit = { dataset: {}, disabled: false };
-    const save = { dataset: {}, disabled: false };
-    const steps = ["Name", "Geschlecht", "Prüfen"].map(label => ({
-      included: true, hidden: false, dataset: { stepLabel: label },
-      setAttribute(name) { if (name === "data-link-request-step") this.included = true; },
-      removeAttribute(name) { if (name === "data-link-request-step") this.included = false; },
-      querySelector: selector => selector === "h3 span" ? { textContent: "" } : null,
-      querySelectorAll: () => [],
-    }));
-    const handlers = {};
-    const form = {
-      dataset: {}, elements: controls,
-      addEventListener: (name, fn) => { handlers[name] = fn; },
-      querySelectorAll: selector => selector === "[data-link-request-step]" ? steps.filter(step => step.included) : [],
-      querySelector: selector => ({
-        "[data-link-name-step]": steps[0], "[data-link-submit]": submit, "[data-account-setup-save]": save,
-        ...Object.fromEntries(Object.entries(controls).map(([key, control]) => [`[name="${key}"]`, control])),
-      })[selector] || null,
-    };
-    h.document.querySelector = selector => selector === "[data-link-request-form]" ? form : null;
-    await functions.initLinkRequest(h.auth, {
-      accountSetupRequired: true, loginNameCaptured: captured, firstName: "Anna", lastName: "Baden",
-    }, {});
-    assert.equal(steps[0].hidden, captured);
-    assert.equal(steps[1].hidden, !captured);
-    assert.equal(controls.firstName.value, "Anna");
-    assert.equal(controls.lastName.value, "Baden");
-    assert.equal(form.dataset.requiredSetup, "true");
-    handlers.submit({ preventDefault() {} });
-    assert.equal(form.dataset.currentStep, "1");
-    assert.equal(steps[2].hidden, !captured);
-  }
 });
 
 test("reloading before submitting a name leaves the email free for a different password", async () => {
@@ -2874,4 +2741,96 @@ test("a session change before the final registration request discards the draft"
   assert.equal(creations, 0);
   assert.equal(h.counts.verification, undefined);
   assert.equal(h.form.classList.contains("is-name-step"), false);
+});
+
+function settingsLinkHarness(data) {
+  const h = harness({ user: { uid: "u", email: "anna@example.test", emailVerified: true }, stored: data });
+  const functions = memberFunctions(h);
+  const control = () => ({
+    dataset: {}, hidden: false, disabled: false, value: "", textContent: "", innerHTML: "button", handlers: {},
+    classList: { toggle() {}, add() {}, remove() {} },
+    setAttribute() {}, addEventListener(type, fn) { this.handlers[type] = fn; },
+  });
+  const root = control(), form = control(), button = control(), hint = control(), requirements = control(), message = control();
+  form.elements = { identityHint: hint };
+  root.querySelectorAll = () => [button, hint];
+  const controls = {
+    "[data-link-management]": root, "[data-link-apply-form]": form,
+    "[data-link-apply]": button, "[data-link-apply-requirements]": requirements,
+    "[data-link-management-message]": message,
+  };
+  h.document.querySelector = selector => controls[selector] || null;
+  functions.writeUserDocCache("u", data);
+  return { ...h, functions, root, form, button, hint, requirements, message };
+}
+const readyLinkProfile = () => ({ firstName: "Anna", lastName: "Baden", gender: "weiblich", birthDate: "2000-01-01", dlrgBranch: "Baden", role: "standard" });
+
+test("settings enable link requests only after required personal data has been saved", async () => {
+  const data = { ...readyLinkProfile(), birthDate: "" };
+  const h = settingsLinkHarness(data);
+  await h.functions.initLinkManagement(h.auth, data);
+  assert.equal(h.button.disabled, true);
+  assert.match(h.requirements.textContent, /Geburtsdatum/);
+  assert.equal(h.counts.writes.length, 0);
+  h.hint.value = "Früher in Heidelberg";
+  h.hint.handlers.input();
+  h.functions.writeUserDocCache("u", readyLinkProfile());
+  h.functions.updateLinkManagementUi(readyLinkProfile());
+  assert.equal(h.button.disabled, false);
+  assert.equal(h.hint.value, "Früher in Heidelberg");
+  assert.equal(h.counts.reads, 0);
+});
+
+test("one settings click submits the saved profile with its optional hint and stays in settings", async () => {
+  const h = settingsLinkHarness(readyLinkProfile());
+  await h.functions.initLinkManagement(h.auth, readyLinkProfile());
+  assert.equal(h.counts.writes.length, 0);
+  h.hint.value = " Früher in Heidelberg ";
+  h.hint.handlers.input();
+  await h.form.handlers.submit({ preventDefault() {} });
+  const request = h.counts.writes.at(-1).personLinkRequest;
+  assert.equal(request.firstName, "Anna");
+  assert.equal(request.birthDate, "2000-01-01");
+  assert.equal(request.identityHint, "Früher in Heidelberg");
+  assert.equal(request.identityConfirmed, true);
+  assert.equal(h.button.textContent, "Anfrage aktualisieren");
+  assert.equal(h.button.disabled, false);
+  assert.equal(h.counts.redirects.length, 0);
+});
+
+test("a rejected settings request retains the unsent hint and respects fresh database validation", async () => {
+  const h = settingsLinkHarness({ ...readyLinkProfile(), gender: "" });
+  await h.functions.initLinkManagement(h.auth, readyLinkProfile());
+  h.hint.value = "Mein Hinweis";
+  h.hint.handlers.input();
+  await h.form.handlers.submit({ preventDefault() {} });
+  assert.equal(h.counts.writes.length, 0);
+  assert.equal(h.hint.value, "Mein Hinweis");
+  assert.match(h.message.textContent, /Persönliche Daten/);
+});
+
+test("the retired link-request URL forwards to settings beneath a repository subpath", () => {
+  const h = harness({ url: "https://example.test/club/link-request.html?edit=1" });
+  const code = source("link-request.html").match(/<script>([\s\S]*?)<\/script>/)[1];
+  vm.runInContext(code, h.context);
+  assert.deepEqual(h.counts.redirects, ["https://example.test/club/account-settings.html#verknuepfungen"]);
+  assert.equal(h.core.requiresAccountSetup({ accountSetupRequired: true }), false);
+});
+
+test("a session change during a settings request neither writes nor updates the new session's message", async () => {
+  const h = settingsLinkHarness(readyLinkProfile());
+  await h.functions.initLinkManagement(h.auth, readyLinkProfile());
+  const read = deferred();
+  const db = h.window.firebase.firestore();
+  db.runTransaction = operation => operation({
+    get: () => read.promise,
+    update: () => assert.fail("stale request write"),
+  });
+  const submitting = h.form.handlers.submit({ preventDefault() {} });
+  h.auth.currentUser = h.prepareUser({ uid: "new-session", emailVerified: true });
+  h.message.textContent = "Neue Sitzung";
+  read.resolve({ exists: true, data: () => readyLinkProfile() });
+  await submitting;
+  assert.equal(h.message.textContent, "Neue Sitzung");
+  assert.equal(h.counts.writes.length, 0);
 });

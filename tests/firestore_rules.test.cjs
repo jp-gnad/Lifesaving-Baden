@@ -124,7 +124,7 @@ test("unverified registrations can save their own name atomically without changi
   assert.equal(saved.firstName, "Anna Maria");
   assert.equal(saved.lastName, "von Baden");
   assert.equal(saved.loginNameCaptured, true);
-  assert.equal(saved.accountSetupRequired, true);
+  assert.equal(saved.accountSetupRequired, false);
   await assertSucceeds(window.LifesavingAuth.saveAccountName(user, { firstName: "Anna", lastName: "Baden" }));
   saved = (await sdk.getDoc(ref)).data();
   assert.equal(saved.displayName, "Anna Baden");
@@ -502,6 +502,38 @@ async function seedLinks() {
     [`timerParticipantDirectory/${secondPersonId}`]: { ...directoryPerson, name: "Ben Zweiter" },
   });
 }
+
+test("settings link requests use saved owner data and remain separate from admin assignment", { skip: !enabled }, async () => {
+  await seedLinks();
+  const profile = { role: "standard", firstName: "Anna", lastName: "Baden", gender: "weiblich", birthDate: "1991-05-20", dlrgBranch: "Baden" };
+  await seed({ "users/one": profile });
+  const ownerDb = dbFor("one");
+  const fieldValue = { serverTimestamp: sdk.serverTimestamp };
+  const submit = (db, uid, hint = "") => personLinks.request(compatDb(db), uid, { uid, email: `${uid}@example.test` }, hint, fieldValue);
+  await assertSucceeds(submit(ownerDb, "one", "Früher in Heidelberg"));
+  let data = (await sdk.getDoc(sdk.doc(ownerDb, "users/one"))).data();
+  assert.equal(data.personLinkRequest.identityHint, "Früher in Heidelberg");
+  assert.equal(data.personLinkRequest.firstName, "Anna");
+  assert.equal(data.personLinkRequest.identityConfirmed, true);
+  assert.equal(data.personLink, undefined);
+  assert.equal(data.role, "standard");
+  await assertFails(submit(dbFor("two"), "one"));
+  await assertFails(sdk.updateDoc(sdk.doc(ownerDb, "users/one"), { role: "trainer" }));
+  await sdk.updateDoc(sdk.doc(ownerDb, "users/one"), { gender: "" });
+  await assert.rejects(submit(ownerDb, "one"), { code: "person-link/profile-incomplete" });
+  await sdk.updateDoc(sdk.doc(ownerDb, "users/one"), { gender: "weiblich", lastName: "Neuer Name" });
+  await assertSucceeds(submit(ownerDb, "one", "Neuer Hinweis"));
+  data = (await sdk.getDoc(sdk.doc(ownerDb, "users/one"))).data();
+  assert.equal(data.personLinkRequest.lastName, "Neuer Name");
+  const outcomes = await Promise.allSettled([submit(ownerDb, "one", "Gleichzeitig"), commitLink(dbFor("admin"), "one", personId)]);
+  assert.equal(outcomes[1].status, "fulfilled");
+  data = (await sdk.getDoc(sdk.doc(ownerDb, "users/one"))).data();
+  assert.equal(data.personLink.id, personId);
+  assert.equal(data.personLinkStatus, "linked");
+  assert.equal(data.personLinkRequest, undefined);
+  assert.equal(data.role, "standard");
+  await assert.rejects(submit(ownerDb, "one"), { code: "person-link/account-already-linked" });
+});
 
 test("only admins can assign existing people, including to themselves and other admins", { skip: !enabled }, async () => {
   await seedLinks();

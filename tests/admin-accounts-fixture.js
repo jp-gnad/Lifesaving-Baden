@@ -1,6 +1,7 @@
 // Loaded only by the local account browser fixtures. No network writes or Firebase SDK.
 (async function () {
   const settingsPreview = document.body.dataset.previewPage === "settings";
+  const linkState = document.body.dataset.fixtureLinkState || "linked";
   const people = [
     { id: "1234567890abcdef", name: "Anna Archiv", birthYear: 1991, gender: "w", organization: "Baden", searchName: "annaarchiv" },
     { id: "abcdef1234567890", name: "Anna Zweite", birthYear: 2001, gender: "w", organization: "Heidelberg", searchName: "annazweite" },
@@ -9,12 +10,14 @@
   const { id, searchName, ...identity } = people[1];
   const records = new Map([
     ["users/admin", { role: "admin", email: "admin@example.test", firstName: "Martin", lastName: "Admin", birthDate: "1978-01-03", dlrgBranch: "Baden" }],
-    ["users/member", { role: "standard", email: "mitglied@example.test", firstName: "Anna", lastName: "Eigenname", birthDate: "1991-05-20", dlrgBranch: "Baden", personLinkStatus: "requested",
+    ["users/member", { role: "standard", email: "mitglied@example.test", firstName: "Anna", lastName: "Eigenname", birthDate: "1991-05-20", gender: "weiblich", dlrgBranch: "Baden", personLinkStatus: "requested",
       personLinkRequest: { status: "requested", firstName: "Anna", lastName: "Archiv", birthDate: "1991-05-20", dlrgBranch: "Baden", identityHint: "Teilnahme 2010" } }],
     ["users/linked", { role: "trainer", email: "anderes-konto@example.test", googleEmail: "bea.google@example.test", firstName: "Bea", lastName: "Kontoname", birthDate: "2001-02-14", dlrgBranch: "Ettlingen", personLink: { id, ...identity }, personLinkStatus: "linked", personLinkIssue: { status: "reported", message: "Die Verknüpfung gehört nicht zu meiner Person." } }],
     [`personAccountLinks/${id}`, { uid: "linked" }],
     ...people.map((person) => { const { id, ...data } = person; return [`timerParticipantDirectory/${id}`, data]; }),
   ]);
+  records.set("users/ready", { role: "standard", email: "anna@example.test", firstName: "Anna", lastName: "Baden", birthDate: "1991-05-20", gender: "weiblich", dlrgBranch: "Baden" });
+  records.set("users/incomplete", { ...records.get("users/ready"), gender: "", birthDate: "" });
   const snapshot = (path) => ({ id: path.split("/").at(-1), exists: records.has(path), data: () => records.get(path) });
   const ref = (path) => ({ path, get: async () => snapshot(path), update: async (data) => update(path, data) });
   function update(path, data) {
@@ -56,8 +59,9 @@
     // The isolated test page confirms in-memory unlinking without a blocking native dialog.
     window.confirm = () => true;
   }
+  const previewUid = linkState === "requested" ? "member" : linkState;
   const auth = { currentUser: settingsPreview
-    ? { uid: "linked", email: "bea.google@example.test", displayName: "Bea Kontoname", providerData: [] }
+    ? { uid: previewUid, email: records.get(`users/${previewUid}`).email, displayName: "Vorschau", providerData: [] }
     : { uid: "admin", email: "admin@example.test" } };
   const firestore = () => db;
   firestore.FieldValue = { delete: () => "delete-field", serverTimestamp: () => new Date() };
@@ -65,7 +69,7 @@
   document.body.dataset.page = "admin-preview";
   const response = await fetch("assets/js/auth.js");
   const script = document.createElement("script");
-  window.fixtureProfile = records.get(auth.currentUser.uid === "linked" ? "users/linked" : "users/admin");
+  window.fixtureProfile = records.get(`users/${auth.currentUser.uid}`);
   const initialize = settingsPreview
     ? "initSettingsZoomProtection(); writeUserDocCache(window.firebase.auth().currentUser.uid, window.fixtureProfile); window.adminPreviewReady = initLinkManagement(window.firebase.auth(), window.fixtureProfile);"
     : "window.adminPreviewReady = initAdminAccounts(window.firebase.auth(), { isAdmin: true });";

@@ -80,7 +80,7 @@
       emailVerified: Boolean(user.emailVerified),
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
-      accountSetupRequired: true,
+      accountSetupRequired: false,
     };
   }
 
@@ -164,12 +164,11 @@
     return target.href;
   }
 
-  function requiresAccountSetup(data, claims = {}) {
-    return data?.accountSetupRequired === true && !isAdminAccount(data, claims);
-  }
+  // Compatibility for older cached callers. Profile completion no longer gates access.
+  function requiresAccountSetup() { return false; }
 
   function redirectToAccountSetup() {
-    window.location.replace(new URL("link-request.html", rootUrl).href);
+    window.location.replace(new URL("account-settings.html#verknuepfungen", rootUrl).href);
   }
 
   function redirectToApp({ replace = false } = {}) {

@@ -236,8 +236,8 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
         self.assertIn("login.js?v=20261112-login-name-v4", login)
         self.assertRegex(app, r'src="assets/js/auth\.js\?v=[^"\s]+"')
-        self.assertIn("auth-core.js?v=20261112-login-name-v1", login)
-        self.assertIn("auth-core.js?v=20261112-login-name-v1", app)
+        self.assertIn("auth-core.js?v=20261112-settings-links-v1", login)
+        self.assertIn("auth-core.js?v=20261112-settings-links-v1", app)
         self.assertIn("loadFreshUserContext(activeUser)", auth)
         self.assertIn('ref.get({ source: "server" })', core)
         self.assertNotIn("loadFreshUserContext", controller)
@@ -246,7 +246,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("window.location.replace(target.href)", timer_login)
         self.assertIn('new URL("../login.html", window.location.href)', timer_app)
         self.assertIn('"./login.html"', timer_worker)
-        self.assertIn("auth-core.js?v=20261112-login-name-v1", timer_worker)
+        self.assertIn("auth-core.js?v=20261112-settings-links-v1", timer_worker)
 
     def test_timer_waits_for_persistent_auth_and_fresh_role_data(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")

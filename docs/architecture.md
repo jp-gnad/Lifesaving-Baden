@@ -13,7 +13,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | `login.html` | Anmeldung, Registrierung, Verifikation und Passwort-Reset | `auth-core.js`, `login.js`, `google-handoff.js`, `login-background.js` |
 | `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js`, `clubs-notifications.js` |
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
-| `link-request.html` | Ersteinrichtung und Zuordnungsanträge | `auth.js`, `person-link-store.js` |
+| `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
 | `club-verwaltung.html` | Clubkader, Aktivstatus und Nachweise | `clubs.js`, `clubs-core.js`, `clubs-store.js`, `start-eligibility*.js` |
 | `gliederungen.html` | Clubs und Verantwortliche verwalten | dieselben Clubmodule, Admin-Einstieg |
@@ -31,8 +31,10 @@ dem Versand der Bestätigungsmail mit Vor- und Nachnamen zu speichern.
 `auth-core.js` stellt dafür `saveAccountName` mit einer Transaktion auf dem eigenen
 Kontodokument bereit. Google-Anbieterprofile liefern getrennte Namensbestandteile;
 diese befüllen ausschließlich noch leere Profile. `loginNameCaptured` kennzeichnet
-vollständige Login-Namen, damit `auth.js` den Namensschritt der erweiterten
-Ersteinrichtung überspringt. `accountSetupRequired` gilt weiterhin für deren Abschluss.
+vollständige Login-Namen. Eine verpflichtende erweiterte Ersteinrichtung gibt es
+nicht mehr. Neue Konten erhalten `accountSetupRequired: false`; vorhandene Marker
+werden weder im Mitgliederbereich noch im Timer als Zugangssperre ausgewertet.
+Nach dem bestätigten Login öffnet sich direkt der Mitgliederbereich.
 Vor dem Absenden des Namens bleibt eine neue Registrierung ein Entwurf im
 Arbeitsspeicher; erst danach wird das Firebase-Konto erstellt. Neuladen oder
 Verlassen verwirft den Entwurf einschließlich Passwort, ohne eine E-Mail zu
@@ -42,6 +44,15 @@ Namens eine bereits vergebene Adresse zurückweisen. Bereits angelegte unbestät
 Konten ohne vollständigen Namen nehmen die Namenseingabe nach erfolgreicher
 Authentifizierung wieder auf. Ihr Passwortschutz bleibt erhalten. Bestehende
 bestätigte E-Mail-Konten benötigen für den Login keinen Firestore-Lesezugriff.
+
+Verknüpfungen werden freiwillig unter `account-settings.html#verknuepfungen`
+angefragt. Pflichtangaben werden ausschließlich im gespeicherten Profil gepflegt:
+Vorname, Nachname, Geschlecht, Geburtsdatum und DLRG-Gliederung. Der Anfragebutton
+in `auth.js` ist bis zur Vollständigkeit deaktiviert. Ein optionaler Hinweistext
+kann dort eingegeben und mit der Anfrage aktualisiert werden. `person-link-store.js`
+prüft innerhalb einer Transaktion die aktuellen Profildaten und eine inzwischen
+bestehende Zuordnung. Es schreibt nur die Anfrage, keine Personenreservierung oder
+Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 
 ## Timer-Module
 

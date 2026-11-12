@@ -33,11 +33,11 @@
     <script defer src="assets/js/nav.js?v=20261105-menu-navigation-v3"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
     <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/person-link-store.js?v=20261112-responsible-v2"></script>
-    <script defer src="assets/js/auth-core.js?v=20261112-login-name-v1"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261112-login-name-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -77,11 +77,11 @@
         <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite" hidden aria-hidden="true">
           <span class="completion-mark" aria-hidden="true">!</span>
           <div>
-            <h2 data-link-status-title>Kontokonfiguration offen</h2>
-            <p data-link-status-text>Verknüpfe dein Konto, damit der Mitgliederbereich vollständig nutzbar wird.</p>
+            <h2 data-link-status-title>Noch nicht verknüpft</h2>
+            <p data-link-status-text>Du kannst die Zuordnung zu deiner Datenbankperson in den Einstellungen beantragen.</p>
           </div>
           <img class="moose-icon completion-moose" src="assets/img/elch-gelb.png" alt="" aria-hidden="true">
-          <a class="button button-primary" href="link-request.html" data-link-status-action>Jetzt abschließen</a>
+          <a class="button button-primary" href="account-settings.html#verknuepfungen" data-link-status-action>Zu den Verknüpfungen</a>
         </section>
 
         <div class="member-app-groups">
@@ -143,16 +143,16 @@
         <section class="dashboard-grid" aria-label="Mitgliederübersicht">
           <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
             <div class="checklist-heading">
-              <h2>Kontokonfiguration</h2>
+              <h2>Profil und Verknüpfung (optional)</h2>
               <span data-checklist-count>0% abgeschlossen</span>
             </div>
             <div class="checklist-progress" aria-hidden="true">
               <span data-checklist-progress></span>
             </div>
-            <ul class="checklist-list" aria-label="Fortschritt der Kontokonfiguration">
+            <ul class="checklist-list" aria-label="Optionale Profilergänzung">
               <li class="checklist-item" data-check-item="linkRequest">
                 <span class="checklist-dot" aria-hidden="true"></span>
-                <span>Antrag stellen</span>
+                <span>Verknüpfung in den Einstellungen anfragen</span>
               </li>
               <li class="checklist-item" data-check-item="linked">
                 <span class="checklist-dot" aria-hidden="true"></span>

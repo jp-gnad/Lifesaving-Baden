@@ -48,7 +48,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 
 | Bereich | Relevante Tests |
 |---|---|
-| Login, Konto, Profil, Administration | `auth_flow.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
+| Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |
 | Ergebnis-Seiten, Live-Verbindungen und vollständiger Export | `timer_result_feed.test.cjs`, `timer_result_view.test.cjs`, `timer_import.test.cjs`; bei Query-/Regeländerungen zusätzlich Regeln |
 | Teilnehmerimport und Cache | `timer_import.test.cjs`, `timer_people_view.test.cjs`, Firestore-Regeltests |

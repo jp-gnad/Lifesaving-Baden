@@ -49,6 +49,7 @@ weisen andere Projekt-IDs ab und geben fehlerhafte Credential-JSON nicht aus.
 |---|---|
 | `startberechtigungen.html` | Bestehende Links führen zur Clubverwaltung weiter. |
 | `timer/login.html` | Alte Timer-Logins wechseln zur gemeinsamen Anmeldung. |
+| `link-request.html`, alte `accountSetupRequired`-Marker | Der alte Link führt zu den Einstellungen; alte Marker erzwingen keine Kontoeinrichtung mehr. |
 | `timer/manifest.webmanifest`, alte Timer-Icons | Bereits installierte Timer besitzen diese Identität/URLs. |
 | Alte Rollenaliasnamen | Vorhandene Konten/Claims können diese noch verwenden. |
 | Personenlink-Bereinigung und explizite Wartungs-CLIs | Alte Kontodaten benötigen kontrollierte Übernahme statt blindem Löschen. |

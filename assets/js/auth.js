@@ -9,7 +9,7 @@
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
     normalizeNamePart, formatFullName, normalizeNameDetails, getNameDetailsFromData,
     getDefaultAccountRole, getAccountRole, isAdminAccount,
-    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, requiresAccountSetup, redirectToAccountSetup, setLoading, translateAuthError,
+    getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
   const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
@@ -27,6 +27,9 @@
       "person-link/account-missing": "Dieses Konto ist nicht mehr vorhanden.",
       "person-link/already-decided": "Die Zuordnung wurde inzwischen geändert. Bitte aktualisiere die Kontenübersicht.",
       "person-link/invalid-person": "Die Personendaten sind unvollständig.",
+      "person-link/account-already-linked": "Dieses Konto wurde inzwischen verknüpft. Bitte lade die Seite neu.",
+      "person-link/profile-incomplete": "Bitte ergänze zuerst Vorname, Nachname, Geschlecht, Geburtsdatum und DLRG-Gliederung unter Persönliche Daten.",
+      "person-link/hint-too-long": "Der Hinweistext darf höchstens 200 Zeichen enthalten.",
       "app/admin-account-protected": "Admin-Konten können nicht über die Web-App gelöscht werden.",
       "clubs/last-manager": "Das Konto ist letzter Verantwortlicher einer Gliederung. Zuerst Ersatz zuordnen oder die Gliederung löschen."
     };
@@ -60,18 +63,6 @@
 
     message.textContent = text;
     message.classList.toggle("success", Boolean(isSuccess));
-  }
-
-  function setLinkRequestMessage(text, isSuccess) {
-    const message = document.querySelector("[data-link-request-message]");
-
-    if (!message) {
-      return;
-    }
-
-    message.textContent = isSuccess ? "" : text;
-    message.hidden = Boolean(isSuccess || !text);
-    message.classList.remove("success");
   }
 
   function setLinkManagementMessage(text, isSuccess) {
@@ -404,7 +395,7 @@
     }
   }
 
-  if (["app", "settings", "link-request", "admin-accounts", "worktime", "clubs", "gliederungen", "training"].includes(page)) {
+  if (["app", "settings", "admin-accounts", "worktime", "clubs", "gliederungen", "training"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -603,10 +594,6 @@
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
           if (!isCurrentUser(activeUser)) return;
-          if (requiresAccountSetup(userData, claims) && page !== "link-request") {
-            redirectToAccountSetup();
-            return;
-          }
           const role = getAccountRole(userData, claims);
           if (page === "training" && !role.isAthlete) {
             redirectToApp();
@@ -623,7 +610,7 @@
           updateAccountProfile(activeUser);
           fillAccountManagementForms(activeUser);
           updateRoleUi(role);
-          const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus, initLinkRequest];
+          const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus];
           for (const initialize of initializers) {
             if (!isCurrentUser(activeUser)) return;
             await initialize(auth, userData, claims);
@@ -992,7 +979,7 @@
       return {
         state: "linked",
         title: "Konto verknüpft",
-        text: "Deine Kontokonfiguration ist abgeschlossen.",
+        text: "Dein Konto ist deiner Person in der Datenbank zugeordnet.",
         action: ""
       };
     }
@@ -1000,26 +987,26 @@
     if (hasPendingLinkRequest(data)) {
       return {
         state: "requested",
-        title: "Antrag in Prüfung",
-        text: "Deine Kontokonfiguration ist fast abgeschlossen.",
-        action: "Antrag ansehen"
+        title: "Verknüpfung wird geprüft",
+        text: "Ein Admin prüft deine Anfrage zur Verknüpfung.",
+        action: "Anfrage ansehen"
       };
     }
 
     if (hasRejectedLinkRequest(data)) {
       return {
         state: "rejected",
-        title: "Antrag abgelehnt",
-        text: "Prüfe deine Angaben und sende den Antrag erneut.",
+        title: "Anfrage abgelehnt",
+        text: "Prüfe deine Angaben und sende die Anfrage erneut.",
         action: "Erneut beantragen"
       };
     }
 
     return {
       state: "open",
-      title: "Kontokonfiguration offen",
-      text: "Verknüpfe dein Konto, damit der Mitgliederbereich vollständig nutzbar wird.",
-      action: "Jetzt abschließen"
+      title: "Noch nicht verknüpft",
+      text: "Du kannst die Zuordnung zu deiner Datenbankperson in den Einstellungen beantragen.",
+      action: "Zu den Verknüpfungen"
     };
   }
 
@@ -2186,8 +2173,9 @@
       }
 
       await user.reload();
+      requireCurrentUser(user);
       const updatedData = await saveIdentitySnapshot(
-        auth.currentUser,
+        user,
         undefined,
         optionalProfileDetails,
         nameDetails
@@ -2196,6 +2184,8 @@
       fillAccountManagementForms(auth.currentUser);
       await loadAccountProfileDetails(auth, updatedData);
       await initLinkStatus(auth, updatedData);
+      requireCurrentUser(user);
+      updateLinkManagementUi(updatedData);
       updateEmptyProfileFieldHighlights(form);
 
       setProfileMessage("Kontodaten gespeichert.", true);
@@ -2555,7 +2545,10 @@
       issueOpenButton: document.querySelector("[data-link-issue-open]"),
       issueWithdrawButton: document.querySelector("[data-link-issue-withdraw]"),
       issueCancelButton: document.querySelector("[data-link-issue-cancel]"),
-      issueForm: document.querySelector("[data-link-issue-form]")
+      issueForm: document.querySelector("[data-link-issue-form]"),
+      applyForm: document.querySelector("[data-link-apply-form]"),
+      applyButton: document.querySelector("[data-link-apply]"),
+      requirements: document.querySelector("[data-link-apply-requirements]")
     };
   }
 
@@ -2571,10 +2564,30 @@
 
   function setLinkManagementControlsDisabled(isDisabled) {
     const controls = getLinkManagementControls();
-
+    if (controls.root) controls.root.dataset.busy = String(isDisabled);
     controls.root?.querySelectorAll("button, textarea").forEach((control) => {
       control.disabled = isDisabled;
     });
+    if (!isDisabled) updateLinkRequestAvailability(readUserDocCache(initFirebase().currentUser?.uid) || {});
+  }
+
+  function updateLinkRequestAvailability(data) {
+    const controls = getLinkManagementControls();
+    if (!controls.applyForm) return;
+    const { missing } = window.LifesavingPersonLinks.requestDetails(data || {});
+    const linked = isPersonLinked(data);
+    setLinkManagementPanel(controls.applyForm, !linked);
+    const hint = controls.applyForm.elements.identityHint;
+    if (hint && controls.applyForm.dataset.hintDirty !== "true") hint.value = getLinkRequestIdentityHint({}, data);
+    const hintTooLong = String(hint?.value || "").trim().length > 200;
+    const busy = controls.root?.dataset.busy === "true";
+    if (controls.applyButton) {
+      controls.applyButton.disabled = busy || linked || missing.length > 0 || hintTooLong;
+      if (!busy) controls.applyButton.textContent = hasPendingLinkRequest(data) ? "Anfrage aktualisieren" : "Verknüpfung beantragen";
+    }
+    if (controls.requirements) controls.requirements.textContent = missing.length
+      ? `Ergänze zuerst unter Persönliche Daten: ${missing.join(", ")}.`
+      : "Deine Pflichtangaben sind vollständig. Ein Admin prüft die Zuordnung nach dem Absenden.";
   }
 
   function setLinkManagementStatus(data) {
@@ -2597,11 +2610,11 @@
       text = "Dein Konto ist mit der Datenbank verknüpft.";
     } else if (requested) {
       state = "requested";
-      title = "Antrag gestellt";
-      text = "Dein Verknüpfungsantrag liegt im Adminbereich zur Prüfung.";
+      title = "Anfrage gesendet";
+      text = "Ein Admin prüft deine Anfrage zur Verknüpfung.";
     } else if (rejected) {
       state = "rejected";
-      title = "Antrag abgelehnt";
+      title = "Anfrage abgelehnt";
       text = "Du kannst die Angaben prüfen und erneut absenden.";
     }
 
@@ -2642,11 +2655,11 @@
     const fullName = `${request.firstName || ""} ${request.lastName || ""}`.trim();
 
     updateText("[data-link-request-name]", fullName || "Nicht angegeben");
-    updateText("[data-link-request-birth-date]", formatBirthDate(data?.birthDate) || "Nicht angegeben");
+    updateText("[data-link-request-birth-date]", formatBirthDate(request.birthDate || data?.birthDate) || "Nicht angegeben");
     updateText("[data-link-request-gender]", request.gender
       ? formatProfileFieldValue("gender", request.gender)
       : "Keine Angabe");
-    updateText("[data-link-request-branch]", normalizeDlrgBranchName(data?.dlrgBranch) || "Nicht angegeben");
+    updateText("[data-link-request-branch]", normalizeDlrgBranchName(request.dlrgBranch || data?.dlrgBranch) || "Nicht angegeben");
     updateText("[data-link-request-identity-hint]", getLinkRequestIdentityHint(request, data) || "Nicht angegeben");
     updateText("[data-link-request-email]", request.accountEmail || data?.email || "Nicht angegeben");
   }
@@ -2660,6 +2673,7 @@
     updateText("[data-linked-account-email]", data?.email || "");
     fillLinkRequestPreview(data || {});
     setLinkManagementStatus(data || {});
+    updateLinkRequestAvailability(data || {});
   }
 
   function openLinkIssueForm() {
@@ -2702,6 +2716,23 @@
       return;
     }
 
+    if (controls.applyForm) {
+      if (controls.applyForm.dataset.ownerUid !== user.uid) {
+        controls.applyForm.dataset.ownerUid = user.uid;
+        controls.applyForm.dataset.hintDirty = "false";
+        controls.applyForm.elements.identityHint.value = "";
+        setLinkManagementControlsDisabled(false);
+      }
+      if (!controls.applyForm.dataset.listenerAttached) {
+        controls.applyForm.dataset.listenerAttached = "true";
+        controls.applyForm.addEventListener("submit", event => submitSettingsLinkRequest(event, auth));
+        controls.applyForm.elements.identityHint.addEventListener("input", () => {
+          controls.applyForm.dataset.hintDirty = "true";
+          updateLinkRequestAvailability(readUserDocCache(auth.currentUser?.uid) || {});
+        });
+      }
+    }
+
     if (controls.withdrawButton && !controls.withdrawButton.dataset.listenerAttached) {
       controls.withdrawButton.dataset.listenerAttached = "true";
       controls.withdrawButton.addEventListener("click", () => withdrawLinkRequest(auth, controls.withdrawButton));
@@ -2737,10 +2768,39 @@
 
       data = await cleanupLegacyLinkRequestFields(user, data);
       data = await cleanupInactiveLinkRequestData(user, data);
+      requireCurrentUser(user);
       updateLinkManagementUi(data);
+      if (controls.details && !isPersonLinked(data)) controls.details.open = true;
       setLinkManagementMessage("", true);
     } catch (error) {
       setLinkManagementMessage(translateFirestoreError(error), false);
+    }
+  }
+
+  async function submitSettingsLinkRequest(event, auth) {
+    event.preventDefault();
+    const user = auth.currentUser;
+    const controls = getLinkManagementControls();
+    if (!user || !controls.applyForm || controls.root?.dataset.busy === "true") return;
+    const hint = String(controls.applyForm.elements.identityHint?.value || "").trim();
+    try {
+      setLoading(controls.applyButton, true, "Speichern...");
+      setLinkManagementControlsDisabled(true);
+      const data = await window.LifesavingPersonLinks.request(window.firebase.firestore(), user.uid, user, hint,
+        window.firebase.firestore.FieldValue, () => requireCurrentUser(user));
+      requireCurrentUser(user);
+      writeUserDocCache(user.uid, data);
+      if (String(controls.applyForm.elements.identityHint.value).trim() === hint) controls.applyForm.dataset.hintDirty = "false";
+      updateLinkStatusUi(data);
+      updateLinkManagementUi(data);
+      setLinkManagementMessage("Deine Anfrage wurde gespeichert. Ein Admin prüft die Verknüpfung.", true);
+    } catch (error) {
+      if (isCurrentUser(user)) setLinkManagementMessage(translateFirestoreError(error), false);
+    } finally {
+      if (isCurrentUser(user)) {
+        setLoading(controls.applyButton, false);
+        setLinkManagementControlsDisabled(false);
+      }
     }
   }
 
@@ -2774,7 +2834,7 @@
 
       updateLinkStatusUi(data);
       updateLinkManagementUi(data);
-      setLinkManagementMessage("Antrag zurückgezogen.", true);
+      setLinkManagementMessage("Anfrage zurückgezogen.", true);
     } catch (error) {
       setLinkManagementMessage(translateFirestoreError(error), false);
     } finally {
@@ -3066,770 +3126,4 @@
     }
   }
 
-  async function initLinkRequest(auth, userData, claims) {
-    const controls = getLinkRequestControls();
-
-    if (!controls.form) {
-      return;
-    }
-
-    if (!window.firebase.firestore) {
-      setLinkRequestControlsDisabled(true);
-      setLinkRequestMessage("Firestore ist noch nicht geladen.", false);
-      return;
-    }
-
-    const db = window.firebase.firestore();
-    const requiredSetup = requiresAccountSetup(userData, claims);
-    controls.form.dataset.requiredSetup = String(requiredSetup);
-    const capturedName = requiredSetup && userData.loginNameCaptured === true
-      && normalizeNamePart(userData.firstName) && normalizeNamePart(userData.lastName);
-    const nameStep = controls.form.querySelector("[data-link-name-step]");
-    if (nameStep) {
-      if (capturedName) {
-        nameStep.removeAttribute("data-link-request-step");
-        nameStep.hidden = true;
-        nameStep.setAttribute("aria-hidden", "true");
-      } else nameStep.setAttribute("data-link-request-step", "");
-      controls.steps = Array.from(controls.form.querySelectorAll("[data-link-request-step]"));
-    }
-    const brand = document.querySelector(".site-header .brand");
-    if (requiredSetup) {
-      document.title = "Konto einrichten – Lifesaving Baden";
-      updateText("[data-setup-eyebrow], [data-setup-title]", "Konto einrichten");
-      updateText("[data-setup-description]", capturedName
-        ? "Dein Name ist bereits gespeichert. Alle weiteren Angaben kannst du überspringen und später ergänzen."
-        : "Vorname und Nachname sind erforderlich. Alle weiteren Angaben kannst du überspringen und später ergänzen.");
-      document.querySelector("[data-link-progress]")?.setAttribute("aria-label", "Fortschritt der Kontoeinrichtung");
-      const lastStep = controls.steps[controls.steps.length - 1];
-      lastStep.dataset.stepLabel = "Prüfen & speichern";
-      lastStep.querySelector("h3 span").textContent = "Prüfen & speichern";
-      brand?.removeAttribute("href");
-      brand?.setAttribute("aria-disabled", "true");
-      document.querySelectorAll("[data-account-open], [data-link-return]").forEach((element) => { element.hidden = true; });
-      document.querySelectorAll("[data-account-setup-save], [data-account-setup-logout], [data-account-setup-link-help]").forEach((element) => { element.hidden = false; });
-      controls.submitButton.textContent = "Speichern und Verknüpfung beantragen";
-    } else {
-      brand?.setAttribute("href", "app.html");
-    }
-
-    if (!controls.form.dataset.listenerAttached) {
-      controls.form.dataset.listenerAttached = "true";
-      initLinkRequestSteps(controls.form);
-      controls.form.addEventListener("submit", (event) => {
-        if (controls.form.dataset.busy === "true") {
-          event.preventDefault();
-          return;
-        }
-        const currentStep = getLinkRequestCurrentStep(controls.form);
-
-        if (currentStep < getLinkRequestControls().steps.length - 1) {
-          event.preventDefault();
-          goToNextLinkRequestStep(controls.form);
-          return;
-        }
-
-        if (requiredSetup && event.submitter?.hasAttribute("data-account-setup-save")) {
-          event.preventDefault();
-          saveAccountSetup(auth, db, controls.form);
-        } else {
-          submitLinkRequest(event, auth, db);
-        }
-      });
-      controls.form.querySelector("[data-link-request-preview-withdraw]")?.addEventListener("click", (event) => {
-        withdrawLinkRequestFromForm(auth, db, controls.form, event.currentTarget);
-      });
-    }
-
-    await loadLinkRequest(auth, db, userData);
-  }
-
-  async function saveAccountSetup(auth, db, form) {
-    const user = auth.currentUser;
-    if (!user || form.dataset.requiredSetup !== "true") return;
-    const details = getLinkRequestEditableDetails(form);
-    const name = normalizeNameDetails(details);
-    if (!name.firstName || !name.lastName) {
-      setLinkRequestMessage("Bitte fülle Vorname und Nachname aus.", false);
-      showLinkRequestStep(form, 0);
-      return;
-    }
-    if (details.identityHint.length > 200 || (details.gender && !["maennlich", "weiblich"].includes(details.gender))) {
-      setLinkRequestMessage("Bitte prüfe deine Angaben.", false);
-      return;
-    }
-    const button = form.querySelector("[data-account-setup-save]");
-    try {
-      setLinkRequestControlsDisabled(true);
-      setLoading(button, true, "Speichern...");
-      requireCurrentUser(user);
-      const payload = {
-        ...name,
-        birthDate: details.birthDate,
-        dlrgBranch: details.dlrgBranch,
-        gender: details.gender,
-        personLinkIdentityHint: details.identityHint,
-        accountSetupRequired: false,
-        profileDetailsUpdatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await db.collection("users").doc(user.uid).update(payload);
-      requireCurrentUser(user);
-      mergeUserDocCache(user.uid, payload);
-      redirectToApp();
-    } catch (error) {
-      setLinkRequestMessage(translateFirestoreError(error), false);
-    } finally {
-      setLoading(button, false);
-      setLinkRequestControlsDisabled(false);
-    }
-  }
-
-  async function withdrawLinkRequestFromForm(auth, db, form, button) {
-    const user = auth.currentUser;
-
-    if (!user) {
-      setLinkRequestMessage("Bitte logge dich erneut ein.", false);
-      return;
-    }
-
-    try {
-      const fieldValue = window.firebase.firestore.FieldValue;
-
-      setLoading(button, true, "Ziehe zurück...");
-      setLinkRequestControlsDisabled(true);
-      await db.collection("users").doc(user.uid).update({
-        personLinkStatus: "open",
-        personLinkRequest: fieldValue.delete(),
-        personLinkIdentityHint: fieldValue.delete(),
-        updatedAt: fieldValue.serverTimestamp()
-      });
-
-      const data = { ...(readUserDocCache(user.uid) || {}) };
-
-      data.personLinkStatus = "open";
-      delete data.personLinkRequest;
-      delete data.personLinkIdentityHint;
-      writeUserDocCache(user.uid, data);
-      updateLinkStatusUi(data);
-      await loadLinkRequest(auth, db, data);
-    } catch (error) {
-      setLinkRequestMessage(translateFirestoreError(error), false);
-    } finally {
-      setLoading(button, false);
-      if (!isPersonLinked(readUserDocCache(user.uid))) {
-        setLinkRequestControlsDisabled(false);
-      }
-    }
-  }
-
-  function getLinkRequestCurrentStep(form) {
-    const stepIndex = Number.parseInt(form?.dataset.currentStep || "0", 10);
-
-    return Number.isFinite(stepIndex) ? stepIndex : 0;
-  }
-
-  function shouldOpenLinkRequestEditor() {
-    return new URLSearchParams(window.location.search).get("edit") === "1";
-  }
-
-  function getLinkRequestEditableDetails(form) {
-    return {
-      firstName: form?.elements.firstName?.value.trim() || "",
-      lastName: form?.elements.lastName?.value.trim() || "",
-      gender: form?.querySelector('[name="gender"]:checked')?.value || "",
-      birthDate: form?.elements.birthDate?.value || "",
-      dlrgBranch: normalizeDlrgBranchName(form?.elements.dlrgBranch?.value),
-      identityHint: form?.elements.identityHint?.value.trim() || ""
-    };
-  }
-
-  function rememberLinkRequestBaseline(form) {
-    if (form) {
-      form.dataset.linkRequestBaseline = JSON.stringify(getLinkRequestEditableDetails(form));
-    }
-  }
-
-  function getLinkRequestBaseline(form) {
-    if (!form?.dataset.linkRequestBaseline) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(form.dataset.linkRequestBaseline);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function getChangedLinkRequestFields(form) {
-    const baseline = getLinkRequestBaseline(form);
-    const currentDetails = getLinkRequestEditableDetails(form);
-
-    if (!baseline) {
-      return Object.keys(currentDetails);
-    }
-
-    return Object.keys(currentDetails).filter((fieldName) => currentDetails[fieldName] !== baseline[fieldName]);
-  }
-
-  function updateLinkRequestSummary(form) {
-    if (!form) {
-      return;
-    }
-
-    const firstName = form.elements.firstName?.value.trim() || "";
-    const lastName = form.elements.lastName?.value.trim() || "";
-    const gender = form.querySelector('[name="gender"]:checked')?.value || "";
-    const setSummaryText = (selector, value) => {
-      const element = form.querySelector(selector);
-
-      if (element) {
-        element.textContent = value;
-      }
-    };
-
-    setSummaryText("[data-link-summary-name]", `${firstName} ${lastName}`.trim() || "Nicht angegeben");
-    setSummaryText("[data-link-summary-gender]", gender
-      ? formatProfileFieldValue("gender", gender)
-      : "");
-    setSummaryText("[data-link-summary-birth-date]", formatBirthDate(form.elements.birthDate?.value) || "Nicht angegeben");
-    setSummaryText("[data-link-summary-branch]", normalizeDlrgBranchName(form.elements.dlrgBranch?.value) || "Nicht angegeben");
-    setSummaryText("[data-link-summary-identity-hint]", form.elements.identityHint?.value.trim() || "");
-    if (form.dataset.requiredSetup === "true") {
-      form.querySelector("[data-account-setup-save]").disabled = form.dataset.busy === "true" || !firstName || !lastName;
-      form.querySelector("[data-link-submit]").disabled = form.dataset.busy === "true"
-        || !firstName || !lastName || !gender || !form.elements.birthDate.value || !form.elements.dlrgBranch.value.trim()
-        || !form.elements.identityConfirmation.checked || form.dataset.alreadyLinked === "true";
-    }
-  }
-
-  function showLinkRequestStep(form, nextStepIndex, shouldFocus = true) {
-    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
-
-    if (!form || !steps.length) {
-      return;
-    }
-
-    const stepIndex = Math.max(0, Math.min(nextStepIndex, steps.length - 1));
-    const progress = document.querySelector("[data-link-progress]");
-    const progressBar = document.querySelector("[data-link-progress-bar]");
-    const currentStepText = document.querySelector("[data-link-step-current]");
-    const totalStepText = document.querySelector("[data-link-step-total]");
-    const stepLabel = document.querySelector("[data-link-step-label]");
-
-    form.dataset.currentStep = String(stepIndex);
-    steps.forEach((step, index) => {
-      const isActive = index === stepIndex;
-
-      step.hidden = !isActive;
-      step.setAttribute("aria-hidden", String(!isActive));
-    });
-
-    if (currentStepText) {
-      currentStepText.textContent = String(stepIndex + 1);
-    }
-
-    if (totalStepText) {
-      totalStepText.textContent = String(steps.length);
-    }
-
-    if (stepLabel) {
-      stepLabel.textContent = steps[stepIndex].dataset.stepLabel || "";
-    }
-
-    if (progress) {
-      progress.setAttribute("aria-valuemax", String(steps.length));
-      progress.setAttribute("aria-valuenow", String(stepIndex + 1));
-    }
-
-    if (progressBar) {
-      progressBar.style.width = `${((stepIndex + 1) / steps.length) * 100}%`;
-    }
-
-    updateLinkRequestSummary(form);
-
-    if (stepIndex === steps.length - 1 && form.dataset.editingExistingRequest === "true") {
-      const hasChanges = getChangedLinkRequestFields(form).length > 0;
-
-      setLinkRequestPreviewMode(form, !hasChanges);
-      if (!hasChanges) {
-        delete form.dataset.editingExistingRequest;
-      }
-    }
-
-    if (shouldFocus) {
-      window.requestAnimationFrame(() => steps[stepIndex].querySelector("h3")?.focus());
-    }
-  }
-
-  function validateLinkRequestStep(step) {
-    const invalidControl = Array.from(step?.querySelectorAll("input, textarea, select") || [])
-      .find((control) => !control.checkValidity());
-
-    if (!invalidControl) {
-      return true;
-    }
-
-    invalidControl.reportValidity();
-    return false;
-  }
-
-  function goToNextLinkRequestStep(form) {
-    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
-    const currentStep = getLinkRequestCurrentStep(form);
-
-    if (!steps[currentStep] || !validateLinkRequestStep(steps[currentStep])) {
-      return;
-    }
-
-    showLinkRequestStep(form, currentStep + 1);
-  }
-
-  function setLinkRequestPreviewMode(form, isPreview) {
-    const steps = Array.from(form?.querySelectorAll("[data-link-request-step]") || []);
-    const summaryStep = steps[steps.length - 1];
-    const backButton = summaryStep?.querySelector("[data-link-step-back]");
-    const editButton = summaryStep?.querySelector("[data-link-request-edit]");
-    const withdrawButton = summaryStep?.querySelector("[data-link-request-preview-withdraw]");
-    const submitButton = summaryStep?.querySelector("[data-link-submit]");
-    const confirmation = summaryStep?.querySelector("[data-link-request-confirmation]");
-    const confirmationInput = confirmation?.querySelector('[name="identityConfirmation"]');
-
-    if (!form || !summaryStep || !editButton) {
-      return;
-    }
-
-    form.dataset.previewMode = String(isPreview);
-
-    [backButton, submitButton].forEach((button) => {
-      if (!button) {
-        return;
-      }
-
-      button.hidden = isPreview;
-      button.setAttribute("aria-hidden", String(isPreview));
-    });
-
-    editButton.hidden = !isPreview;
-    editButton.setAttribute("aria-hidden", String(!isPreview));
-
-    if (withdrawButton) {
-      withdrawButton.hidden = !isPreview;
-      withdrawButton.setAttribute("aria-hidden", String(!isPreview));
-    }
-
-    if (confirmation) {
-      confirmation.hidden = false;
-      confirmation.setAttribute("aria-hidden", "false");
-    }
-
-    if (confirmationInput) {
-      if (isPreview) {
-        confirmationInput.checked = form.dataset.linkRequestIdentityConfirmed === "true";
-      }
-      confirmationInput.disabled = isPreview;
-    }
-  }
-
-  function initLinkRequestSteps(form) {
-    if (!form || form.dataset.stepNavigationAttached) {
-      return;
-    }
-
-    form.dataset.stepNavigationAttached = "true";
-
-    form.querySelectorAll("[data-link-step-next]").forEach((button) => {
-      button.addEventListener("click", () => goToNextLinkRequestStep(form));
-    });
-
-    form.querySelectorAll("[data-link-step-back]").forEach((button) => {
-      button.addEventListener("click", () => {
-        showLinkRequestStep(form, getLinkRequestCurrentStep(form) - 1);
-      });
-    });
-
-    form.querySelector("[data-link-request-edit]")?.addEventListener("click", () => {
-      form.dataset.editingExistingRequest = "true";
-      if (form.elements.identityConfirmation) {
-        form.elements.identityConfirmation.checked = false;
-      }
-      setLinkRequestPreviewMode(form, false);
-      showLinkRequestStep(form, 0);
-    });
-
-    form.querySelectorAll('[name="gender"]').forEach((control) => {
-      const rememberCheckedState = () => {
-        control.dataset.wasChecked = String(control.checked);
-      };
-
-      control.addEventListener("pointerdown", rememberCheckedState);
-      control.closest("label")?.addEventListener("pointerdown", rememberCheckedState);
-      control.addEventListener("click", () => {
-        if (control.dataset.wasChecked === "true") {
-          control.checked = false;
-        }
-
-        delete control.dataset.wasChecked;
-        updateLinkRequestSummary(form);
-      });
-      control.addEventListener("keydown", (event) => {
-        if (event.key !== " " || !control.checked) {
-          return;
-        }
-
-        event.preventDefault();
-        control.checked = false;
-        control.dispatchEvent(new Event("input", { bubbles: true }));
-        control.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-    });
-
-    form.querySelectorAll("input, textarea").forEach((control) => {
-      control.addEventListener("input", () => updateLinkRequestSummary(form));
-      control.addEventListener("change", () => updateLinkRequestSummary(form));
-
-      if (control.tagName !== "TEXTAREA") {
-        control.addEventListener("keydown", (event) => {
-          if (
-            event.key === "Enter"
-            && control.name !== "gender"
-            && getLinkRequestCurrentStep(form) < form.querySelectorAll("[data-link-request-step]").length - 1
-          ) {
-            event.preventDefault();
-            goToNextLinkRequestStep(form);
-          }
-        });
-      }
-    });
-
-    showLinkRequestStep(form, 0, false);
-  }
-
-  function getLinkRequestControls() {
-    const form = document.querySelector("[data-link-request-form]");
-
-    return {
-      form,
-      steps: Array.from(form?.querySelectorAll("[data-link-request-step]") || []),
-      firstName: form?.querySelector('[name="firstName"]'),
-      lastName: form?.querySelector('[name="lastName"]'),
-      genderInputs: Array.from(form?.querySelectorAll('[name="gender"]') || []),
-      birthDate: form?.querySelector('[name="birthDate"]'),
-      dlrgBranch: form?.querySelector('[name="dlrgBranch"]'),
-      identityHint: form?.querySelector('[name="identityHint"]'),
-      identityConfirmation: form?.querySelector('[name="identityConfirmation"]'),
-      submitButton: form?.querySelector("[data-link-submit]")
-    };
-  }
-
-  function setLinkRequestControlsDisabled(isDisabled) {
-    const controls = getLinkRequestControls();
-
-    if (!controls.form) {
-      return;
-    }
-
-    controls.form.dataset.busy = String(isDisabled);
-    controls.form.querySelectorAll("input, textarea, select, button").forEach((control) => {
-      const isPreviewConfirmation = control.name === "identityConfirmation"
-        && controls.form.dataset.previewMode === "true";
-
-      control.disabled = isDisabled || isPreviewConfirmation;
-    });
-    if (!isDisabled) updateLinkRequestSummary(controls.form);
-  }
-
-  async function loadLinkRequest(auth, db, userData) {
-    const controls = getLinkRequestControls();
-    const user = auth.currentUser;
-
-    if (!controls.form || !user) {
-      return;
-    }
-
-    setLinkRequestControlsDisabled(true);
-
-    try {
-      let data = userData || await loadCurrentUserData(user) || {};
-
-      data = await cleanupLegacyLinkRequestFields(user, data);
-      data = await cleanupInactiveLinkRequestData(user, data);
-      const request = data.personLinkRequest || null;
-      controls.form.dataset.alreadyLinked = String(isPersonLinked(data));
-
-      if (isPersonLinked(data) && controls.form.dataset.requiredSetup !== "true") {
-        setLinkRequestControlsDisabled(true);
-        setLinkRequestMessage("Dieses Konto ist bereits mit der Datenbank verknüpft.", true);
-        return;
-      }
-
-      if (request && controls.form.dataset.requiredSetup !== "true") {
-        await syncProfileDetailsFromLinkRequest(user, data);
-        const nameDetails = getNameDetailsFromData(data, user);
-
-        controls.firstName.value = request.firstName || nameDetails.firstName || "";
-        controls.lastName.value = request.lastName || nameDetails.lastName || "";
-        controls.genderInputs.forEach((input) => {
-          input.checked = input.value === request.gender;
-        });
-        controls.birthDate.value = data.birthDate || "";
-        controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = getLinkRequestIdentityHint(request, data).slice(0, 200);
-        const identityConfirmed = request.identityConfirmed !== false;
-
-        controls.form.dataset.linkRequestIdentityConfirmed = String(identityConfirmed);
-        if (controls.identityConfirmation) {
-          controls.identityConfirmation.checked = identityConfirmed;
-        }
-        rememberLinkRequestBaseline(controls.form);
-        delete controls.form.dataset.editingExistingRequest;
-        setLinkRequestMessage(
-          request.status === "rejected"
-            ? "Letzter Antrag wurde abgelehnt. Du kannst die Angaben prüfen und erneut absenden."
-            : request.status === "withdrawn"
-              ? "Letzter Antrag wurde zurückgezogen. Du kannst die Angaben prüfen und erneut absenden."
-            : "Letzter Antrag ist gespeichert.",
-          true
-        );
-        if (shouldOpenLinkRequestEditor()) {
-          controls.form.dataset.editingExistingRequest = "true";
-          if (controls.identityConfirmation) {
-            controls.identityConfirmation.checked = false;
-          }
-          setLinkRequestPreviewMode(controls.form, false);
-          showLinkRequestStep(controls.form, 0, false);
-        } else {
-          setLinkRequestPreviewMode(controls.form, true);
-          showLinkRequestStep(controls.form, controls.steps.length - 1, false);
-        }
-      } else {
-        const nameDetails = getNameDetailsFromData(data, user);
-
-        controls.firstName.value = nameDetails.firstName || "";
-        controls.lastName.value = nameDetails.lastName || "";
-        controls.genderInputs.forEach((input) => {
-          input.checked = input.value === data.gender;
-        });
-        controls.birthDate.value = data.birthDate || "";
-        controls.dlrgBranch.value = normalizeDlrgBranchName(data.dlrgBranch);
-        controls.identityHint.value = getLinkRequestIdentityHint({}, data);
-        delete controls.form.dataset.linkRequestIdentityConfirmed;
-        if (controls.identityConfirmation) {
-          controls.identityConfirmation.checked = false;
-        }
-        delete controls.form.dataset.linkRequestBaseline;
-        delete controls.form.dataset.editingExistingRequest;
-        setLinkRequestPreviewMode(controls.form, false);
-        showLinkRequestStep(controls.form, 0, false);
-      }
-    } catch (error) {
-      setLinkRequestMessage(translateFirestoreError(error), false);
-    } finally {
-      if (!isPersonLinked(readUserDocCache(user.uid))) {
-        setLinkRequestControlsDisabled(false);
-      }
-      updateLinkRequestSummary(controls.form);
-    }
-  }
-
-  async function submitLinkRequest(event, auth, db) {
-    event.preventDefault();
-
-    const controls = getLinkRequestControls();
-    const user = auth.currentUser;
-
-    if (!controls.form || !user) {
-      setLinkRequestMessage("Bitte logge dich erneut ein.", false);
-      return;
-    }
-
-    const editableDetails = getLinkRequestEditableDetails(controls.form);
-    const details = {
-      ...editableDetails,
-      accountEmail: user.email || "",
-      accountName: getAccountName(user) || formatFullName(editableDetails.firstName, editableDetails.lastName),
-      accountUid: user.uid
-    };
-    const cachedData = readUserDocCache(user.uid) || {};
-    const isUpdatingExistingRequest = Boolean(
-      getLinkRequestBaseline(controls.form)
-      && cachedData.personLinkRequest?.status === "requested"
-    );
-    const changedFields = isUpdatingExistingRequest
-      ? getChangedLinkRequestFields(controls.form)
-      : Object.keys(editableDetails);
-
-    if (details.identityHint.length > 200) {
-      setLinkRequestMessage("Die Identitätsinfo darf maximal 200 Zeichen haben.", false);
-      return;
-    }
-
-    if (details.gender && !["maennlich", "weiblich"].includes(details.gender)) {
-      setLinkRequestMessage("Bitte wähle eine gültige Geschlechtsangabe aus oder überspringe den Schritt.", false);
-      return;
-    }
-
-    if (!details.firstName || !details.lastName || !details.gender || !details.birthDate || !details.dlrgBranch) {
-      setLinkRequestMessage("Bitte fülle Vorname, Nachname, Geschlecht, Geburtsdatum und DLRG-Gliederung aus.", false);
-      return;
-    }
-
-    if (isPersonLinked(readUserDocCache(user.uid))) {
-      setLinkRequestMessage("Dieses Konto ist bereits mit der Datenbank verknüpft.", false);
-      return;
-    }
-
-    if (isUpdatingExistingRequest && !changedFields.length) {
-      delete controls.form.dataset.editingExistingRequest;
-      setLinkRequestPreviewMode(controls.form, true);
-      showLinkRequestStep(controls.form, controls.steps.length - 1, false);
-      return;
-    }
-
-    if (!controls.identityConfirmation?.checked) {
-      setLinkRequestMessage("Bitte bestätige deine Angaben vor dem Absenden.", false);
-      return;
-    }
-
-    const fieldValue = window.firebase.firestore.FieldValue;
-
-    try {
-      controls.dlrgBranch.value = details.dlrgBranch;
-      setLinkRequestControlsDisabled(true);
-      setLoading(
-        controls.submitButton,
-        true,
-        isUpdatingExistingRequest ? "Änderungen speichern..." : "Antrag speichern..."
-      );
-
-      let requestCacheData;
-      let userCacheData;
-      let updatePayload;
-
-      if (isUpdatingExistingRequest) {
-        requestCacheData = { ...cachedData.personLinkRequest };
-        userCacheData = {};
-        updatePayload = {
-          "personLinkRequest.identityConfirmed": true,
-          "personLinkRequest.identityConfirmedAt": fieldValue.serverTimestamp(),
-          "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
-          updatedAt: fieldValue.serverTimestamp()
-        };
-        requestCacheData.identityConfirmed = true;
-
-        changedFields.forEach((fieldName) => {
-          const value = editableDetails[fieldName];
-
-          if (fieldName === "gender") {
-            updatePayload["personLinkRequest.gender"] = value || fieldValue.delete();
-            if (value) {
-              updatePayload.gender = value;
-              userCacheData.gender = value;
-              requestCacheData.gender = value;
-            } else {
-              delete requestCacheData.gender;
-            }
-            return;
-          }
-
-          updatePayload[`personLinkRequest.${fieldName}`] = value;
-          requestCacheData[fieldName] = value;
-
-          if (fieldName === "birthDate" || fieldName === "dlrgBranch") {
-            updatePayload[fieldName] = value;
-            userCacheData[fieldName] = value;
-          } else if (fieldName === "identityHint") {
-            updatePayload.personLinkIdentityHint = value;
-            userCacheData.personLinkIdentityHint = value;
-          }
-        });
-
-        if (changedFields.some((fieldName) => ["birthDate", "dlrgBranch", "gender"].includes(fieldName))) {
-          updatePayload.profileDetailsUpdatedAt = fieldValue.serverTimestamp();
-        }
-
-        userCacheData.personLinkRequest = requestCacheData;
-      } else {
-        requestCacheData = {
-          ...details,
-          identityConfirmed: true,
-          status: "requested"
-        };
-        if (!details.gender) {
-          delete requestCacheData.gender;
-        }
-        userCacheData = {
-          dlrgBranch: details.dlrgBranch,
-          birthDate: details.birthDate,
-          ...(details.gender ? { gender: details.gender } : {}),
-          personLinkIdentityHint: details.identityHint,
-          personLinkStatus: "requested",
-          personLinkRequest: requestCacheData
-        };
-        updatePayload = {
-          dlrgBranch: details.dlrgBranch,
-          birthDate: details.birthDate,
-          personLinkIdentityHint: details.identityHint,
-          profileDetailsUpdatedAt: fieldValue.serverTimestamp(),
-          personLinkStatus: "requested",
-          "personLinkRequest.firstName": details.firstName,
-          "personLinkRequest.lastName": details.lastName,
-          "personLinkRequest.gender": details.gender || fieldValue.delete(),
-          "personLinkRequest.birthDate": details.birthDate,
-          "personLinkRequest.dlrgBranch": details.dlrgBranch,
-          "personLinkRequest.identityHint": details.identityHint,
-          "personLinkRequest.identityConfirmed": true,
-          "personLinkRequest.identityConfirmedAt": fieldValue.serverTimestamp(),
-          "personLinkRequest.accountEmail": details.accountEmail,
-          "personLinkRequest.accountName": details.accountName,
-          "personLinkRequest.accountUid": details.accountUid,
-          "personLinkRequest.status": "requested",
-          "personLinkRequest.requestedAt": fieldValue.serverTimestamp(),
-          "personLinkRequest.updatedAt": fieldValue.serverTimestamp(),
-          "personLinkRequest.firstCompetition": fieldValue.delete(),
-          "personLinkRequest.lastCompetition": fieldValue.delete(),
-          "personLinkRequest.decidedByUid": fieldValue.delete(),
-          "personLinkRequest.decidedByEmail": fieldValue.delete(),
-          "personLinkRequest.decidedAt": fieldValue.delete(),
-          "personLinkRequest.withdrawnAt": fieldValue.delete(),
-          updatedAt: fieldValue.serverTimestamp()
-        };
-
-        if (details.gender) {
-          updatePayload.gender = details.gender;
-        }
-      }
-
-      if (controls.form.dataset.requiredSetup === "true") {
-        const setup = { ...normalizeNameDetails(details), accountSetupRequired: false };
-        Object.assign(updatePayload, setup);
-        Object.assign(userCacheData, setup);
-      }
-      const userDoc = db.collection("users").doc(user.uid);
-      if (getAccountName(user) || controls.form.dataset.requiredSetup === "true") {
-        await userDoc.update(updatePayload);
-      } else {
-        const savedName = await db.runTransaction(async (transaction) => {
-          const snapshot = await transaction.get(userDoc);
-          requireCurrentUser(user);
-          const currentName = getNameDetailsFromData(snapshot.data(), user);
-          const name = currentName.displayName ? currentName : normalizeNameDetails(details);
-          transaction.update(userDoc, currentName.displayName ? updatePayload : { ...updatePayload, ...name });
-          return name;
-        });
-        Object.assign(userCacheData, savedName);
-      }
-
-      updateLinkStatusUi(mergeUserDocCache(user.uid, userCacheData));
-      clearUserDocCache(user.uid);
-      setLinkRequestMessage("Antrag gespeichert. Er ist jetzt im Adminbereich sichtbar.", true);
-      redirectToApp();
-    } catch (error) {
-      setLinkRequestMessage(translateFirestoreError(error), false);
-    } finally {
-      setLoading(controls.submitButton, false);
-      setLinkRequestControlsDisabled(false);
-    }
-  }
 })();

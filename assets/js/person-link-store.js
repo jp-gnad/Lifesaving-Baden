@@ -11,6 +11,51 @@
 
   function fail(code) { throw Object.assign(new Error(code), { code }); }
 
+  function requestDetails(data = {}) {
+    const text = value => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+    const details = Object.fromEntries(["firstName", "lastName", "gender", "birthDate", "dlrgBranch"].map(key => [key, text(data[key])]));
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(details.birthDate) ? new Date(`${details.birthDate}T00:00:00Z`) : null;
+    const validDate = date && Number.isFinite(date.getTime()) && date.getUTCFullYear() >= 1900
+      && date.toISOString().slice(0, 10) === details.birthDate && date.getTime() <= Date.now();
+    const missing = [];
+    if (!details.firstName) missing.push("Vorname");
+    if (!details.lastName) missing.push("Nachname");
+    if (!["maennlich", "weiblich"].includes(details.gender)) missing.push("Geschlecht");
+    if (!validDate) missing.push("Geburtsdatum");
+    if (!details.dlrgBranch) missing.push("DLRG-Gliederung");
+    return { details, missing };
+  }
+
+  async function request(db, uid, actor, identityHint, fieldValue, checkSession = () => {}) {
+    const hint = String(identityHint || "").trim();
+    if (hint.length > 200) fail("person-link/hint-too-long");
+    const ref = db.collection("users").doc(uid);
+    return db.runTransaction(async transaction => {
+      checkSession();
+      const snapshot = await transaction.get(ref);
+      checkSession();
+      if (!snapshot.exists) fail("person-link/account-missing");
+      const data = snapshot.data() || {};
+      if (linkedPerson(data)) fail("person-link/account-already-linked");
+      const { details, missing } = requestDetails(data);
+      if (missing.length) fail("person-link/profile-incomplete");
+      const pending = data.personLinkRequest?.status === "requested";
+      const request = {
+        ...details, identityHint: hint, identityConfirmed: true,
+        identityConfirmedAt: fieldValue.serverTimestamp(),
+        accountEmail: actor.email || data.email || "",
+        accountName: [details.firstName, details.lastName].join(" "), accountUid: uid,
+        status: "requested", requestedAt: pending && data.personLinkRequest.requestedAt
+          ? data.personLinkRequest.requestedAt : fieldValue.serverTimestamp(),
+        updatedAt: fieldValue.serverTimestamp(),
+      };
+      const payload = { personLinkStatus: "requested", personLinkRequest: request,
+        personLinkIdentityHint: hint, updatedAt: fieldValue.serverTimestamp() };
+      transaction.update(ref, payload);
+      return { ...data, ...payload };
+    });
+  }
+
   function syncClubProfile(transaction, db, uid, data) {
     const core = typeof module === "object" && module.exports ? require("./clubs-core.js") : root.ClubsCore;
     const profile = core.profile(data);
@@ -102,7 +147,7 @@
     });
   }
 
-  const api = { linkedPerson, commit, unlinkOwn, deleteAccount, syncClubProfile };
+  const api = { linkedPerson, requestDetails, request, commit, unlinkOwn, deleteAccount, syncClubProfile };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.LifesavingPersonLinks = api;
 })(typeof window === "object" ? window : globalThis);

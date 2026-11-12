@@ -4,16 +4,17 @@
     <style>body{margin:0;background:#08080a;color:white;font:14px system-ui}nav{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:12px}button{padding:8px}iframe{display:block;margin:auto;width:100%;max-width:100%;height:calc(100vh - 70px);border:0}</style>
   </head>
   <body>
-    <nav><span>Lokale Testdaten · Änderungen bleiben im Speicher</span><button data-width="100%">Desktop</button><button data-width="390px">Mobil · 390 px</button><button data-width="320px">320 px</button></nav>
+    <nav><span>Lokale Testdaten · Änderungen bleiben im Speicher</span><button data-state="ready">Vollständiges Profil</button><button data-state="incomplete">Fehlende Angaben</button><button data-state="requested">Angefragt</button><button data-state="linked">Verknüpft</button><button data-width="100%">Desktop</button><button data-width="390px">Mobil · 390 px</button><button data-width="320px">320 px</button></nav>
     <iframe id="preview" title="Eigene Verknüpfung mit Testdaten"></iframe>
     <script>
-      (async () => {
+      async function loadFixture(state = "linked") {
         const response = await fetch("../account-settings.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
           if (!/assets\/js\/(header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         page.body.dataset.previewPage = "settings";
+        page.body.dataset.fixtureLinkState = state;
         page.querySelectorAll(".settings-category").forEach((category) => {
           category.hidden = category.id !== "verknuepfungen";
           category.classList.toggle("is-hidden", category.hidden);
@@ -27,7 +28,9 @@
         fixture.defer = true;
         page.head.append(fixture);
         document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;
-      })();
+      }
+      loadFixture();
+      document.querySelectorAll("[data-state]").forEach(button => button.onclick = () => loadFixture(button.dataset.state));
       document.querySelectorAll("[data-width]").forEach((button) => button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; });
     </script>
   </body>
