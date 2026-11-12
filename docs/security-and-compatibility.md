@@ -8,6 +8,11 @@
   gespeicherte Profildaten und Rollenprüfungen im Browser ersetzen diese Regeln nicht.
 - `auth-core.js` lädt Rollen aus Konto und Claims. Rollenaliasnamen sind absichtlich
   unterstützt; das normale Konten-UI vergibt keine Adminrolle.
+- Neue E-Mail-Registrierungen legen vor dem Absenden des Namens kein Firebase-Konto
+  an. Der Passwortentwurf bleibt nur im Arbeitsspeicher und wird beim Verlassen
+  verworfen. Bereits angelegte Konten bleiben auch ohne bestätigte E-Mail
+  passwortgeschützt; ein fehlgeschlagener Login erlaubt weder Überschreiben noch
+  Löschen oder Zurücksetzen ohne den vorgesehenen E-Mail-Rücksetzlink.
 - Die bestehenden Regeln unterscheiden Eigentümer, Sportler, Trainer,
   Organisatoren und Admins sowie die getrennten Eventrechte. Beim Refactoring
   keine dieser Grenzen vereinfachen oder durch ein allgemeines `allow read/write` ersetzen.

@@ -33,9 +33,15 @@ Kontodokument bereit. Google-Anbieterprofile liefern getrennte Namensbestandteil
 diese befüllen ausschließlich noch leere Profile. `loginNameCaptured` kennzeichnet
 vollständige Login-Namen, damit `auth.js` den Namensschritt der erweiterten
 Ersteinrichtung überspringt. `accountSetupRequired` gilt weiterhin für deren Abschluss.
-Unbestätigte E-Mail-Konten ohne vollständigen Namen nehmen die Namenseingabe nach
-einem Abbruch wieder auf. Bestehende bestätigte E-Mail-Konten benötigen für den
-Login weiterhin keinen Firestore-Lesezugriff.
+Vor dem Absenden des Namens bleibt eine neue Registrierung ein Entwurf im
+Arbeitsspeicher; erst danach wird das Firebase-Konto erstellt. Neuladen oder
+Verlassen verwirft den Entwurf einschließlich Passwort, ohne eine E-Mail zu
+reservieren. Allgemeine Passwort-Loginfehler unterscheiden neue Adressen nicht
+von falschen Passwörtern; die Kontoneuanlage kann daher erst beim Absenden des
+Namens eine bereits vergebene Adresse zurückweisen. Bereits angelegte unbestätigte
+Konten ohne vollständigen Namen nehmen die Namenseingabe nach erfolgreicher
+Authentifizierung wieder auf. Ihr Passwortschutz bleibt erhalten. Bestehende
+bestätigte E-Mail-Konten benötigen für den Login keinen Firestore-Lesezugriff.
 
 ## Timer-Module
 

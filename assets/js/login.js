@@ -128,6 +128,8 @@
     const loginButton = loginForm?.querySelector('button[type="submit"]');
     let passwordStep = false;
     let registrationUser = null;
+    // An unfinished registration must neither reserve the email nor persist a password.
+    let registrationDraft = null;
     const googleNameSaves = new Map();
     let emailSubmissionPending = false;
 
@@ -153,42 +155,43 @@
     });
 
     function focusMobileHeading() {
-      if (!passwordStep && !registrationUser && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
+      if (!passwordStep && !registrationUser && !registrationDraft && mobileLoginQuery?.matches) loginTitle?.focus({ preventScroll: true });
     }
 
     function updateEmailButton() {
-      if (loginButton) loginButton.disabled = emailSubmissionPending || (!registrationUser && !String(new FormData(loginForm).get("email") || "").trim());
+      if (loginButton) loginButton.disabled = emailSubmissionPending || (!registrationUser && !registrationDraft && !String(new FormData(loginForm).get("email") || "").trim());
     }
 
     function updateEmailStep() {
       updateEmailButton();
-      const emailStep = !passwordStep && !registrationUser;
+      const enteringName = Boolean(registrationUser || registrationDraft);
+      const emailStep = !passwordStep && !enteringName;
       loginForm?.classList.toggle("is-email-step", emailStep);
-      loginForm?.classList.toggle("is-name-step", Boolean(registrationUser));
-      if (nameStep) nameStep.hidden = !registrationUser;
+      loginForm?.classList.toggle("is-name-step", enteringName);
+      if (nameStep) nameStep.hidden = !enteringName;
       [firstNameInput, lastNameInput].forEach((input) => {
         if (!input) return;
-        input.required = Boolean(registrationUser);
-        input.disabled = !registrationUser;
+        input.required = enteringName;
+        input.disabled = !enteringName;
       });
-      if (loginTitle) loginTitle.textContent = registrationUser ? "Wie heißt du?" : "Anmelden";
-      if (loginButton && !emailSubmissionPending) loginButton.textContent = registrationUser ? "Bestätigungsmail senden" : "Anmelden";
+      if (loginTitle) loginTitle.textContent = enteringName ? "Wie heißt du?" : "Anmelden";
+      if (loginButton && !emailSubmissionPending) loginButton.textContent = enteringName ? "Bestätigungsmail senden" : "Anmelden";
       if (emailSummary) {
         emailSummary.hidden = emailStep;
-        emailSummary.textContent = emailStep ? "" : registrationUser?.email || String(new FormData(loginForm).get("email") || "").trim();
+        emailSummary.textContent = emailStep ? "" : registrationUser?.email || registrationDraft?.email || String(new FormData(loginForm).get("email") || "").trim();
       }
       if (dividerCopy) dividerCopy.hidden = !emailStep;
       if (changeEmailButton) changeEmailButton.hidden = emailStep;
       if (emailInput) emailInput.placeholder = "Deine E-Mail";
       if (passwordInput) {
-        passwordInput.required = passwordStep && !registrationUser;
-        passwordInput.disabled = Boolean(registrationUser);
+        passwordInput.required = passwordStep && !enteringName;
+        passwordInput.disabled = enteringName;
         passwordInput.placeholder = "Dein Passwort";
       }
     }
 
     emailInput?.addEventListener("input", () => {
-      if (authAction || registrationUser) return;
+      if (authAction || registrationUser || registrationDraft) return;
       if (passwordStep) {
         passwordStep = false;
         passwordInput.value = "";
@@ -198,6 +201,7 @@
     });
     changeEmailButton?.addEventListener("click", async () => {
       if (authAction) return;
+      discardRegistrationDraft();
       if (registrationUser) {
         authAction = "logout";
         try { await auth.signOut(); }
@@ -272,6 +276,7 @@
 
         const verified = await hasVerifiedAccess(activeUser);
         if (!isCurrentUser(activeUser)) return;
+        if (registrationDraft) return;
         // A registration must retain its name step even if verification happens in another tab.
         if (registrationUser?.uid === activeUser.uid) return;
         if (!verified) {
@@ -304,23 +309,33 @@
     }
 
     function showRegistrationName(user, data = {}) {
-      if (!isCurrentUser(user)) return;
-      const changedUser = registrationUser?.uid !== user.uid;
+      if (user ? !isCurrentUser(user) : !registrationDraft) return;
+      const changedUser = !user || registrationUser?.uid !== user.uid;
       registrationUser = user;
       passwordStep = false;
       if (passwordInput) passwordInput.value = "";
-      if (emailInput && user.email) emailInput.value = user.email;
+      if (emailInput) emailInput.value = user?.email || registrationDraft?.email || emailInput.value;
       if (changedUser) {
         if (firstNameInput) firstNameInput.value = data.firstName || "";
         if (lastNameInput) lastNameInput.value = data.lastName || "";
       }
       updateEmailStep();
       showResendButton(false);
-      setMessage("login", "Bitte ergänze Vorname und Nachname. Danach senden wir dir die Bestätigungsmail.");
+      setMessage("login", "");
       if (changedUser && firstNameInput) {
         firstNameInput.readOnly = false;
         firstNameInput.focus();
       }
+    }
+
+    function discardRegistrationDraft() {
+      if (!registrationDraft) return;
+      registrationDraft = null;
+      passwordStep = false;
+      if (passwordInput) passwordInput.value = "";
+      if (firstNameInput) firstNameInput.value = "";
+      if (lastNameInput) lastNameInput.value = "";
+      updateEmailStep();
     }
 
     async function finishGoogleLogin(result) {
@@ -353,6 +368,7 @@
 
     function startDirectGoogle() {
       if (authAction || loginRedirectStarted) return;
+      discardRegistrationDraft();
       googleHandoff?.clear();
       // The provider owns the popup; cancellation must not leave our forms locked.
       directGoogleAttempt = true;
@@ -525,6 +541,8 @@
 
     auth.onAuthStateChanged((user) => {
       if (redirectResultPending || googleHandoffPending) return;
+      if (authAction !== "register" && registrationDraft
+        && (user?.uid || null) !== registrationDraft.sessionUid) discardRegistrationDraft();
       if (!user) {
         showResendButton(false);
         registrationUser = null;
@@ -595,6 +613,7 @@
       resumeLoginAfterGoogleWindow().catch(showLoginError);
     });
     window.addEventListener("pagehide", () => {
+      discardRegistrationDraft();
       lockMobileInputs();
       loginPageLeaving = true;
     });
@@ -609,9 +628,10 @@
       event.preventDefault();
       const formData = new FormData(loginForm);
       const email = String(formData.get("email") || "").trim();
-      if (authAction || (!email && !registrationUser)) return;
-      if (registrationUser) {
-        const user = registrationUser;
+      if (authAction || (!email && !registrationUser && !registrationDraft)) return;
+      if (registrationUser || registrationDraft) {
+        let user = registrationUser;
+        const draft = registrationDraft;
         const name = normalizeNameDetails({ firstName: formData.get("firstName"), lastName: formData.get("lastName") });
         if (!name.firstName || !name.lastName) {
           setMessage("login", "Bitte gib Vorname und Nachname ein.");
@@ -621,6 +641,25 @@
         emailSubmissionPending = true;
         try {
           setLoading(loginButton, true, "Speichern...");
+          if (!user) {
+            await localPersistenceReady;
+            if (draft !== registrationDraft || loginPageLeaving
+              || (auth.currentUser?.uid || null) !== draft.sessionUid) throw { code: "auth/user-mismatch" };
+            try {
+              const result = await auth.createUserWithEmailAndPassword(draft.email, draft.password);
+              user = result.user;
+            } catch (error) {
+              if (error?.code === "auth/email-already-in-use") {
+                discardRegistrationDraft();
+                passwordStep = true;
+                throw { code: "auth/invalid-credential" };
+              }
+              throw error;
+            }
+            requireCurrentUser(user);
+            registrationUser = user;
+            registrationDraft = null;
+          }
           await saveAccountName(user, name);
           requireCurrentUser(user);
           registrationUser = null;
@@ -630,6 +669,7 @@
           requireCurrentUser(user);
           setMessage("login", "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link in deinem Postfach. Danach kannst du dich anmelden.", true);
         } catch (error) {
+          if (error?.code === "auth/user-mismatch") discardRegistrationDraft();
           showLoginError(error);
         } finally {
           authAction = null;
@@ -654,6 +694,7 @@
       const button = loginButton;
       emailSubmissionPending = true;
       const password = String(formData.get("password") || "");
+      const sessionUid = auth.currentUser?.uid || null;
       setMessage("login", "");
 
       try {
@@ -664,16 +705,11 @@
           result = await auth.signInWithEmailAndPassword(email, password);
         } catch (error) {
           if (!["auth/user-not-found", "auth/invalid-credential", "auth/invalid-login-credentials"].includes(error?.code)) throw error;
-          // Email enumeration protection prevents an email-only account lookup.
-          authAction = "register";
-          try {
-            result = await auth.createUserWithEmailAndPassword(email, password);
-          } catch (registrationError) {
-            if (registrationError?.code === "auth/email-already-in-use") throw { code: "auth/invalid-credential" };
-            throw registrationError;
-          }
-          if (!isCurrentUser(result.user)) return;
-          showRegistrationName(result.user);
+          if (loginPageLeaving || loginRedirectStarted || (auth.currentUser?.uid || null) !== sessionUid) return;
+          // A protected sign-in error can also mean a wrong password. Defer account creation
+          // until the name is submitted; an existing address will still be rejected then.
+          registrationDraft = { email, password, sessionUid };
+          showRegistrationName(null);
           return;
         }
         await finishVerifiedLogin(result.user);
@@ -689,6 +725,7 @@
 
     googleButton?.addEventListener("click", async () => {
       if (authAction || redirectResultPending) return;
+      discardRegistrationDraft();
       if (useDirectGoogle) {
         setMessage("login", "");
         await prepareDirectGoogle();

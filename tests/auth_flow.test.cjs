@@ -1012,18 +1012,28 @@ test("Google client loading is bounded, retryable, and does not lock the email f
 });
 
 test("desktop registration waits for a saved name before sending verification", async () => {
-  const h = harness({ user: { uid: "new", emailVerified: false }, stored: null });
+  const h = harness({ stored: null });
+  let creations = 0;
+  h.auth.createUserWithEmailAndPassword = async () => {
+    creations++;
+    const user = h.prepareUser({ uid: "new", emailVerified: false });
+    h.auth.currentUser = user;
+    h.callbacks.auth(user);
+    return { user };
+  };
   h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
   h.login();
   h.element('[data-auth-form="login"]').fields = { email: "test@example.test", password: "synthetic-password" };
   await h.submitPassword();
-  assert.equal(h.auth.currentUser.uid, "new");
+  assert.equal(h.auth.currentUser, null);
+  assert.equal(creations, 0);
   assert.equal(h.counts.verification, undefined);
   assert.equal(h.counts.writes.length, 0);
   const form = h.element('[data-auth-form="login"]');
   form.fields.firstName = "Anna Maria";
   form.fields.lastName = "von Baden";
   await h.submit("login");
+  assert.equal(creations, 1);
   assert.equal(h.counts.writes[0].firstName, "Anna Maria");
   assert.equal(h.counts.writes[0].lastName, "von Baden");
   assert.equal(h.counts.writes[0].loginNameCaptured, true);
@@ -2321,6 +2331,7 @@ test("mobile new accounts wait for email verification and continue to member hom
   await h.submit("login");
   assert.equal(h.counts.verification, undefined);
   assert.equal(h.form.querySelector('button[type="submit"]').textContent, "Bestätigungsmail senden");
+  assert.equal(h.element('[data-form-message="login"]').textContent, "");
   h.firstName.value = "Anna";
   h.lastName.value = "Baden";
   const submitted = h.submit("login");
@@ -2348,6 +2359,10 @@ test("an existing address with an incorrect mobile password is never replaced or
   await h.submit("login");
   h.password.value = "wrong-password";
   await h.submit("login");
+  assert.equal(registrations, 0);
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
+  await h.submit("login");
   assert.equal(registrations, 1);
   assert.equal(h.auth.currentUser, null);
   assert.match(h.element('[data-form-message="login"]').textContent, /E-Mail oder Passwort stimmt nicht/);
@@ -2374,6 +2389,9 @@ test("mobile transient and known-account errors never attempt account creation; 
   desktop.auth.createUserWithEmailAndPassword = async () => { throw { code: "auth/email-already-in-use" }; };
   desktop.login();
   await desktop.submitPassword();
+  desktop.element('[data-auth-form="login"]').fields.firstName = "Anna";
+  desktop.element('[data-auth-form="login"]').fields.lastName = "Baden";
+  await desktop.submit("login");
   assert.match(desktop.element('[data-form-message="login"]').textContent, /E-Mail oder Passwort stimmt nicht/);
 });
 
@@ -2697,4 +2715,163 @@ test("extended setup skips a captured name while retaining optional steps and le
     assert.equal(form.dataset.currentStep, "1");
     assert.equal(steps[2].hidden, !captured);
   }
+});
+
+test("reloading before submitting a name leaves the email free for a different password", async () => {
+  const accounts = new Map();
+  const created = [];
+  function page() {
+    const h = mobileEmailHarness({ stored: null });
+    h.window.localStorage = localStore();
+    for (const storage of [h.window.localStorage, h.window.sessionStorage]) {
+      const set = storage.setItem.bind(storage);
+      storage.setItem = (key, value) => {
+        assert.equal(String(value).includes("first-draft-password"), false);
+        assert.equal(String(value).includes("second-draft-password"), false);
+        set(key, value);
+      };
+    }
+    h.auth.signInWithEmailAndPassword = async (email, password) => {
+      const account = accounts.get(email);
+      if (!account || account.password !== password) throw { code: "auth/invalid-credential" };
+      h.auth.currentUser = h.prepareUser(account.user);
+      return { user: h.auth.currentUser };
+    };
+    h.auth.createUserWithEmailAndPassword = async (email, password) => {
+      if (accounts.has(email)) throw { code: "auth/email-already-in-use" };
+      const user = h.prepareUser({ uid: "new-draft", email, emailVerified: false });
+      accounts.set(email, { user, password });
+      created.push({ email, password });
+      h.auth.currentUser = user;
+      h.callbacks.auth(user);
+      return { user };
+    };
+    h.login();
+    return h;
+  }
+  const first = page();
+  await first.submit("login");
+  first.password.value = "first-draft-password";
+  await first.submit("login");
+  assert.equal(first.form.classList.contains("is-name-step"), true);
+  assert.equal(first.auth.currentUser, null);
+  assert.equal(accounts.size, 0);
+  assert.equal(first.counts.writes.length, 0);
+  assert.equal(first.counts.verification, undefined);
+  first.callbacks.pagehide();
+  assert.equal(first.form.classList.contains("is-name-step"), false);
+  const second = page();
+  await second.submit("login");
+  second.password.value = "second-draft-password";
+  await second.submit("login");
+  assert.equal(accounts.size, 0);
+  second.firstName.value = "Anna";
+  second.lastName.value = "Baden";
+  await second.submit("login");
+  assert.deepEqual(created, [{ email: "anna@example.test", password: "second-draft-password" }]);
+  assert.equal(second.counts.writes.at(-1).displayName, "Anna Baden");
+  assert.ok(second.counts.verification);
+});
+
+test("incomplete or abandoned name drafts never create an account", async () => {
+  const h = mobileEmailHarness();
+  let creations = 0;
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  h.auth.createUserWithEmailAndPassword = async () => { creations++; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "draft-password";
+  await h.submit("login");
+  h.firstName.value = "Anna";
+  h.lastName.value = "   ";
+  await h.submit("login");
+  assert.equal(creations, 0);
+  assert.equal(h.counts.writes.length, 0);
+  await h.element("[data-change-email]").handlers.click();
+  assert.equal(h.form.classList.contains("is-email-step"), true);
+  assert.equal(h.firstName.value, "");
+  assert.equal(h.password.value, "");
+  await h.submit("login");
+  assert.equal(creations, 0);
+});
+
+test("a failed profile save after final account creation retries without creating another account", async () => {
+  const h = mobileEmailHarness({ stored: null });
+  let creations = 0;
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  h.auth.createUserWithEmailAndPassword = async () => {
+    creations++;
+    const user = h.prepareUser({ uid: "saved-draft", email: "anna@example.test", emailVerified: false });
+    h.auth.currentUser = user;
+    h.callbacks.auth(user);
+    return { user };
+  };
+  h.login();
+  await h.submit("login");
+  h.password.value = "draft-password";
+  await h.submit("login");
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
+  const db = h.window.firebase.firestore();
+  const transaction = db.runTransaction;
+  db.runTransaction = async () => { throw { code: "permission-denied" }; };
+  await h.submit("login");
+  assert.equal(creations, 1);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.form.classList.contains("is-name-step"), true);
+  db.runTransaction = transaction;
+  await h.submit("login");
+  assert.equal(creations, 1);
+  assert.ok(h.counts.verification);
+});
+
+test("existing unverified accounts cannot be overwritten using a different password", async () => {
+  const h = mobileEmailHarness();
+  const existing = { uid: "already-created", email: "anna@example.test", emailVerified: false, password: "original-password" };
+  h.auth.signInWithEmailAndPassword = async (email, password) => {
+    if (email !== existing.email || password !== existing.password) throw { code: "auth/invalid-credential" };
+    h.auth.currentUser = h.prepareUser({ uid: existing.uid, email, emailVerified: existing.emailVerified });
+    return { user: h.auth.currentUser };
+  };
+  h.auth.createUserWithEmailAndPassword = async email => {
+    assert.equal(email, existing.email);
+    throw { code: "auth/email-already-in-use" };
+  };
+  h.login();
+  await h.submit("login");
+  h.password.value = "different-password";
+  await h.submit("login");
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
+  await h.submit("login");
+  assert.equal(existing.password, "original-password");
+  assert.equal(h.auth.currentUser, null);
+  assert.equal(h.counts.writes.length, 0);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.password.required, true);
+  assert.equal(h.form.classList.contains("is-name-step"), false);
+  assert.match(h.element('[data-form-message="login"]').textContent, /E-Mail oder Passwort stimmt nicht/);
+  h.password.value = existing.password;
+  await h.submit("login");
+  assert.equal(h.auth.currentUser.uid, existing.uid);
+  assert.equal(h.counts.verification, undefined);
+});
+
+test("a session change before the final registration request discards the draft", async () => {
+  const h = mobileEmailHarness();
+  h.auth.signInWithEmailAndPassword = async () => { throw { code: "auth/invalid-credential" }; };
+  let creations = 0;
+  h.auth.createUserWithEmailAndPassword = async () => { creations++; };
+  h.login();
+  await h.submit("login");
+  h.password.value = "draft-password";
+  await h.submit("login");
+  h.firstName.value = "Anna";
+  h.lastName.value = "Baden";
+  const saving = h.submit("login");
+  h.auth.currentUser = h.prepareUser({ uid: "other", emailVerified: true });
+  await saving;
+  assert.equal(creations, 0);
+  assert.equal(h.counts.verification, undefined);
+  assert.equal(h.form.classList.contains("is-name-step"), false);
 });

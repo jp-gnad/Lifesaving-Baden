@@ -119,14 +119,20 @@ erst nach Eingabe der E-Mail und Klick auf „Anmelden“ anstelle des E-Mail-Fe
 Im Passwortschritt ersetzt die gewählte E-Mail den Text im Trennbereich. Der
 Zurück-Pfeil neben „Anmelden“ führt zum E-Mail-Schritt zurück. Auf Handys bis 600 px steht
 der Google-Button über dem E-Mail-Feld. Bestehende Konten werden angemeldet. Neue
-E-Mail-Konten werden zunächst unbestätigt angelegt. Danach fragt das gemeinsame
-Formular Vorname und Nachname ab und speichert sie atomar im eigenen Profil.
-Erst nach erfolgreichem Speichern wird die Bestätigungsmail verschickt. Bei einem
-Abbruch wird die Namenseingabe beim nächsten Login fortgesetzt; ein fehlgeschlagener
-Mailversand kann ohne erneute Namenseingabe wiederholt werden. Weil
+E-Mail-Registrierungen fragen nach dem Passwort zuerst Vorname und Nachname ab.
+Erst beim Absenden des Namens wird das unbestätigte Firebase-Konto angelegt und
+der Name atomar im eigenen Profil gespeichert. Die Bestätigungsmail wird erst
+nach erfolgreichem Speichern verschickt. Bis zum Absenden bleibt das Passwort
+ausschließlich im Arbeitsspeicher. Neuladen oder Verlassen verwirft den Entwurf;
+die E-Mail ist dadurch noch nicht reserviert und ein anderes Passwort ist möglich.
+Bereits angelegte unbestätigte Konten bleiben passwortgeschützt und verwenden
+bei Bedarf den Passwort-Reset. Ein fehlgeschlagener Mailversand kann ohne erneute
+Namenseingabe wiederholt werden. Weil
 Firebase mit aktivem E-Mail-Enumeration-Schutz keine verlässliche E-Mail-Vorabprüfung
-liefert, wird erst nach Eingabe des Passworts zwischen Anmeldung und Registrierung
-unterschieden. Bestehende Konten werden bei falschem Passwort nicht verändert.
+liefert, führt ein erfolgreicher Passwort-Login direkt zur Anmeldung. Bei allgemeinen
+Zugangsdatenfehlern folgt zunächst die Namenseingabe. Ist die E-Mail bereits vergeben,
+wird die Registrierung beim Absenden abgewiesen und das Passwort erneut abgefragt.
+Bestehende Konten werden bei falschem Passwort nicht verändert.
 Auch am Desktop gibt es ein gemeinsames Formular ohne Umschaltung zwischen Login
 und Registrierung. Ab 1200 px liegt derselbe kompakte Anmeldekasten mittig mit
 leicht transparentem Hintergrund vor dem durchgehenden Schwimmbadfoto zwischen
@@ -143,10 +149,11 @@ Ein vollständig beim Login erfasster Name (`loginNameCaptured`) überspringt de
 Namensschritt in der erweiterten Kontoeinrichtung. Die weiteren optionalen Angaben
 und die getrennte Personenverknüpfung bleiben bestehen.
 
-Die Loginseite benötigt kein Firestore. Das Nutzerdokument unter `users/{uid}`
-wird beim ersten Aufruf des Mitgliederbereichs oder Timers angelegt. Neue
-Konten erhalten dabei die Rolle `standard`; eine Transaktion verhindert das
-Überschreiben eines bereits vorhandenen Profils aus einem anderen Tab.
+Die Loginseite lädt das Firestore-SDK für das Speichern der Namen bei Registrierung
+und Google-Anmeldung sowie die Wiederaufnahme bereits angelegter unbestätigter
+Konten. Neue Konten erhalten dabei die Rolle `standard`; eine Transaktion verhindert
+das Überschreiben eines bereits vorhandenen Profils aus einem anderen Tab.
+Bestehende bestätigte E-Mail-Konten benötigen beim Login weiterhin keinen Profilread.
 
 Die Login-Abläufe lassen sich ohne echte Konten oder Firebase-Zugriffe prüfen:
 
