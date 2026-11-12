@@ -479,9 +479,9 @@ der Oberfläche.
 
 ## Clubs und Startberechtigungen
 
-`gliederungen.html` ist die Admin-App zum Erstellen und Löschen von Clubs. Die
-erste verantwortliche Person wird aus bestehenden Trainer-, Organisator- oder
-Adminkonten ausgewählt. `club-verwaltung.html` bietet Personen, Startberechtigungen
+`gliederungen.html` ist die Admin-App zum Erstellen und Löschen von Clubs und zum
+Zuordnen ihrer Verantwortlichen. Nur Admins vergeben oder entziehen Verantwortung;
+auswählbar sind Trainer- und Organisatorkonten. `club-verwaltung.html` bietet Personen, Startberechtigungen
 und die zunächst reine Mannschaftsliste. Zugeordnete Trainer und Organisatoren
 wechseln zwischen ihren Clubs. Admins haben Zugriff auf alle Clubs.
 
@@ -489,6 +489,10 @@ Personen werden aus dem bestehenden Verzeichnis importiert und beginnen inaktiv.
 Die Aktivierung gilt getrennt für das aktuelle und das nächste Kalenderjahr und
 steuert beide Auswertungen. Neue Folgejahre beginnen ebenfalls inaktiv.
 Verantwortliche erscheinen mit ihren globalen Kontorollen im Personenbestand.
+Importierte Mitglieder erscheinen ohne Kontorolle und erhalten keine Clubrechte,
+auch wenn ihr Konto Trainer oder Organisator ist. Admins behalten unabhängig von
+Mitgliedschaft oder Verantwortung Zugriff auf alle Clubs. Ein Rollenwechsel oder
+eine Personenverknüpfung vergibt keine neue Clubverantwortung.
 Bei unverknüpften Konten stammen Name und Jahrgang aus dem Kontoprofil. Fehlt der
 Jahrgang, wird dies in der Auswertung als fehlende Angabe angezeigt.
 
@@ -509,8 +513,20 @@ ersten Abgleich ermittelt die Admin-App die Namen aus dem Personenverzeichnis.
 
 Rollenwechsel und Kontolöschung prüfen alle verwalteten Clubs. Die letzte
 verantwortliche Person muss vorher ersetzt oder der Club gelöscht werden.
+Verantwortliche können selbst austreten, wenn eine weitere verantwortliche Person
+bleibt. Die Admin-App kann Verantwortung entziehen, ohne Mitgliedschaft,
+Aktivjahre oder Nachweise zu löschen.
 Beim Löschen wird ein Club zuerst gesperrt, danach werden die Zuordnungen
 entfernt. Ein unterbrochenes Löschen kann in der Admin-App fortgesetzt werden.
+
+Clubs mit expliziter Zuordnung tragen `responsibilityVersion: 2`. Ältere Clubs
+sind bis zur Umstellung nur für Admins zugänglich. Beim Öffnen von „Gliederungen“
+bleibt die anhand identischer Erstellzeitpunkte eindeutig erkennbare erste
+Zuordnung erhalten; alte, durch Import automatisch vergebene Rechte werden
+entzogen, die Mitglieder und Nachweise bleiben erhalten. Ist die erste Zuordnung
+nicht mehr erkennbar oder nicht mehr zulässig, bestätigt der Admin über die
+Verantwortlichensuche eine neue Zuordnung. Der neue Abfrageindex muss gemeinsam
+mit den Regeln veröffentlicht werden.
 
 Vor der Nutzung müssen die Website sowie die Regeln und der Club-Abfrageindex
 veröffentlicht werden:

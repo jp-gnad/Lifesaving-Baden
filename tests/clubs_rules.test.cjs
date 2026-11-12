@@ -46,6 +46,7 @@ async function seed(records) {
 }
 
 async function create(name, uid) { return store.createClub(compat(dbFor("admin")), name, uid, api()); }
+const assign = (id, uid) => store.assignResponsible(compat(dbFor("admin")), id, uid, api());
 const rosterRef = (db, club, id) => sdk.doc(db, `clubs/${club}/people/${id}`);
 
 before(async () => {
@@ -84,6 +85,7 @@ test("only admins create unique clubs with an initial responsible account and in
   await assert.rejects(create(" ettlingen ", "b"), { code: "clubs/duplicate" });
   await succeeds(create("DLRG Ettlingen", "b"));
   await assert.rejects(create("Ohne Trainer", "athlete"), { code: "clubs/role" });
+  await assert.rejects(create("Admin ist kein Verantwortlicher", "admin"), { code: "clubs/role" });
   await fails(sdk.getDoc(sdk.doc(dbFor("outsider"), `clubs/${id}`)));
   await fails(sdk.getDoc(sdk.doc(dbFor("athlete"), `clubs/${id}`)));
 });
@@ -126,23 +128,38 @@ test("activity is separate by club and year and a new import starts inactive", {
   await fails(sdk.updateDoc(rosterRef(dbFor("a"), first, p1), { activeYears: [year + 2], updatedAt: sdk.serverTimestamp() }));
 });
 
-test("trainer imports add linked staff and enforce organizer removal rights and the last manager", { skip: !enabled }, async () => {
+test("imports never grant responsibility; only admins assign trainers or organizers", { skip: !enabled }, async () => {
   const id = await create("Gemeinsam", "a");
   const a = compat(dbFor("a"));
   await store.importPerson(a, id, p2, api());
   await store.importPerson(a, id, p3, api());
-  assert.deepEqual((await sdk.getDoc(sdk.doc(dbFor("a"), `clubs/${id}`))).data().managerIds.sort(), ["a", "b", "o"]);
+  assert.deepEqual((await sdk.getDoc(sdk.doc(dbFor("a"), `clubs/${id}`))).data().managerIds, ["a"]);
+  for (const uid of ["b", "o"]) {
+    await fails(sdk.getDoc(sdk.doc(dbFor(uid), `clubs/${id}`)));
+    await fails(sdk.getDoc(rosterRef(dbFor(uid), id, p2)));
+  }
+  await fails(store.assignResponsible(a, id, "o", api()));
+  await assert.rejects(assign(id, "athlete"), { code: "clubs/role" });
+  await assert.rejects(assign(id, "admin"), { code: "clubs/role" });
+  const evidence = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+  await store.saveDates(a, id, p3, { rescueSilver: evidence }, api());
+  await assign(id, "o");
+  assert.equal((await sdk.getDoc(rosterRef(dbFor("o"), id, "account_o"))).data().rescueSilver.toMillis(), evidence.toMillis());
+  assert.equal((await sdk.getDoc(rosterRef(dbFor("o"), id, p3))).exists(), false);
   await fails(store.removePerson(a, id, "account_o", api()));
-  await fails(sdk.updateDoc(rosterRef(dbFor("a"), id, "account_o"), { accountUid: "", personId: "account_o", updatedAt: sdk.serverTimestamp() }));
-  await succeeds(store.removePerson(compat(dbFor("o")), id, "account_b", api()));
-  await succeeds(store.removePerson(compat(dbFor("o")), id, "account_a", api()));
-  await assert.rejects(store.removePerson(compat(dbFor("o")), id, "account_o", api()), { code: "clubs/last-manager" });
-  await fails(sdk.updateDoc(sdk.doc(dbFor("o"), `clubs/${id}`), { managerIds: [], changedManagerId: "o", updatedAt: sdk.serverTimestamp() }));
+  await fails(store.removePerson(compat(dbFor("o")), id, "account_a", api()));
+  await store.removePerson(compat(dbFor("admin")), id, "account_o", api(), () => {}, true);
+  assert.equal((await sdk.getDoc(rosterRef(dbFor("a"), id, p3))).data().rescueSilver.toMillis(), evidence.toMillis());
+  await fails(sdk.getDoc(sdk.doc(dbFor("o"), `clubs/${id}`)));
+  await store.removePerson(a, id, p3, api());
+  await assert.rejects(store.removePerson(a, id, "account_a", api()), { code: "clubs/last-manager" });
+  await fails(sdk.updateDoc(sdk.doc(dbFor("a"), `clubs/${id}`), { managerIds: [], changedManagerId: "a", updatedAt: sdk.serverTimestamp() }));
+  await succeeds(sdk.getDoc(sdk.doc(dbFor("admin"), `clubs/${id}`)));
 });
 
 test("parallel departures leave a responsible manager and role changes cannot bypass the index", { skip: !enabled }, async () => {
   const id = await create("Nebenläufig", "a");
-  await store.importPerson(compat(dbFor("a")), id, p2, api());
+  await assign(id, "b");
   const results = await Promise.allSettled([
     store.removePerson(compat(dbFor("a")), id, "account_a", api()),
     store.removePerson(compat(dbFor("b")), id, "account_b", api()),
@@ -159,11 +176,11 @@ test("parallel departures leave a responsible manager and role changes cannot by
 test("account downgrade preparation checks every club and preserves ordinary roster membership", { skip: !enabled }, async () => {
   const first = await create("Gemeinsam", "a");
   const second = await create("Allein", "a");
-  await store.importPerson(compat(dbFor("a")), first, p2, api());
+  await assign(first, "b");
   const admin = compat(dbFor("admin"));
   await assert.rejects(store.prepareAccountChange(admin, "a", api()), { code: "clubs/last-manager" });
   assert.equal((await sdk.getDoc(sdk.doc(dbFor("admin"), `clubs/${first}`))).data().managerIds.includes("a"), true);
-  await store.importPerson(compat(dbFor("a")), second, p2, api());
+  await assign(second, "b");
   await store.prepareAccountChange(admin, "a", api());
   await succeeds(sdk.updateDoc(sdk.doc(dbFor("admin"), "users/a"), { role: "standard" }));
   assert.equal((await sdk.getDoc(rosterRef(dbFor("b"), first, "account_a"))).exists(), true);
@@ -198,7 +215,7 @@ test("an unlinked responsible account merges into its database person without du
   await store.setActive(a, id, p1, year, true, api());
   await store.saveDates(a, id, "account_a", { rescueSilver: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")) }, api());
   await links.commit(admin, "a", p1, { uid: "admin" }, api().FieldValue);
-  await store.assignExistingMemberships(admin, "a", p1, api());
+  await store.syncResponsibleMemberships(admin, "a", api());
   const roster = await sdk.getDocs(sdk.collection(dbFor("a"), `clubs/${id}/people`));
   assert.deepEqual(roster.docs.map((doc) => doc.id), ["account_a"]);
   assert.deepEqual(roster.docs[0].data().activeYears, [year]);
@@ -208,7 +225,7 @@ test("an unlinked responsible account merges into its database person without du
 test("demoting or deleting a linked manager retains their person and evidence in the club", { skip: !enabled }, async () => {
   const id = await create("Person bleibt", "b");
   const admin = compat(dbFor("admin"));
-  await store.importPerson(compat(dbFor("b")), id, p3, api());
+  await assign(id, "o");
   const year = new Date().getUTCFullYear();
   await store.setActive(compat(dbFor("b")), id, "account_b", year, true, api());
   await store.saveDates(compat(dbFor("b")), id, "account_b", { healthDeclaration: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")) }, api());
@@ -236,11 +253,11 @@ test("members remain accessible through another managed club after one club remo
   assert.equal((await sdk.getDoc(rosterRef(dbFor("a"), first, p1))).data().rescueSilver, null);
 });
 
-test("restoring a global trainer role restores responsibility and retains this club's evidence", { skip: !enabled }, async () => {
+test("restoring a global trainer role grants no responsibility until explicit admin assignment", { skip: !enabled }, async () => {
   const id = await create("Rollenwechsel", "b");
   const adminDb = dbFor("admin");
   const admin = compat(adminDb);
-  await store.importPerson(compat(dbFor("b")), id, p3, api());
+  await assign(id, "o");
   await store.saveDates(compat(dbFor("b")), id, "account_b", { rescueSilver: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")) }, api());
   await store.prepareAccountChange(admin, "b", api());
   await sdk.runTransaction(adminDb, async (transaction) => {
@@ -256,7 +273,10 @@ test("restoring a global trainer role restores responsibility and retains this c
     transaction.update(ref, { role: "trainer" });
     transaction.set(sdk.doc(adminDb, "clubProfiles/b"), core.profile({ ...account.data(), role: "trainer" }));
   });
-  await store.assignExistingMemberships(admin, "b", p2, api());
+  await fails(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
+  await store.syncResponsibleMemberships(admin, "b", api());
+  await fails(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
+  await assign(id, "b");
   assert.equal((await sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`))).data().managerIds.includes("b"), true);
   assert.equal((await sdk.getDoc(rosterRef(dbFor("b"), id, "account_b"))).data().rescueSilver.toDate().getUTCFullYear(), 2026);
 });
@@ -272,4 +292,58 @@ test("unlinking a responsible account still allows club activity and evidence ed
   assert.equal(member.personId, "");
   assert.deepEqual(member.activeYears, [year]);
   assert.equal(member.healthDeclaration.toDate().getUTCFullYear(), 2026);
+});
+
+test("ordinary membership of an admin, trainer, organizer or athlete never changes club permissions", { skip: !enabled }, async () => {
+  const id = await create("Kontorollen sind keine Clubrollen", "a");
+  const fourth = "4444444444444444";
+  const fifth = "5555555555555555";
+  const adminData = { role: "admin", displayName: "admin", personLink: { id: fourth, ...person("admin") } };
+  const athleteData = { role: "athlete", displayName: "athlete", personLink: { id: fifth, ...person("athlete") } };
+  await seed({
+    "users/admin": adminData, "clubProfiles/admin": core.profile(adminData), [`personAccountLinks/${fourth}`]: { uid: "admin" },
+    "users/athlete": athleteData, "clubProfiles/athlete": core.profile(athleteData), [`personAccountLinks/${fifth}`]: { uid: "athlete" },
+    [`timerParticipantDirectory/${fourth}`]: person("admin"), [`timerParticipantDirectory/${fifth}`]: person("athlete"),
+  });
+  for (const personId of [p2, p3, fourth, fifth]) {
+    assert.equal(await store.importPerson(compat(dbFor("a")), id, personId, api()), personId);
+    assert.equal((await sdk.getDoc(rosterRef(dbFor("a"), id, personId))).data().accountUid, "");
+  }
+  assert.deepEqual((await sdk.getDoc(sdk.doc(dbFor("admin"), `clubs/${id}`))).data().managerIds, ["a"]);
+  for (const uid of ["b", "o", "athlete"]) await fails(sdk.getDoc(sdk.doc(dbFor(uid), `clubs/${id}`)));
+  await succeeds(sdk.getDoc(sdk.doc(dbFor("admin"), `clubs/${id}`)));
+  await assign(id, "b");
+  const second = await create("Anderer Club", "a");
+  await store.importPerson(compat(dbFor("a")), second, p2, api());
+  await fails(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${second}`)));
+});
+
+test("rules reject direct responsibility escalation, including forged roster and index writes", { skip: !enabled }, async () => {
+  const id = await create("Keine Selbstbeförderung", "a");
+  await store.importPerson(compat(dbFor("a")), id, p2, api());
+  const a = dbFor("a");
+  const member = (await sdk.getDoc(rosterRef(a, id, p2))).data();
+  await fails(sdk.setDoc(rosterRef(a, id, "account_b"), { ...member, accountUid: "b", createdAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp() }));
+  const batch = sdk.writeBatch(a);
+  batch.update(sdk.doc(a, `clubs/${id}`), { managerIds: ["a", "b"], changedManagerId: "b", updatedAt: sdk.serverTimestamp() });
+  batch.set(rosterRef(a, id, "account_b"), { ...member, accountUid: "b", createdAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp() });
+  batch.set(sdk.doc(a, "clubAccounts/b"), { clubIds: [id], changedClubId: id, updatedAt: sdk.serverTimestamp() });
+  await fails(batch.commit());
+  await fails(sdk.updateDoc(sdk.doc(a, `clubs/${id}`), { responsibilityVersion: 1, updatedAt: sdk.serverTimestamp() }));
+});
+
+test("legacy automatic permissions are blocked and migrated without losing membership evidence", { skip: !enabled }, async () => {
+  const id = await create("Altbestand", "a");
+  await assign(id, "b");
+  await store.saveDates(compat(dbFor("b")), id, "account_b", { rescueSilver: sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")) }, api());
+  await sdk.updateDoc(sdk.doc(dbFor("admin"), `clubs/${id}`), { responsibilityVersion: sdk.deleteField(), updatedAt: sdk.serverTimestamp() });
+  await fails(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
+  await fails(sdk.getDoc(sdk.doc(dbFor("a"), `clubs/${id}`)));
+  await store.migrateResponsibilities(compat(dbFor("admin")), id, api());
+  assert.deepEqual((await sdk.getDoc(sdk.doc(dbFor("a"), `clubs/${id}`))).data().managerIds, ["a"]);
+  await fails(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
+  assert.equal((await sdk.getDoc(rosterRef(dbFor("a"), id, p2))).data().rescueSilver.toDate().getUTCFullYear(), 2026);
+  await assign(id, "b");
+  await store.migrateResponsibilities(compat(dbFor("admin")), id, api());
+  await succeeds(sdk.getDoc(sdk.doc(dbFor("b"), `clubs/${id}`)));
 });

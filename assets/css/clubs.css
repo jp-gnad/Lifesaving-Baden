@@ -22,6 +22,10 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-year-badges button[aria-disabled="true"] { opacity: .6; cursor: wait; }
 .club-admin-card { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .club-admin-body { min-width: 0; }
+.club-admin-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.club-responsible-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }
+#club-responsible-members { margin-bottom: 18px; }
+#club-responsible-results { max-height: 240px; overflow-y: auto; }
 .club-admin-title { color: var(--text); font-weight: 700; overflow-wrap: anywhere; }
 .club-manager-names { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 8px; }
 .club-manager-name { font-size: .8rem; overflow-wrap: anywhere; }

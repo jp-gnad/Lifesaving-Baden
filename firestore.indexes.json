@@ -4,6 +4,7 @@
     "queryScope": "COLLECTION",
     "fields": [
       { "fieldPath": "managerIds", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "responsibilityVersion", "order": "ASCENDING" },
       { "fieldPath": "status", "order": "ASCENDING" }
     ]
   }],

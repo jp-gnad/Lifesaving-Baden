@@ -708,13 +708,13 @@ service cloud.firestore {
     }
 
     function clubRoleChangeSafe(uid) {
-      return accountRoleRank(request.resource.data, false) >= 3 || noClubResponsibilities(uid);
+      return accountRoleRank(request.resource.data, false) in [3, 4] || noClubResponsibilities(uid);
     }
 
     function managesClub(id) {
       let club = get(/databases/$(database)/documents/clubs/$(id)).data;
       return verifiedTrainer() && club.status == "active"
-        && (isAdmin() || request.auth.uid in club.managerIds);
+        && (isAdmin() || (club.get("responsibilityVersion", 1) == 2 && request.auth.uid in club.managerIds));
     }
 
     function validClubProfile(uid, data) {
@@ -759,7 +759,8 @@ service cloud.firestore {
     }
 
     function validClubBase(id, data) {
-      return data.keys().hasOnly(["name", "managerIds", "changedManagerId", "status", "createdAt", "updatedAt"])
+      return data.keys().hasOnly(["name", "managerIds", "changedManagerId", "status", "responsibilityVersion", "createdAt", "updatedAt"])
+        && data.get("responsibilityVersion", 1) in [1, 2]
         && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
         && id == data.name.trim().lower().toUtf8().toHexString().lower()
         && data.managerIds is list && data.managerIds.size() == data.managerIds.toSet().size()
@@ -773,21 +774,23 @@ service cloud.firestore {
       let account = getAfter(/databases/$(database)/documents/users/$(uid)).data;
       let index = getAfter(/databases/$(database)/documents/clubAccounts/$(uid)).data;
       return next.managerIds.removeAll([uid]) == previous.removeAll([uid])
-        && (added ? accountRoleRank(account, false) >= 3
-          && (isAdmin() || uid in previous || account.get("personLink", {}).get("id", "") != "")
+        && (added ? isAdmin() && accountRoleRank(account, false) in [3, 4]
           && existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + uid))
-          : (isAdmin() || uid == request.auth.uid || callerRoleRank() >= accountRoleRank(account, false)))
+          : (isAdmin() || uid == request.auth.uid))
         && (id in index.clubIds) == added && index.changedClubId == id && index.updatedAt == request.time;
     }
 
     match /clubs/{id} {
-      allow get, list: if verifiedTrainer() && (isAdmin() || (resource.data.status == "active" && request.auth.uid in resource.data.managerIds));
+      allow get, list: if verifiedTrainer() && (isAdmin() || (resource.data.status == "active"
+        && resource.data.get("responsibilityVersion", 1) == 2 && request.auth.uid in resource.data.managerIds));
       allow create: if verifiedUser() && isAdmin() && validClubBase(id, request.resource.data)
         && request.resource.data.status == "active" && request.resource.data.managerIds.size() == 1
+        && request.resource.data.responsibilityVersion == 2
         && request.resource.data.createdAt == request.time
         && validManagerChange(id, request.resource.data, []);
       allow update: if validClubBase(id, request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name
+        && (isAdmin() || request.resource.data.get("responsibilityVersion", 1) == resource.data.get("responsibilityVersion", 1))
         && ((managesClub(id) && request.resource.data.status == resource.data.status
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["managerIds", "changedManagerId", "updatedAt"])
           && validManagerChange(id, request.resource.data, resource.data.managerIds))
@@ -798,6 +801,8 @@ service cloud.firestore {
       match /people/{personId} {
         allow read: if managesClub(id) || (verifiedUser() && isAdmin());
         allow create: if (managesClub(id) || (verifiedUser() && isAdmin())) && validClubPerson(id, personId, request.resource.data)
+          && (request.resource.data.accountUid == "" || (isAdmin()
+            && request.resource.data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
           && (request.resource.data.activeYears.size() == 0
             || (request.resource.data.accountUid != "" && request.resource.data.personId != ""
               && get(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId)).data.activeYears == request.resource.data.activeYears)
@@ -814,8 +819,7 @@ service cloud.firestore {
         allow delete: if (managesClub(id) || (verifiedUser() && isAdmin()))
           && (resource.data.accountUid == "" || !(resource.data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
           && (resource.data.accountUid == "" || isAdmin() || resource.data.accountUid == request.auth.uid
-            || !exists(/databases/$(database)/documents/users/$(resource.data.accountUid))
-            || callerRoleRank() >= accountRoleRank(get(/databases/$(database)/documents/users/$(resource.data.accountUid)).data, false));
+            || !(resource.data.accountUid in get(/databases/$(database)/documents/clubs/$(id)).data.managerIds));
       }
     }
 
@@ -829,10 +833,7 @@ service cloud.firestore {
         && validClubDates(data)
         && data.name == source.name && data.birthYear == source.birthYear && data.organization == source.organization
         && (data.accountUid == "" ? data.personId == personId
-          : personId == "account_" + data.accountUid && data.personId == source.personId
-            && (!existsAfter(/databases/$(database)/documents/users/$(data.accountUid))
-              || accountRoleRank(getAfter(/databases/$(database)/documents/users/$(data.accountUid)).data, false) < 3
-              || data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
+          : personId == "account_" + data.accountUid && data.personId == source.personId)
         && data.activeYears is list && data.activeYears.size() == data.activeYears.toSet().size()
         && data.updatedAt == request.time;
     }

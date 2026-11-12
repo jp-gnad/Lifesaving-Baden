@@ -13,6 +13,7 @@
   const ranks = { standard: 1, athlete: 2, trainer: 3, organizer: 4, admin: 5 };
   const statusNames = { 1: "Bis Jahresende", 2: "Läuft ab", 3: "Offen" };
   const paths = {
+    people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m14-10a4 4 0 0 1 4 4v4M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 0a4 4 0 0 1 0 8",
     add: "M12 5v14M5 12h14", next: "m9 6 6 6-6 6", remove: "M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5",
     1: "M5 12l4 4L19 6", 2: "M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z", 3: "M12 6v7m0 4h.01",
     health: "M20 5a5 5 0 0 0-8 1 5 5 0 1 0-8 6l8 8 8-8a5 5 0 0 0 0-7Z", exam: "M6 3h12v18H6zM9 8h6m-6 4h6m-6 4h4",
@@ -24,6 +25,7 @@
   let selectedPerson;
   let selectedManager = "";
   let selectedName = "";
+  let responsibleClub = "";
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -65,10 +67,7 @@
     owner.view += 1;
     owner.rosterStop?.();
     owner.profileStops.forEach((stop) => stop());
-    owner.linkStops.forEach((stop) => stop());
     owner.profileStops.clear();
-    owner.linkStops.clear();
-    owner.personAccounts.clear();
     owner.activityPending.clear();
     owner.profiles.clear();
     owner.roster.clear();
@@ -105,8 +104,8 @@
     stop();
     const owner = {
       auth, uid: user.uid, role, db: window.firebase.firestore(), sdk: window.firebase.firestore,
-      stops: [], clubs: new Map(), view: 0, profileStops: new Map(), linkStops: new Map(),
-      profiles: new Map(), personAccounts: new Map(), activityPending: new Map(),
+      stops: [], clubs: new Map(), view: 0, profileStops: new Map(),
+      profiles: new Map(), activityPending: new Map(),
       roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
     };
     session = owner;
@@ -118,7 +117,8 @@
 
   function startClubs(owner) {
     const query = owner.role.isAdmin ? owner.db.collection("clubs")
-      : owner.db.collection("clubs").where("managerIds", "array-contains", owner.uid).where("status", "==", "active");
+      : owner.db.collection("clubs").where("managerIds", "array-contains", owner.uid)
+        .where("responsibilityVersion", "==", 2).where("status", "==", "active");
     owner.stops.push(query.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
       if (!active(owner) || snapshot.metadata.fromCache) return;
       owner.clubs = new Map(snapshot.docs.filter((doc) => doc.data().status === "active").map((doc) => [doc.id, { id: doc.id, ...doc.data() }]));
@@ -130,7 +130,10 @@
       const id = owner.clubs.has(owner.clubId) ? owner.clubId : owner.clubs.has(requested) ? requested : clubs[0]?.id || "";
       choice.value = id;
       if (id !== owner.clubId || !owner.loaded) selectClub(owner, id);
-      else render(owner);
+      else {
+        byId("club-leave").hidden = !owner.clubs.get(id).managerIds.includes(owner.uid);
+        render(owner);
+      }
     }, () => {
       if (!active(owner)) return;
       clearView(owner);
@@ -171,10 +174,10 @@
 
   function peopleFor(owner) {
     return [...owner.roster.values()].map((person) => {
-      const uid = person.accountUid || owner.personAccounts.get(person.personId);
+      const uid = person.accountUid;
       const profile = uid ? owner.profiles.get(uid) : null;
-      const identity = person.accountUid && profile ? { ...person, ...profile }
-        : profile?.personId === person.personId ? { ...person, role: profile.role } : person;
+      const responsible = owner.clubs.get(owner.clubId)?.managerIds.includes(uid);
+      const identity = { ...person, ...(profile || {}), role: responsible ? profile?.role : "" };
       const subjectId = identity.id;
       const dates = Object.fromEntries(eligibility.dateKeys.map((key) => [key, person[key] ? eligibility.dateKey(person[key].toDate()) : ""]));
       return { ...identity, ...dates, subjectId };
@@ -182,21 +185,9 @@
   }
 
   function reconcile(owner, view) {
-    const personIds = new Set([...owner.roster.values()].filter((person) => !person.accountUid).map((person) => person.personId));
-    for (const id of personIds) {
-      if (owner.linkStops.has(id)) continue;
-      owner.linkStops.set(id, owner.db.collection("personAccountLinks").doc(id).onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
-        if (!active(owner, view) || snapshot.metadata.fromCache) return;
-        owner.personAccounts.set(id, snapshot.exists ? snapshot.data().uid : "");
-        reconcile(owner, view);
-      }, () => { if (active(owner, view)) message("Kontozuordnungen konnten nicht aktualisiert werden."); }));
-    }
-    for (const [id, unsubscribe] of owner.linkStops) {
-      if (!personIds.has(id)) { unsubscribe(); owner.linkStops.delete(id); owner.personAccounts.delete(id); }
-    }
     const accountIds = new Set();
     for (const person of owner.roster.values()) {
-      const uid = person.accountUid || owner.personAccounts.get(person.personId);
+      const uid = person.accountUid;
       if (!uid) continue;
       accountIds.add(uid);
       if (owner.profileStops.has(uid)) continue;
@@ -354,9 +345,8 @@
     const club = owner.clubs.get(owner.clubId);
     const manager = club.managerIds.includes(person.accountUid);
     const last = manager && club.managerIds.length === 1;
-    const higher = !owner.role.isAdmin && person.accountUid && person.accountUid !== owner.uid
-      && (!ranks[person.role] || ranks[person.role] > ranks[owner.role.value]);
-    byId("club-person-remove").disabled = last || higher;
+    const protectedManager = manager && !owner.role.isAdmin && person.accountUid !== owner.uid;
+    byId("club-person-remove").disabled = last || protectedManager;
     byId("club-person-remove").textContent = person.accountUid === owner.uid ? "Club verlassen" : "Entfernen";
     const lastMessage = "Mindestens ein Verantwortlicher bleibt im Club.";
     if (last || byId("club-person-error").textContent === lastMessage) {
@@ -424,7 +414,7 @@
     ]);
     requireCurrent(owner);
     const accountProfiles = accounts.docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" }));
-    owner.accounts = accountProfiles.filter((account) => ranks[account.role] >= 3);
+    owner.accounts = accountProfiles.filter((account) => ["trainer", "organizer"].includes(account.role));
     const existing = new Map(profiles.docs.map((doc) => [doc.id, doc.data()]));
     const updates = accountProfiles.filter((account) => account.personId || ranks[account.role] >= 3)
       .filter((account) => { const { uid, email, ...data } = account; return Object.keys(data).some((key) => existing.get(uid)?.[key] !== data[key]); });
@@ -438,6 +428,14 @@
     if (!owner.directory.length) {
       const people = await owner.db.collection("timerParticipantDirectory").get({ source: "server" });
       owner.directory = [...new Set(people.docs.map((doc) => doc.data().organization).filter(Boolean))];
+    }
+    requireCurrent(owner);
+    const clubs = await owner.db.collection("clubs").get({ source: "server" });
+    for (const club of clubs.docs) {
+      requireCurrent(owner);
+      if (club.data().responsibilityVersion !== 2 && club.data().status === "active") {
+        await store.migrateResponsibilities(owner.db, club.id, owner.sdk, () => requireCurrent(owner));
+      }
     }
     requireCurrent(owner);
     byId("club-create-open").disabled = false;
@@ -468,6 +466,19 @@
       }
       const body = node("div", "club-admin-body");
       body.append(title, names);
+      const manage = node("button", "wt-icon-button");
+      manage.type = "button";
+      manage.setAttribute("aria-label", `${club.name}: Verantwortliche verwalten`);
+      manage.append(icon("people"));
+      manage.disabled = club.status !== "active" || owner.deleting === club.id;
+      manage.addEventListener("click", () => {
+        responsibleClub = club.id;
+        byId("club-responsible-search").value = "";
+        byId("club-responsible-results").replaceChildren();
+        byId("club-responsible-error").hidden = true;
+        renderResponsible(owner);
+        byId("club-responsible-dialog").showModal();
+      });
       const remove = node("button", "wt-icon-button", club.status === "deleting" ? "↻" : undefined);
       remove.type = "button";
       remove.setAttribute("aria-label", club.status === "deleting" ? `${club.name}: Löschen fortsetzen` : `${club.name} löschen`);
@@ -481,12 +492,56 @@
         catch (error) { if (active(owner)) message(errorText(error)); }
         finally { owner.deleting = ""; if (active(owner)) renderAdmin(owner); }
       });
-      card.append(body, remove);
+      const actions = node("div", "club-admin-actions");
+      actions.append(manage, remove);
+      card.append(body, actions);
       return card;
     });
     list.replaceChildren(...cards);
     if (!cards.length) list.append(node("p", "wt-empty", "Noch keine Gliederungen erstellt."));
     list.setAttribute("aria-busy", "false");
+    if (byId("club-responsible-dialog").open) renderResponsible(owner);
+  }
+
+  function renderResponsible(owner) {
+    const club = owner.clubs.get(responsibleClub);
+    if (!club || club.status !== "active") { byId("club-responsible-dialog").close(); return; }
+    byId("club-responsible-title").textContent = club.name;
+    byId("club-responsible-note").hidden = club.responsibilityVersion === 2;
+    byId("club-responsible-members").replaceChildren(...club.managerIds.map((uid) => {
+      const profile = owner.profiles.get(uid);
+      const row = node("div", "club-responsible-row");
+      const name = node("span", "club-manager-name", profile ? `${core.displayName(profile)} · ${roles[profile.role] || "Mitglied"}` : "Verantwortlicher");
+      name.dataset.role = profile?.role || "";
+      const remove = node("button", "wt-icon-button");
+      remove.type = "button"; remove.append(icon("remove"));
+      remove.setAttribute("aria-label", `${profile?.name || "Verantwortlichen"}: Verantwortung entfernen`);
+      remove.disabled = club.managerIds.length === 1 || Boolean(owner.responsibleBusy);
+      remove.addEventListener("click", () => changeResponsible(owner, () => store.removePerson(owner.db, club.id, store.managerKey(uid), owner.sdk, () => requireCurrent(owner), true)));
+      row.append(name, remove);
+      return row;
+    }));
+  }
+
+  async function changeResponsible(owner, change) {
+    if (!active(owner) || owner.responsibleBusy) return;
+    owner.responsibleBusy = true;
+    byId("club-responsible-search").disabled = true;
+    byId("club-responsible-results").querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    byId("club-responsible-error").hidden = true;
+    renderResponsible(owner);
+    try {
+      await change();
+      if (active(owner)) {
+        byId("club-responsible-search").value = "";
+        byId("club-responsible-results").replaceChildren();
+      }
+    } catch (error) {
+      if (active(owner)) { byId("club-responsible-error").textContent = errorText(error); byId("club-responsible-error").hidden = false; }
+    } finally {
+      owner.responsibleBusy = false;
+      if (active(owner)) { byId("club-responsible-search").disabled = false; renderResponsible(owner); }
+    }
   }
 
   function createState() {
@@ -504,6 +559,23 @@
 
   document.querySelectorAll("[data-club-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
   if (adminPage) {
+    byId("club-responsible-search").addEventListener("input", () => {
+      const owner = session;
+      if (!active(owner) || owner.responsibleBusy) return;
+      const club = owner.clubs.get(responsibleClub);
+      const query = eligibility.normalizeSearch(byId("club-responsible-search").value);
+      const matches = query.length < 2 ? [] : owner.accounts.filter((account) => eligibility.normalizeSearch(`${account.name} ${account.email}`).includes(query)).slice(0, 12);
+      byId("club-responsible-results").replaceChildren(...matches.map((account) => {
+        const button = node("button", "se-candidate", `${core.displayName(account)} · ${roles[account.role]}`);
+        button.type = "button";
+        button.disabled = club.responsibilityVersion === 2 && club.managerIds.includes(account.uid);
+        button.addEventListener("click", () => changeResponsible(owner, async () => {
+          await store.assignResponsible(owner.db, club.id, account.uid, owner.sdk, () => requireCurrent(owner));
+          if (club.responsibilityVersion !== 2) await store.migrateResponsibilities(owner.db, club.id, owner.sdk, () => requireCurrent(owner), account.uid);
+        }));
+        return button;
+      }));
+    });
     byId("club-create-open").addEventListener("click", () => {
       byId("club-create-form").reset(); selectedName = ""; selectedManager = "";
       byId("club-name-results").replaceChildren(); byId("club-manager-results").replaceChildren();

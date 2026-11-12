@@ -1916,7 +1916,7 @@
       const fieldValue = window.firebase.firestore.FieldValue;
       const db = window.firebase.firestore();
       const uid = card.dataset.targetUid;
-      if (["standard", "athlete"].includes(nextRole)) {
+      if (!["trainer", "organizer"].includes(nextRole)) {
         await window.ClubsStore.prepareAccountChange(db, uid, window.firebase.firestore, () => requireCurrentUser(user));
       }
       await db.runTransaction(async (transaction) => {
@@ -1930,11 +1930,6 @@
         const data = { ...account.data(), role: nextRole, kader: false, isKaderAthlete: false };
         window.LifesavingPersonLinks.syncClubProfile(transaction, db, uid, data);
       });
-      if (["trainer", "organizer"].includes(nextRole)) {
-        const account = await db.collection("users").doc(uid).get({ source: "server" });
-        const personId = account.data()?.personLink?.id;
-        await window.ClubsStore.assignExistingMemberships(db, uid, personId, window.firebase.firestore, () => requireCurrentUser(user));
-      }
       requireCurrentUser(user);
       setAdminAccountRoleDisplay(card, nextRole);
       updateAdminAccountCardRole(card, nextRole);

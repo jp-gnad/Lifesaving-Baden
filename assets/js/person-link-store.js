@@ -59,7 +59,7 @@
       return person;
     });
     if (candidateId && root.ClubsStore) {
-      await root.ClubsStore.assignExistingMemberships(db, uid, candidateId, root.firebase.firestore, checkSession);
+      await root.ClubsStore.syncResponsibleMemberships(db, uid, root.firebase.firestore, checkSession);
     }
     return result;
   }
