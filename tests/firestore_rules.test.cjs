@@ -35,6 +35,7 @@ const result = () => ({
 });
 const event = (level) => ({
   name: "Testevent", location: "Baden", poolLength: "25", enabledDisciplines: ["normal"], resultUrl: "",
+  participantIndexVersion: 1,
   timerAccess: level, resultsAccess: level, participantViewAccess: level, participantEditAccess: level, resultEditAccess: level,
   ...timestampFields(),
 });
@@ -44,11 +45,20 @@ const dbFor = (uid, claims = {}) => uid
 async function seed(records) {
   await env.withSecurityRulesDisabled(async (context) => {
     for (const [name, data] of Object.entries(records)) await sdk.setDoc(sdk.doc(context.firestore(), name), data);
+    for (const [name, data] of Object.entries(records)) {
+      const match = name.match(/^(timerEvents\/[^/]+)\/participants\/([^/]+)$/);
+      if (!match) continue;
+      const ref = sdk.doc(context.firestore(), `${match[1]}/participantIdentities/${timerParticipants.identity(data)}`);
+      const previous = await sdk.getDoc(ref);
+      const ids = previous.exists() ? previous.data().participantIds : [];
+      await sdk.setDoc(ref, { participantIds: [...new Set([...ids, match[2]])], changedParticipantId: match[2] });
+    }
   });
 }
 
 const worktimeCore = require("../assets/js/worktime-core.js");
 const worktimeStore = require("../assets/js/worktime-store.js");
+const timerParticipants = require("../timer/participant-store.js");
 function worktime(input = {}) {
   const data = worktimeCore.prepare({ date: "2099-01-01", start: "22:00", end: "01:00", title: "Training", description: "", category: "training", ...input });
   return { ...data, day: sdk.Timestamp.fromDate(data.day), endDay: sdk.Timestamp.fromDate(data.endDay), startedAt: sdk.Timestamp.fromDate(data.startedAt), endedAt: sdk.Timestamp.fromDate(data.endedAt) };
@@ -62,7 +72,10 @@ function compatDb(db) {
     const ref = sdk.doc(db, `${name}/${id}`);
     return { id, native: ref, async get() { const snapshot = await sdk.getDoc(ref); return { exists: snapshot.exists(), data: () => snapshot.data() }; }, collection: (child) => collection(`${name}/${id}/${child}`) };
   } });
-  return { collection, runTransaction: (action) => sdk.runTransaction(db, (transaction) => action({
+  return { collection, batch() {
+    const native = sdk.writeBatch(db);
+    return { set: (ref, value) => native.set(ref.native, value), delete: (ref) => native.delete(ref.native), commit: () => native.commit() };
+  }, runTransaction: (action) => sdk.runTransaction(db, (transaction) => action({
     async get(ref) { const snapshot = await transaction.get(ref.native); return { exists: snapshot.exists(), data: () => snapshot.data() }; },
     set: (ref, data) => transaction.set(ref.native, data),
     delete: (ref) => transaction.delete(ref.native),
@@ -70,6 +83,11 @@ function compatDb(db) {
   })) };
 }
 const commitWorktime = (db, uid, id, data) => worktimeStore.commit(compatDb(db), uid, id, data, { Timestamp: sdk.Timestamp, FieldValue: { serverTimestamp: () => sdk.serverTimestamp() } });
+const commitParticipant = (db, eventId, id, data, create = false) => {
+  const compat = compatDb(db);
+  return timerParticipants.commit(compat, compat.collection("timerEvents").doc(eventId), id, data,
+    { serverTimestamp: sdk.serverTimestamp }, undefined, create);
+};
 
 test("worktime is owner-only for trainers and higher, including against other admins", { skip: !enabled }, async () => {
   await env.clearFirestore();
@@ -261,13 +279,92 @@ test("all roles and legacy roles enforce the same event thresholds for reads and
         const check = rank >= threshold ? assertSucceeds : assertFails;
         await check(sdk.getDoc(sdk.doc(db, `timerEvents/${level}/participants/p`)));
         await check(sdk.getDocs(sdk.collection(db, `timerEvents/${level}/results`)));
-        await check(sdk.setDoc(sdk.doc(db, `timerEvents/${level}/participants/new-${uid || "guest"}`), participant()));
+        await check(commitParticipant(db, level, `new-${uid || "guest"}`, { ...participant(), name: `Neue Person ${uid || "guest"}` }, true));
         await check(sdk.setDoc(sdk.doc(db, `timerEvents/${level}/results/new-${uid || "guest"}`), result()));
-        await check(sdk.updateDoc(sdk.doc(db, `timerEvents/${level}/participants/p`), { name: "Geändert", updatedAt: sdk.serverTimestamp() }));
+        await check(commitParticipant(db, level, "p", { ...participant(), name: "Geändert" }));
         await check(sdk.updateDoc(sdk.doc(db, `timerEvents/${level}/results/r`), { note: "Geändert", updatedAt: sdk.serverTimestamp() }));
       }
     });
   }
+});
+
+test("participant identity reservations prevent concurrent imports and direct writes that bypass the transaction", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/one": { role: "organizer" }, "users/two": { role: "organizer" }, "timerEvents/import": event("organizer") });
+  const row = { ...participant(), name: "Jörg Straßé" };
+  const attempts = await Promise.allSettled(["one", "two"].map((uid) => commitParticipant(dbFor(uid), "import", uid, row, true)));
+  assert.equal(attempts.filter((attempt) => attempt.status === "fulfilled").length, 1);
+  const rejected = attempts.find((attempt) => attempt.status === "rejected").reason;
+  assert.equal(rejected.status, 409, rejected.message);
+  const db = dbFor("one");
+  assert.equal((await sdk.getDocs(sdk.collection(db, "timerEvents/import/participants"))).size, 1);
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/import/participants/forged"), row));
+  await assert.rejects(commitParticipant(db, "import", "accent-duplicate", { ...row, name: "JORG STRASSE" }, true), { status: 409 });
+  const key = timerParticipants.identity(row);
+  await assertFails(sdk.setDoc(sdk.doc(db, `timerEvents/import/participantIdentities/${key}`), { participantIds: [], changedParticipantId: "forged" }));
+  await assertFails(sdk.deleteDoc(sdk.doc(db, `timerEvents/import/participantIdentities/${key}`)));
+  await assertFails(sdk.updateDoc(sdk.doc(db, "timerEvents/import"), { participantIndexVersion: 0, updatedAt: sdk.serverTimestamp() }));
+  const winner = attempts[0].status === "fulfilled" ? "one" : "two";
+  await assertFails(sdk.updateDoc(sdk.doc(db, `timerEvents/import/participants/${winner}`), { name: "Anderer Name", updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.deleteDoc(sdk.doc(db, `timerEvents/import/participants/${winner}`)));
+  await assertSucceeds(commitParticipant(db, "import", winner, { ...row, name: "Anderer Name" }));
+  await assertSucceeds(commitParticipant(db, "import", "replacement", row, true));
+  await assert.rejects(commitParticipant(db, "import", winner, row), { status: 409 });
+  await assertSucceeds(commitParticipant(db, "import", "replacement", null));
+  await assertSucceeds(commitParticipant(db, "import", winner, row));
+});
+
+test("legacy index migration preserves manual participants, duplicate IDs and result references", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const legacy = event("organizer");
+  delete legacy.participantIndexVersion;
+  legacy.timerEnabled = true; // An older schema must also migrate without changing its settings.
+  const row = { ...participant(), name: "Amélie Müller" };
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await sdk.setDoc(sdk.doc(db, "users/org"), { role: "organizer" });
+    await sdk.setDoc(sdk.doc(db, "users/trainer"), { role: "trainer" });
+    await sdk.setDoc(sdk.doc(db, "timerEvents/legacy"), legacy);
+    for (const id of ["manual-a", "manual-b"]) await sdk.setDoc(sdk.doc(db, `timerEvents/legacy/participants/${id}`), row);
+    await sdk.setDoc(sdk.doc(db, "timerEvents/legacy/results/r"), { ...result(), participantId: "manual-a" });
+  });
+  const db = dbFor("org");
+  const compat = compatDb(db);
+  const ref = compat.collection("timerEvents").doc("legacy");
+  const roster = await ref.collection("participants").get();
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/legacy/participants/too-early"), row));
+  await assertFails(sdk.updateDoc(sdk.doc(dbFor("trainer"), "timerEvents/legacy"), { participantIndexVersion: 1, updatedAt: sdk.serverTimestamp() }));
+  await timerParticipants.migrate(compat, ref, roster, { serverTimestamp: sdk.serverTimestamp });
+  assert.equal((await sdk.getDoc(sdk.doc(db, "timerEvents/legacy/results/r"))).data().participantId, "manual-a");
+  await assert.rejects(commitParticipant(db, "legacy", "new", row, true), { status: 409 });
+  await assertSucceeds(commitParticipant(db, "legacy", "manual-a", null));
+  await assert.rejects(commitParticipant(db, "legacy", "new", row, true), { status: 409 });
+  await assertSucceeds(commitParticipant(db, "legacy", "manual-b", null));
+  await assertSucceeds(commitParticipant(db, "legacy", "new", row, true));
+});
+
+test("concurrent or resumed migrations cannot overwrite reservations after participants change", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  const legacy = event("organizer");
+  delete legacy.participantIndexVersion;
+  await env.withSecurityRulesDisabled(async (context) => {
+    await sdk.setDoc(sdk.doc(context.firestore(), "users/org"), { role: "organizer" });
+    await sdk.setDoc(sdk.doc(context.firestore(), "timerEvents/resume"), legacy);
+    await sdk.setDoc(sdk.doc(context.firestore(), "timerEvents/resume/participants/p"), participant());
+  });
+  const db = dbFor("org");
+  const compat = compatDb(db);
+  const ref = compat.collection("timerEvents").doc("resume");
+  const roster = await ref.collection("participants").get();
+  const migrate = () => timerParticipants.migrate(compat, ref, roster, { serverTimestamp: sdk.serverTimestamp });
+  await Promise.all([migrate(), migrate()]);
+  const renamed = { ...participant(), name: "Neuer Name" };
+  await commitParticipant(db, "resume", "p", renamed);
+  await commitParticipant(db, "resume", "new", participant(), true);
+  await migrate();
+  const oldKey = timerParticipants.identity(participant());
+  const ids = (await sdk.getDoc(sdk.doc(db, `timerEvents/resume/participantIdentities/${oldKey}`))).data().participantIds;
+  assert.deepEqual(ids, ["new"], "a stale migration must not restore the previous participant ID");
 });
 
 test("event administration and unrestricted directory reads stay exclusive to organizers and admins", { skip: !enabled }, async () => {

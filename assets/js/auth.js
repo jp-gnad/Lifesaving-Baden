@@ -398,7 +398,7 @@
     }
   }
 
-  if (["app", "settings", "link-request", "admin-accounts", "worktime", "clubs", "gliederungen"].includes(page)) {
+  if (["app", "settings", "link-request", "admin-accounts", "worktime", "clubs", "gliederungen", "training"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -602,6 +602,10 @@
             return;
           }
           const role = getAccountRole(userData, claims);
+          if (page === "training" && !role.isAthlete) {
+            redirectToApp();
+            return;
+          }
           if (["admin-accounts", "gliederungen"].includes(page) && !role.isAdmin) {
             redirectToApp();
             return;

@@ -112,6 +112,7 @@ let dialogRestoreTimer = null;
 let offlineDatabasePromise = null;
 let offlineSyncPromise = null;
 let routeCleanup = null;
+let routeVersion = 0;
 let eventListTab = "current";
 let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
 
@@ -1168,14 +1169,24 @@ async function renderEventSettings(id, section = null) {
   });
 }
 
-async function renderPeople(id) {
-  const { event, participants } = await api(`/events/${id}`);
+async function renderPeople(id, viewData = null) {
+  const version = routeVersion;
+  const isCurrent = () => version === routeVersion;
+  const { event, participants } = viewData || await api(`/events/${id}?prepareImport=1`);
+  if (!isCurrent()) return;
   if (!eventCan(event, "can_view_participants")) {
     setDocumentTitle(`Personen – ${event.name}`);
     app.innerHTML = `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a><div class="empty"><strong>Kein Zugriff auf Personen</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
   const canEditPeople = eventCan(event, "can_edit_participants");
+  const importedIdentities = new Set(participants.map((person) => window.TimerParticipantStore.identity(person)));
+  const showSaved = async (participant, removedId = participant?.id) => {
+    if (!isCurrent()) return;
+    const next = participants.filter((person) => person.id !== removedId);
+    if (participant) next.push(participant);
+    await renderPeople(id, { event, participants: next });
+  };
   participants.sort(compareParticipantsByOrganization);
   const personCardContent = (person) => `<div class="person-card-content">${personAvatar(person)}<div class="person-card-copy"><div class="person-head"><strong>${escapeHtml(person.name)} (${birthYearText(person.birth_year)})</strong></div>
     <div class="person-details"><span>${escapeHtml(person.organization)} - ${escapeHtml(person.age_group)} - ${person.gender === "male" ? "m" : "w"}</span></div></div></div>`;
@@ -1191,6 +1202,7 @@ async function renderPeople(id) {
   app.innerHTML = `
     <a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>
     <div class="page-head people-page-head"><h1>Personen</h1><div class="people-page-actions">
+      <button class="button secondary icon-button" id="refresh-people" type="button" aria-label="Personenliste aktualisieren" title="Personenliste aktualisieren">${icon("refresh")}</button>
       ${canEditPeople ? `<button class="button secondary" id="new-person">${icon("user-plus")} Neu</button>` : ""}
       ${eventCan(event, "can_import_participants") ? `<button class="button secondary" id="import-person">${icon("import")} Importieren</button>` : ""}
     </div></div>
@@ -1230,8 +1242,20 @@ async function renderPeople(id) {
   const importResults = document.querySelector("#person-import-results");
   let importSearchTimer = null;
   let importRequest = 0;
+  let importing = false;
+  document.querySelector("#refresh-people").addEventListener("click", () => renderRoute());
+  routeCleanup = () => {
+    clearTimeout(importSearchTimer);
+    importRequest += 1;
+    importDialog.close();
+    dialog.close();
+  };
   bindDialogClose(dialog);
   bindDialogClose(importDialog);
+  importDialog.addEventListener("close", () => {
+    clearTimeout(importSearchTimer);
+    importRequest += 1;
+  });
   document.querySelector("#new-person")?.addEventListener("click", () => {
     personForm.reset();
     personForm.dataset.editId = "";
@@ -1266,7 +1290,10 @@ async function renderPeople(id) {
     importResults.innerHTML = "";
     try {
       const { candidates, directoryReady } = await api(`/events/${id}/participants/import?q=${encodeURIComponent(searchValue)}`);
-      if (requestId !== importRequest) return;
+      if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
+      candidates.forEach((candidate) => {
+        candidate.alreadyImported = importedIdentities.has(window.TimerParticipantStore.identity(candidate));
+      });
       importSearchNote.textContent = candidates.length
         ? `${candidates.length} Treffer`
         : (directoryReady ? "Keine Person gefunden." : "Die geschützte Importliste ist noch nicht eingerichtet.");
@@ -1277,12 +1304,13 @@ async function renderPeople(id) {
         </span></span>${candidate.alreadyImported ? icon("check") : icon("import")}
       </button>`).join("");
     } catch (err) {
-      if (requestId !== importRequest) return;
+      if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
       importSearchNote.textContent = err.message;
     }
   };
   importSearch.addEventListener("input", () => {
     clearTimeout(importSearchTimer);
+    importRequest += 1;
     clearImportSearch.hidden = !importSearch.value;
     importSearchTimer = setTimeout(loadImportCandidates, 220);
   });
@@ -1297,13 +1325,18 @@ async function renderPeople(id) {
   });
   importResults.addEventListener("click", async (clickEvent) => {
     const button = clickEvent.target.closest(".import-person-option");
-    if (!button || button.disabled) return;
+    if (!button || button.disabled || importing) return;
     try {
+      importing = true;
       button.disabled = true;
-      await api(`/events/${id}/participants/import`, { method: "POST", body: JSON.stringify({ candidateId: button.dataset.id }) });
+      const { participant } = await api(`/events/${id}/participants/import`, { method: "POST", body: JSON.stringify({ candidateId: button.dataset.id }) });
+      if (!isCurrent()) return;
+      importDialog.close();
       showToast("Person wurde importiert.");
-      await renderPeople(id);
+      await showSaved(participant);
     } catch (err) {
+      if (!isCurrent()) return;
+      importing = false;
       button.disabled = false;
       importSearchNote.textContent = err.message;
     }
@@ -1329,10 +1362,13 @@ async function renderPeople(id) {
       button.disabled = true;
       const values = Object.fromEntries(new FormData(submitEvent.currentTarget));
       const editId = submitEvent.currentTarget.dataset.editId;
-      await api(`/events/${id}/participants${editId ? `/${editId}` : ""}`, { method: editId ? "PATCH" : "POST", body: JSON.stringify(values) });
+      const { participant } = await api(`/events/${id}/participants${editId ? `/${editId}` : ""}`, { method: editId ? "PATCH" : "POST", body: JSON.stringify(values) });
+      if (!isCurrent()) return;
+      dialog.close();
       showToast(editId ? "Person wurde aktualisiert." : "Person wurde hinzugefügt.");
-      await renderPeople(id);
+      await showSaved(participant);
     } catch (err) {
+      if (!isCurrent()) return;
       document.querySelector("#person-error").textContent = err.message;
       button.disabled = false;
     }
@@ -1345,9 +1381,11 @@ async function renderPeople(id) {
     try {
       deletePersonButton.disabled = true;
       await api(`/events/${id}/participants/${person.id}`, { method: "DELETE" });
+      if (!isCurrent()) return;
+      dialog.close();
       showToast("Person wurde gelöscht.");
-      await renderPeople(id);
-    } catch (err) { showToast(err.message); deletePersonButton.disabled = false; }
+      await showSaved(null, person.id);
+    } catch (err) { if (isCurrent()) { showToast(err.message); deletePersonButton.disabled = false; } }
   });
 }
 
@@ -2767,6 +2805,8 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
 }
 
 async function renderRoute() {
+  routeVersion += 1;
+  window.timerFirestoreApi.clearParticipantCache?.();
   if (routeCleanup) {
     routeCleanup();
     routeCleanup = null;
@@ -2835,7 +2875,10 @@ timerAccountLogout?.addEventListener("click", async () => {
     timerAccountLogout.disabled = false;
   }
 });
-window.addEventListener("timer-auth-change", () => refreshTimerAccount().catch(() => {}));
+window.addEventListener("timer-auth-change", (event) => {
+  refreshTimerAccount().catch(() => {});
+  if (event.detail?.participantsInvalidated && document.querySelector("#person-form")) renderRoute();
+});
 window.addEventListener("hashchange", renderRoute);
 window.addEventListener("online", () => syncPendingResults({ includeBlocked: true }).catch(() => {}));
 document.addEventListener("visibilitychange", () => {

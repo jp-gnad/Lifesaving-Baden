@@ -13,11 +13,12 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 [data-role="admin"] { --club-role-color: var(--accent-light); }
 .club-person .se-person-name, .club-manager-name { color: var(--club-role-color, var(--text)); }
 .club-person:not([data-stage]) { border-inline-start-color: transparent; }
-.club-person-roster { cursor: default; }
-.club-person-open { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.club-person-open > svg { width: 14px; color: var(--muted); }
-.club-year-badges { display: flex; gap: 4px; flex-shrink: 0; }
-.club-year-badges button { min-width: 44px; min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--surface-muted); font: inherit; font-size: .76rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+.club-person-roster { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; gap: 8px; min-height: 52px; padding: 4px 12px; cursor: default; }
+.club-person-open { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; grid-row: 1; align-items: center; gap: inherit; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.club-person-open > .se-person-details { grid-column: 1; }
+.club-person-open > svg { grid-column: 3; width: 14px; color: var(--muted); }
+.club-year-badges { display: flex; grid-column: 2; grid-row: 1; z-index: 1; gap: 4px; }
+.club-year-badges button { min-width: 48px; min-height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--surface-muted); font: inherit; font-size: .76rem; font-variant-numeric: tabular-nums; cursor: pointer; }
 .club-year-badges button[aria-pressed="true"] { color: var(--trainer-accent); border-color: #1cbf6944; background: #1cbf6920; }
 .club-year-badges button[aria-disabled="true"] { opacity: .6; cursor: wait; }
 .club-admin-card { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }

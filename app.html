@@ -24,7 +24,7 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261112-app-groups-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -35,7 +35,7 @@
     <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/person-link-store.js?v=20261112-responsible-v2"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261112-responsible-v3"></script>
+    <script defer src="assets/js/auth.js?v=20261112-training-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -82,46 +82,58 @@
           <a class="button button-primary" href="link-request.html" data-link-status-action>Jetzt abschließen</a>
         </section>
 
-        <section class="member-apps" aria-label="Standard">
-          <h2 class="eyebrow">Standard</h2>
-          <div class="member-app-grid">
-            <a class="member-app" href="timer/#/" aria-label="Lifesaving Timer öffnen">
-              <span class="member-app-icon"><img src="timer/app-icon-1024.png?v=baden-brand-v1" alt=""></span>
-              <span class="member-app-label">Timer</span>
-            </a>
-          </div>
-        </section>
+        <div class="member-app-groups">
+          <section class="member-apps" aria-label="Standard">
+            <h2 class="eyebrow">Standard</h2>
+            <div class="member-app-grid">
+              <a class="member-app" href="timer/#/" aria-label="Lifesaving Timer öffnen">
+                <span class="member-app-icon"><img src="timer/app-icon-1024.png?v=baden-brand-v1" alt=""></span>
+                <span class="member-app-label">Timer</span>
+              </a>
+            </div>
+          </section>
 
-        <section class="member-apps is-hidden" data-trainer-only aria-label="Trainer und Organisation">
-          <h2 class="eyebrow">Trainer und Organisation</h2>
-          <div class="member-app-grid">
-            <a class="member-app" href="arbeitszeiten.html" aria-label="Zeiterfassung öffnen">
-              <span class="member-app-icon"><img src="assets/img/worktime-app.svg?v=20261105-green-v2" alt=""></span>
-              <span class="member-app-label">Zeiterfassung</span>
-            </a>
-            <a class="member-app" href="club-verwaltung.html" aria-label="Club-Verwaltung öffnen">
-              <span class="member-app-icon"><img src="assets/img/clubs-app.svg" alt=""></span>
-              <span class="member-app-label">Club-Verwaltung</span>
-            </a>
-          </div>
-        </section>
+          <section class="member-apps is-hidden" data-athlete-only aria-label="Sportler">
+            <h2 class="eyebrow">Sportler</h2>
+            <div class="member-app-grid">
+              <a class="member-app" href="mein-training.html" aria-label="Mein Training öffnen">
+                <span class="member-app-icon"><img src="assets/img/training-app.svg" alt=""></span>
+                <span class="member-app-label">Mein Training</span>
+              </a>
+            </div>
+          </section>
 
-        <section class="member-apps is-hidden" data-admin-only aria-label="Admin">
-          <h2 class="eyebrow">Admin</h2>
-          <div class="member-app-grid">
-            <a class="member-app" href="gliederungen.html" aria-label="Gliederungen öffnen">
-              <span class="member-app-icon"><img src="assets/img/clubs-admin-app.svg?v=20261112-red-v1" alt=""></span>
-              <span class="member-app-label">Gliederungen</span>
-            </a>
-            <a class="member-app" href="admin-accounts.html" aria-label="Kontenübersicht öffnen">
-              <span class="member-app-icon-wrap">
-                <span class="member-app-icon"><img src="assets/img/accounts-app.svg" alt=""></span>
-                <span class="member-app-badge" data-admin-notification-count hidden aria-hidden="true"></span>
-              </span>
-              <span class="member-app-label">Konten</span>
-            </a>
-          </div>
-        </section>
+          <section class="member-apps is-hidden" data-trainer-only aria-label="Trainer und Organisation">
+            <h2 class="eyebrow">Trainer und Organisation</h2>
+            <div class="member-app-grid">
+              <a class="member-app" href="arbeitszeiten.html" aria-label="Zeiterfassung öffnen">
+                <span class="member-app-icon"><img src="assets/img/worktime-app.svg?v=20261105-green-v2" alt=""></span>
+                <span class="member-app-label">Zeiterfassung</span>
+              </a>
+              <a class="member-app" href="club-verwaltung.html" aria-label="Club-Verwaltung öffnen">
+                <span class="member-app-icon"><img src="assets/img/clubs-app.svg" alt=""></span>
+                <span class="member-app-label">Club-Verwaltung</span>
+              </a>
+            </div>
+          </section>
+
+          <section class="member-apps is-hidden" data-admin-only aria-label="Admin">
+            <h2 class="eyebrow">Admin</h2>
+            <div class="member-app-grid">
+              <a class="member-app" href="gliederungen.html" aria-label="Gliederungen öffnen">
+                <span class="member-app-icon"><img src="assets/img/clubs-admin-app.svg?v=20261112-red-v1" alt=""></span>
+                <span class="member-app-label">Gliederungen</span>
+              </a>
+              <a class="member-app" href="admin-accounts.html" aria-label="Kontenübersicht öffnen">
+                <span class="member-app-icon-wrap">
+                  <span class="member-app-icon"><img src="assets/img/accounts-app.svg" alt=""></span>
+                  <span class="member-app-badge" data-admin-notification-count hidden aria-hidden="true"></span>
+                </span>
+                <span class="member-app-label">Konten</span>
+              </a>
+            </div>
+          </section>
+        </div>
 
         <section class="dashboard-grid" aria-label="Mitgliederübersicht">
           <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
@@ -154,14 +166,6 @@
                 <span>Geschlecht hinzufügen</span>
               </li>
             </ul>
-          </article>
-          <article class="card dashboard-action-card is-hidden" data-athlete-only>
-            <h2>Sportlerbereich</h2>
-            <p>Sportler-Zugang erkannt. Inhalte und Funktionen werden später ergänzt.</p>
-          </article>
-          <article class="card dashboard-action-card is-hidden" data-organizer-only>
-            <h2>Organisatorbereich</h2>
-            <p>Organisator-Konto erkannt. Funktionen werden später ergänzt.</p>
           </article>
         </section>
       </div>

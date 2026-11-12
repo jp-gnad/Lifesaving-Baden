@@ -1259,6 +1259,40 @@ test("trainer apps open only for trainers and higher and clear data on logout", 
   }
 });
 
+test("Mein Training opens for athletes and higher and requires a verified login", async () => {
+  for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {
+    const user = { uid: `training-${role}`, emailVerified: true };
+    const h = harness({ url: "https://example.test/club/mein-training.html", user, stored: { role } });
+    const heading = h.element("training-heading");
+    let visible = false;
+    heading.classList.toggle = (name, hidden) => { if (name === "is-hidden") visible = !hidden; };
+    h.document.body.dataset.page = "training";
+    h.document.body.classList = { remove() {} };
+    h.document.querySelector = () => null;
+    h.document.querySelectorAll = (selector) => selector === "[data-athlete-only]" ? [heading] : [];
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(user);
+    await new Promise(setImmediate);
+    const allowed = role !== "standard";
+    assert.equal(visible, allowed, role);
+    assert.deepEqual(h.counts.redirects, allowed ? [] : ["https://example.test/club/app.html"], role);
+    assert.equal(h.counts.warnings.length, 0, role);
+    h.auth.currentUser = null;
+    h.callbacks.auth(null);
+    assert.equal(h.counts.redirects.at(-1), "https://example.test/club/login.html");
+  }
+  for (const user of [null, { uid: "unverified-training", emailVerified: false }]) {
+    const h = harness({ url: "https://example.test/club/mein-training.html", user, stored: { role: "athlete" } });
+    h.document.body.dataset.page = "training";
+    h.document.body.classList = { remove() {} };
+    h.document.querySelector = () => null;
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(user);
+    await new Promise(setImmediate);
+    assert.equal(h.counts.redirects.at(-1), `https://example.test/club/login.html${user ? "?needsVerification=1" : ""}`);
+  }
+});
+
 test("member initialization reports a permanent database error once", async () => {
   const h = harness({ url: "https://example.test/club/app.html", user: { uid: "u", emailVerified: true }, read: () => { throw { code: "permission-denied" }; } });
   h.document.body.dataset.page = "app";

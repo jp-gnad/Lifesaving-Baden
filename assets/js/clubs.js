@@ -296,7 +296,7 @@
         const key = `${person.id}/${activeYear}`;
         const pending = owner.activityPending.get(key);
         const enabled = pending === undefined ? person.activeYears.includes(activeYear) : pending;
-        const badge = node("button", "", `(${String(activeYear).slice(-2)})`);
+        const badge = node("button", "", String(activeYear));
         badge.id = `club-year-${person.id}-${activeYear}`;
         badge.type = "button";
         badge.setAttribute("aria-disabled", String(pending !== undefined));

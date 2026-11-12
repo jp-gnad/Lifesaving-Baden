@@ -320,6 +320,7 @@ service cloud.firestore {
           "participantViewAccess",
           "participantEditAccess",
           "resultEditAccess",
+          "participantIndexVersion",
           "createdAt",
           "updatedAt"
         ])
@@ -375,15 +376,91 @@ service cloud.firestore {
         && data.organization.size() <= 120;
     }
 
-    function validParticipantCreate() {
+    // Canonical Latin decompositions mirror TimerParticipantStore.identity.
+    function participantNameKey(name) {
+      return name.lower()
+        .replace("[àáâãäåāăąǎǟǡǻȁȃȧḁạảấầẩẫậắằẳẵặ]", "a")
+        .replace("[ḃḅḇ]", "b")
+        .replace("[çćĉċčḉ]", "c")
+        .replace("[ďḋḍḏḑḓ]", "d")
+        .replace("[èéêëēĕėęěȅȇȩḕḗḙḛḝẹẻẽếềểễệ]", "e")
+        .replace("[ḟ]", "f")
+        .replace("[ĝğġģǧǵḡ]", "g")
+        .replace("[ĥȟḣḥḧḩḫẖ]", "h")
+        .replace("[ìíîïĩīĭįǐȉȋḭḯỉị]", "i")
+        .replace("[ĵǰ]", "j")
+        .replace("[ķǩḱḳḵ]", "k")
+        .replace("[ĺļľḷḹḻḽ]", "l")
+        .replace("[ḿṁṃ]", "m")
+        .replace("[ñńņňǹṅṇṉṋ]", "n")
+        .replace("[òóôõöōŏőơǒǫǭȍȏȫȭȯȱṍṏṑṓọỏốồổỗộớờởỡợ]", "o")
+        .replace("[ṕṗ]", "p")
+        .replace("[ŕŗřȑȓṙṛṝṟ]", "r")
+        .replace("[śŝşšșṡṣṥṧṩ]", "s")
+        .replace("[ß]", "ss")
+        .replace("[ţťțṫṭṯṱẗ]", "t")
+        .replace("[ùúûüũūŭůűųưǔǖǘǚǜȕȗṳṵṷṹṻụủứừửữự]", "u")
+        .replace("[ṽṿ]", "v")
+        .replace("[ŵẁẃẅẇẉẘ]", "w")
+        .replace("[ẋẍ]", "x")
+        .replace("[ýÿŷȳẏẙỳỵỷỹ]", "y")
+        .replace("[źżžẑẓẕ]", "z")
+        .replace("[^a-z0-9]", "");
+    }
+
+    function participantIdentity(data) {
+      return participantNameKey(data.name) + "|" + string(data.birthYear) + "|" + data.gender;
+    }
+
+    function participantIndexReady(eventId) {
+      return eventData(eventId).get("participantIndexVersion", 0) == 1;
+    }
+
+    function identityIds(eventId, key) {
+      let path = /databases/$(database)/documents/timerEvents/$(eventId)/participantIdentities/$(key);
+      return exists(path) ? get(path).data.participantIds : [];
+    }
+
+    function identityAfterIds(eventId, key) {
+      return getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/participantIdentities/$(key)).data.participantIds;
+    }
+
+    function validIdentityWrite(eventId, key) {
+      let data = request.resource.data;
+      let id = data.changedParticipantId;
+      let path = /databases/$(database)/documents/timerEvents/$(eventId)/participants/$(id);
+      let was = exists(path) && participantIdentity(get(path).data) == key;
+      let now = existsAfter(path) && participantIdentity(getAfter(path).data) == key;
+      let previous = resource == null ? [] : resource.data.participantIds;
+      let remaining = was ? previous.removeAll([id]) : previous;
+      return (was || now)
+        && data.keys().hasOnly(["participantIds", "changedParticipantId"])
+        && data.participantIds is list && id is string && id.size() > 0 && id.size() <= 1500
+        && data.participantIds.size() == data.participantIds.toSet().size()
+        && data.participantIds.toSet() == (now ? remaining.toSet().union([id].toSet()) : remaining.toSet())
+        && (!(now && !was) || previous.size() == 0);
+    }
+
+    function validParticipantCreate(eventId, id) {
       return validParticipantData(request.resource.data)
+        && participantIndexReady(eventId)
+        && identityIds(eventId, participantIdentity(request.resource.data)).size() == 0
+        && identityAfterIds(eventId, participantIdentity(request.resource.data)) == [id]
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
     }
 
-    function validParticipantUpdate() {
+    function validParticipantUpdate(eventId, id) {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let previousKey = participantIdentity(resource.data);
+      let nextKey = participantIdentity(request.resource.data);
       return validParticipantData(request.resource.data)
+        && participantIndexReady(eventId)
+        && id in identityIds(eventId, previousKey)
+        && id in identityAfterIds(eventId, nextKey)
+        && (previousKey == nextKey || (identityIds(eventId, nextKey).size() == 0
+          && identityAfterIds(eventId, nextKey) == [id]
+          && !(id in identityAfterIds(eventId, previousKey))))
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
         && changedKeys.hasOnly([
@@ -520,13 +597,29 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isOrganizer()
         && validTimerEvent(request.resource.data)
+        && request.resource.data.participantIndexVersion == 1
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
       allow update: if isOrganizer()
-        && validTimerEvent(request.resource.data)
+        && (validTimerEvent(request.resource.data)
+          || (resource.data.get("participantIndexVersion", 0) == 0 && request.resource.data.participantIndexVersion == 1
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["participantIndexVersion", "updatedAt"])))
+        && request.resource.data.get("participantIndexVersion", 0) in [0, 1]
+        && (resource.data.get("participantIndexVersion", 0) != 1 || request.resource.data.participantIndexVersion == 1)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time;
       allow delete: if isOrganizer();
+
+      match /participantIdentities/{identityKey} {
+        allow get: if eventAllows(eventId, "participantEditAccess");
+        allow list: if isOrganizer() && eventAllows(eventId, "participantEditAccess");
+        allow create, update: if eventAllows(eventId, "participantEditAccess")
+          && ((!participantIndexReady(eventId) && isOrganizer()
+              && request.resource.data.keys().hasOnly(["participantIds", "changedParticipantId"])
+              && request.resource.data.participantIds is list)
+            || (participantIndexReady(eventId) && validIdentityWrite(eventId, identityKey)));
+        allow delete: if isOrganizer() && resource.data.participantIds.size() == 0;
+      }
 
       match /participants/{participantId} {
         allow read: if eventAllows(eventId, "participantViewAccess")
@@ -534,10 +627,12 @@ service cloud.firestore {
           || eventAllows(eventId, "timerAccess")
           || eventAllows(eventId, "resultEditAccess");
         allow create: if eventAllows(eventId, "participantEditAccess")
-          && validParticipantCreate();
+          && validParticipantCreate(eventId, participantId);
         allow update: if eventAllows(eventId, "participantEditAccess")
-          && validParticipantUpdate();
-        allow delete: if eventAllows(eventId, "participantEditAccess");
+          && validParticipantUpdate(eventId, participantId);
+        allow delete: if eventAllows(eventId, "participantEditAccess") && participantIndexReady(eventId)
+          && participantId in identityIds(eventId, participantIdentity(resource.data))
+          && !(participantId in identityAfterIds(eventId, participantIdentity(resource.data)));
       }
 
       match /results/{resultId} {

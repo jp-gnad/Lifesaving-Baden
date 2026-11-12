@@ -446,6 +446,7 @@ und Ergebnisse liegen in diesen Firestore-Collections:
 ```text
 timerEvents/{eventId}
 timerEvents/{eventId}/participants/{participantId}
+timerEvents/{eventId}/participantIdentities/{identityKey}
 timerEvents/{eventId}/results/{resultId}
 timerParticipantDirectory/{candidateId}
 ```
@@ -472,6 +473,49 @@ für Gäste einen Login-Link. Auch in der kompakten Stoppuhransicht bleibt ein
 Account-Trigger sichtbar. Ergebnisansichten verwenden Firestore-Live-Listener;
 neue, bearbeitete oder gelöschte Ergebnisse erscheinen dadurch ohne manuelles
 Neuladen auf anderen Geräten.
+
+### Sparsame Teilnehmerimporte
+
+Die Personenansicht lädt den Eventkader einmal und hält ihn nur für die geöffnete
+Ansicht im Arbeitsspeicher. Importsuchen laden höchstens zehn Suchtreffer und
+lesen den Kader nicht erneut. Identische Suchbegriffe werden für 30 Sekunden
+wiederverwendet (höchstens 40 Begriffe). Erfolgreiche Imports, manuelle Ergänzungen,
+Bearbeitungen und Löschungen aktualisieren die vorhandene Anzeige direkt.
+„Aktualisieren“ lädt Änderungen anderer Geräte ausdrücklich nach. Seitenwechsel
+sowie Änderungen an Anmeldung oder Rollen verwerfen die zwischengespeicherten Daten.
+
+Der Dublettenschutz verwendet `participantIdentities` mit einem Schlüssel aus
+normalisiertem Namen, zweistelligem Jahrgang und Geschlecht. Teilnehmer und
+Zuordnung werden in einer Transaktion geändert. Die Firestore-Regeln erzwingen
+die Zuordnung auch für direkte Schreibzugriffe; parallele Imports können deshalb
+nicht zwei Teilnehmer derselben Identität erzeugen. Auch Umbenennen und Löschen
+geben die alte Zuordnung atomar frei. Bereits bestehende Dubletten werden nicht
+gelöscht; ihre Zuordnung bleibt belegt, solange eine davon existiert.
+
+Bestehende Events werden einmalig übernommen, sobald ein Organisator mit
+Importberechtigung die Personenansicht öffnet. Dabei wird der bereits geladene
+Serverbestand verwendet und pro Identität eine Zuordnung geschrieben. IDs und
+Ergebnisverweise bleiben erhalten. Unterbrochene Übernahmen können wiederholt
+werden; bis zum Abschluss verhindern die Regeln Teilnehmeränderungen. Trainer
+mit Bearbeitungsrechten benötigen deshalb bei einem alten Event zuerst diesen
+einmaligen Aufruf durch einen Organisator. Neue Events starten direkt mit
+`participantIndexVersion: 1`.
+
+Für die Veröffentlichung müssen **Website und aktuelle Firestore-Regeln zusammen**
+bereitgestellt werden. Alte Browser-Versionen ohne Zuordnung können mit den neuen
+Regeln keine Teilnehmer schreiben. Die Regeln lassen sich wie unten beschrieben
+im vorhandenen kostenlosen Firebase-Projekt veröffentlichen; zusätzliche Dienste
+oder ein kostenpflichtiger Tarif sind nicht erforderlich.
+
+Tests für Leseumfang, Anzeige ohne erneutes Laden und Cache:
+
+```powershell
+node --test tests/timer_import.test.cjs tests/timer_people_view.test.cjs
+```
+
+`tests/firestore_rules.test.cjs` prüft außerdem parallele Imports, direkte
+Umgehungsversuche, Umbenennen, Löschen und die Übernahme manueller Altbestände
+gegen den lokalen Firestore-Emulator.
 
 Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
 Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von

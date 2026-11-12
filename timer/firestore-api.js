@@ -67,10 +67,6 @@
       .replace(/[^a-z0-9]/g, "");
   }
 
-  function personIdentity(name, birthYear, gender) {
-    return `${normalizedPersonName(name)}|${Number(birthYear) % 100}|${gender}`;
-  }
-
   function eventYearOf(eventDate) {
     const match = String(eventDate || "").match(/^(\d{4})-/);
     return match ? Number(match[1]) : null;
@@ -193,7 +189,28 @@
   const fieldValue = window.firebase.firestore.FieldValue;
   const eventsCollection = db.collection("timerEvents");
   const directoryCollection = db.collection("timerParticipantDirectory");
+  const participantStore = window.TimerParticipantStore;
+  const participantCache = new Map();
+  const searchCache = new Map();
+  let participantSession = 0;
   let directoryReadyPromise = null;
+
+  function clearParticipantCache() {
+    participantSession += 1;
+    participantCache.clear();
+    searchCache.clear();
+    directoryReadyPromise = null;
+  }
+
+  function participantSessionCheck() {
+    const session = participantSession;
+    const uid = auth.currentUser?.uid;
+    return () => {
+      if (session !== participantSession || auth.currentUser?.uid !== uid) {
+        throw appError("Die Ansicht oder Anmeldung hat sich geändert. Bitte erneut öffnen.", 409);
+      }
+    };
+  }
 
   let authContext = {
     user: null,
@@ -211,6 +228,8 @@
   let initialAuthResolved = false;
   let authRefreshVersion = 0;
   async function refreshTimerAuthContext(user) {
+    const userChanged = authContext.user?.uid !== user?.uid;
+    if (userChanged) clearParticipantCache();
     const refreshVersion = ++authRefreshVersion;
     await Promise.all([authPersistenceReady, persistenceReady]);
     let userData = {};
@@ -247,6 +266,10 @@
       && Boolean(String(userData.dlrgBranch || "").trim())
       && Boolean(String(userData.birthDate || "").trim())
       && Boolean(String(userData.gender || "").trim());
+    const permissionsChanged = authContext.authenticated !== authenticated
+      || authContext.isOrganizer !== isOrganizer || authContext.isAdmin !== isAdmin
+      || authContext.isAthlete !== isAthlete || authContext.isTrainer !== isTrainer;
+    if (permissionsChanged && !userChanged) clearParticipantCache();
     authContext = {
       user,
       authenticated,
@@ -264,7 +287,9 @@
       initialAuthResolved = true;
       resolveInitialAuth(authContext);
     }
-    window.dispatchEvent(new CustomEvent("timer-auth-change", { detail: { ...authContext, user: undefined } }));
+    window.dispatchEvent(new CustomEvent("timer-auth-change", {
+      detail: { ...authContext, user: undefined, participantsInvalidated: userChanged || permissionsChanged },
+    }));
 
   }
 
@@ -493,8 +518,55 @@
   }
 
   async function listParticipants(eventId) {
-    const snapshot = await eventsCollection.doc(eventId).collection("participants").get();
-    return snapshot.docs.map(mapParticipant).sort((left, right) => left.name.localeCompare(right.name, "de"));
+    if (!participantCache.has(eventId)) {
+      const check = participantSessionCheck();
+      const entry = {};
+      entry.promise = eventsCollection.doc(eventId).collection("participants").get()
+        .then((snapshot) => {
+          check();
+          entry.snapshot = snapshot;
+          entry.rows = snapshot.docs.map(mapParticipant);
+          return entry;
+        }).catch((error) => {
+          if (participantCache.get(eventId) === entry) participantCache.delete(eventId);
+          throw error;
+        });
+      participantCache.set(eventId, entry);
+    }
+    const entry = await participantCache.get(eventId).promise;
+    return [...entry.rows].sort((left, right) => left.name.localeCompare(right.name, "de"));
+  }
+
+  function updateParticipantCache(eventId, id, participant) {
+    const entry = participantCache.get(eventId);
+    if (!entry?.rows) return;
+    entry.rows = entry.rows.filter((person) => person.id !== id);
+    if (participant) entry.rows.push(participant);
+  }
+
+  async function prepareParticipantIndex(snapshot, event, check = participantSessionCheck()) {
+    check();
+    if (snapshot.data().participantIndexVersion === 1) return;
+    if (!event.can_import_participants) {
+      throw appError("Ein Organisator muss die Personenansicht dieses Events einmal öffnen, bevor Personen geändert werden können.", 409);
+    }
+    await listParticipants(snapshot.id);
+    check();
+    await participantStore.migrate(db, snapshot.ref, participantCache.get(snapshot.id).snapshot, fieldValue, check);
+  }
+
+  async function searchDirectory(prefix) {
+    const cached = searchCache.get(prefix);
+    if (cached && Date.now() - cached.createdAt < 30_000) return cached.promise;
+    const check = participantSessionCheck();
+    const entry = { createdAt: Date.now() };
+    entry.promise = directoryCollection.orderBy("searchName").startAt(prefix).endAt(`${prefix}\uf8ff`).limit(10).get()
+      .then((snapshot) => { check(); return snapshot; })
+      .catch((error) => { if (searchCache.get(prefix) === entry) searchCache.delete(prefix); throw error; });
+    searchCache.delete(prefix);
+    searchCache.set(prefix, entry);
+    if (searchCache.size > 40) searchCache.delete(searchCache.keys().next().value);
+    return entry.promise;
   }
 
   async function getParticipant(eventId, participantId) {
@@ -532,12 +604,21 @@
       eventRef.collection("participants").get(),
       eventRef.collection("results").get(),
     ]);
-    await deleteDocuments([...participants.docs, ...results.docs]);
+    const event = await eventSnapshot(eventId);
+    await prepareParticipantIndex(event, mapEvent(event));
+    const check = participantSessionCheck();
+    for (const person of participants.docs) {
+      await participantStore.commit(db, eventRef, person.id, null, fieldValue, check);
+    }
+    const identities = await eventRef.collection("participantIdentities").get();
+    await deleteDocuments([...identities.docs, ...results.docs]);
     await eventRef.delete();
+    participantCache.delete(eventId);
   }
 
   async function request(path, options = {}) {
     await Promise.all([initialAuth, persistenceReady]);
+    const checkSession = participantSessionCheck();
     const method = String(options.method || "GET").toUpperCase();
     const url = new URL(path, window.location.origin);
     const parts = url.pathname.split("/").filter(Boolean);
@@ -564,6 +645,7 @@
           enabledDisciplines: DEFAULT_DISCIPLINES,
           resultUrl: "",
           ...DEFAULT_ACCESS,
+          participantIndexVersion: 1,
           createdAt: fieldValue.serverTimestamp(),
           updatedAt: fieldValue.serverTimestamp(),
         });
@@ -579,6 +661,9 @@
         const participants = event.can_view_participants || event.can_use_timer || event.can_edit_results
           ? await listParticipants(eventId)
           : [];
+        if (url.searchParams.get("prepareImport") === "1" && event.can_import_participants) {
+          await prepareParticipantIndex(snapshot, event, checkSession);
+        }
         return { event, participants };
       }
 
@@ -641,12 +726,8 @@
         if (queryText.length > 80) throw appError("Suchbegriff ist zu lang.");
         const eventYear = eventYearOf(event.event_date);
         if (!eventYear) throw appError("Für den Import muss beim Event ein Datum hinterlegt sein.");
-        const [directory, imported, directoryReady] = await Promise.all([
-          directoryCollection.orderBy("searchName").startAt(queryText).endAt(`${queryText}\uf8ff`).limit(10).get(),
-          listParticipants(eventId),
-          directoryIsReady(),
-        ]);
-        const importedIdentities = new Set(imported.map((person) => personIdentity(person.name, person.birth_year, person.gender)));
+        const directory = await searchDirectory(queryText);
+        const directoryReady = !directory.empty || await directoryIsReady();
         return {
           directoryReady,
           candidates: directory.docs.map((document) => {
@@ -660,7 +741,6 @@
               gender,
               organization: data.organization || "Unbekannt",
               ageGroup: ageGroupFor(birthYear, eventYear),
-              alreadyImported: importedIdentities.has(personIdentity(data.name, birthYear, gender)),
             };
           }),
         };
@@ -678,52 +758,50 @@
         if (!eventYear) throw appError("Für den Import muss beim Event ein Datum hinterlegt sein.");
         const gender = data.gender === "w" ? "female" : "male";
         const birthYear = Number(data.birthYear);
-        const participants = await listParticipants(eventId);
-        if (participants.some((person) => personIdentity(person.name, person.birth_year, person.gender)
-          === personIdentity(data.name, birthYear, gender))) {
-          throw appError("Diese Person ist bereits im Event vorhanden.", 409);
-        }
+        await prepareParticipantIndex(snapshot, event, checkSession);
         const id = crypto.randomUUID();
-        await snapshot.ref.collection("participants").doc(id).set({
+        const saved = await participantStore.commit(db, snapshot.ref, id, {
           name: data.name,
           birthYear: birthYear % 100,
           ageGroup: ageGroupFor(birthYear, eventYear),
           gender,
           organization: data.organization || "Unbekannt",
           sourceDirectoryId: candidate.id,
-          createdAt: fieldValue.serverTimestamp(),
-          updatedAt: fieldValue.serverTimestamp(),
-        });
-        return { id };
+        }, fieldValue, checkSession, true);
+        checkSession();
+        const participant = mapParticipant(saved);
+        updateParticipantCache(eventId, id, participant);
+        return { id, participant };
       }
 
       if (parts[2] === "participants" && parts.length === 3 && method === "POST") {
         requirePermission(event, "can_edit_participants");
         const body = parseBody(options);
+        await prepareParticipantIndex(snapshot, event, checkSession);
         const id = crypto.randomUUID();
-        await snapshot.ref.collection("participants").doc(id).set({
-          ...participantPayload(body),
-          createdAt: fieldValue.serverTimestamp(),
-          updatedAt: fieldValue.serverTimestamp(),
-        });
-        return { id };
+        const saved = await participantStore.commit(db, snapshot.ref, id, participantPayload(body), fieldValue, checkSession, true);
+        checkSession();
+        const participant = mapParticipant(saved);
+        updateParticipantCache(eventId, id, participant);
+        return { id, participant };
       }
 
       if (parts[2] === "participants" && parts[3] && parts.length === 4 && method === "PATCH") {
         requirePermission(event, "can_edit_participants");
-        const participantRef = snapshot.ref.collection("participants").doc(parts[3]);
-        const existing = await participantRef.get();
-        if (!existing.exists) throw appError("Person wurde nicht gefunden.", 404);
-        await participantRef.update({ ...participantPayload(parseBody(options)), updatedAt: fieldValue.serverTimestamp() });
-        return { ok: true };
+        await prepareParticipantIndex(snapshot, event, checkSession);
+        const saved = await participantStore.commit(db, snapshot.ref, parts[3], participantPayload(parseBody(options)), fieldValue, checkSession);
+        checkSession();
+        const participant = mapParticipant(saved);
+        updateParticipantCache(eventId, parts[3], participant);
+        return { ok: true, participant };
       }
 
       if (parts[2] === "participants" && parts[3] && parts.length === 4 && method === "DELETE") {
         requirePermission(event, "can_edit_participants");
-        const participantRef = snapshot.ref.collection("participants").doc(parts[3]);
-        const existing = await participantRef.get();
-        if (!existing.exists) throw appError("Person wurde nicht gefunden.", 404);
-        await participantRef.delete();
+        await prepareParticipantIndex(snapshot, event, checkSession);
+        await participantStore.commit(db, snapshot.ref, parts[3], null, fieldValue, checkSession);
+        checkSession();
+        updateParticipantCache(eventId, parts[3], null);
         return { ok: true };
       }
 
@@ -835,5 +913,5 @@
     }
   }
 
-  window.timerFirestoreApi = { request, getAuthContext, signOut, watchResults };
+  window.timerFirestoreApi = { request, getAuthContext, signOut, watchResults, clearParticipantCache };
 })();
