@@ -7,9 +7,7 @@ const vm = require("node:vm");
 process.env.TZ = "Europe/Berlin";
 const source = fs.readFileSync(path.join(__dirname, "../timer/app.js"), "utf8");
 const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
-const code = section("function escapeHtml(", "function safeExternalUrl(")
-  + section("function dateText(", "function formatTime(")
-  + section("async function renderHome()", "async function renderEvent(");
+const code = section("async function renderHome()", "async function renderEvent(");
 
 function overview(events, time, isOrganizer = false) {
   let clock = new Date(time).getTime();
@@ -44,7 +42,7 @@ function overview(events, time, isOrganizer = false) {
   let sequence = 0;
   let reads = 0;
   const context = vm.createContext({
-    Date: ClockDate, document, app: node("app"), eventListTab: "current", routeCleanup: null,
+    ...require("../timer/core.js"), Date: ClockDate, document, app: node("app"), eventListTab: "current", routeCleanup: null,
     window: { timerFirestoreApi: { async getAuthContext() { return { isOrganizer }; } } },
     async api(url, options) {
       assert.equal(url, "/events");
@@ -80,6 +78,14 @@ test("events become past exactly at local midnight four calendar days after thei
   for (const event_date of ["", undefined, "not-a-date", "2026-02-30", "2026-13-01", "2027-01-01"]) {
     assert.equal(h.context.isPastEvent({ event_date }, new Date("2026-01-05T12:00:00")), false);
   }
+});
+
+test("event IDs are encoded in navigation and event names remain escaped", async () => {
+  const id = 'event" onclick="alert(1)';
+  const h = overview([{ id, name: '<img src=x onerror="alert(1)">', event_date: "2026-11-12" }], "2026-11-12T12:00:00");
+  await h.render();
+  assert.ok(h.list().includes(`href="#/event/${encodeURIComponent(id)}"`));
+  assert.ok(!h.list().includes('<img src=x'));
 });
 
 test("tabs filter and order current/past events without loading or writing data on each switch", async () => {

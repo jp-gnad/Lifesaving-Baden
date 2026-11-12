@@ -69,7 +69,7 @@ async function adapter(records) {
   const firestore = () => h.db;
   firestore.FieldValue = sdk;
   const window = {
-    location: { origin: "https://example.test" }, TimerParticipantStore: store,
+    location: { origin: "https://example.test" }, TimerParticipantStore: store, TimerCore: require("../timer/core.js"),
     firebase: { auth: () => auth, firestore }, isFirebaseConfigured: true,
     LifesavingPersonLinks: { linkedPerson: () => null },
     LifesavingAuth: {
@@ -132,6 +132,15 @@ test("the search cache expires and is cleared with the participant view", async 
   h.api.clearParticipantCache();
   await search();
   assert.equal(h.reads.get("timerParticipantDirectory"), 3);
+});
+
+test("encoded document IDs resolve correctly and encoded path separators are rejected", async () => {
+  const id = 'event"?with-special-characters';
+  const h = await adapter({ [`timerEvents/${id}`]: event() });
+  assert.equal((await h.api.request(`/events/${encodeURIComponent(id)}`)).event.id, id);
+  for (const path of ["/events/e%2Fother", "/events/e%5Cother", "/events/%00", "/events/%ZZ"]) {
+    await assert.rejects(h.api.request(path), { status: 400 });
+  }
 });
 
 test("100 individual imports keep the number of full participant queries constant", async () => {

@@ -118,6 +118,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/clubs-store.js"), context);
   vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
+  vm.runInContext(source("assets/js/admin-accounts.js"), context);
+  vm.runInContext(source("timer/core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
     login() {
       if (!window.LifesavingGoogleHandoff) vm.runInContext(source("assets/js/google-handoff.js"), context);

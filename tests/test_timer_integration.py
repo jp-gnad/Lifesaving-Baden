@@ -47,7 +47,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertNotIn("return isOrganizer()", event_access_rule)
 
     def test_admin_cannot_be_granted_from_account_ui(self):
-        auth = (ROOT / "assets" / "js" / "auth.js").read_text(encoding="utf-8")
+        auth = (ROOT / "assets" / "js" / "admin-accounts.js").read_text(encoding="utf-8")
         rules = (ROOT / "firestore.rules").read_text(encoding="utf-8")
         role_select_block = auth[auth.index("function createAdminAccountRoleSelect"):]
         role_select_block = role_select_block[: role_select_block.index("function createAdminAccountRoleDisplay")]

@@ -5,14 +5,14 @@ const vm = require("node:vm");
 const path = require("node:path");
 const store = require("../timer/participant-store.js");
 
-function view() {
-  const source = fs.readFileSync(path.join(__dirname, "../timer/app.js"), "utf8");
-  const code = source.slice(source.indexOf("async function renderPeople("), source.indexOf("async function renderTimer("));
+function view({ existingId = "old", existingName = "Anna Müller" } = {}) {
+  const source = fs.readFileSync(path.join(__dirname, "../timer/views/people.js"), "utf8");
+  const code = source;
   const nodes = new Map();
   const timers = new Map();
   const requests = [];
   const event = { name: "Test", event_date: "2026-11-12", can_view_participants: true, can_edit_participants: true, can_import_participants: true };
-  const existing = { id: "old", name: "Anna Müller", birth_year: 5, gender: "female", organization: "Baden", age_group: "Offen" };
+  const existing = { id: existingId, name: existingName, birth_year: 5, gender: "female", organization: "Baden", age_group: "Offen" };
   const added = { id: "new", name: "Nora Neu", birth_year: 7, gender: "female", organization: "Baden", age_group: "17/18" };
   const candidates = [existing, added].map((person) => ({ id: person.id, name: person.name, birthYear: 2000 + person.birth_year, gender: person.gender, organization: person.organization }));
   let html = "";
@@ -42,12 +42,16 @@ function view() {
     },
     eventCan: (event, field) => event[field],
     normalizedIdentity: (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, ""),
-    compareParticipantsByOrganization: () => 0, personAvatar: () => "", birthYearText: String, escapeHtml: String, icon: () => "",
+    compareParticipantsByOrganization: () => 0, personAvatar: () => "", birthYearText: String, escapeHtml: require("../timer/core.js").escapeHtml, icon: () => "",
     bindDialogClose() {}, setDocumentTitle() {}, showToast() {},
     openDialog(selector) { node(selector).open = true; },
     setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
   });
   vm.runInContext(code, context);
+  context.renderPeople = context.window.TimerPeopleView.create({ ...context,
+    getRouteVersion: () => context.routeVersion,
+    setRouteCleanup: (cleanup) => { context.routeCleanup = cleanup; }, refresh() {},
+  }).render;
   return { context, requests, node, html: () => html, render: () => context.renderPeople("e"), async search(value) {
     node("#import-person-search").value = value;
     node("#import-person-search").handlers.input();
@@ -83,4 +87,13 @@ test("leaving the route cancels pending searches and closes the dialogs", async 
   h.context.routeCleanup();
   assert.equal(h.node("#person-import-dialog").open, false);
   assert.equal(h.requests.length, 1);
+});
+
+test("database IDs and participant names cannot break out of HTML attributes or insert markup", async () => {
+  const h = view({ existingId: 'person" onmouseover="alert(1)', existingName: '<img src=x onerror="alert(1)">' });
+  await h.render();
+  assert.ok(h.html().includes('data-id="person&quot; onmouseover=&quot;alert(1)"'));
+  assert.ok(!h.html().includes('data-id="person" onmouseover='));
+  assert.ok(!h.html().includes('<img src=x'));
+  assert.ok(h.html().includes('&lt;img src=x'));
 });

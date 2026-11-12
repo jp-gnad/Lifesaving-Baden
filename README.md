@@ -1,74 +1,61 @@
 # Lifesaving Baden
 
-Gemeinsame GitHub-Pages-Website für Lifesaving Baden mit Firebase-Login,
-Mitgliederbereich und integriertem Lifesaving Timer. Die Dateien werden
-vollständig aus diesem Repository veröffentlicht. Firebase Authentication und
-Firestore übernehmen Anmeldung, Rollen und Timer-Daten.
+Statische GitHub-Pages-Website mit gemeinsamer Anmeldung, Mitgliederbereich,
+Konten-/Clubverwaltung, Startberechtigungen, Arbeitszeiten und Lifesaving Timer.
+Firebase Authentication und Firestore speichern die geschützten Konten- und
+Fachdaten. Der Browser lädt HTML, CSS und JavaScript direkt; es gibt keinen
+Produktions-Build und keinen eigenen Node-Server.
 
-Der Timer ist anschließend unter dem Unterpfad `timer/` erreichbar, zum
-Beispiel:
+Der Timer ist unter `timer/` erreichbar, beispielsweise
+[auf GitHub Pages](https://jp-gnad.github.io/Lifesaving-Baden/timer/).
+Bestehende HTML-URLs und installierte Timer bleiben erhalten.
 
-```text
-https://jp-gnad.github.io/Lifesaving-Baden/timer/
+## Für Entwicklung und KI-Arbeit
+
+| Dokument | Inhalt |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Arbeitsregeln, Modulzuständigkeiten, Kontingent- und Sicherheitsgrenzen |
+| [Architektur](docs/architecture.md) | Einstiegspunkte, Module, Datenmodell und Datenflüsse |
+| [Entwicklung](docs/development.md) | Installation, einheitliche Testbefehle, CI und lokale Vorschauen |
+| [Sicherheit und Kompatibilität](docs/security-and-compatibility.md) | Berechtigungen, Migrationen, alte URLs und Offline-Daten |
+| [Prüfung und Umbau](docs/refactoring-review.md) | Durchgeführte Änderungen und geprüfte Eigenschaften |
+| [Firestore-Leseaudit](docs/firestore-lesevorgaenge-audit.md) | Verbrauchsquellen und bereits umgesetzte Importoptimierung |
+
+Schneller Einstieg nach Installation der [Testwerkzeuge](docs/development.md):
+
+```powershell
+npm.cmd test
+npm.cmd run test:rules
+npm.cmd run serve
 ```
 
-## Kann GitHub Pages echte Logins?
-
-Nur eingeschränkt. GitHub Pages liefert ausschließlich statische Dateien
-aus: HTML, CSS, JavaScript und Assets. Es gibt dort keine serverseitige
-Logik, keine Datenbank und keine sichere Umgebung für geheime Zugangsdaten.
-
-Das bedeutet:
-
-- Ein echtes Benutzerkonto-System braucht einen externen Dienst, zum Beispiel
-  Firebase Authentication, Supabase Auth, Auth0, Clerk oder ein eigenes Backend.
-- Reiner JavaScript-Schutz auf GitHub Pages kann umgangen werden und schützt
-  keine vertraulichen Inhalte wirklich.
-- Die enthaltene Login-/Registrierungsfunktion nutzt Firebase Authentication.
-  Der Zugriff auf statische HTML-Dateien selbst ist aber weiterhin öffentlich.
-  Wirklich private Daten sollten aus Firebase/Supabase/Backend geladen und dort
-  per Sicherheitsregeln geschützt werden.
+Die ersten beiden Befehle verwenden keine Produktionsdaten. Normale App-Seiten
+im lokalen Browser sind dagegen weiterhin mit dem konfigurierten Firebase-Projekt
+verbunden; für reine Oberflächenprüfungen die dokumentierten Test-Fixtures verwenden.
 
 ## Struktur
 
 ```text
-.
-|-- index.html
-|-- login.html
-|-- app.html
-|-- account-settings.html
-|-- link-request.html
-|-- timer/
-|   |-- index.html
-|   |-- app.js
-|   |-- firestore-api.js
-|   |-- styles.css
-|   `-- sw.js
-|-- firestore.rules
-|-- firebase.json
-|-- firestore.indexes.json
-|-- tools/
-|   |-- build_participant_directory.py
-|   `-- sync_participant_directory.mjs
-|-- assets/
-|   |-- img/
-|   |   |-- auth-pool.jpg
-|   |   |-- elch-gelb.png
-|   |   |-- hero-swimmer.jpg
-|   |   |-- termine-pool.jpg
-|   |   |-- lifesaving-baden-logo.png
-|   |   `-- training-rescue.jpg
-|   |-- css/
-|   |   `-- styles.css
-|   |-- fonts/
-|   |   |-- LT_50139_italien.woff
-|   |   |-- LT_50140_heavy.woff
-|   |   `-- LT_50141_regular.woff
-|   `-- js/
-|       |-- auth.js
-|       `-- firebase-config.js
-`-- .nojekyll
+*.html                    Öffentliche Seiten und geschützte App-Einstiege
+assets/js/                Gemeinsame Anmeldung, Konten, Clubs und Arbeitszeiten
+assets/js/*-core.js       Wiederverwendbare Fachlogik
+assets/js/*-store.js      Datenbanktransaktionen und Reservierungen
+timer/app.js              Routing, Zeitnahme, Ergebnisse und Synchronisation
+timer/core.js             Gemeinsame Timer-Fachlogik
+timer/views/              Abgegrenzte Timer-Ansichten
+timer/*-store.js           Teilnehmer- und Offline-Persistenz
+timer/results-pdf.js      Ergebnisexport
+timer/firestore-api.js    Firestore-Adapter, Authentifizierung und Caches
+firestore.rules           Verbindliche serverseitige Berechtigungen
+tools/                    Lokale Prüfungen und kontrollierte Wartungs-CLIs
+tests/                    Funktions-, Integrations-, Regel- und Browserprüfungen
+docs/                     Architektur, Entwicklung und Prüfberichte
+.github/workflows/        Prüfungen ohne Produktionsdaten sowie separater Verzeichnis-Sync
 ```
+
+Statische Dateien selbst sind öffentlich abrufbar. Wirklich private Daten werden
+über Firebase und dessen Sicherheitsregeln geschützt. Die folgende Anleitung
+beschreibt die bestehende Einrichtung und Veröffentlichung.
 
 ## Firebase einrichten
 
@@ -97,8 +84,8 @@ Domains freigegeben werden, auf denen die Website wirklich laufen soll.
 ## Firestore für Nutzereinstellungen
 
 Website und Timer verwenden dieselbe dunkle Loginseite unter `login.html`.
-Der Parameter `returnTo` führt nach der Anmeldung zum ursprünglichen Bereich
-zurück; externe Ziele und Login-Schleifen werden verworfen. Die bisherige URL
+Nach erfolgreicher Anmeldung führt die App in die gemeinsame Mitgliederübersicht.
+Alte `returnTo`-Parameter überschreiben dieses Ziel nicht. Die bisherige URL
 `timer/login.html` leitet zur gemeinsamen Anmeldung weiter.
 Alle HTML-Seiten verweisen auf das gemeinsame Projektmanifest
 `manifest.webmanifest`. Es startet Lifesaving Baden auf der Hauptseite,
@@ -121,8 +108,9 @@ verwaltet und lassen sich durch dieses Projekt nicht ausblenden. Der gemeinsame
 App-Bereich gilt für die eigenen Seiten auf derselben Domain.
 
 `assets/js/login.js` enthält Anmeldung, Registrierung und Passwort-Zurücksetzen.
-`assets/js/auth.js` verwaltet den Mitglieder- und Kontobereich. Beide und der
-Timer nutzen `assets/js/auth-core.js` für dauerhafte Sitzungen, Rollen und
+`assets/js/auth.js` verwaltet den Mitglieder- und Kontobereich;
+`assets/js/admin-accounts.js` enthält die abgegrenzte Kontenverwaltung. Anmeldung,
+Kontobereich und Timer nutzen `assets/js/auth-core.js` für dauerhafte Sitzungen, Rollen und
 höchstens drei Versuche bei vorübergehenden Verbindungs-/Serverfehlern.
 
 Auf allen Bildschirmgrößen bleibt das Passwort zunächst verborgen und erscheint
@@ -160,8 +148,8 @@ python -B -m unittest discover -s tests -p 'test_*.py'
 Die Berechtigungen lassen sich zusätzlich mit Java 21 und dem lokalen Firestore-Emulator prüfen:
 
 ```powershell
-npm.cmd install --no-save --package-lock=false @firebase/rules-unit-testing@5 firebase@12.19.0
-npx.cmd firebase-tools emulators:exec --only firestore --project demo-lifesaving-baden "node --test tests/firestore_rules.test.cjs"
+npm.cmd ci --ignore-scripts --no-audit --no-fund
+npm.cmd run test:rules
 ```
 
 Der feste Demo-Projektname und die lokale Host-Prüfung im Test verhindern Zugriffe
@@ -722,8 +710,11 @@ abgebrochen. Um ältere Personen sofort freizuschalten, nach Veröffentlichung
 den Workflow einmal manuell ausführen. Er kann nur Personen übernehmen, die
 tatsächlich in der Quelldatei stehen.
 
-Die globale Importliste ist nur für Organisatoren lesbar. Bereits in ein Event
-übernommene Personen richten sich nach den Zugriffsrechten des Events.
+Unbegrenzte Lesezugriffe auf die globale Importliste bleiben Organisatoren
+vorbehalten. Trainer dürfen begrenzte Suchabfragen mit höchstens zehn Treffern
+verwenden. Bereits in ein Event übernommene Personen richten sich nach den
+Zugriffsrechten des Events. Unveränderte Verzeichnisdokumente werden beim Sync
+nicht erneut geschrieben; der Abgleich liest den bisherigen Bestand weiterhin.
 Wenn die beiden Secrets noch fehlen oder der Workflow noch nicht erfolgreich
 gelaufen ist, meldet der Import ausdrücklich, dass die geschützte Importliste
 noch nicht eingerichtet ist.

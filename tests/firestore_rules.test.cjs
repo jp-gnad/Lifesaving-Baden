@@ -566,7 +566,7 @@ test("notification aggregations count open requests and issues without returning
     "users/issue": { personLinkIssue: { status: "reported" } },
     "users/closed": { personLinkStatus: "linked", personLinkIssue: { status: "resolved" } },
   });
-  const code = fs.readFileSync(path.join(__dirname, "../assets/js/auth.js"), "utf8");
+  const code = fs.readFileSync(path.join(__dirname, "../assets/js/admin-accounts.js"), "utf8");
   const countCode = code.slice(code.indexOf("  async function countAdminNotifications"), code.indexOf("  function initAdminAccountBadge"));
   const countNotifications = new Function("window", "fetch", `${countCode}; return countAdminNotifications;`)(
     { firebaseConfig: { projectId: "demo-lifesaving-baden" } },

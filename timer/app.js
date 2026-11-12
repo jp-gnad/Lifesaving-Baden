@@ -1,3 +1,9 @@
+const { getPendingResults, getPendingResult, putPendingResult, deletePendingResult } = window.TimerOfflineStore;
+const {
+  escapeHtml, disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, formatCumulativeReviewTime
+} = window.TimerCore;
+const { createResultsPdf, loadEventPdfImage, openPdf } = window.TimerResultsPdf.create({ eventIconUrls });
+
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 const offlineSyncStatus = document.querySelector("#offline-sync-status");
@@ -8,55 +14,6 @@ const timerAccountControl = document.querySelector("#timer-account-control");
 const timerAccountDialog = document.querySelector("#timer-account-dialog");
 const timerAccountLogout = document.querySelector("#timer-account-logout");
 const timerFooterPortalLink = document.querySelector("#timer-footer-portal-link");
-
-const offlineDatabaseName = "lifesaving-timer-offline";
-const offlineDatabaseVersion = 1;
-const pendingResultsStore = "pendingResults";
-
-const disciplines = {
-  normal: { name: "Benutzerdefiniert", laps: 20, flexible: true, group: "normal" },
-  rescue50: { name: "50 m Retten", laps: 2, group: "individual", lapLabels: ["25 m Kraul", "25 m Puppe"] },
-  rescue100: { name: "100 m Retten", laps: 3, group: "individual", lapLabels: ["50 m Flossen", "10 m Aufnahme", "40 m Puppe Flossen"] },
-  lifesaver100: { name: "100 m Lifesaver", laps: 3, group: "individual", lapLabels: ["50 m Gurtretter Flossen", "10 m Einklinken", "40 m Ziehen"] },
-  medley100: { name: "100 m Kombi", laps: 3, group: "individual", lapLabels: ["50 m Kraul", "17,5 m Tauchen", "32,5 m Puppe"] },
-  superLifesaver200: { name: "200 m Super Lifesaver", laps: 7, group: "individual", lapLabels: ["50 m Kraul", "25 m Kraul", "25 m Puppe", "5 m Einklinken", "45 m Flossen Gurt", "10 m Einklinken", "40 m Ziehen"] },
-  obstacle200: { name: "200 m Hindernis", laps: 4, group: "individual", lapLabels: ["Runde 1 (50 m)", "Runde 2 (100 m)", "Runde 3 (150 m)", "Runde 4 (200 m)"] },
-  manikinRelay4x25: { name: "4 × 25 m Puppenstaffel", laps: 4, group: "team", team: true, lapLabels: ["Position 1", "Position 2", "Position 3", "Position 4"] },
-  rescueTubeRelay4x50: { name: "4 × 50 m Gurtretterstaffel", laps: 4, group: "team", team: true, lapLabels: ["50 m Kraul", "50 m Flossen", "50 m Gurt", "50 m Ziehen"] },
-  rescueRelay4x50: { name: "4 × 50 m Rettungsstaffel", laps: 4, group: "team", team: true, lapLabels: ["50 m Kraul", "50 m Flossen", "50 m Puppe", "50 m Puppe Flossen"] },
-  obstacleRelay4x50: { name: "4 × 50 m Hindernisstaffel", laps: 4, group: "team", team: true, lapLabels: ["Position 1", "Position 2", "Position 3", "Position 4"] },
-  mixedRelay4x50: { name: "4 × 50 m Mixed Staffel", laps: 4, group: "team", team: true, mixed: true, lapLabels: ["50 m Kraul", "50 m Flossen", "50 m Puppe", "50 m Puppe Flossen"] },
-  lineThrow: { name: "LineThrow", laps: 2, group: "team", team: true, lapLabels: ["12,5 m Treffen", "12,5 m Ziehen"] },
-};
-
-const disciplineGroups = [
-  { id: "normal", name: "Benutzerdefiniert" },
-  { id: "individual", name: "Einzel" },
-  { id: "team", name: "Mannschaft" },
-];
-
-function enabledDisciplinesForEvent(event) {
-  try {
-    const selected = JSON.parse(event?.enabled_disciplines_json || "[]");
-    const valid = selected.filter((discipline) => discipline in disciplines);
-    return valid.length ? valid : Object.keys(disciplines);
-  } catch {
-    return Object.keys(disciplines);
-  }
-}
-
-function eventCan(event, permission) {
-  return event?.[permission] === true;
-}
-
-function accessLabel(value) {
-  if (value === "everyone") return "Jeder";
-  if (value === "authenticated") return "Standard und höher";
-  if (value === "athlete") return "Sportler und höher";
-  if (value === "trainer") return "Trainer und höher";
-  if (value === "organizer") return "Organisatoren";
-  return "Gesperrt";
-}
 
 function accessSelect(name, value) {
   return `<label class="field"><span>Zugriff</span><select name="${name}">
@@ -100,6 +57,10 @@ const organizationCaps = [
 ];
 
 const capAssetBase = "https://raw.githubusercontent.com/jp-gnad/Lifesaving_Baden/main/web/assets/svg/";
+const organizationCapMatchers = organizationCaps.map(([file, aliases]) => ({
+  file, aliases: aliases.map((alias) => normalizedIdentity(alias)),
+}));
+
 const eventAssetBase = "https://raw.githubusercontent.com/jp-gnad/Lifesaving_Baden/main/web/assets/png/events/";
 
 let refreshTimer = null;
@@ -109,21 +70,21 @@ let toastTimer = null;
 let dialogScrollPosition = null;
 let dialogReleaseFrame = null;
 let dialogRestoreTimer = null;
-let offlineDatabasePromise = null;
 let offlineSyncPromise = null;
 let routeCleanup = null;
 let routeVersion = 0;
 let eventListTab = "current";
 let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
 
+const peopleView = window.TimerPeopleView.create({
+  app, api, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
+  getRouteVersion: () => routeVersion,
+  setRouteCleanup: (cleanup) => { routeCleanup = cleanup; },
+  refresh: () => renderRoute(),
+});
+
 function icon(name) {
   return `<svg class="icon" aria-hidden="true"><use href="./icons.svg?v=event-settings#${name}"></use></svg>`;
-}
-
-function escapeHtml(value = "") {
-  return String(value).replace(/[&<>'"]/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
-  })[char]);
 }
 
 function safeExternalUrl(value = "") {
@@ -147,12 +108,11 @@ function normalizedIdentity(value = "") {
 function organizationCapUrl(organization = "") {
   const normalizedOrganization = normalizedIdentity(organization);
   if (!normalizedOrganization) return null;
-  const match = organizationCaps.find(([, aliases]) => aliases.some((alias) => {
-    const normalizedAlias = normalizedIdentity(alias);
+  const match = organizationCapMatchers.find(({ aliases }) => aliases.some((normalizedAlias) => {
     return normalizedOrganization.includes(normalizedAlias)
       || (normalizedOrganization.length >= 4 && normalizedAlias.includes(normalizedOrganization));
   }));
-  return match ? `${capAssetBase}${encodeURIComponent(match[0])}` : null;
+  return match ? `${capAssetBase}${encodeURIComponent(match.file)}` : null;
 }
 
 function personInitials(name = "") {
@@ -318,57 +278,6 @@ async function api(path, options = {}) {
   }
 }
 
-function openOfflineDatabase() {
-  if (!window.indexedDB) return Promise.reject(new Error("Der Offline-Speicher ist auf diesem Gerät nicht verfügbar."));
-  if (offlineDatabasePromise) return offlineDatabasePromise;
-  offlineDatabasePromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(offlineDatabaseName, offlineDatabaseVersion);
-    request.addEventListener("upgradeneeded", () => {
-      if (!request.result.objectStoreNames.contains(pendingResultsStore)) {
-        request.result.createObjectStore(pendingResultsStore, { keyPath: "clientSubmissionId" });
-      }
-    });
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error || new Error("Offline-Speicher konnte nicht geöffnet werden.")));
-  });
-  offlineDatabasePromise.catch(() => { offlineDatabasePromise = null; });
-  return offlineDatabasePromise;
-}
-
-async function usePendingResultsStore(mode, operation) {
-  const database = await openOfflineDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(pendingResultsStore, mode);
-    const store = transaction.objectStore(pendingResultsStore);
-    let request;
-    try {
-      request = operation(store);
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error || new Error("Offline-Speicher konnte nicht gelesen werden.")));
-    transaction.addEventListener("abort", () => reject(transaction.error || new Error("Offline-Speicher konnte nicht aktualisiert werden.")));
-  });
-}
-
-function getPendingResults() {
-  return usePendingResultsStore("readonly", (store) => store.getAll());
-}
-
-function getPendingResult(clientSubmissionId) {
-  return usePendingResultsStore("readonly", (store) => store.get(clientSubmissionId));
-}
-
-function putPendingResult(record) {
-  return usePendingResultsStore("readwrite", (store) => store.put(record));
-}
-
-function deletePendingResult(clientSubmissionId) {
-  return usePendingResultsStore("readwrite", (store) => store.delete(clientSubmissionId));
-}
-
 async function updateOfflineSyncStatus() {
   if (!offlineSyncStatus || !offlineSyncText) return;
   try {
@@ -459,297 +368,6 @@ async function saveResultOfflineFirst(eventId, payload) {
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   return { page: parts[0] || "home", id: parts[1] || null, discipline: parts[2] || null, gender: parts[3] || null };
-}
-
-function dateText(value) {
-  if (!value) return "Kein Datum";
-  return new Intl.DateTimeFormat("de-DE", { dateStyle: "long" }).format(new Date(`${value}T12:00:00`));
-}
-
-function isPastEvent(event, now = new Date()) {
-  const value = event?.event_date;
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const eventDay = Date.parse(`${value}T00:00:00Z`);
-  if (!Number.isFinite(eventDay) || new Date(eventDay).toISOString().slice(0, 10) !== value) return false;
-  // Compare local calendar dates, so daylight-saving changes do not shift the cutoff.
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return today - eventDay >= 4 * 24 * 60 * 60 * 1000;
-}
-
-function formatTime(centiseconds) {
-  const safe = Math.max(0, Math.floor(Number(centiseconds) || 0));
-  const minutes = Math.floor(safe / 6000);
-  const seconds = Math.floor((safe % 6000) / 100);
-  const hundredths = safe % 100;
-  return `${minutes}:${String(seconds).padStart(2, "0")},${String(hundredths).padStart(2, "0")}`;
-}
-
-function formatReviewTime(centiseconds) {
-  const safe = Math.max(0, Math.floor(Number(centiseconds) || 0));
-  return `${Math.floor(safe / 100)},${String(safe % 100).padStart(2, "0")}`;
-}
-
-function formatCumulativeReviewTime(centiseconds) {
-  const safe = Math.max(0, Math.floor(Number(centiseconds) || 0));
-  const minutes = Math.floor(safe / 6000);
-  const seconds = Math.floor((safe % 6000) / 100);
-  const hundredths = safe % 100;
-  return `${minutes}:${String(seconds).padStart(2, "0")},${String(hundredths).padStart(2, "0")}`;
-}
-
-function parseTime(value) {
-  const text = String(value).trim();
-  const formatted = text.match(/^(\d{1,3}):([0-5]\d)[,.](\d{2})$/);
-  if (formatted) {
-    return Number(formatted[1]) * 6000 + Number(formatted[2]) * 100 + Number(formatted[3]);
-  }
-
-  // Mobile number keyboards often do not offer a colon. In the compact form,
-  // the last two digits before the comma are seconds: 123,45 -> 1:23,45.
-  const compact = text.match(/^(\d{1,5})[,.](\d{2})$/);
-  if (!compact) return null;
-  const digits = compact[1];
-  const minutes = digits.length > 2 ? Number(digits.slice(0, -2)) : 0;
-  const seconds = Number(digits.length > 2 ? digits.slice(-2) : digits);
-  if (seconds > 59) return null;
-  return minutes * 6000 + seconds * 100 + Number(compact[2]);
-}
-
-function parseReviewTime(value) {
-  const match = String(value).trim().match(/^(\d{1,7})[,.](\d{2})$/);
-  if (!match) return null;
-  return Number(match[1]) * 100 + Number(match[2]);
-}
-
-function disciplineLapLabel(disciplineId, lapNumber) {
-  return disciplines[disciplineId]?.lapLabels?.[lapNumber - 1] || `Runde ${lapNumber}`;
-}
-
-function disciplineLapGroupLabel(disciplineId, laps) {
-  const safeLaps = Array.isArray(laps) && laps.length ? laps : [];
-  if (!safeLaps.length) return "Runde";
-  return safeLaps.map((lap) => disciplineLapLabel(disciplineId, lap)).join(" + ");
-}
-
-function resultLapGroups(result) {
-  const stored = Array.isArray(result.lap_groups) ? result.lap_groups : [];
-  if (stored.length === result.segments.length && stored.every((group) => Array.isArray(group) && group.length)) return stored;
-  return result.segments.map((_, index) => [index + 1]);
-}
-
-function pdfSafeText(value) {
-  return String(value ?? "")
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
-    .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
-    .replace(/ß/g, "ss").replace(/×/g, "x")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7E]/g, "?");
-}
-
-function pdfEscapedText(value) {
-  return pdfSafeText(value).replace(/([\\()])/g, "\\$1");
-}
-
-async function loadEventPdfImage(event) {
-  for (const url of eventIconUrls(event)) {
-    try {
-      const response = await fetch(url, { cache: "force-cache" });
-      if (!response.ok) continue;
-      const blob = await response.blob();
-      const image = await new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const element = new Image();
-        element.addEventListener("load", () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(element);
-        }, { once: true });
-        element.addEventListener("error", () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("Eventbild konnte nicht gelesen werden."));
-        }, { once: true });
-        element.src = objectUrl;
-      });
-      const maximumPixels = 180;
-      const scale = Math.min(1, maximumPixels / Math.max(image.naturalWidth, image.naturalHeight));
-      const width = Math.max(1, Math.round(image.naturalWidth * scale));
-      const height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) return null;
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0, width, height);
-      const jpegBase64 = canvas.toDataURL("image/jpeg", .9).split(",")[1];
-      const binary = atob(jpegBase64);
-      let hex = "";
-      for (let index = 0; index < binary.length; index += 1) hex += binary.charCodeAt(index).toString(16).padStart(2, "0");
-      return { width, height, hex };
-    } catch {
-      // Try the next supported file extension.
-    }
-  }
-  return null;
-}
-
-function createResultsPdf(title, subtitle, headers, rows, eventImage = null) {
-  const pageWidth = 841.89;
-  const pageHeight = 595.28;
-  const margin = 28;
-  const titleHeight = 42;
-  const headerHeight = 26;
-  const rowHeight = 23;
-  const rowsPerPage = Math.max(1, Math.floor((pageHeight - (margin * 2) - titleHeight - headerHeight) / rowHeight));
-  const pageRows = [];
-  for (let index = 0; index < rows.length; index += rowsPerPage) pageRows.push(rows.slice(index, index + rowsPerPage));
-  if (!pageRows.length) pageRows.push([]);
-
-  const usableWidth = pageWidth - (margin * 2);
-  const fontSize = headers.length > 14 ? 6 : 7;
-  const cellMain = (value) => typeof value === "object" && value !== null ? value.main : value;
-  const approximateTextWidth = (value, size = fontSize) => pdfSafeText(value).length * size * .52;
-  const longestPersonWidth = Math.max(
-    approximateTextWidth(cellMain(headers[0])),
-    ...rows.map((row) => approximateTextWidth(cellMain(row[0]))),
-  ) + 8;
-  const otherColumnCount = Math.max(1, headers.length - 1);
-  const personWidth = Math.min(longestPersonWidth, usableWidth - (otherColumnCount * 22));
-  const otherWidth = (usableWidth - personWidth) / otherColumnCount;
-  const scaledWidths = headers.map((_, index) => index === 0 ? personWidth : otherWidth);
-
-  const truncate = (value, width, size = fontSize) => {
-    const text = pdfSafeText(value);
-    const maximum = Math.max(1, Math.floor((width - 6) / (size * .52)));
-    return text.length > maximum ? `${text.slice(0, Math.max(1, maximum - 2))}..` : text;
-  };
-  const textStart = (value, x, width, size, centered) => {
-    if (!centered) return x + 3;
-    const renderedWidth = Math.min(width - 6, approximateTextWidth(value, size));
-    return x + ((width - renderedWidth) / 2);
-  };
-  const generatedAt = new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(new Date());
-  const pageContents = pageRows.map((pageData, pageIndex) => {
-    const commands = [];
-    commands.push("0 g 0 G 0.45 w");
-    let titleX = margin;
-    if (eventImage) {
-      const imageScale = Math.min(30 / eventImage.width, 30 / eventImage.height);
-      const imageWidth = eventImage.width * imageScale;
-      const imageHeight = eventImage.height * imageScale;
-      const imageY = pageHeight - margin - 34 + ((30 - imageHeight) / 2);
-      commands.push(`q ${imageWidth.toFixed(2)} 0 0 ${imageHeight.toFixed(2)} ${margin} ${imageY.toFixed(2)} cm /Im1 Do Q`);
-      titleX += imageWidth + 8;
-    }
-    commands.push(`BT /F2 13 Tf ${titleX.toFixed(2)} ${pageHeight - margin - 12} Td (${pdfEscapedText(title)}) Tj ET`);
-    commands.push(`0.35 g BT /F1 8 Tf ${titleX.toFixed(2)} ${pageHeight - margin - 26} Td (${pdfEscapedText(subtitle)}) Tj ET`);
-    const dateWidth = approximateTextWidth(generatedAt, 7);
-    commands.push(`0.35 g BT /F1 7 Tf ${(pageWidth - margin - dateWidth).toFixed(2)} ${pageHeight - margin - 12} Td (${pdfEscapedText(generatedAt)}) Tj ET`);
-    const footer = `Seite ${pageIndex + 1}/${pageRows.length}`;
-    const footerWidth = approximateTextWidth(footer, 7);
-    commands.push(`0.35 g BT /F1 7 Tf ${((pageWidth - footerWidth) / 2).toFixed(2)} 14 Td (${footer}) Tj ET`);
-    let top = pageHeight - margin - titleHeight;
-    let x = margin;
-    headers.forEach((header, index) => {
-      const width = scaledWidths[index];
-      const value = typeof header === "object" && header !== null ? header : { main: header };
-      const centered = index > 0;
-      const headerMainSize = fontSize;
-      const headerSecondarySize = Math.max(4.5, fontSize - 1.5);
-      const mainText = truncate(value.main, width, headerMainSize);
-      const secondaryText = value.secondary ? truncate(value.secondary, width, headerSecondarySize) : "";
-      const mainX = textStart(mainText, x, width, headerMainSize, centered);
-      commands.push(`0.93 g ${x.toFixed(2)} ${(top - headerHeight).toFixed(2)} ${width.toFixed(2)} ${headerHeight} re f`);
-      commands.push(`0 g 0 G ${x.toFixed(2)} ${(top - headerHeight).toFixed(2)} ${width.toFixed(2)} ${headerHeight} re S`);
-      commands.push(`0 g BT /F2 ${headerMainSize} Tf ${mainX.toFixed(2)} ${(top - (secondaryText ? 11 : 16)).toFixed(2)} Td (${pdfEscapedText(mainText)}) Tj ET`);
-      if (secondaryText) {
-        const secondaryX = textStart(secondaryText, x, width, headerSecondarySize, centered);
-        commands.push(`0.35 g BT /F1 ${headerSecondarySize} Tf ${secondaryX.toFixed(2)} ${(top - 20).toFixed(2)} Td (${pdfEscapedText(secondaryText)}) Tj ET`);
-      }
-      x += width;
-    });
-    top -= headerHeight;
-    pageData.forEach((row) => {
-      x = margin;
-      for (let index = 0; index < row.length;) {
-        const cell = row[index];
-        if (typeof cell === "object" && cell?.skip) {
-          index += 1;
-          continue;
-        }
-        const value = typeof cell === "object" && cell !== null ? cell : { main: cell };
-        const columnSpan = Math.max(1, Math.min(Number(value.colSpan) || 1, row.length - index));
-        const width = scaledWidths.slice(index, index + columnSpan).reduce((sum, columnWidth) => sum + columnWidth, 0);
-        const hasSecondary = Boolean(value.secondary);
-        const centered = index > 0;
-        const mainText = truncate(value.main, width);
-        const mainX = textStart(mainText, x, width, fontSize, centered);
-        commands.push(`0 G ${x.toFixed(2)} ${(top - rowHeight).toFixed(2)} ${width.toFixed(2)} ${rowHeight} re S`);
-        commands.push(`0 g BT /${value.bold ? "F2" : "F1"} ${fontSize} Tf ${mainX.toFixed(2)} ${(top - (hasSecondary ? 9.5 : 14.5)).toFixed(2)} Td (${pdfEscapedText(mainText)}) Tj ET`);
-        if (hasSecondary) {
-          const secondarySize = Math.max(5, fontSize - 1.5);
-          const secondaryText = truncate(value.secondary, width, secondarySize);
-          const secondaryX = textStart(secondaryText, x, width, secondarySize, centered);
-          commands.push(value.tone === "frequency" ? "0.58 0.38 0 rg" : "0.48 g");
-          commands.push(`BT /F1 ${secondarySize} Tf ${secondaryX.toFixed(2)} ${(top - 17.5).toFixed(2)} Td (${pdfEscapedText(secondaryText)}) Tj ET`);
-          commands.push("0 g");
-        }
-        x += width;
-        index += columnSpan;
-      }
-      top -= rowHeight;
-    });
-    return commands.join("\n");
-  });
-
-  const fontRegularId = 3 + (pageContents.length * 2);
-  const fontBoldId = fontRegularId + 1;
-  const imageId = eventImage ? fontBoldId + 1 : null;
-  const objects = [];
-  const pageIds = pageContents.map((_, index) => 3 + (index * 2));
-  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
-  pageContents.forEach((content, index) => {
-    const pageId = pageIds[index];
-    const contentId = pageId + 1;
-    const imageResources = imageId ? ` /XObject << /Im1 ${imageId} 0 R >>` : "";
-    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >>${imageResources} >> /Contents ${contentId} 0 R >>`;
-    objects[contentId] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
-  });
-  objects[fontRegularId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
-  objects[fontBoldId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
-  if (imageId) objects[imageId] = `<< /Type /XObject /Subtype /Image /Width ${eventImage.width} /Height ${eventImage.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${eventImage.hex.length + 1} >>\nstream\n${eventImage.hex}>\nendstream`;
-
-  let documentText = "%PDF-1.4\n";
-  const offsets = [0];
-  for (let id = 1; id < objects.length; id += 1) {
-    offsets[id] = documentText.length;
-    documentText += `${id} 0 obj\n${objects[id]}\nendobj\n`;
-  }
-  const xrefOffset = documentText.length;
-  documentText += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
-  for (let id = 1; id < objects.length; id += 1) documentText += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
-  documentText += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return new Blob([documentText], { type: "application/pdf" });
-}
-
-function openPdf(blob) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.target = "_blank";
-  link.rel = "noopener";
-  link.hidden = true;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-function disciplineOptions(selected = "normal") {
-  return Object.entries(disciplines).map(([id, item]) =>
-    `<option value="${id}" ${id === selected ? "selected" : ""}>${item.name} · ${item.flexible ? "max. " : ""}${item.laps} Laps</option>`
-  ).join("");
 }
 
 function setDocumentTitle(title) {
@@ -939,7 +557,7 @@ async function renderHome() {
     });
     eventList.setAttribute("aria-labelledby", `events-${eventListTab}-tab`);
     eventList.innerHTML = visibleEvents.length ? `<div class="stack">${visibleEvents.map((event) => `
-        <a class="card event-row" href="#/event/${event.id}" aria-label="${escapeHtml(event.name)} öffnen">
+        <a class="card event-row" href="#/event/${encodeURIComponent(event.id)}" aria-label="${escapeHtml(event.name)} öffnen">
           <div class="event-row-content">${eventIconMarkup(event, "event-list-icon")}<div class="event-row-copy"><h3>${escapeHtml(event.name)}</h3><div class="event-meta">
             <span class="meta-item">${icon("calendar")} ${escapeHtml(dateText(event.event_date))}</span>
             ${event.location ? `<span class="meta-item">${icon("location")} ${escapeHtml(event.location)}</span>` : ""}
@@ -1067,7 +685,7 @@ async function renderEventSettings(id, section = null) {
         <label><input type="radio" name="poolLength" value="25" ${poolLength === "25" ? "checked" : ""}><span>25 m</span></label>
         <label><input type="radio" name="poolLength" value="50" ${poolLength === "50" ? "checked" : ""}><span>50 m</span></label>
         <label><input type="radio" name="poolLength" value="custom" ${poolLength === "custom" ? "checked" : ""}><span>Eigene</span></label>
-      </div><label class="field custom-pool-length" ${poolLength === "custom" ? "" : "hidden"}><span>Bahnlänge in Metern</span><input id="custom-pool-length" name="customPoolLength" type="number" min="1" max="10000" step="0.01" inputmode="decimal" value="${event.custom_pool_length ?? ""}"></label></div></fieldset>`;
+      </div><label class="field custom-pool-length" ${poolLength === "custom" ? "" : "hidden"}><span>Bahnlänge in Metern</span><input id="custom-pool-length" name="customPoolLength" type="number" min="1" max="10000" step="0.01" inputmode="decimal" value="${escapeHtml(event.custom_pool_length ?? "")}"></label></div></fieldset>`;
   const sectionMarkup = activeSection === "event" ? eventMarkup
     : activeSection === "timer" ? `<div class="settings-disciplines"><h2>Disziplinen</h2>${disciplineFields}</div>`
     : activeSection === "results" ? `<fieldset class="settings-section"><legend>Ergebnis-URL</legend><div class="result-url-heading"><span>Link</span><a class="result-source-link" href="https://competition.dlrg.net/de/competitions" target="_blank" rel="noopener noreferrer" aria-label="DLRG Competition öffnen" title="DLRG Competition öffnen">${icon("link")}</a></div><label class="field"><input name="resultUrl" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${escapeHtml(event.result_url || "")}"></label></fieldset>`
@@ -1170,223 +788,7 @@ async function renderEventSettings(id, section = null) {
 }
 
 async function renderPeople(id, viewData = null) {
-  const version = routeVersion;
-  const isCurrent = () => version === routeVersion;
-  const { event, participants } = viewData || await api(`/events/${id}?prepareImport=1`);
-  if (!isCurrent()) return;
-  if (!eventCan(event, "can_view_participants")) {
-    setDocumentTitle(`Personen – ${event.name}`);
-    app.innerHTML = `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a><div class="empty"><strong>Kein Zugriff auf Personen</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
-    return;
-  }
-  const canEditPeople = eventCan(event, "can_edit_participants");
-  const importedIdentities = new Set(participants.map((person) => window.TimerParticipantStore.identity(person)));
-  const showSaved = async (participant, removedId = participant?.id) => {
-    if (!isCurrent()) return;
-    const next = participants.filter((person) => person.id !== removedId);
-    if (participant) next.push(participant);
-    await renderPeople(id, { event, participants: next });
-  };
-  participants.sort(compareParticipantsByOrganization);
-  const personCardContent = (person) => `<div class="person-card-content">${personAvatar(person)}<div class="person-card-copy"><div class="person-head"><strong>${escapeHtml(person.name)} (${birthYearText(person.birth_year)})</strong></div>
-    <div class="person-details"><span>${escapeHtml(person.organization)} - ${escapeHtml(person.age_group)} - ${person.gender === "male" ? "m" : "w"}</span></div></div></div>`;
-  const personCardMarkup = (person) => canEditPeople ? `<button class="person-card person-card-button edit-person" type="button" data-id="${person.id}" aria-label="${escapeHtml(person.name)} bearbeiten">
-    ${personCardContent(person)}</button>` : `<div class="person-card">${personCardContent(person)}</div>`;
-  const peopleByAgeGroup = [...participants.reduce((groups, person) => {
-    const ageGroup = person.age_group || "Ohne Altersklasse";
-    if (!groups.has(ageGroup)) groups.set(ageGroup, []);
-    groups.get(ageGroup).push(person);
-    return groups;
-  }, new Map()).entries()].sort(([left], [right]) => left.localeCompare(right, "de", { numeric: true, sensitivity: "base" }));
-  setDocumentTitle(`Personen – ${event.name}`);
-  app.innerHTML = `
-    <a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>
-    <div class="page-head people-page-head"><h1>Personen</h1><div class="people-page-actions">
-      <button class="button secondary icon-button" id="refresh-people" type="button" aria-label="Personenliste aktualisieren" title="Personenliste aktualisieren">${icon("refresh")}</button>
-      ${canEditPeople ? `<button class="button secondary" id="new-person">${icon("user-plus")} Neu</button>` : ""}
-      ${eventCan(event, "can_import_participants") ? `<button class="button secondary" id="import-person">${icon("import")} Importieren</button>` : ""}
-    </div></div>
-    <section class="people-list-section" aria-label="Personenliste">
-      ${participants.length ? `<div class="person-groups">${peopleByAgeGroup.map(([ageGroup, people], groupIndex) => `<section class="person-age-group" aria-labelledby="age-group-${groupIndex}"><h2 id="age-group-${groupIndex}">${escapeHtml(ageGroup)}</h2><div class="person-list">${people.map(personCardMarkup).join("")}</div></section>`).join("")}</div>` : `<div class="empty">Noch keine Personen.</div>`}
-    </section>
-    <dialog id="person-dialog"><form class="dialog-body" id="person-form">
-      <h2 id="person-dialog-title">Person hinzufügen</h2><div class="form-grid">
-        <div class="field full"><label for="person-name">Name</label><input id="person-name" name="name" maxlength="120" autocomplete="name" required></div>
-        <div class="field"><label for="birth-year">Jahrgang (JJ)</label><input id="birth-year" name="birthYear" type="number" min="0" max="99" inputmode="numeric" placeholder="08" required></div>
-        <div class="field"><label for="age-group">Altersklasse</label><input id="age-group" name="ageGroup" maxlength="40" required placeholder="z. B. AK 15/16"></div>
-        <div class="field"><label for="gender">Geschlecht</label><select id="gender" name="gender" required><option value="female">Weiblich</option><option value="male">Männlich</option></select></div>
-        <div class="field"><label for="organization">Gliederung</label><input id="organization" name="organization" maxlength="120" required placeholder="Verein / Ortsgruppe"></div>
-      </div><p class="form-error" id="person-error" role="alert"></p>
-      <div class="form-actions"><button type="button" class="button secondary" data-close>Abbrechen</button><button class="button">Person speichern</button></div>
-      <div class="dialog-delete-row"><button type="button" class="button danger small" id="delete-person-dialog" hidden>${icon("trash")} Person löschen</button></div>
-    </form></dialog>
-    <dialog id="person-import-dialog" class="participant-import-dialog"><div class="dialog-body participant-import-body">
-      <div class="dialog-title-row"><h2>Person importieren</h2><button type="button" class="button secondary icon-button" data-close aria-label="Schließen">${icon("x")}</button></div>
-      <div class="participant-search-control">
-        <label class="sr-only" for="import-person-search">Person suchen</label>
-        <input id="import-person-search" type="search" inputmode="search" autocomplete="off" placeholder="Name suchen …" ${event.event_date ? "" : "disabled"}>
-        <button type="button" class="participant-search-clear" id="clear-import-search" aria-label="Suche löschen" hidden>${icon("x")}</button>
-      </div>
-      <p class="import-search-note" id="import-search-note">${event.event_date ? "Mindestens 3 Buchstaben eingeben." : "Für den Import zuerst beim Event ein Datum eintragen."}</p>
-      <div class="participant-picker-list participant-import-list" id="person-import-results" aria-live="polite"></div>
-    </div></dialog>`;
-
-  const dialog = document.querySelector("#person-dialog");
-  const personForm = document.querySelector("#person-form");
-  const personDialogTitle = document.querySelector("#person-dialog-title");
-  const deletePersonButton = document.querySelector("#delete-person-dialog");
-  const importDialog = document.querySelector("#person-import-dialog");
-  const importSearch = document.querySelector("#import-person-search");
-  const clearImportSearch = document.querySelector("#clear-import-search");
-  const importSearchNote = document.querySelector("#import-search-note");
-  const importResults = document.querySelector("#person-import-results");
-  let importSearchTimer = null;
-  let importRequest = 0;
-  let importing = false;
-  document.querySelector("#refresh-people").addEventListener("click", () => renderRoute());
-  routeCleanup = () => {
-    clearTimeout(importSearchTimer);
-    importRequest += 1;
-    importDialog.close();
-    dialog.close();
-  };
-  bindDialogClose(dialog);
-  bindDialogClose(importDialog);
-  importDialog.addEventListener("close", () => {
-    clearTimeout(importSearchTimer);
-    importRequest += 1;
-  });
-  document.querySelector("#new-person")?.addEventListener("click", () => {
-    personForm.reset();
-    personForm.dataset.editId = "";
-    personDialogTitle.textContent = "Person hinzufügen";
-    deletePersonButton.hidden = true;
-    document.querySelector("#person-error").textContent = "";
-    openDialog("#person-dialog");
-  });
-  document.querySelector("#import-person")?.addEventListener("click", () => {
-    clearTimeout(importSearchTimer);
-    importRequest += 1;
-    importSearch.value = "";
-    clearImportSearch.hidden = true;
-    importResults.innerHTML = "";
-    importSearchNote.textContent = event.event_date
-      ? "Mindestens 3 Buchstaben eingeben."
-      : "Für den Import zuerst beim Event ein Datum eintragen.";
-    openDialog("#person-import-dialog", { focusField: false });
-  });
-  const loadImportCandidates = async () => {
-    const searchValue = importSearch.value.trim();
-    const searchLength = normalizedIdentity(searchValue).length;
-    clearImportSearch.hidden = !searchValue;
-    importRequest += 1;
-    const requestId = importRequest;
-    if (searchLength < 3) {
-      importSearchNote.textContent = "Mindestens 3 Buchstaben eingeben.";
-      importResults.innerHTML = "";
-      return;
-    }
-    importSearchNote.textContent = "Suche …";
-    importResults.innerHTML = "";
-    try {
-      const { candidates, directoryReady } = await api(`/events/${id}/participants/import?q=${encodeURIComponent(searchValue)}`);
-      if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
-      candidates.forEach((candidate) => {
-        candidate.alreadyImported = importedIdentities.has(window.TimerParticipantStore.identity(candidate));
-      });
-      importSearchNote.textContent = candidates.length
-        ? `${candidates.length} Treffer`
-        : (directoryReady ? "Keine Person gefunden." : "Die geschützte Importliste ist noch nicht eingerichtet.");
-      importResults.innerHTML = candidates.map((candidate) => `<button type="button" class="participant-picker-option import-person-option" data-id="${candidate.id}" ${candidate.alreadyImported ? "disabled" : ""}>
-        <span class="participant-picker-main">${personAvatar({ name: candidate.name, gender: candidate.gender, organization: candidate.organization })}<span class="participant-picker-copy">
-          <strong>${escapeHtml(candidate.name)} (${birthYearText(candidate.birthYear)})</strong>
-          <small>${escapeHtml(candidate.organization)} · ${escapeHtml(candidate.ageGroup)} · ${candidate.gender === "female" ? "w" : "m"}${candidate.alreadyImported ? " · Bereits vorhanden" : ""}</small>
-        </span></span>${candidate.alreadyImported ? icon("check") : icon("import")}
-      </button>`).join("");
-    } catch (err) {
-      if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
-      importSearchNote.textContent = err.message;
-    }
-  };
-  importSearch.addEventListener("input", () => {
-    clearTimeout(importSearchTimer);
-    importRequest += 1;
-    clearImportSearch.hidden = !importSearch.value;
-    importSearchTimer = setTimeout(loadImportCandidates, 220);
-  });
-  clearImportSearch.addEventListener("click", () => {
-    clearTimeout(importSearchTimer);
-    importRequest += 1;
-    importSearch.value = "";
-    clearImportSearch.hidden = true;
-    importSearchNote.textContent = "Mindestens 3 Buchstaben eingeben.";
-    importResults.innerHTML = "";
-    importSearch.focus();
-  });
-  importResults.addEventListener("click", async (clickEvent) => {
-    const button = clickEvent.target.closest(".import-person-option");
-    if (!button || button.disabled || importing) return;
-    try {
-      importing = true;
-      button.disabled = true;
-      const { participant } = await api(`/events/${id}/participants/import`, { method: "POST", body: JSON.stringify({ candidateId: button.dataset.id }) });
-      if (!isCurrent()) return;
-      importDialog.close();
-      showToast("Person wurde importiert.");
-      await showSaved(participant);
-    } catch (err) {
-      if (!isCurrent()) return;
-      importing = false;
-      button.disabled = false;
-      importSearchNote.textContent = err.message;
-    }
-  });
-  document.querySelectorAll(".edit-person").forEach((button) => button.addEventListener("click", () => {
-    const person = participants.find((item) => item.id === button.dataset.id);
-    if (!person) return;
-    personForm.dataset.editId = person.id;
-    personDialogTitle.textContent = "Person bearbeiten";
-    deletePersonButton.hidden = false;
-    personForm.elements.name.value = person.name;
-    personForm.elements.birthYear.value = person.birth_year;
-    personForm.elements.ageGroup.value = person.age_group;
-    personForm.elements.gender.value = person.gender;
-    personForm.elements.organization.value = person.organization;
-    document.querySelector("#person-error").textContent = "";
-    openDialog("#person-dialog", { focusField: false });
-  }));
-  personForm.addEventListener("submit", async (submitEvent) => {
-    submitEvent.preventDefault();
-    const button = submitEvent.submitter;
-    try {
-      button.disabled = true;
-      const values = Object.fromEntries(new FormData(submitEvent.currentTarget));
-      const editId = submitEvent.currentTarget.dataset.editId;
-      const { participant } = await api(`/events/${id}/participants${editId ? `/${editId}` : ""}`, { method: editId ? "PATCH" : "POST", body: JSON.stringify(values) });
-      if (!isCurrent()) return;
-      dialog.close();
-      showToast(editId ? "Person wurde aktualisiert." : "Person wurde hinzugefügt.");
-      await showSaved(participant);
-    } catch (err) {
-      if (!isCurrent()) return;
-      document.querySelector("#person-error").textContent = err.message;
-      button.disabled = false;
-    }
-  });
-  deletePersonButton.addEventListener("click", async () => {
-    const person = participants.find((item) => item.id === personForm.dataset.editId);
-    if (!person) return;
-    const warning = Number(person.result_count) > 0 ? " Dabei werden auch alle Ergebnisse dieser Person gelöscht." : "";
-    if (!confirm(`${person.name} wirklich löschen?${warning}`)) return;
-    try {
-      deletePersonButton.disabled = true;
-      await api(`/events/${id}/participants/${person.id}`, { method: "DELETE" });
-      if (!isCurrent()) return;
-      dialog.close();
-      showToast("Person wurde gelöscht.");
-      await showSaved(null, person.id);
-    } catch (err) { if (isCurrent()) { showToast(err.message); deletePersonButton.disabled = false; } }
-  });
+  return peopleView.render(id, viewData);
 }
 
 async function renderTimer(id) {
@@ -1670,7 +1072,7 @@ async function renderTimer(id) {
     let editMode = false;
     let glueMode = false;
     const glueHistory = [];
-    const optionMarkup = () => participants.map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("");
+    const optionMarkup = () => participants.map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.name)}</option>`).join("");
     const assignmentControl = (id, label) => `<div class="field"><label for="${id}-picker">${label}</label><button class="participant-picker-trigger" id="${id}-picker" type="button" data-select-id="${id}" aria-haspopup="dialog"><span class="participant-picker-value">Auswählen …</span>${icon("chevron-down")}</button><select class="participant-select" id="${id}" hidden tabindex="-1" aria-hidden="true"><option value="">Auswählen …</option>${optionMarkup()}</select></div>`;
     const assignmentMarkup = item.team
       ? `<fieldset class="team-assignment"><legend>Mannschaft</legend>${Array.from({ length: 4 }, (_, index) => assignmentControl(`participant-${index + 1}`, `Position ${index + 1}`)).join("")}</fieldset>`
@@ -1777,7 +1179,7 @@ async function renderTimer(id) {
       participantPickerList.innerHTML = matches.map((person) => {
         const assignedElsewhere = participantSelects.find((select) => select !== activeParticipantSelect && select.value === person.id);
         const selected = activeParticipantSelect?.value === person.id;
-        return `<button class="participant-picker-option ${selected ? "selected" : ""}" type="button" data-person-id="${person.id}" role="option" aria-selected="${selected}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${participantSelects.indexOf(assignedElsewhere) + 1}</small>` : (selected ? icon("check") : icon("arrow-right"))}</button>`;
+        return `<button class="participant-picker-option ${selected ? "selected" : ""}" type="button" data-person-id="${escapeHtml(person.id)}" role="option" aria-selected="${selected}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${participantSelects.indexOf(assignedElsewhere) + 1}</small>` : (selected ? icon("check") : icon("arrow-right"))}</button>`;
       }).join("");
       participantPickerEmpty.hidden = matches.length !== 0;
     }
@@ -2324,7 +1726,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     resultParticipantPickerList.innerHTML = matches.map((person) => {
       const assignedElsewhere = assignmentSelects.find((select) => select !== activeResultParticipantSelect && select.value === person.id);
       const selectedPerson = activeResultParticipantSelect?.value === person.id;
-      return `<button class="participant-picker-option ${selectedPerson ? "selected" : ""}" type="button" data-person-id="${person.id}" role="option" aria-selected="${selectedPerson}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${assignmentSelects.indexOf(assignedElsewhere) + 1}</small>` : (selectedPerson ? icon("check") : icon("arrow-right"))}</button>`;
+      return `<button class="participant-picker-option ${selectedPerson ? "selected" : ""}" type="button" data-person-id="${escapeHtml(person.id)}" role="option" aria-selected="${selectedPerson}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${assignmentSelects.indexOf(assignedElsewhere) + 1}</small>` : (selectedPerson ? icon("check") : icon("arrow-right"))}</button>`;
     }).join("");
     resultParticipantPickerEmpty.hidden = matches.length !== 0;
   }
@@ -2428,7 +1830,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const selectedParticipantIds = item.team
       ? [...(result.team_members || [])].sort((left, right) => left.position - right.position).map((member) => member.id)
       : [result.participant_id];
-    const assignmentControl = (controlId, label, selectedId) => `<div class="field"><label for="${controlId}-picker">${label}</label><button class="participant-picker-trigger result-participant-picker-trigger" id="${controlId}-picker" type="button" data-select-id="${controlId}" aria-haspopup="dialog"><span class="participant-picker-value">Auswählen …</span>${icon("chevron-down")}</button><select class="result-participant-select" id="${controlId}" hidden tabindex="-1" aria-hidden="true"><option value="">Auswählen …</option>${participants.map((person) => `<option value="${person.id}" ${person.id === selectedId ? "selected" : ""}>${escapeHtml(person.name)}</option>`).join("")}</select></div>`;
+    const assignmentControl = (controlId, label, selectedId) => `<div class="field"><label for="${controlId}-picker">${label}</label><button class="participant-picker-trigger result-participant-picker-trigger" id="${controlId}-picker" type="button" data-select-id="${controlId}" aria-haspopup="dialog"><span class="participant-picker-value">Auswählen …</span>${icon("chevron-down")}</button><select class="result-participant-select" id="${controlId}" hidden tabindex="-1" aria-hidden="true"><option value="">Auswählen …</option>${participants.map((person) => `<option value="${escapeHtml(person.id)}" ${person.id === selectedId ? "selected" : ""}>${escapeHtml(person.name)}</option>`).join("")}</select></div>`;
     const assignmentMarkup = item.team
       ? `<fieldset class="team-assignment result-edit-team-assignment"><legend>Personen</legend>${Array.from({ length: 4 }, (_, index) => assignmentControl(`result-participant-${index + 1}`, `Position ${index + 1}`, selectedParticipantIds[index] || "")).join("")}</fieldset>`
       : assignmentControl("result-participant", "Person", selectedParticipantIds[0] || "");
@@ -2616,7 +2018,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       submitButton.disabled = true;
       resultEditError.textContent = "";
       const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-      await api(`/events/${id}/results/${editingResult.id}`, {
+      await api(`/events/${id}/results/${encodeURIComponent(editingResult.id)}`, {
         method: "PATCH",
         body: JSON.stringify({ ...assignment, segments, frequencies, lapGroups, officialTime, note }),
       });
@@ -2633,7 +2035,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     if (!editingResult || !confirm("Dieses Ergebnis unwiderruflich löschen?")) return;
     try {
       deleteResultButton.disabled = true;
-      await api(`/events/${id}/results/${editingResult.id}`, { method: "DELETE" });
+      await api(`/events/${id}/results/${encodeURIComponent(editingResult.id)}`, { method: "DELETE" });
       resultEditDialog.close();
       editingResult = null;
       await loadResults();
@@ -2682,7 +2084,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
             const glued = group.length > 1;
             return `<span class="${glued ? "glued-result-lap" : ""}"><span class="result-lap-label">${escapeHtml(disciplineLapGroupLabel(result.discipline, group))}${Number.isInteger(result.frequencies?.[lap]) ? `<small>${result.frequencies[lap]}/min</small>` : ""}</span><strong>${value === null ? "–" : formatTime(value)}</strong></span>`;
           }).join("")}</div></details>`;
-        const editButton = !resultsOnly && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${result.id}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
+        const editButton = !resultsOnly && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${escapeHtml(result.id)}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
         const cardHead = teamMembers.length
           ? `<div class="result-head"><div>${resultIdentity}</div>${editButton}</div>${details}`
           : `<div class="result-head"><div>${resultIdentity}${details}</div>${editButton}</div>`;

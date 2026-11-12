@@ -1,21 +1,7 @@
 (function () {
   "use strict";
 
-  const DISCIPLINES = Object.freeze({
-    normal: { laps: 20, flexible: true },
-    rescue50: { laps: 2 },
-    rescue100: { laps: 3 },
-    lifesaver100: { laps: 3 },
-    medley100: { laps: 3 },
-    superLifesaver200: { laps: 7 },
-    obstacle200: { laps: 4 },
-    manikinRelay4x25: { laps: 4, team: true },
-    rescueTubeRelay4x50: { laps: 4, team: true },
-    rescueRelay4x50: { laps: 4, team: true },
-    obstacleRelay4x50: { laps: 4, team: true },
-    mixedRelay4x50: { laps: 4, team: true, mixed: true },
-    lineThrow: { laps: 2, team: true },
-  });
+  const DISCIPLINES = window.TimerCore.disciplines;
 
   const DEFAULT_DISCIPLINES = Object.keys(DISCIPLINES);
   const ACCESS_LEVELS = new Set(["everyone", "authenticated", "athlete", "trainer", "organizer", "locked"]);
@@ -621,7 +607,13 @@
     const checkSession = participantSessionCheck();
     const method = String(options.method || "GET").toUpperCase();
     const url = new URL(path, window.location.origin);
-    const parts = url.pathname.split("/").filter(Boolean);
+    const parts = url.pathname.split("/").filter(Boolean).map((part) => {
+      let decoded;
+      try { decoded = decodeURIComponent(part); }
+      catch { throw appError("Ungültige Adresse."); }
+      if (/[\/\\\u0000-\u001f]/.test(decoded)) throw appError("Ungültige Adresse.");
+      return decoded;
+    });
     if (parts[0] !== "events") throw appError("Nicht gefunden.", 404);
 
     try {

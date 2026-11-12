@@ -11,7 +11,7 @@
         const response = await fetch("../admin-accounts.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(header|person-link-store|auth-core)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;
