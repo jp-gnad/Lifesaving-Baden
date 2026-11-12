@@ -271,6 +271,7 @@ service cloud.firestore {
 
     match /personAccountLinks/{personId} {
       allow read: if isAdmin();
+      allow get: if verifiedTrainer();
       allow create: if isAdmin() && request.resource.data.keys().hasOnly(["uid"])
         && request.resource.data.uid is string
         && exists(/databases/$(database)/documents/timerParticipantDirectory/$(personId))
@@ -285,12 +286,12 @@ service cloud.firestore {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
-      allow update: if (isOwner(uid) && ownerKeepsProtectedFieldsSafe())
+      allow update: if clubRoleChangeSafe(uid) && ((isOwner(uid) && ownerKeepsProtectedFieldsSafe())
         || (isAdmin() && validAdminPersonLink(uid) && (adminAccount(resource.data)
-          ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid)));
+          ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid))));
       allow delete: if !adminAccount(resource.data)
         && ((isAdmin() && request.auth.uid != uid) || (isOwner(uid) && !isAdmin()))
-        && linkReleased(resource.data.get("personLink", null));
+        && linkReleased(resource.data.get("personLink", null)) && noClubResponsibilities(uid);
     }
 
     function validTimerEvent(data) {
@@ -695,35 +696,167 @@ service cloud.firestore {
       return ["swimSilver", "swimGold", "rescueBronze", "rescueSilver", "rescueGold", "combinedExercise", "healthDeclaration"];
     }
 
-    function validStartEligibilityDates(data) {
-      return startEligibilityDate(data.swimSilver) && startEligibilityDate(data.swimGold)
-        && startEligibilityDate(data.rescueBronze) && startEligibilityDate(data.rescueSilver)
-        && startEligibilityDate(data.rescueGold) && startEligibilityDate(data.combinedExercise)
-        && startEligibilityDate(data.healthDeclaration);
-    }
-
-    function validStartEligibilityImport(id, data) {
-      let source = get(/databases/$(database)/documents/timerParticipantDirectory/$(id)).data;
-      return data.keys().hasOnly(startEligibilityDates().concat(["name", "birthYear", "organization", "createdAt", "updatedAt"]))
-        && data.name == source.name && data.birthYear == source.birthYear && data.organization == source.organization
-        && data.name is string && data.name.size() > 0
-        && data.birthYear is int && data.birthYear >= 1900 && data.birthYear <= request.time.year() + 1
-        && data.organization is string
-        && validStartEligibilityDates(data)
-        && data.createdAt == request.time && data.updatedAt == request.time;
-    }
-
+    // Retired private records are intentionally inaccessible. New records live
+    // on the person membership inside each club.
     match /users/{uid}/startEligibility/{candidateId} {
-      allow read, delete: if isOwner(uid) && verifiedTrainer();
-      allow create: if isOwner(uid) && verifiedTrainer()
-        && validStartEligibilityImport(candidateId, request.resource.data);
-      allow update: if isOwner(uid) && verifiedTrainer()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(startEligibilityDates().concat(["updatedAt"]))
-        && validStartEligibilityDates(request.resource.data) && request.resource.data.updatedAt == request.time;
+      allow read, write: if false;
+    }
+
+    function noClubResponsibilities(uid) {
+      let path = /databases/$(database)/documents/clubAccounts/$(uid);
+      return !existsAfter(path) || getAfter(path).data.clubIds.size() == 0;
+    }
+
+    function clubRoleChangeSafe(uid) {
+      return accountRoleRank(request.resource.data, false) >= 3 || noClubResponsibilities(uid);
+    }
+
+    function managesClub(id) {
+      let club = get(/databases/$(database)/documents/clubs/$(id)).data;
+      return verifiedTrainer() && club.status == "active"
+        && (isAdmin() || request.auth.uid in club.managerIds);
+    }
+
+    function validClubProfile(uid, data) {
+      let account = getAfter(/databases/$(database)/documents/users/$(uid)).data;
+      let person = account.get("personLink", {});
+      let role = accountRoleRank(account, false);
+      let birthDate = account.get("birthDate", "");
+      let birthYear = birthDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') ? int(birthDate.split('-')[0]) : null;
+      return data.keys().hasOnly(["role", "personId", "name", "birthYear", "organization"])
+        && data.role == (role == 5 ? "admin" : role == 4 ? "organizer" : role == 3 ? "trainer" : role == 2 ? "athlete" : "standard")
+        && data.personId == person.get("id", "")
+        && data.name == person.get("name", account.get("displayName", "").size() > 0 ? account.displayName : account.get("email", "Mitglied"))
+        && data.organization == person.get("organization", account.get("dlrgBranch", ""))
+        && (data.birthYear == null || (data.birthYear is int && data.birthYear >= 1900 && data.birthYear <= request.time.year()))
+        && data.birthYear == person.get("birthYear", birthYear);
+    }
+
+    match /clubProfiles/{uid} {
+      allow get: if verifiedTrainer() || isOwner(uid);
+      allow list: if verifiedUser() && isAdmin();
+      allow create, update: if verifiedUser() && (isAdmin() || isOwner(uid)) && validClubProfile(uid, request.resource.data);
+      allow delete: if verifiedUser() && (isAdmin() || isOwner(uid))
+        && (!existsAfter(/databases/$(database)/documents/users/$(uid))
+          || accountRoleRank(getAfter(/databases/$(database)/documents/users/$(uid)).data, false) < 3);
+    }
+
+    function validClubIndex(uid, data, previous) {
+      let id = data.changedClubId;
+      let club = getAfter(/databases/$(database)/documents/clubs/$(id)).data;
+      return data.keys().hasOnly(["clubIds", "changedClubId", "updatedAt"])
+        && data.clubIds is list && data.clubIds.size() == data.clubIds.toSet().size()
+        && data.clubIds.removeAll([id]) == previous.removeAll([id])
+        && (id in data.clubIds) == (uid in club.managerIds)
+        && club.changedManagerId == uid && club.updatedAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    match /clubAccounts/{uid} {
+      allow get: if verifiedUser() && (isOwner(uid) || isAdmin());
+      allow create: if verifiedTrainer() && validClubIndex(uid, request.resource.data, []);
+      allow update: if verifiedTrainer() && validClubIndex(uid, request.resource.data, resource.data.clubIds);
+    }
+
+    function validClubBase(id, data) {
+      return data.keys().hasOnly(["name", "managerIds", "changedManagerId", "status", "createdAt", "updatedAt"])
+        && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
+        && id == data.name.trim().lower().toUtf8().toHexString().lower()
+        && data.managerIds is list && data.managerIds.size() == data.managerIds.toSet().size()
+        && data.status in ["active", "deleting"] && (data.status == "deleting" || data.managerIds.size() > 0)
+        && data.updatedAt == request.time;
+    }
+
+    function validManagerChange(id, next, previous) {
+      let uid = next.changedManagerId;
+      let added = uid in next.managerIds;
+      let account = getAfter(/databases/$(database)/documents/users/$(uid)).data;
+      let index = getAfter(/databases/$(database)/documents/clubAccounts/$(uid)).data;
+      return next.managerIds.removeAll([uid]) == previous.removeAll([uid])
+        && (added ? accountRoleRank(account, false) >= 3
+          && (isAdmin() || uid in previous || account.get("personLink", {}).get("id", "") != "")
+          && existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + uid))
+          : (isAdmin() || uid == request.auth.uid || callerRoleRank() >= accountRoleRank(account, false)))
+        && (id in index.clubIds) == added && index.changedClubId == id && index.updatedAt == request.time;
+    }
+
+    match /clubs/{id} {
+      allow get, list: if verifiedTrainer() && (isAdmin() || (resource.data.status == "active" && request.auth.uid in resource.data.managerIds));
+      allow create: if verifiedUser() && isAdmin() && validClubBase(id, request.resource.data)
+        && request.resource.data.status == "active" && request.resource.data.managerIds.size() == 1
+        && request.resource.data.createdAt == request.time
+        && validManagerChange(id, request.resource.data, []);
+      allow update: if validClubBase(id, request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name
+        && ((managesClub(id) && request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["managerIds", "changedManagerId", "updatedAt"])
+          && validManagerChange(id, request.resource.data, resource.data.managerIds))
+          || (verifiedUser() && isAdmin() && (request.resource.data.managerIds == resource.data.managerIds
+            || validManagerChange(id, request.resource.data, resource.data.managerIds))));
+      allow delete: if verifiedUser() && isAdmin() && resource.data.status == "deleting" && resource.data.managerIds.size() == 0;
+
+      match /people/{personId} {
+        allow read: if managesClub(id) || (verifiedUser() && isAdmin());
+        allow create: if (managesClub(id) || (verifiedUser() && isAdmin())) && validClubPerson(id, personId, request.resource.data)
+          && (request.resource.data.activeYears.size() == 0
+            || (request.resource.data.accountUid != "" && request.resource.data.personId != ""
+              && get(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId)).data.activeYears == request.resource.data.activeYears)
+            || (request.resource.data.accountUid == "" && exists(/databases/$(database)/documents/personAccountLinks/$(personId))
+              && get(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + get(/databases/$(database)/documents/personAccountLinks/$(personId)).data.uid)).data.activeYears == request.resource.data.activeYears))
+          && request.resource.data.createdAt == request.time;
+        allow update: if managesClub(id) && validClubPerson(id, personId, request.resource.data)
+          && request.resource.data.accountUid == resource.data.accountUid
+          && (validClubActivity(request.resource.data.activeYears, resource.data.activeYears)
+            || (request.resource.data.accountUid != "" && request.resource.data.personId != ""
+              && !existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId))
+              && request.resource.data.activeYears.toSet() == resource.data.activeYears.toSet().union(get(/databases/$(database)/documents/clubs/$(id)/people/$(request.resource.data.personId)).data.activeYears.toSet())))
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if (managesClub(id) || (verifiedUser() && isAdmin()))
+          && (resource.data.accountUid == "" || !(resource.data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
+          && (resource.data.accountUid == "" || isAdmin() || resource.data.accountUid == request.auth.uid
+            || !exists(/databases/$(database)/documents/users/$(resource.data.accountUid))
+            || callerRoleRank() >= accountRoleRank(get(/databases/$(database)/documents/users/$(resource.data.accountUid)).data, false));
+      }
+    }
+
+    function validClubPerson(id, personId, data) {
+      let source = data.accountUid == ""
+        ? (exists(/databases/$(database)/documents/timerParticipantDirectory/$(personId))
+          ? get(/databases/$(database)/documents/timerParticipantDirectory/$(personId)).data : resource.data)
+        : existsAfter(/databases/$(database)/documents/clubProfiles/$(data.accountUid))
+          ? getAfter(/databases/$(database)/documents/clubProfiles/$(data.accountUid)).data : resource.data;
+      return data.keys().hasOnly(["personId", "accountUid", "name", "birthYear", "organization", "activeYears", "createdAt", "updatedAt"].concat(startEligibilityDates()))
+        && validClubDates(data)
+        && data.name == source.name && data.birthYear == source.birthYear && data.organization == source.organization
+        && (data.accountUid == "" ? data.personId == personId
+          : personId == "account_" + data.accountUid && data.personId == source.personId
+            && (!existsAfter(/databases/$(database)/documents/users/$(data.accountUid))
+              || accountRoleRank(getAfter(/databases/$(database)/documents/users/$(data.accountUid)).data, false) < 3
+              || data.accountUid in getAfter(/databases/$(database)/documents/clubs/$(id)).data.managerIds))
+        && data.activeYears is list && data.activeYears.size() == data.activeYears.toSet().size()
+        && data.updatedAt == request.time;
+    }
+
+    function validClubActivity(next, previous) {
+      let year = (request.time + duration.value(2, "h")).year();
+      return next.removeAll([year, year + 1]) == previous.removeAll([year, year + 1]);
+    }
+
+    function validClubDates(data) {
+      return startEligibilityDate(data.get("swimSilver", null)) && startEligibilityDate(data.get("swimGold", null))
+        && startEligibilityDate(data.get("rescueBronze", null)) && startEligibilityDate(data.get("rescueSilver", null))
+        && startEligibilityDate(data.get("rescueGold", null)) && startEligibilityDate(data.get("combinedExercise", null))
+        && startEligibilityDate(data.get("healthDeclaration", null));
+    }
+
+    match /clubDirectory/{id} {
+      allow read: if verifiedUser() && isAdmin();
+      allow write: if false;
     }
 
     match /timerParticipantDirectory/{candidateId} {
       allow read: if isOrganizer();
+      allow get: if verifiedTrainer();
       allow list: if verifiedTrainer() && request.query.limit is int && request.query.limit <= 10;
       allow write: if false;
     }

@@ -477,6 +477,51 @@ Die Oberfläche blendet gesperrte Funktionen aus. Entscheidend sind aber die
 Regeln in `firestore.rules`: Sie prüfen jede Firestore-Anfrage unabhängig von
 der Oberfläche.
 
+## Clubs und Startberechtigungen
+
+`gliederungen.html` ist die Admin-App zum Erstellen und Löschen von Clubs. Die
+erste verantwortliche Person wird aus bestehenden Trainer-, Organisator- oder
+Adminkonten ausgewählt. `club-verwaltung.html` bietet Personen, Startberechtigungen
+und die zunächst reine Mannschaftsliste. Zugeordnete Trainer und Organisatoren
+wechseln zwischen ihren Clubs. Admins haben Zugriff auf alle Clubs.
+
+Personen werden aus dem bestehenden Verzeichnis importiert und beginnen inaktiv.
+Die Aktivierung gilt getrennt für das aktuelle und das nächste Kalenderjahr und
+steuert beide Auswertungen. Neue Folgejahre beginnen ebenfalls inaktiv.
+Verantwortliche erscheinen mit ihren globalen Kontorollen im Personenbestand.
+Bei unverknüpften Konten stammen Name und Jahrgang aus dem Kontoprofil. Fehlt der
+Jahrgang, wird dies in der Auswertung als fehlende Angabe angezeigt.
+
+Die Daten liegen in `clubs/{clubId}`, `clubs/{clubId}/people/{memberId}`,
+`clubAccounts/{uid}` und `clubProfiles/{uid}`. Prüfungsdaten liegen direkt auf
+der Personenzuordnung im jeweiligen Club. Jeder neue Import beginnt mit leeren
+Nachweisen, auch wenn die Person bereits einem anderen Club angehört. Das
+Entfernen einer Clubzugehörigkeit löscht deren Nachweise. Ein Wiedereintritt
+beginnt erneut ohne Nachweise. Das Löschen eines Clubs entfernt seine gesamten
+Zuordnungen einschließlich Nachweisen. Andere Clubs bleiben eigenständig. Die ehemaligen privaten
+Einträge unter `users/{uid}/startEligibility` werden nicht übernommen und durch
+die Regeln gesperrt. Der alte Seitenlink führt zur Club-Verwaltung.
+
+Clubnamen sind nach Entfernen äußerer Leerzeichen ohne Berücksichtigung der
+Groß-/Kleinschreibung eindeutig. Zusätze wie `DLRG` oder `OG` bleiben Bestandteil
+des Namens. Der Verzeichnisabgleich erzeugt zusätzlich `clubDirectory`. Bis zum
+ersten Abgleich ermittelt die Admin-App die Namen aus dem Personenverzeichnis.
+
+Rollenwechsel und Kontolöschung prüfen alle verwalteten Clubs. Die letzte
+verantwortliche Person muss vorher ersetzt oder der Club gelöscht werden.
+Beim Löschen wird ein Club zuerst gesperrt, danach werden die Zuordnungen
+entfernt. Ein unterbrochenes Löschen kann in der Admin-App fortgesetzt werden.
+
+Vor der Nutzung müssen die Website sowie die Regeln und der Club-Abfrageindex
+veröffentlicht werden:
+
+```powershell
+npx firebase-tools deploy --only firestore:rules,firestore:indexes --project lifesaving-baden
+```
+
+`tests/clubs_rules.test.cjs` prüft Clubrechte, parallele Austritte, Rollenwechsel,
+getrennte Clubnachweise und das Entfernen von Zuordnungen im lokalen Emulator.
+
 ## Zeiterfassung
 
 Die App unter `arbeitszeiten.html` ist über eine grüne Kachel im Mitgliederbereich

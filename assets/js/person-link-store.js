@@ -11,10 +11,18 @@
 
   function fail(code) { throw Object.assign(new Error(code), { code }); }
 
+  function syncClubProfile(transaction, db, uid, data) {
+    const core = typeof module === "object" && module.exports ? require("./clubs-core.js") : root.ClubsCore;
+    const profile = core.profile(data);
+    const ref = db.collection("clubProfiles").doc(uid);
+    if (["trainer", "organizer", "admin"].includes(profile.role) || profile.personId) transaction.set(ref, profile);
+    else transaction.delete(ref);
+  }
+
   async function commit(db, uid, candidateId, actor, fieldValue, checkSession = () => {}) {
     if (candidateId !== null && !/^[a-f0-9]{16}$/.test(candidateId)) fail("person-link/invalid-person");
     const userRef = db.collection("users").doc(uid);
-    return db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       checkSession();
       const account = await transaction.get(userRef);
       if (!account.exists) fail("person-link/account-missing");
@@ -47,8 +55,13 @@
         },
         updatedAt: fieldValue.serverTimestamp(),
       });
+      syncClubProfile(transaction, db, uid, { ...account.data(), personLink: person });
       return person;
     });
+    if (candidateId && root.ClubsStore) {
+      await root.ClubsStore.assignExistingMemberships(db, uid, candidateId, root.firebase.firestore, checkSession);
+    }
+    return result;
   }
 
   async function unlinkOwn(db, uid, fieldValue, checkSession = () => {}) {
@@ -68,6 +81,7 @@
         personLinkStatus: "open", updatedAt: fieldValue.serverTimestamp(),
       });
       cleared.forEach((key) => { delete data[key]; });
+      syncClubProfile(transaction, db, uid, data);
       return { ...data, personLinkStatus: "open" };
     });
   }
@@ -76,15 +90,19 @@
   async function deleteAccount(db, uid, checkSession = () => {}) {
     const ref = db.collection("users").doc(uid);
     return db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
+      const [snapshot, clubs] = await Promise.all([
+        transaction.get(ref), transaction.get(db.collection("clubAccounts").doc(uid)),
+      ]);
       checkSession();
+      if (clubs.data()?.clubIds?.length) fail("clubs/last-manager");
       const person = linkedPerson(snapshot.data());
       if (person) transaction.delete(db.collection("personAccountLinks").doc(person.id));
       transaction.delete(ref);
+      transaction.delete(db.collection("clubProfiles").doc(uid));
     });
   }
 
-  const api = { linkedPerson, commit, unlinkOwn, deleteAccount };
+  const api = { linkedPerson, commit, unlinkOwn, deleteAccount, syncClubProfile };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.LifesavingPersonLinks = api;
 })(typeof window === "object" ? window : globalThis);

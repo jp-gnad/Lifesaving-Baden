@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v53";
+const staticCache = "lifesaving-timer-static-firebase-v54";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -8,7 +8,8 @@ const relativeAppShell = [
   "../assets/js/header.js?v=20261102-header-shadow-v1",
   "./app.js?v=20261105-manual-profile-name-v1",
   "./firestore-api.js?v=20261111-person-link-v1",
-  "../assets/js/person-link-store.js?v=20261111-own-unlink-v1",
+  "../assets/js/clubs-core.js?v=20261112-clubs-v1",
+  "../assets/js/person-link-store.js?v=20261112-clubs-v1",
   "../assets/js/auth-core.js?v=20261105-required-setup-v1",
   "../assets/js/firebase-config.js?v=20261101-settings-v11",
   "../assets/img/elch-gelb.png",
@@ -24,7 +25,7 @@ const relativeAppShell = [
   "../assets/img/lifesaving-baden-app-512.png",
 ];
 const appShell = relativeAppShell.map((path) => new URL(path, baseUrl).href);
-const authScripts = ["../assets/js/person-link-store.js", "../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/google-handoff.js", "../assets/js/firebase-config.js"]
+const authScripts = ["../assets/js/clubs-core.js", "../assets/js/person-link-store.js", "../assets/js/auth-core.js", "../assets/js/login.js", "../assets/js/google-handoff.js", "../assets/js/firebase-config.js"]
   .map((path) => new URL(path, baseUrl).href);
 
 self.addEventListener("install", (event) => {

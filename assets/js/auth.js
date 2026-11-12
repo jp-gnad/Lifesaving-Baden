@@ -2,7 +2,8 @@
   const page = document.body.dataset.page;
   const trainerApp = {
     worktime: "LifesavingWorktime",
-    startberechtigungen: "LifesavingStartEligibility",
+    clubs: "LifesavingClubs",
+    gliederungen: "LifesavingClubsAdmin",
   }[page];
   const {
     initFirebase, ensureLocalAuthPersistence, reloadUser, isCurrentUser, requireCurrentUser, hasVerifiedAccess, withRetry, loadUserContext, initPasswordVisibilityToggles,
@@ -20,7 +21,8 @@
       "person-link/account-missing": "Dieses Konto ist nicht mehr vorhanden.",
       "person-link/already-decided": "Die Zuordnung wurde inzwischen geändert. Bitte aktualisiere die Kontenübersicht.",
       "person-link/invalid-person": "Die Personendaten sind unvollständig.",
-      "app/admin-account-protected": "Admin-Konten können nicht über die Web-App gelöscht werden."
+      "app/admin-account-protected": "Admin-Konten können nicht über die Web-App gelöscht werden.",
+      "clubs/last-manager": "Das Konto ist letzter Verantwortlicher einer Gliederung. Zuerst Ersatz zuordnen oder die Gliederung löschen."
     };
 
     return messages[error.code] || "Die Einstellung konnte nicht gespeichert werden.";
@@ -396,7 +398,7 @@
     }
   }
 
-  if (["app", "settings", "link-request", "admin-accounts", "worktime", "startberechtigungen"].includes(page)) {
+  if (["app", "settings", "link-request", "admin-accounts", "worktime", "clubs", "gliederungen"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
       return;
@@ -600,7 +602,7 @@
             return;
           }
           const role = getAccountRole(userData, claims);
-          if (page === "admin-accounts" && !role.isAdmin) {
+          if (["admin-accounts", "gliederungen"].includes(page) && !role.isAdmin) {
             redirectToApp();
             return;
           }
@@ -617,7 +619,7 @@
             await initialize(auth, userData, claims);
           }
           if (!isCurrentUser(activeUser)) return;
-          if (trainerApp) window[trainerApp].start(auth, activeUser);
+          if (trainerApp) window[trainerApp].start(auth, activeUser, role);
           settingsLoadedForUser = activeUser.uid;
         }
 
@@ -1912,9 +1914,27 @@
       requireCurrentUser(user);
       const nextRole = select.value;
       const fieldValue = window.firebase.firestore.FieldValue;
-      await window.firebase.firestore().collection("users").doc(card.dataset.targetUid).update({
-        role: nextRole, kader: fieldValue.delete(), isKaderAthlete: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp(),
+      const db = window.firebase.firestore();
+      const uid = card.dataset.targetUid;
+      if (["standard", "athlete"].includes(nextRole)) {
+        await window.ClubsStore.prepareAccountChange(db, uid, window.firebase.firestore, () => requireCurrentUser(user));
+      }
+      await db.runTransaction(async (transaction) => {
+        const ref = db.collection("users").doc(uid);
+        const account = await transaction.get(ref);
+        requireCurrentUser(user);
+        if (!account.exists) throw Object.assign(new Error("Konto fehlt."), { code: "person-link/account-missing" });
+        transaction.update(ref, {
+          role: nextRole, kader: fieldValue.delete(), isKaderAthlete: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp(),
+        });
+        const data = { ...account.data(), role: nextRole, kader: false, isKaderAthlete: false };
+        window.LifesavingPersonLinks.syncClubProfile(transaction, db, uid, data);
       });
+      if (["trainer", "organizer"].includes(nextRole)) {
+        const account = await db.collection("users").doc(uid).get({ source: "server" });
+        const personId = account.data()?.personLink?.id;
+        await window.ClubsStore.assignExistingMemberships(db, uid, personId, window.firebase.firestore, () => requireCurrentUser(user));
+      }
       requireCurrentUser(user);
       setAdminAccountRoleDisplay(card, nextRole);
       updateAdminAccountCardRole(card, nextRole);
@@ -2106,6 +2126,7 @@
       setLoading(deleteButton, true, "Löschen...");
 
       if (window.firebase.firestore) {
+        await window.ClubsStore.prepareAccountChange(window.firebase.firestore(), user.uid, window.firebase.firestore, () => requireCurrentUser(user));
         await window.LifesavingPersonLinks.deleteAccount(window.firebase.firestore(), user.uid, () => requireCurrentUser(user));
       }
 
@@ -3119,7 +3140,14 @@
     }
 
     requireCurrentUser(user);
-    await window.firebase.firestore().collection("users").doc(user.uid).set(payload, { merge: true });
+    const db = window.firebase.firestore();
+    await db.runTransaction(async (transaction) => {
+      const ref = db.collection("users").doc(user.uid);
+      const snapshot = await transaction.get(ref);
+      requireCurrentUser(user);
+      transaction.set(ref, payload, { merge: true });
+      window.LifesavingPersonLinks.syncClubProfile(transaction, db, user.uid, { ...(snapshot.data() || {}), ...cachePayload });
+    });
     requireCurrentUser(user);
     const updatedData = { ...cachedData, ...cachePayload };
     if (pendingEmail === null) {

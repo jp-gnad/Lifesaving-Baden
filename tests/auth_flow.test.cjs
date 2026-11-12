@@ -43,15 +43,18 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     return { exists: stored !== null, data: () => stored };
   }, async set(data) { counts.writes.push(data); } };
   const db = {
-    collection() { return { doc: () => ref }; },
+    collection(name) { return { doc: (id) => ({ ...ref, path: `${name}/${id}` }) }; },
     async enablePersistence() {},
     async runTransaction(fn) {
       return fn({
-        async get() {
+        async get(target) {
+          if (target.path && !target.path.startsWith("users/")) return { exists: false, data: () => undefined };
           const data = transactionData === undefined ? stored : transactionData;
           return { exists: data !== null && data !== undefined, data: () => data };
         },
-        set(_, data) { counts.writes.push(data); },
+        set(target, data) { if (!target.path || target.path.startsWith("users/")) counts.writes.push(data); },
+        update(target, data) { if (!target.path || target.path.startsWith("users/")) counts.writes.push(data); },
+        delete() {},
       });
     },
   };
@@ -111,6 +114,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     constructor(form) { this.form = form; }
     get(name) { return this.form.fields[name]; }
   } });
+  vm.runInContext(source("assets/js/clubs-core.js"), context);
+  vm.runInContext(source("assets/js/clubs-store.js"), context);
   vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
@@ -1227,7 +1232,7 @@ test("the member page initializes an existing account with one document read and
 test("trainer apps open only for trainers and higher and clear data on logout", async () => {
   const apps = [
     { page: "worktime", file: "arbeitszeiten", api: "LifesavingWorktime" },
-    { page: "startberechtigungen", file: "startberechtigungen", api: "LifesavingStartEligibility" },
+    { page: "clubs", file: "club-verwaltung", api: "LifesavingClubs" },
   ];
   for (const { page, file, api } of apps) {
     for (const role of ["standard", "athlete", "trainer", "organizer", "admin"]) {

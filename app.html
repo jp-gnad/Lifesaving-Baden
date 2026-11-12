@@ -32,9 +32,10 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/nav.js?v=20261105-menu-navigation-v3"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/person-link-store.js?v=20261111-own-unlink-v1"></script>
+    <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261111-link-issues-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261112-clubs-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -98,9 +99,9 @@
               <span class="member-app-icon"><img src="assets/img/worktime-app.svg?v=20261105-green-v2" alt=""></span>
               <span class="member-app-label">Zeiterfassung</span>
             </a>
-            <a class="member-app" href="startberechtigungen.html" aria-label="Startberechtigungen öffnen">
-              <span class="member-app-icon"><img src="assets/img/startberechtigungen-app.svg" alt=""></span>
-              <span class="member-app-label">Startberechtigungen</span>
+            <a class="member-app" href="club-verwaltung.html" aria-label="Club-Verwaltung öffnen">
+              <span class="member-app-icon"><img src="assets/img/clubs-app.svg" alt=""></span>
+              <span class="member-app-label">Club-Verwaltung</span>
             </a>
           </div>
         </section>
@@ -108,6 +109,10 @@
         <section class="member-apps is-hidden" data-admin-only aria-label="Admin">
           <h2 class="eyebrow">Admin</h2>
           <div class="member-app-grid">
+            <a class="member-app" href="gliederungen.html" aria-label="Gliederungen öffnen">
+              <span class="member-app-icon"><img src="assets/img/clubs-admin-app.svg" alt=""></span>
+              <span class="member-app-label">Gliederungen</span>
+            </a>
             <a class="member-app" href="admin-accounts.html" aria-label="Kontenübersicht öffnen">
               <span class="member-app-icon-wrap">
                 <span class="member-app-icon"><img src="assets/img/accounts-app.svg" alt=""></span>

@@ -10,7 +10,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 initializeApp({ credential: cert(serviceAccount) });
 
 const records = JSON.parse(await readFile(inputPath, "utf8"));
-if (!Array.isArray(records)) throw new Error("Directory JSON must contain an array.");
+if (!Array.isArray(records) || !records.length) throw new Error("Directory JSON must contain a nonempty array.");
 
 const db = getFirestore();
 const collection = db.collection("timerParticipantDirectory");
@@ -34,6 +34,25 @@ for (let offset = 0; offset < operations.length; offset += 400) {
   for (const operation of operations.slice(offset, offset + 400)) {
     if (operation.type === "delete") batch.delete(operation.ref);
     else batch.set(operation.ref, operation.data);
+  }
+  await batch.commit();
+}
+
+const clubs = db.collection("clubDirectory");
+const names = [...new Set(records.map((record) => String(record.organization || "").trim()).filter(Boolean))];
+const clubRecords = new Map(names.map((name) => [Buffer.from(name.toLowerCase(), "utf8").toString("hex"), {
+  name, searchName: name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, ""),
+}]));
+const previousClubs = await clubs.get();
+const clubWrites = [
+  ...[...clubRecords].map(([id, data]) => ({ ref: clubs.doc(id), data })),
+  ...previousClubs.docs.filter((doc) => !clubRecords.has(doc.id)).map((doc) => ({ ref: doc.ref, data: null })),
+];
+for (let offset = 0; offset < clubWrites.length; offset += 400) {
+  const batch = db.batch();
+  for (const { ref, data } of clubWrites.slice(offset, offset + 400)) {
+    if (data) batch.set(ref, data);
+    else batch.delete(ref);
   }
   await batch.commit();
 }

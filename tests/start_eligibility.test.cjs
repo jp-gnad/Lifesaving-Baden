@@ -6,6 +6,13 @@ const day = "2026-06-01";
 const healthDeclaration = "2025-05-01";
 const check = (age, dates = {}, when = day) => evaluate({ birthYear: Number(when.slice(0, 4)) - age, healthDeclaration, ...dates }, when);
 
+test("an unlinked club account without a birth year cannot appear eligible", () => {
+  const result = evaluate({ birthYear: null, healthDeclaration, rescueBronze: "2025-01-01" }, day);
+  assert.equal(result.stage, 3);
+  assert.equal(result.group, "Ohne Jahrgang");
+  assert.equal(result.issues[0].name, "Jahrgang");
+});
+
 test("competition age changes with the calendar year and drives requirements within each age group", () => {
   const child = { birthYear: 2016, healthDeclaration, swimSilver: "2024-09-01" };
   assert.equal(evaluate(child, "2025-12-31").stage, 1);

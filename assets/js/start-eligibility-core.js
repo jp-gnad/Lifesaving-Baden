@@ -84,6 +84,9 @@
   }
 
   function evaluate(person, day = today(), nextSeason = false) {
+    if (!Number.isInteger(person.birthYear)) {
+      return { age: null, group: "Ohne Jahrgang", stage: 3, issues: [{ kind: "identity", stage: 3, name: "Jahrgang", reason: "fehlt" }] };
+    }
     const year = seasonYear(day, nextSeason);
     const age = year - person.birthYear;
     const checkDate = nextSeason ? `${year}-01-01` : day;

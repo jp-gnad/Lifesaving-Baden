@@ -179,11 +179,14 @@
             weitergegeben werden.
           </p>
           <p>
-            In Startberechtigungen können Trainer, Organisatoren und Admins Personen aus dem Timer-Verzeichnis
-            in ihre persönliche Liste übernehmen. Cloud Firestore speichert dafür Name, Jahrgang, Gliederung und die
-            eingetragenen Daten der Prüfungen und der Selbsterklärung zum Gesundheitszustand. Die App prüft damit
-            die Gültigkeit der Nachweise. Jede Liste ist ausschließlich für das jeweilige Konto zugänglich.
-            Beim Entfernen einer Person werden ihre Einträge in dieser Liste gelöscht.
+            In der Club-Verwaltung können zugeordnete Trainer und Organisatoren Personen aus dem Timer-Verzeichnis
+            in ihre Clubs übernehmen. Cloud Firestore speichert Clubzugehörigkeiten, den Aktivstatus je Jahr sowie
+            die Daten der Prüfungen und der Selbsterklärung zum Gesundheitszustand. Die Nachweise gehören zur
+            jeweiligen Person innerhalb eines Clubs. Zugriff haben die Verantwortlichen dieses Clubs und Admins.
+            Beim Entfernen einer Person aus einem Club werden ihre dort gespeicherten Nachweise gelöscht.
+            Das Löschen eines Clubs entfernt sämtliche darin gespeicherten Zuordnungen und Nachweise.
+            Beim erneuten Import müssen die Nachweise neu hinterlegt werden. Sportler- und Standard-Konten
+            erhalten über die Club-Verwaltung keinen Zugriff.
           </p>
           <p>
             Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, soweit die Daten für dein Konto und die gewünschte Nutzung

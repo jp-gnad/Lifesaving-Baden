@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f0f12">
+    <meta name="color-scheme" content="dark">
+    <title>Club-Verwaltung · Lifesaving Baden</title>
+    <meta property="og:title" content="Club-Verwaltung · Lifesaving Baden">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
+    <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
+    <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
+    <link rel="apple-touch-icon" href="assets/img/lifesaving-baden-app-180.png" sizes="180x180">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261105-required-setup-v1">
+    <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
+    <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261112-clubs-v1">
+    <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/person-link-store.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
+    <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/start-eligibility.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261112-clubs-v1"></script>
+  </head>
+  <body class="auth-context-loading" data-page="clubs">
+    <header class="site-header">
+      <a class="brand" href="app.html" aria-label="Zum Mitgliederbereich">
+        <span class="brand-mark"><img src="assets/img/lifesaving-baden-logo.png" alt=""></span>
+        <span>Lifesaving Baden</span>
+      </a>
+      <nav class="nav" aria-label="Kontonavigation">
+        <button class="account-trigger" type="button" data-account-open aria-label="Kontoprofil öffnen">
+          <span class="account-avatar account-avatar-small">
+            <img class="is-hidden" src="" alt="" data-account-photo-small>
+            <span data-account-initials-small>?</span>
+          </span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
+          <span class="account-linked is-hidden" data-link-indicator hidden aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          </span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="wt-main se-main">
+      <p class="form-message" data-auth-error role="alert" hidden></p>
+      <p class="wt-message" id="club-message" role="status" hidden></p>
+      <div id="se-content" hidden>
+        <section class="wt-heading">
+          <div class="wt-app-title"><img src="assets/img/clubs-app.svg" alt=""><div><p class="eyebrow">Mein Club</p><h1>Club-Verwaltung</h1></div></div>
+          <button class="button se-primary se-import" id="se-import-open" type="button" aria-label="Person importieren" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Importieren</span></button>
+        </section>
+        <div class="club-toolbar">
+          <label class="club-picker"><span class="wt-sr-only">Gliederung wählen</span><select id="club-choice" disabled></select></label>
+          <button class="wt-icon-button" id="club-leave" type="button" aria-label="Club verlassen" title="Club verlassen" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H4v14h5m6-14 5 7-5 7m-7-7h12"/></svg></button>
+        </div>
+        <nav class="wt-tabs club-tabs" aria-label="Clubbereiche">
+          <button type="button" data-club-tab="people" aria-current="page">Personen</button>
+          <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
+          <button type="button" data-club-tab="team">Mannschaft</button>
+        </nav>
+        <div class="se-overview">
+          <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
+            <label>
+              <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
+              <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
+            </label>
+            <label>
+              <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
+              <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
+            </label>
+          </fieldset>
+          <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
+            <div class="se-stage" data-stage="3">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
+              <strong id="se-total-3">0</strong>
+            </div>
+            <div class="se-stage" data-stage="2">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/></svg><span class="se-stage-label">Läuft ab</span></span>
+              <strong id="se-total-2">0</strong>
+            </div>
+            <div class="se-stage" data-stage="1">
+              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><span class="se-stage-label">Bis Jahresende</span></span>
+              <strong id="se-total-1">0</strong>
+            </div>
+          </div>
+        </div>
+        <div id="se-list" aria-busy="true"><p class="wt-empty" role="status">Clubs werden geladen …</p></div>
+      </div>
+    </main>
+
+    <footer class="site-footer"><span class="footer-brand"><img class="moose-icon" src="assets/img/elch-gelb.png" alt="">Lifesaving Baden</span><nav class="footer-links" aria-label="Fußnavigation"><a href="impressum.html">Impressum</a><a href="datenschutz.html">Datenschutz</a></nav></footer>
+
+    <dialog class="wt-dialog se-dialog" id="se-import-dialog" aria-labelledby="se-import-title">
+      <div class="wt-dialog-heading"><h2 id="se-import-title">Person importieren</h2><button class="wt-icon-button" type="button" data-se-close aria-label="Schließen">×</button></div>
+      <label class="wt-field"><span class="wt-sr-only">Name suchen</span><input id="se-search" type="search" inputmode="search" autocomplete="off" maxlength="80" placeholder="Name suchen …"></label>
+      <p class="se-search-note" id="se-search-note" role="status"></p>
+      <div class="se-search-results" id="se-search-results"></div>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog" id="se-editor" aria-labelledby="se-editor-title">
+      <form id="se-form">
+        <div class="wt-dialog-heading">
+          <div><h2 id="se-editor-title" tabindex="-1" autofocus></h2><p class="se-meta" id="se-editor-meta"></p></div>
+          <button class="wt-icon-button" type="button" data-se-close aria-label="Schließen">×</button>
+        </div>
+        <div id="se-form-fields">
+          <div id="se-primary-dates"></div>
+          <details id="se-other-dates"><summary>Weitere Nachweise</summary><div id="se-extra-dates"></div></details>
+        </div>
+        <p class="wt-form-error" id="se-editor-error" role="alert" hidden></p>
+        <div class="wt-dialog-actions se-editor-actions" id="se-editor-actions">
+          <button class="button se-primary" id="se-save" type="submit">Speichern</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog" id="club-person-dialog" aria-labelledby="club-person-title">
+      <div class="wt-dialog-heading"><div><h2 id="club-person-title" tabindex="-1" autofocus></h2><p class="se-meta" id="club-person-meta"></p></div><button class="wt-icon-button" type="button" data-club-close aria-label="Schließen">×</button></div>
+      <div id="club-person-years" class="club-activity"></div>
+      <p class="wt-form-error" id="club-person-error" role="alert" hidden></p>
+      <div class="wt-dialog-actions"><button class="button wt-danger" id="club-person-remove" type="button">Entfernen</button></div>
+    </dialog>
+
+    <div class="account-overlay is-hidden" data-account-overlay aria-hidden="true">
+      <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+        <div class="account-modal-header"><p class="account-email" data-account-email></p><button class="account-close" type="button" data-account-close aria-label="Kontofenster schließen">×</button></div>
+        <div class="account-avatar account-avatar-large"><img class="is-hidden" src="" alt="" data-account-photo-large><span data-account-initials-large>?</span></div>
+        <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
+        <p class="account-name-line account-role-line">Status: <strong data-account-role></strong></p>
+        <a class="button button-secondary account-manage" href="account-settings.html">
+          <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h2"></path><path d="M10 17h10"></path><circle cx="8" cy="17" r="2"></circle></svg>
+          <span>Kontoeinstellungen</span><span class="account-manage-attention is-hidden" data-account-manage-attention aria-hidden="true" hidden>!</span>
+        </a>
+        <div class="account-actions"><button class="account-action" type="button" data-logout>Abmelden</button></div>
+      </section>
+    </div>
+  </body>
+</html>
