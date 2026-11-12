@@ -234,7 +234,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('googleButton?.addEventListener("click"', controller)
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", login)
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
-        self.assertIn("login.js?v=20261112-login-name-v3", login)
+        self.assertIn("login.js?v=20261112-login-name-v4", login)
         self.assertRegex(app, r'src="assets/js/auth\.js\?v=[^"\s]+"')
         self.assertIn("auth-core.js?v=20261112-login-name-v1", login)
         self.assertIn("auth-core.js?v=20261112-login-name-v1", app)

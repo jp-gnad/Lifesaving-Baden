@@ -174,7 +174,7 @@
         input.required = enteringName;
         input.disabled = !enteringName;
       });
-      if (loginTitle) loginTitle.textContent = enteringName ? "Wie heißt du?" : "Anmelden";
+      if (loginTitle) loginTitle.textContent = enteringName ? "Anmeldung" : "Anmelden";
       if (loginButton && !emailSubmissionPending) loginButton.textContent = enteringName ? "Bestätigungsmail senden" : "Anmelden";
       if (emailSummary) {
         emailSummary.hidden = emailStep;
