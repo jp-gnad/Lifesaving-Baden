@@ -28,9 +28,9 @@
     <script defer src="assets/js/person-link-store.js?v=20261112-responsible-v2"></script>
     <script defer src="assets/js/auth-core.js?v=20261105-required-setup-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261112-responsible-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261112-responsible-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261112-responsible-v2"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261112-responsible-v3"></script>
+    <script defer src="assets/js/clubs.js?v=20261112-responsible-v3"></script>
+    <script defer src="assets/js/auth.js?v=20261112-responsible-v3"></script>
   </head>
   <body class="auth-context-loading" data-page="gliederungen">
     <header class="site-header">
@@ -75,7 +75,7 @@
         </fieldset>
         <label class="wt-field"><span>Gliederung</span><input id="club-name" type="search" maxlength="120" required autocomplete="off" placeholder="Name suchen …"></label>
         <div id="club-name-results" class="se-search-results"></div>
-        <label class="wt-field"><span>Verantwortlich</span><input id="club-manager-search" type="search" maxlength="120" autocomplete="off" placeholder="Trainer oder Organisator suchen …"></label>
+        <label class="wt-field"><span>Verantwortlich</span><input id="club-manager-search" type="search" maxlength="120" autocomplete="off" placeholder="Trainer, Organisator oder Admin suchen …"></label>
         <div id="club-manager-results" class="se-search-results"></div>
         <p class="wt-form-error" id="club-create-error" role="alert" hidden></p>
         <div class="wt-dialog-actions"><button class="button se-primary" id="club-create-submit" type="submit" disabled>Erstellen</button></div>
@@ -87,7 +87,7 @@
       <p class="se-meta">Verantwortliche</p>
       <div id="club-responsible-members"></div>
       <p class="se-meta" id="club-responsible-note" hidden>Bitte einen Verantwortlichen neu bestätigen.</p>
-      <label class="wt-field"><span>Hinzufügen</span><input id="club-responsible-search" type="search" maxlength="120" autocomplete="off" placeholder="Trainer oder Organisator suchen …"></label>
+      <label class="wt-field"><span>Hinzufügen</span><input id="club-responsible-search" type="search" maxlength="120" autocomplete="off" placeholder="Trainer, Organisator oder Admin suchen …"></label>
       <div class="se-search-results" id="club-responsible-results"></div>
       <p class="wt-form-error" id="club-responsible-error" role="alert" hidden></p>
     </dialog>

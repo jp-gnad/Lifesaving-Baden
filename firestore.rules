@@ -708,7 +708,7 @@ service cloud.firestore {
     }
 
     function clubRoleChangeSafe(uid) {
-      return accountRoleRank(request.resource.data, false) in [3, 4] || noClubResponsibilities(uid);
+      return accountRoleRank(request.resource.data, false) >= 3 || noClubResponsibilities(uid);
     }
 
     function managesClub(id) {
@@ -774,7 +774,7 @@ service cloud.firestore {
       let account = getAfter(/databases/$(database)/documents/users/$(uid)).data;
       let index = getAfter(/databases/$(database)/documents/clubAccounts/$(uid)).data;
       return next.managerIds.removeAll([uid]) == previous.removeAll([uid])
-        && (added ? isAdmin() && accountRoleRank(account, false) in [3, 4]
+        && (added ? isAdmin() && accountRoleRank(account, false) >= 3
           && existsAfter(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + uid))
           : (isAdmin() || uid == request.auth.uid))
         && (id in index.clubIds) == added && index.changedClubId == id && index.updatedAt == request.time;

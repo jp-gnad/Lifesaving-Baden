@@ -414,7 +414,7 @@
     ]);
     requireCurrent(owner);
     const accountProfiles = accounts.docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" }));
-    owner.accounts = accountProfiles.filter((account) => ["trainer", "organizer"].includes(account.role));
+    owner.accounts = accountProfiles.filter((account) => ["trainer", "organizer", "admin"].includes(account.role));
     const existing = new Map(profiles.docs.map((doc) => [doc.id, doc.data()]));
     const updates = accountProfiles.filter((account) => account.personId || ranks[account.role] >= 3)
       .filter((account) => { const { uid, email, ...data } = account; return Object.keys(data).some((key) => existing.get(uid)?.[key] !== data[key]); });

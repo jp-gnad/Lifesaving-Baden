@@ -481,7 +481,7 @@ der Oberfläche.
 
 `gliederungen.html` ist die Admin-App zum Erstellen und Löschen von Clubs und zum
 Zuordnen ihrer Verantwortlichen. Nur Admins vergeben oder entziehen Verantwortung;
-auswählbar sind Trainer- und Organisatorkonten. `club-verwaltung.html` bietet Personen, Startberechtigungen
+auswählbar sind Trainer-, Organisator- und Adminkonten. `club-verwaltung.html` bietet Personen, Startberechtigungen
 und die zunächst reine Mannschaftsliste. Zugeordnete Trainer und Organisatoren
 wechseln zwischen ihren Clubs. Admins haben Zugriff auf alle Clubs.
 

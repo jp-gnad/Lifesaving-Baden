@@ -85,7 +85,7 @@ test("only admins create unique clubs with an initial responsible account and in
   await assert.rejects(create(" ettlingen ", "b"), { code: "clubs/duplicate" });
   await succeeds(create("DLRG Ettlingen", "b"));
   await assert.rejects(create("Ohne Trainer", "athlete"), { code: "clubs/role" });
-  await assert.rejects(create("Admin ist kein Verantwortlicher", "admin"), { code: "clubs/role" });
+  await succeeds(create("Admin als Verantwortlicher", "admin"));
   await fails(sdk.getDoc(sdk.doc(dbFor("outsider"), `clubs/${id}`)));
   await fails(sdk.getDoc(sdk.doc(dbFor("athlete"), `clubs/${id}`)));
 });
@@ -128,7 +128,7 @@ test("activity is separate by club and year and a new import starts inactive", {
   await fails(sdk.updateDoc(rosterRef(dbFor("a"), first, p1), { activeYears: [year + 2], updatedAt: sdk.serverTimestamp() }));
 });
 
-test("imports never grant responsibility; only admins assign trainers or organizers", { skip: !enabled }, async () => {
+test("imports never grant responsibility; only admins assign staff accounts", { skip: !enabled }, async () => {
   const id = await create("Gemeinsam", "a");
   const a = compat(dbFor("a"));
   await store.importPerson(a, id, p2, api());
@@ -140,7 +140,8 @@ test("imports never grant responsibility; only admins assign trainers or organiz
   }
   await fails(store.assignResponsible(a, id, "o", api()));
   await assert.rejects(assign(id, "athlete"), { code: "clubs/role" });
-  await assert.rejects(assign(id, "admin"), { code: "clubs/role" });
+  await succeeds(assign(id, "admin"));
+  await store.removePerson(compat(dbFor("admin")), id, "account_admin", api(), () => {}, true);
   const evidence = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
   await store.saveDates(a, id, p3, { rescueSilver: evidence }, api());
   await assign(id, "o");

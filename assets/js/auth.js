@@ -1916,7 +1916,7 @@
       const fieldValue = window.firebase.firestore.FieldValue;
       const db = window.firebase.firestore();
       const uid = card.dataset.targetUid;
-      if (!["trainer", "organizer"].includes(nextRole)) {
+      if (!["trainer", "organizer", "admin"].includes(nextRole)) {
         await window.ClubsStore.prepareAccountChange(db, uid, window.firebase.firestore, () => requireCurrentUser(user));
       }
       await db.runTransaction(async (transaction) => {

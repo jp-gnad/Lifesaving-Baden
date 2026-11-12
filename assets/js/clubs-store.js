@@ -37,7 +37,7 @@
       if (existing.exists) fail("clubs/duplicate", "Diese Gliederung besteht bereits.");
       if (!account.exists) fail("clubs/account-missing", "Das Konto besteht nicht mehr.");
       const manager = core.profile(account.data());
-      if (!["trainer", "organizer"].includes(manager.role)) fail("clubs/role", "Bitte ein Trainer- oder Organisatorkonto wählen.");
+      if (!["trainer", "organizer", "admin"].includes(manager.role)) fail("clubs/role", "Bitte ein Trainer-, Organisator- oder Adminkonto wählen.");
       transaction.set(db.collection("clubProfiles").doc(uid), manager);
       transaction.set(club, {
         name: core.clubName(name), managerIds: [uid], changedManagerId: uid, status: "active",
@@ -82,7 +82,7 @@
       if (reconcileOnly && !assigned) return;
       if (!account.exists) fail("clubs/account-missing", "Das Konto besteht nicht mehr.");
       const profile = core.profile(account.data());
-      if (!["trainer", "organizer"].includes(profile.role)) fail("clubs/role", "Bitte ein Trainer- oder Organisatorkonto wählen.");
+      if (!["trainer", "organizer", "admin"].includes(profile.role)) fail("clubs/role", "Bitte ein Trainer-, Organisator- oder Adminkonto wählen.");
       const plain = profile.personId ? await transaction.get(people.doc(profile.personId)) : null;
       checkSession();
       transaction.set(db.collection("clubProfiles").doc(uid), profile);
@@ -204,7 +204,7 @@
       && (confirmedUid ? member.data().accountUid === confirmedUid : member.data().createdAt.isEqual(current.data().createdAt)));
     if (!initial) return false;
     const account = await db.collection("users").doc(initial.data().accountUid).get({ source: "server" });
-    if (!account.exists || !["trainer", "organizer"].includes(core.profile(account.data()).role)) return false;
+    if (!account.exists || !["trainer", "organizer", "admin"].includes(core.profile(account.data()).role)) return false;
     for (const uid of current.data().managerIds) {
       if (uid !== initial.data().accountUid) await removePerson(db, clubId, managerKey(uid), sdk, checkSession, true);
     }
