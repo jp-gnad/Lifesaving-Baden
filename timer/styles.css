@@ -478,6 +478,7 @@ dialog::backdrop { background: rgba(20, 29, 44, .48); }
 .discipline-choice > span:first-child { display: grid; }
 .discipline-choice small { color: var(--muted); }
 .discipline-choice.selected { border-color: var(--primary); background: #f4f8ff; }
+.discipline-choice:disabled { opacity: .45; cursor: not-allowed; }
 .choice-check { width: 24px; height: 24px; color: var(--primary); }
 .choice-check .icon { width: 24px; height: 24px; }
 

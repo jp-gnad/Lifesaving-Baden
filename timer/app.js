@@ -957,6 +957,12 @@ async function renderTimer(id) {
   const modeCategoryList = document.querySelector("#mode-category-list");
   const modeDisciplineList = document.querySelector("#mode-discipline-list");
 
+  function canSelectDiscipline(disciplineId) {
+    if (!enabledDisciplineIds.includes(disciplineId) || timer.status === "stopped") return false;
+    // Completed segments plus the live lap must fit into the new discipline.
+    return disciplines[disciplineId].laps > timer.segments.length;
+  }
+
   function availableModeGroups() {
     return disciplineGroups.filter((group) => enabledDisciplineIds.some((disciplineId) => disciplines[disciplineId].group === group.id));
   }
@@ -974,7 +980,8 @@ async function renderTimer(id) {
       const detail = isNormal ? "max. 20 Laps" : `${groupDisciplines.length} Disziplinen`;
       const action = isNormal ? `data-discipline="${enabledDisciplineIds.find((disciplineId) => disciplines[disciplineId].group === "normal")}"` : `data-mode-group="${group.id}"`;
       const trailingIcon = selected ? icon("check") : (isNormal ? "" : icon("arrow-right"));
-      return `<button class="discipline-choice mode-category ${selected ? "selected" : ""}" type="button" ${action}><span><strong>${group.name}</strong><small>${detail}</small></span><span class="choice-check">${trailingIcon}</span></button>`;
+      const selectable = enabledDisciplineIds.some((disciplineId) => disciplines[disciplineId].group === group.id && canSelectDiscipline(disciplineId));
+      return `<button class="discipline-choice mode-category ${selected ? "selected" : ""}" type="button" ${action} ${selectable ? "" : "disabled"}><span><strong>${group.name}</strong><small>${detail}${selectable ? "" : " · Zu wenige Runden"}</small></span><span class="choice-check">${trailingIcon}</span></button>`;
     }).join("");
   }
 
@@ -989,7 +996,8 @@ async function renderTimer(id) {
       .filter(([disciplineId, item]) => item.group === groupId && enabledDisciplineIds.includes(disciplineId))
       .map(([disciplineId, item]) => {
         const selected = disciplineId === timer.discipline;
-        return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}"><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
+        const selectable = canSelectDiscipline(disciplineId);
+        return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}" ${selectable ? "" : "disabled"}><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps${selectable ? "" : ` · Zu kurz für Runde ${timer.segments.length + 1}`}</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
       }).join("");
   }
 
@@ -1108,6 +1116,7 @@ async function renderTimer(id) {
 
   function updateControls() {
     const item = config();
+    elements["mode-button"].disabled = timer.status === "stopped";
     elements["undo-lap"].disabled = timer.status !== "running" || timer.segments.length === 0;
     const actions = elements["left-action"].parentElement;
     elements["left-action"].hidden = false;
@@ -1644,6 +1653,7 @@ async function renderTimer(id) {
 
   bindDialogClose(elements["discipline-dialog"]);
   elements["mode-button"].addEventListener("click", () => {
+    if (timer.status === "stopped") return;
     const availableGroups = availableModeGroups();
     if (availableGroups.length === 1) renderModeGroup(availableGroups[0].id, { allowBack: false });
     else renderModeCategories();
@@ -1658,9 +1668,10 @@ async function renderTimer(id) {
       return;
     }
     const disciplineChoice = event.target.closest("[data-discipline]");
-    if (!disciplineChoice) return;
+    if (!disciplineChoice || !canSelectDiscipline(disciplineChoice.dataset.discipline)) return;
     timer.discipline = disciplineChoice.dataset.discipline;
     updateMode();
+    updateControls();
     elements["discipline-dialog"].close();
   });
   window.TimerControlInput.bindRelease(elements["undo-lap"], undoLap);
@@ -1700,7 +1711,6 @@ async function renderTimer(id) {
       timer.lapGroups = [];
       resetFrequencyCapture();
       elements["clock-status"].textContent = "Läuft";
-      elements["mode-button"].disabled = true;
       renderLaps(); updateProgress(); updateControls(); drawClock();
       return;
     }

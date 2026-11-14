@@ -22,7 +22,7 @@ function node() {
     click() { if (!this.disabled) this.emit("click", { pointerType: "", detail: 0 }); },
     setPointerCapture(id) { this.captured = id; },
     getBoundingClientRect: () => ({ left: 0, right: 150, top: 400, bottom: 480 }),
-    querySelectorAll: () => [], close() {},
+    querySelectorAll: () => [], close() { this.open = false; },
   };
 }
 
@@ -80,7 +80,7 @@ test("older browsers retain native click activation", () => {
   assert.equal(activations, 1);
 });
 
-async function stopwatch(discipline = "normal", participantResponse = null) {
+async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline]) {
   const nodes = new Map();
   const find = (key) => {
     if (!nodes.has(key)) nodes.set(key, node());
@@ -94,14 +94,14 @@ async function stopwatch(discipline = "normal", participantResponse = null) {
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
     routeVersion: 1,
-    eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }) },
+    eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify(enabledDisciplines) }) },
     document: { querySelector: find, documentElement: { clientHeight: 800 } },
     app: node(), animationFrame: null,
     api: async () => participantResponse || ({ event: { name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }, participants: [] }),
     performance: { now: () => now }, requestAnimationFrame(callback) { frame = callback; return 1; }, cancelAnimationFrame() {},
     setTimeout: () => 1, clearTimeout() {},
     compareParticipantsByOrganization: () => 0, setDocumentTitle() {}, icon: () => "",
-    bindDialogClose() {}, setTimerInteractionLock() {},
+    bindDialogClose() {}, setTimerInteractionLock() {}, showDialog(dialog) { dialog.open = true; },
   });
   const source = fs.readFileSync(require.resolve("../timer/app.js"), "utf8");
   vm.runInContext(source.slice(source.indexOf("async function renderTimer(id)"), source.indexOf("async function renderViewer(")), context);
@@ -111,6 +111,12 @@ async function stopwatch(discipline = "normal", participantResponse = null) {
     click(id) { find(`#${id}`).click(); },
     hold(id, ms) { const button = find(`#${id}`); button.emit("pointerdown"); now += ms; frame?.(); button.emit("pointerup"); button.emit("click"); },
     frequencyTap() { find("#timer-view").emit("click", { target: { closest: () => null }, clientY: 100 }); },
+    choose(disciplineId) { find("#discipline-dialog").emit("click", { target: {
+      closest: (selector) => selector === "[data-discipline]" ? { dataset: { discipline: disciplineId } } : null,
+    } }); },
+    group(groupId) { find("#discipline-dialog").emit("click", { target: {
+      closest: (selector) => selector === "[data-mode-group]" ? { dataset: { modeGroup: groupId } } : null,
+    } }); },
   };
 }
 
@@ -166,4 +172,66 @@ test("undo restores Runde in the final discipline lap and clears affected freque
   assert.equal((h.find("#lap-list").innerHTML.match(/\/min/g) || []).length, 1, "earlier lap frequency is retained");
   h.frequencyTap(); h.advance(1000); h.click("left-action");
   assert.equal((h.find("#lap-list").innerHTML.match(/\/min/g) || []).length, 2, "the combined lap can capture a new frequency");
+});
+
+test("every enabled discipline remains selectable after Start without resetting the running clock", async () => {
+  const { disciplines } = require("../timer/core.js");
+  const h = await stopwatch("normal", null, Object.keys(disciplines));
+  h.click("right-action"); h.advance(1230);
+  assert.equal(h.find("#mode-button").disabled, false);
+  h.click("mode-button");
+  assert.equal(h.find("#discipline-dialog").open, true);
+  for (const [id, item] of Object.entries(disciplines)) {
+    h.choose(id);
+    assert.equal(h.find("#mode-name").textContent, item.name);
+    assert.equal(h.find("#clock").textContent, "0:01,23");
+    assert.equal(h.find("#clock-status").textContent, "Läuft");
+  }
+  h.advance(770);
+  assert.equal(h.find("#clock").textContent, "0:02,00");
+});
+
+test("switching in lap two preserves segments and frequency, and refreshes the final-lap controls", async () => {
+  const h = await stopwatch("normal", null, ["normal", "rescue50", "rescue100"]);
+  h.click("right-action"); h.frequencyTap(); h.advance(1000); h.click("left-action");
+  h.advance(2000); h.choose("rescue50"); h.advance(0);
+  assert.equal(h.find("#progress").textContent, "1 / 2 Laps");
+  assert.match(h.find("#lap-list").innerHTML, /0:01,00/);
+  assert.match(h.find("#lap-list").innerHTML, /60\/min/);
+  assert.equal(h.find("#live-lap-time").textContent, "0:02,00");
+  assert.equal(h.find("#left-action").hidden, true);
+  assert.equal(h.actions.classList.contains("final-lap"), true);
+  h.choose("rescue100");
+  assert.equal(h.find("#progress").textContent, "1 / 3 Laps");
+  assert.equal(h.find("#left-action").hidden, false);
+  assert.equal(h.actions.classList.contains("final-lap"), false);
+  h.advance(1000); h.click("left-action");
+  assert.match(h.find("#lap-list").innerHTML, /0:03,00/);
+});
+
+test("lap three disables two-lap disciplines and guards selection again; undo makes them available again", async () => {
+  const h = await stopwatch("normal", null, ["normal", "rescue50", "rescue100"]);
+  h.click("right-action"); h.advance(1000); h.click("left-action");
+  h.advance(1000); h.click("left-action"); h.advance(1000);
+  h.click("mode-button"); h.group("individual");
+  assert.match(h.find("#mode-discipline-list").innerHTML, /data-discipline="rescue50" disabled/);
+  assert.match(h.find("#mode-discipline-list").innerHTML, /Zu kurz für Runde 3/);
+  h.choose("rescue50"); h.choose("not-a-discipline");
+  assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert");
+  assert.equal(h.find("#discipline-dialog").open, true);
+  h.choose("rescue100"); h.advance(0);
+  assert.equal(h.find("#progress").textContent, "2 / 3 Laps");
+  assert.equal(h.find("#live-lap-time").textContent, "0:01,00");
+  assert.equal(h.find("#clock").textContent, "0:03,00");
+  h.click("undo-lap"); h.choose("rescue50"); h.advance(0);
+  assert.equal(h.find("#progress").textContent, "1 / 2 Laps");
+  assert.equal(h.find("#live-lap-time").textContent, "0:02,00");
+});
+
+test("running discipline changes still respect the event's enabled disciplines", async () => {
+  const h = await stopwatch();
+  h.click("right-action"); h.advance(1000);
+  h.choose("rescue50");
+  assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert");
+  assert.equal(h.find("#progress").textContent, "0 / max. 20 Laps");
 });
