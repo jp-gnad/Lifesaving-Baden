@@ -3,7 +3,7 @@
 
   function create(dependencies) {
     const {
-      app, api, saveInBackground, validateParticipant, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity, getRouteVersion, setRouteCleanup, refresh
+      app, api, saveInBackground, validateParticipant, renderParticipantGroups, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity, getRouteVersion, setRouteCleanup, refresh
     } = dependencies;
 
     async function renderPeople(id, viewData = null) {
@@ -137,12 +137,12 @@
           importSearchNote.textContent = candidates.length
             ? `${candidates.length} Treffer`
             : (directoryReady ? "Keine Person gefunden." : "Die geschützte Importliste ist noch nicht eingerichtet.");
-          importResults.innerHTML = candidates.map((candidate) => `<button type="button" class="participant-picker-option import-person-option" data-id="${escapeHtml(candidate.id)}" ${candidate.alreadyImported ? "disabled" : ""}>
+          importResults.innerHTML = renderParticipantGroups(candidates, (candidate) => `<button type="button" class="participant-picker-option import-person-option" data-id="${escapeHtml(candidate.id)}" ${candidate.alreadyImported ? "disabled" : ""}>
             <span class="participant-picker-main">${personAvatar({ name: candidate.name, gender: candidate.gender, organization: candidate.organization })}<span class="participant-picker-copy">
               <strong>${escapeHtml(candidate.name)} (${birthYearText(candidate.birthYear)})</strong>
               <small>${escapeHtml(candidate.organization)} · ${escapeHtml(candidate.ageGroup)} · ${candidate.gender === "female" ? "w" : "m"}${candidate.alreadyImported ? " · Bereits vorhanden" : ""}</small>
             </span></span>${candidate.alreadyImported ? icon("check") : icon("import")}
-          </button>`).join("");
+          </button>`);
         } catch (err) {
           if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
           importSearchNote.textContent = err.message;

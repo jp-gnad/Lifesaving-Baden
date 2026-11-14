@@ -14,6 +14,7 @@
     lifesaver100: { name: "100 m Lifesaver", laps: 3, group: "individual", lapLabels: ["50 m Gurtretter Flossen", "10 m Einklinken", "40 m Ziehen"] },
     medley100: { name: "100 m Kombi", laps: 3, group: "individual", lapLabels: ["50 m Kraul", "17,5 m Tauchen", "32,5 m Puppe"] },
     superLifesaver200: { name: "200 m Super Lifesaver", laps: 7, group: "individual", lapLabels: ["50 m Kraul", "25 m Kraul", "25 m Puppe", "5 m Einklinken", "45 m Flossen Gurt", "10 m Einklinken", "40 m Ziehen"] },
+    obstacle100: { name: "100 m Hindernis", laps: 4, group: "individual", additional: true, lapLabels: ["Runde 1 (25 m)", "Runde 2 (50 m)", "Runde 3 (75 m)", "Runde 4 (100 m)"] },
     obstacle200: { name: "200 m Hindernis", laps: 4, group: "individual", lapLabels: ["Runde 1 (50 m)", "Runde 2 (100 m)", "Runde 3 (150 m)", "Runde 4 (200 m)"] },
     manikinRelay4x25: { name: "4 × 25 m Puppenstaffel", laps: 4, group: "team", team: true, lapLabels: ["Position 1", "Position 2", "Position 3", "Position 4"] },
     rescueTubeRelay4x50: { name: "4 × 50 m Gurtretterstaffel", laps: 4, group: "team", team: true, lapLabels: ["50 m Kraul", "50 m Flossen", "50 m Gurt", "50 m Ziehen"] },
@@ -28,6 +29,34 @@
     { id: "individual", name: "Einzel" },
     { id: "team", name: "Mannschaft" },
   ];
+
+  const obstacle100LongCourse = Object.freeze({ ...disciplines.obstacle100, laps: 2,
+    lapLabels: Object.freeze(["Runde 1 (50 m)", "Runde 2 (100 m)"]),
+  });
+
+  function disciplineForEvent(disciplineId, event = {}) {
+    if (disciplineId !== "obstacle100") return disciplines[disciplineId];
+    const configured = event?.pool_length ?? event?.poolLength ?? "25";
+    const length = configured === "custom" ? (event?.custom_pool_length ?? event?.customPoolLength) : configured;
+    return Number(length) === 50 ? obstacle100LongCourse : disciplines.obstacle100;
+  }
+
+  function disciplinesForEvent(event) {
+    return Object.freeze({ ...disciplines, obstacle100: disciplineForEvent("obstacle100", event) });
+  }
+
+  function disciplineForResult(result, event = {}) {
+    if (result?.discipline === "obstacle100") {
+      // Persisted lap coverage identifies the original course, even after the
+      // event's pool length changes or several laps have been glued together.
+      const groups = result.lap_groups || result.lapGroups;
+      const lastGroup = Array.isArray(groups) ? groups.at(-1) : null;
+      const laps = Array.isArray(lastGroup) ? lastGroup : lastGroup?.laps;
+      const count = Array.isArray(laps) ? laps.at(-1) : result.segments?.length;
+      if (count === 2 || count === 4) return disciplineForEvent("obstacle100", { poolLength: count === 2 ? "50" : "25" });
+    }
+    return disciplineForEvent(result?.discipline, event);
+  }
 
   function enabledDisciplinesForEvent(event) {
     try {
@@ -105,14 +134,15 @@
     return Number(match[1]) * 100 + Number(match[2]);
   }
 
-  function disciplineLapLabel(disciplineId, lapNumber) {
-    return disciplines[disciplineId]?.lapLabels?.[lapNumber - 1] || `Runde ${lapNumber}`;
+  function disciplineLapLabel(disciplineId, lapNumber, context = {}) {
+    const item = context?.discipline === disciplineId ? disciplineForResult(context) : disciplineForEvent(disciplineId, context);
+    return item?.lapLabels?.[lapNumber - 1] || `Runde ${lapNumber}`;
   }
 
-  function disciplineLapGroupLabel(disciplineId, laps) {
+  function disciplineLapGroupLabel(disciplineId, laps, context = {}) {
     const safeLaps = Array.isArray(laps) && laps.length ? laps : [];
     if (!safeLaps.length) return "Runde";
-    return safeLaps.map((lap) => disciplineLapLabel(disciplineId, lap)).join(" + ");
+    return safeLaps.map((lap) => disciplineLapLabel(disciplineId, lap, context)).join(" + ");
   }
 
   function resultLapGroups(result) {
@@ -132,7 +162,7 @@
 
   const api = Object.freeze({
     escapeHtml,
-    disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups,
+    disciplines, disciplineGroups, disciplinesForEvent, disciplineForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups,
     formatCumulativeReviewTime: formatTime,
   });
   if (typeof module !== "undefined" && module.exports) module.exports = api;

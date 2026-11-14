@@ -538,6 +538,7 @@ service cloud.firestore {
           "lifesaver100",
           "medley100",
           "superLifesaver200",
+          "obstacle100",
           "obstacle200",
           "manikinRelay4x25",
           "rescueTubeRelay4x50",
@@ -571,9 +572,40 @@ service cloud.firestore {
         && data.note.size() <= 300;
     }
 
-    function validResultCreate() {
+    function obstacle100CoveredLaps(groups) {
+      let last = groups[groups.size() - 1].laps;
+      return last[last.size() - 1];
+    }
+
+    function validObstacle100Group(group, start) {
+      return group is map && group.keys().hasOnly(["laps"])
+        && group.laps is list
+        && (group.laps == [start] || group.laps == [start, start + 1]
+          || group.laps == [start, start + 1, start + 2]
+          || group.laps == [start, start + 1, start + 2, start + 3])
+        && start + group.laps.size() - 1 <= 4;
+    }
+
+    function validObstacle100Groups(groups) {
+      return groups.size() > 0 && groups.size() <= 4
+        && validObstacle100Group(groups[0], 1)
+        && (groups.size() < 2 || validObstacle100Group(groups[1], 1 + groups[0].laps.size()))
+        && (groups.size() < 3 || validObstacle100Group(groups[2], 1 + groups[0].laps.size() + groups[1].laps.size()))
+        && (groups.size() < 4 || validObstacle100Group(groups[3], 1 + groups[0].laps.size() + groups[1].laps.size() + groups[2].laps.size()))
+        && obstacle100CoveredLaps(groups) in [2, 4];
+    }
+
+    function obstacle100EventLaps(eventId) {
+      let event = get(/databases/$(database)/documents/timerEvents/$(eventId)).data;
+      return event.get("poolLength", "25") == "50"
+        || (event.get("poolLength", "25") == "custom" && event.get("customPoolLength", 0) == 50) ? 2 : 4;
+    }
+
+    function validResultCreate(eventId) {
       let data = request.resource.data;
       return validResultData(data)
+        && (data.discipline != "obstacle100"
+          || (validObstacle100Groups(data.lapGroups) && obstacle100CoveredLaps(data.lapGroups) == obstacle100EventLaps(eventId)))
         && data.createdAt == request.time
         && data.updatedAt == request.time;
     }
@@ -581,6 +613,9 @@ service cloud.firestore {
     function validResultUpdate() {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return validResultData(request.resource.data)
+        && (request.resource.data.discipline != "obstacle100"
+          || (validObstacle100Groups(request.resource.data.lapGroups)
+            && obstacle100CoveredLaps(request.resource.data.lapGroups) == obstacle100CoveredLaps(resource.data.lapGroups)))
         && request.resource.data.discipline == resource.data.discipline
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.submissionKey == resource.data.submissionKey
@@ -655,7 +690,7 @@ service cloud.firestore {
         allow list: if boundedTimerList() && (isAdmin()
           || eventAllows(eventId, "resultsAccess"));
         allow create: if eventAllows(eventId, "timerAccess")
-          && validResultCreate();
+          && validResultCreate(eventId);
         allow update: if eventAllows(eventId, "resultsAccess")
           && eventAllows(eventId, "resultEditAccess")
           && validResultUpdate();

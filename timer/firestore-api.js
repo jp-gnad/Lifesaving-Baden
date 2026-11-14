@@ -903,7 +903,9 @@
       async function resultWritePayload(body, existingData = null) {
         const disciplineId = existingData?.discipline || body.discipline;
         if (!(disciplineId in DISCIPLINES)) throw appError("Ungültige Disziplin.");
-        const discipline = DISCIPLINES[disciplineId];
+        const discipline = existingData
+          ? window.TimerCore.disciplineForResult(existingData, event)
+          : window.TimerCore.disciplineForEvent(disciplineId, event);
         let participantIds;
         if (discipline.team) {
           participantIds = body.participantIds === undefined ? existingData?.participantIds : body.participantIds;

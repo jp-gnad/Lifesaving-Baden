@@ -45,6 +45,7 @@ function view({ existingId = "old", existingName = "Anna Müller" } = {}) {
       return { clientSubmissionId: response.id, completion: Promise.resolve(response) };
     },
     eventCan: (event, field) => event[field],
+    renderParticipantGroups: require("../timer/participant-picker.js").create(require("../timer/core.js")).renderGroups,
     normalizedIdentity: (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, ""),
     compareParticipantsByOrganization: () => 0, personAvatar: () => "", birthYearText: String, escapeHtml: require("../timer/core.js").escapeHtml, icon: () => "",
     bindDialogClose() {}, setDocumentTitle() {}, showToast() {},

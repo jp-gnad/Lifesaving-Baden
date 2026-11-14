@@ -16,7 +16,7 @@ test("timer time parsing keeps compact mobile input, strict seconds and centisec
 });
 
 test("UI and adapter share immutable discipline definitions and preserve old lap-group results", () => {
-  assert.equal(Object.keys(core.disciplines).length, 13);
+  assert.equal(Object.keys(core.disciplines).length, 14);
   assert.equal(core.disciplines.mixedRelay4x50.mixed, true);
   assert.equal(core.disciplines.normal.flexible, true);
   assert.ok(Object.isFrozen(core.disciplines.superLifesaver200.lapLabels));
@@ -24,6 +24,31 @@ test("UI and adapter share immutable discipline definitions and preserve old lap
   assert.deepEqual(core.enabledDisciplinesForEvent({ enabled_disciplines_json: 'broken' }), Object.keys(core.disciplines));
   assert.deepEqual(core.resultLapGroups({ segments: [10, 20] }), [[1], [2]]);
   assert.deepEqual(core.resultLapGroups({ segments: [10], lap_groups: [[1, 2]] }), [[1, 2]]);
+});
+
+test("100 m obstacle uses four 25 m laps or two 50 m laps without mutating the shared definitions", () => {
+  for (const [poolLength, labels] of [["25", ["25 m", "50 m", "75 m", "100 m"]], ["50", ["50 m", "100 m"]]]) {
+    const event = { pool_length: poolLength };
+    const item = core.disciplinesForEvent(event).obstacle100;
+    assert.equal(item.name, "100 m Hindernis");
+    assert.equal(item.laps, labels.length);
+    assert.ok(Object.isFrozen(item));
+    labels.forEach((distance, index) => assert.equal(core.disciplineLapLabel("obstacle100", index + 1, event), `Runde ${index + 1} (${distance})`));
+  }
+  assert.equal(core.disciplines.obstacle100.laps, 4);
+  assert.equal(core.disciplineForEvent("obstacle100", { poolLength: "50" }).laps, 2);
+  assert.equal(core.disciplineForEvent("obstacle100", { pool_length: "custom", custom_pool_length: 50 }).laps, 2);
+  assert.equal(core.disciplineForEvent("rescue50", { pool_length: "50" }), core.disciplines.rescue50);
+});
+
+test("saved obstacle lap labels retain their course after event edits, including glued lap groups", () => {
+  const short = { discipline: "obstacle100", segments: [100], lap_groups: [[1, 2, 3, 4]] };
+  const long = { discipline: "obstacle100", segments: [100], lapGroups: [{ laps: [1, 2] }] };
+  assert.equal(core.disciplineForResult(short, { pool_length: "50" }).laps, 4);
+  assert.equal(core.disciplineForResult(long, { pool_length: "25" }).laps, 2);
+  assert.equal(core.disciplineLapLabel("obstacle100", 1, short), "Runde 1 (25 m)");
+  assert.equal(core.disciplineLapLabel("obstacle100", 1, long), "Runde 1 (50 m)");
+  assert.equal(core.disciplineLapGroupLabel("obstacle100", [1, 2], long), "Runde 1 (50 m) + Runde 2 (100 m)");
 });
 
 test("extracted PDF export preserves pages, escaped user text and byte-accurate object offsets", async () => {

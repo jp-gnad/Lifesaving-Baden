@@ -1,7 +1,8 @@
 const {
-  escapeHtml, disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups
+  escapeHtml, disciplines, disciplineGroups, disciplinesForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups
 } = window.TimerCore;
 const timeInput = window.TimerTimeInput.create({ parseTime });
+const { renderGroups: renderParticipantGroups } = window.TimerParticipantPicker.create({ escapeHtml });
 const { createResultsPdf, loadEventPdfImage, openPdf } = window.TimerResultsPdf.create({ eventIconUrls });
 
 const app = document.querySelector("#app");
@@ -104,7 +105,7 @@ const saveQueue = window.TimerSaveQueue.create({
 });
 
 const peopleView = window.TimerPeopleView.create({
-  app, api, saveInBackground, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
+  app, api, saveInBackground, renderParticipantGroups, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
   getRouteVersion: () => routeVersion,
   setRouteCleanup: (cleanup) => { routeCleanup = cleanup; },
   refresh: () => renderRoute(),
@@ -738,8 +739,10 @@ async function renderEventSettings(id, section = null) {
   const sectionName = sectionNames[activeSection] || "Event-Einstellungen";
   const disciplineFields = disciplineGroups.map((group) => {
     const entries = Object.entries(disciplines).filter(([, item]) => item.group === group.id);
-    return `<fieldset class="settings-section discipline-settings"><legend>${escapeHtml(group.name)}</legend><div class="discipline-settings-list">${entries.map(([disciplineId, item]) => `
-      <label class="settings-check"><input type="checkbox" name="enabledDisciplines" value="${disciplineId}" ${enabledDisciplines.has(disciplineId) ? "checked" : ""}><span>${escapeHtml(item.name)}</span></label>`).join("")}</div></fieldset>`;
+    const renderCheck = ([disciplineId, item]) => `<label class="settings-check"><input type="checkbox" name="enabledDisciplines" value="${disciplineId}" ${enabledDisciplines.has(disciplineId) ? "checked" : ""}><span>${escapeHtml(item.name)}</span></label>`;
+    const standard = entries.filter(([, item]) => !item.additional).map(renderCheck).join("");
+    const additional = entries.filter(([, item]) => item.additional).map(renderCheck).join("");
+    return `<fieldset class="settings-section discipline-settings"><legend>${escapeHtml(group.name)}</legend><div class="discipline-settings-list">${standard}</div>${additional ? `<details class="additional-disciplines"><summary>Weitere Disziplinen</summary><div class="discipline-settings-list">${additional}</div></details>` : ""}</fieldset>`;
   }).join("");
   const eventMarkup = `
       <fieldset class="settings-section"><legend>Event</legend><div class="form-grid">
@@ -877,6 +880,7 @@ async function renderTimer(id) {
     setTimerInteractionLock(true);
     return;
   }
+  const disciplines = disciplinesForEvent(event);
   const participants = [];
   const localParticipantDrafts = new Map();
   let participantsReady = false;
@@ -976,7 +980,7 @@ async function renderTimer(id) {
       const groupDisciplines = enabledDisciplineIds.map((disciplineId) => disciplines[disciplineId]).filter((item) => item.group === group.id);
       const selected = selectedGroup === group.id;
       const isNormal = group.id === "normal";
-      const detail = isNormal ? "max. 20 Laps" : `${groupDisciplines.length} Disziplinen`;
+      const detail = isNormal ? "max. 20 Laps" : `${groupDisciplines.filter((item) => !item.additional).length} Disziplinen${groupDisciplines.some((item) => item.additional) ? " + weitere" : ""}`;
       const action = isNormal ? `data-discipline="${enabledDisciplineIds.find((disciplineId) => disciplines[disciplineId].group === "normal")}"` : `data-mode-group="${group.id}"`;
       const trailingIcon = selected ? icon("check") : (isNormal ? "" : icon("arrow-right"));
       const selectable = enabledDisciplineIds.some((disciplineId) => disciplines[disciplineId].group === group.id && canSelectDiscipline(disciplineId));
@@ -991,13 +995,16 @@ async function renderTimer(id) {
     modeBack.hidden = !allowBack;
     modeCategoryList.hidden = true;
     modeDisciplineList.hidden = false;
-    modeDisciplineList.innerHTML = Object.entries(disciplines)
-      .filter(([disciplineId, item]) => item.group === groupId && enabledDisciplineIds.includes(disciplineId))
-      .map(([disciplineId, item]) => {
-        const selected = disciplineId === timer.discipline;
-        const selectable = canSelectDiscipline(disciplineId);
-        return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}" ${selectable ? "" : "disabled"}><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps${selectable ? "" : ` · Zu kurz für Runde ${timer.segments.length + 1}`}</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
-      }).join("");
+    const entries = Object.entries(disciplines)
+      .filter(([disciplineId, item]) => item.group === groupId && enabledDisciplineIds.includes(disciplineId));
+    const renderChoice = ([disciplineId, item]) => {
+      const selected = disciplineId === timer.discipline;
+      const selectable = canSelectDiscipline(disciplineId);
+      return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}" ${selectable ? "" : "disabled"}><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps${selectable ? "" : ` · Zu kurz für Runde ${timer.segments.length + 1}`}</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
+    };
+    const standard = entries.filter(([, item]) => !item.additional).map(renderChoice).join("");
+    const additional = entries.filter(([, item]) => item.additional).map(renderChoice).join("");
+    modeDisciplineList.innerHTML = standard + (additional ? `<details class="additional-disciplines"><summary>Weitere Disziplinen</summary><div class="discipline-list">${additional}</div></details>` : "");
   }
 
   function drawClock() {
@@ -1081,15 +1088,15 @@ async function renderTimer(id) {
         const time = value !== undefined
           ? formatTime(value)
           : (isCurrent ? formatTime(currentCs() - capturedTotal()) : "–");
-        return `<div class="lap-row ${isCurrent ? "current" : ""}"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1))}</span>${lapValues(time, index, isCurrent, value === undefined && !isCurrent)}</div>`;
+        return `<div class="lap-row ${isCurrent ? "current" : ""}"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1, event))}</span>${lapValues(time, index, isCurrent, value === undefined && !isCurrent)}</div>`;
       }).join("");
       return;
     }
 
     elements["lap-list"].hidden = timer.segments.length === 0 && !hasLiveLap;
-    const liveRow = hasLiveLap ? `<div class="lap-row current"><span>${escapeHtml(disciplineLapLabel(timer.discipline, timer.segments.length + 1))}</span>${lapValues(formatTime(currentCs() - capturedTotal()), timer.segments.length, true)}</div>` : "";
+    const liveRow = hasLiveLap ? `<div class="lap-row current"><span>${escapeHtml(disciplineLapLabel(timer.discipline, timer.segments.length + 1, event))}</span>${lapValues(formatTime(currentCs() - capturedTotal()), timer.segments.length, true)}</div>` : "";
     const completedRows = timer.segments.map((value, index) => ({ value, index })).reverse().map(({ value, index }) => {
-      return `<div class="lap-row"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1))}</span>${lapValues(formatTime(value), index)}</div>`;
+      return `<div class="lap-row"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1, event))}</span>${lapValues(formatTime(value), index)}</div>`;
     }).join("");
     elements["lap-list"].innerHTML = liveRow + completedRows;
   }
@@ -1330,11 +1337,11 @@ async function renderTimer(id) {
         .filter((person) => !query || [person.name, person.organization, person.age_group, person.birth_year]
           .some((value) => String(value).toLocaleLowerCase("de-DE").includes(query)))
         .sort(compareParticipantsByOrganization);
-      participantPickerList.innerHTML = matches.map((person) => {
+      participantPickerList.innerHTML = renderParticipantGroups(matches, (person) => {
         const assignedElsewhere = participantSelects.find((select) => select !== activeParticipantSelect && select.value === person.id);
         const selected = activeParticipantSelect?.value === person.id;
         return `<button class="participant-picker-option ${selected ? "selected" : ""}" type="button" data-person-id="${escapeHtml(person.id)}" role="option" aria-selected="${selected}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${participantSelects.indexOf(assignedElsewhere) + 1}</small>` : (selected ? icon("check") : icon("arrow-right"))}</button>`;
-      }).join("");
+      });
       participantPickerEmpty.hidden = matches.length !== 0;
     }
 
@@ -1396,9 +1403,9 @@ async function renderTimer(id) {
         const displayedTime = !validValue
           ? ""
           : (timeMode === "segment" ? formatTime(group.value) : formatTime(cumulative));
-        const range = disciplineLapGroupLabel(timer.discipline, group.laps);
+        const range = disciplineLapGroupLabel(timer.discipline, group.laps, event);
         const glueButton = glueMode && index < lapGroups.length - 1
-          ? `<button class="glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(range)} mit ${escapeHtml(disciplineLapGroupLabel(timer.discipline, lapGroups[index + 1].laps))} verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>`
+          ? `<button class="glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(range)} mit ${escapeHtml(disciplineLapGroupLabel(timer.discipline, lapGroups[index + 1].laps, event))} verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>`
           : "";
         const values = editMode
           ? `<div class="review-lap-inputs"><label><span>${timeMode === "segment" ? "Zeit" : "Kumuliert"}</span><input class="segment-input" id="segment-${index}" inputmode="numeric" enterkeyhint="next" value="${displayedTime}" aria-label="Zeit ${range}" aria-describedby="save-error"></label><label><span>Freq.</span><input class="frequency-input" id="frequency-${index}" inputmode="numeric" value="${Number.isInteger(group.frequency) ? group.frequency : ""}" aria-label="Frequenz ${range}" aria-describedby="save-error"></label></div>`
@@ -1895,11 +1902,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       .filter((person) => !query || [person.name, person.organization, person.age_group, person.birth_year]
         .some((value) => String(value).toLocaleLowerCase("de-DE").includes(query)))
       .sort(compareParticipantsByOrganization);
-    resultParticipantPickerList.innerHTML = matches.map((person) => {
+    resultParticipantPickerList.innerHTML = renderParticipantGroups(matches, (person) => {
       const assignedElsewhere = assignmentSelects.find((select) => select !== activeResultParticipantSelect && select.value === person.id);
       const selectedPerson = activeResultParticipantSelect?.value === person.id;
       return `<button class="participant-picker-option ${selectedPerson ? "selected" : ""}" type="button" data-person-id="${escapeHtml(person.id)}" role="option" aria-selected="${selectedPerson}" ${assignedElsewhere ? "disabled" : ""}><span class="participant-picker-main">${personAvatar(person)}<span class="participant-picker-copy"><strong>${escapeHtml(participantName(person))}</strong><small>${escapeHtml(person.organization)} · ${escapeHtml(person.age_group)} · ${person.gender === "male" ? "m" : "w"}</small></span></span>${assignedElsewhere ? `<small>Position ${assignmentSelects.indexOf(assignedElsewhere) + 1}</small>` : (selectedPerson ? icon("check") : icon("arrow-right"))}</button>`;
-    }).join("");
+    });
     resultParticipantPickerEmpty.hidden = matches.length !== 0;
   }
 
@@ -1959,17 +1966,18 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const resultButton = (disciplineId, item, gender, count) => count || hasMore || pageIndex > 0
       ? `<button class="result-choice ${gender === "female" ? "female" : "male"}" data-discipline="${disciplineId}" data-gender="${gender}" aria-label="${escapeHtml(item.name)}, ${genderName(gender)}, ${count} ${count === 1 ? "Ergebnis" : "Ergebnisse"} auf dieser Seite"><strong>${escapeHtml(item.name)}</strong><span>${genderName(gender)}</span></button>`
       : `<span class="result-choice-space" aria-hidden="true"></span>`;
+    const renderResultChoice = ({ disciplineId, item, femaleCount, maleCount }) => item.mixed
+      ? `<div class="result-selection-row"><button class="result-choice mixed" data-discipline="${disciplineId}" data-gender="mixed" aria-label="${escapeHtml(item.name)}, Mixed, ${femaleCount + maleCount} Ergebnisse auf dieser Seite"><strong>${escapeHtml(item.name)}</strong><span>Mixed</span></button></div>`
+      : `<div class="result-selection-row ${disciplineId === "normal" ? "custom-result-row" : ""}">${resultButton(disciplineId, item, "female", femaleCount)}${resultButton(disciplineId, item, "male", maleCount)}</div>`;
+    const standard = categoryEntries.filter(({ item }) => !item.additional).map(renderResultChoice).join("");
+    const additional = categoryEntries.filter(({ item }) => item.additional).map(renderResultChoice).join("");
     resultsRoot.innerHTML = `<div class="result-selection" aria-label="Ergebnisgruppen">
       <div class="result-category-tabs" role="tablist" aria-label="Ergebnisart">
         <button type="button" role="tab" data-result-category="individual" aria-selected="${resultSelectionCategory === "individual"}" class="${resultSelectionCategory === "individual" ? "active" : ""}">Einzel</button>
         <button type="button" role="tab" data-result-category="team" aria-selected="${resultSelectionCategory === "team"}" class="${resultSelectionCategory === "team" ? "active" : ""}">Mannschaft</button>
       </div>
       ${categoryEntries.length
-        ? `<div class="result-selection-group-rows" role="tabpanel">${categoryEntries.map(({ disciplineId, item, femaleCount, maleCount }) =>
-          item.mixed
-            ? `<div class="result-selection-row"><button class="result-choice mixed" data-discipline="${disciplineId}" data-gender="mixed" aria-label="${escapeHtml(item.name)}, Mixed, ${femaleCount + maleCount} Ergebnisse auf dieser Seite"><strong>${escapeHtml(item.name)}</strong><span>Mixed</span></button></div>`
-            : `<div class="result-selection-row ${disciplineId === "normal" ? "custom-result-row" : ""}">${resultButton(disciplineId, item, "female", femaleCount)}${resultButton(disciplineId, item, "male", maleCount)}</div>`
-        ).join("")}</div>`
+        ? `<div class="result-selection-group-rows" role="tabpanel">${standard}${additional ? `<details class="additional-disciplines"><summary>Weitere Disziplinen</summary><div class="result-selection-group-rows">${additional}</div></details>` : ""}</div>`
         : `<div class="empty">Noch keine ${resultSelectionCategory === "team" ? "Mannschafts" : "Einzel"}ergebnisse.</div>`}
     </div>`;
     resultsRoot.querySelectorAll("[data-result-category]").forEach((button) => button.addEventListener("click", () => {
@@ -1997,7 +2005,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     resultEditError.textContent = "";
     resultEditForm.querySelector('button[type="submit"], button:not([type])').disabled = false;
     deleteResultButton.disabled = false;
-    const item = disciplines[result.discipline];
+    const item = disciplineForResult(result, event);
     const lapGroups = resultLapGroups(result);
     resultEditLapGroups = result.segments.map((value, index) => ({
       laps: [...(lapGroups[index] || [index + 1])],
@@ -2063,11 +2071,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       const lapsRoot = resultEditFields.querySelector(".result-edit-laps");
       lapsRoot.innerHTML = resultEditLapGroups.map((group, index) => `<div class="result-edit-lap-block">
         <div class="result-edit-lap">
-          <strong>${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps))}</strong>
+          <strong>${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps, result))}</strong>
           <label><span>Zeit</span><input class="result-edit-segment" inputmode="numeric" value="${group.value == null ? "" : formatTime(group.value)}"></label>
           <label><span>Freq.</span><input class="result-edit-frequency" inputmode="numeric" value="${Number.isInteger(group.frequency) ? group.frequency : ""}"></label>
         </div>
-        ${resultEditGlueMode && index < resultEditLapGroups.length - 1 ? `<button class="result-edit-glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps))} mit der nächsten Runde verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>` : ""}
+        ${resultEditGlueMode && index < resultEditLapGroups.length - 1 ? `<button class="result-edit-glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps, result))} mit der nächsten Runde verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>` : ""}
       </div>`).join("");
       lapsRoot.querySelectorAll(".result-edit-segment").forEach((input) => timeInput.bind(input, updateStoppedTime));
       lapsRoot.querySelectorAll(".result-edit-glue-next").forEach((button) => button.addEventListener("click", () => {
@@ -2168,7 +2176,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const note = resultEditFields.querySelector("#result-edit-note").value.trim();
     const assignmentSelects = [...resultEditFields.querySelectorAll(".result-participant-select")];
     const participantIds = assignmentSelects.map((select) => select.value);
-    const item = disciplines[editingResult.discipline];
+    const item = disciplineForResult(editingResult, event);
     if (participantIds.some((participantId) => !participantId)) {
       resultEditError.textContent = item.team ? "Bitte alle vier Positionen besetzen." : "Bitte eine Person auswählen.";
       return;
@@ -2260,7 +2268,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
           : `<details class="result-laps-details"><summary>Details <span>${result.segments.length} Runden</span></summary>${result.note ? `<div class="result-feedback"><strong>Feedback</strong><p>${escapeHtml(result.note)}</p></div>` : ""}<div class="result-segments">${result.segments.map((value, lap) => {
             const group = lapGroups[lap] || [lap + 1];
             const glued = group.length > 1;
-            return `<span class="${glued ? "glued-result-lap" : ""}"><span class="result-lap-label">${escapeHtml(disciplineLapGroupLabel(result.discipline, group))}${Number.isInteger(result.frequencies?.[lap]) ? `<small>${result.frequencies[lap]}/min</small>` : ""}</span><strong>${value === null ? "–" : formatTime(value)}</strong></span>`;
+            return `<span class="${glued ? "glued-result-lap" : ""}"><span class="result-lap-label">${escapeHtml(disciplineLapGroupLabel(result.discipline, group, result))}${Number.isInteger(result.frequencies?.[lap]) ? `<small>${result.frequencies[lap]}/min</small>` : ""}</span><strong>${value === null ? "–" : formatTime(value)}</strong></span>`;
           }).join("")}</div></details>`;
         const editButton = !resultsOnly && eventCan(event, "can_edit_results") ? `<button class="button secondary small icon-button edit-result" data-id="${escapeHtml(result.id)}" aria-label="Ergebnis bearbeiten" title="Bearbeiten">${icon("pencil")}</button>` : "";
         const cardHead = teamMembers.length
@@ -2293,11 +2301,16 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
         );
         const results = all.filter((result) => result.discipline === exportSelection.discipline && (item.mixed || result.gender === exportSelection.gender))
           .sort((left, right) => (left.official_centiseconds ?? left.total_centiseconds) - (right.official_centiseconds ?? right.total_centiseconds) || left.created_at.localeCompare(right.created_at));
-        const lapCount = item.flexible ? results.reduce((max, result) => Math.max(max, ...resultLapGroups(result).flat(), result.segments.length), 0) : item.laps;
+        const lapCount = item.flexible || exportSelection.discipline === "obstacle100"
+          ? results.reduce((max, result) => Math.max(max, ...resultLapGroups(result).flat(), result.segments.length), 0)
+          : item.laps;
+        const mixedCourses = exportSelection.discipline === "obstacle100"
+          && new Set(results.map((result) => disciplineForResult(result, event).laps)).size > 1;
+        const labelContext = exportSelection.discipline === "obstacle100" ? { poolLength: lapCount === 2 ? "50" : "25" } : event;
         const headers = [
           "Name",
           "AK",
-          ...Array.from({ length: lapCount }, (_, lap) => disciplineLapLabel(exportSelection.discipline, lap + 1)),
+          ...Array.from({ length: lapCount }, (_, lap) => mixedCourses ? `${(lap + 1) * 100 / lapCount} m` : disciplineLapLabel(exportSelection.discipline, lap + 1, labelContext)),
           "Gesamtzeit",
         ];
         const rows = results.map((result) => {
@@ -2312,7 +2325,9 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
           const lapCells = Array.from({ length: lapCount }, () => "–");
           const groups = resultLapGroups(result);
           result.segments.forEach((value, index) => {
-            const group = groups[index] || [index + 1];
+            const originalGroup = groups[index] || [index + 1];
+            const scale = mixedCourses ? lapCount / disciplineForResult(result, event).laps : 1;
+            const group = originalGroup.flatMap((lap) => Array.from({ length: scale }, (_, part) => (lap - 1) * scale + part + 1));
             const frequency = Number.isInteger(result.frequencies?.[index]) ? `${result.frequencies[index]}/min` : "";
             lapCells[group[0] - 1] = {
               main: value == null ? "–" : formatReviewTime(value),

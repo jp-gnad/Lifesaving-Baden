@@ -62,6 +62,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/app.js` | DOM-Einstieg, Hash-Routing, Uhr, Ergebnisansichten, Synchronisation vorgemerkter Ergebnisse. Verbindet die übrigen Module. |
 | `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
 | `timer/time-input.js` | `TimerTimeInput`: Live-Eingabemaske für bis zu sechs Ziffern, Cursor-/Löschverhalten und gemeinsames Einlesen der Zeitfelder in beiden Ergebnis-Editoren. `create({ parseTime })` erhält den bestehenden Zeitparser; die gespeicherten Werte bleiben Hundertstelsekunden. |
+| `timer/participant-picker.js` | `TimerParticipantPicker.create({ escapeHtml }).renderGroups(...)`: gemeinsame dezente Altersklassen-Gruppierung für Ergebnisprüfung, Ergebnisbearbeitung und Importauswahl. Erhält bereits gefilterte Personen und eine Renderfunktion; lädt keine Daten. |
 | `timer/event-cache.js` | `TimerEventCache.create(...)`: höchstens 50 Event-Metadatensätze für sofortige Navigation zwischen Event, Einstellungen und Timer. Nach 30 Sekunden im Hintergrund erneuern; bei Konto-/Rollenwechsel leeren. Keine Teilnehmerdaten. |
 | `timer/save-queue.js` | `TimerSaveQueue.create(...)`: lokale Schreibwarteschlange mit sequenzieller Hintergrundübertragung, Wiederholung und Kontobindung. Die Oberfläche wartet auf den lokalen Transaktionsabschluss, nicht auf Firebase. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
@@ -75,6 +76,14 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 Die Disziplin-Definitionen werden von Oberfläche und Firestore-Adapter gemeinsam
 verwendet. Fachlogik muss deshalb nicht in beiden Dateien parallel gepflegt werden.
 Die serverseitigen Sicherheitsregeln bleiben davon unabhängig.
+
+`disciplinesForEvent`/`disciplineForEvent` lösen bahnlängenabhängige Disziplinen
+auf: `obstacle100` hat auf 25 m vier und auf 50 m zwei Runden. Die zusätzliche
+Disziplin steht unter dem geschlossenen Bereich „Weitere Disziplinen“.
+`disciplineForResult` rekonstruiert die ursprüngliche Einteilung aus gespeicherten
+Lap-Gruppen; spätere Änderungen der Event-Bahnlänge verändern alte Ergebnisse
+oder deren Bearbeitung nicht. Neue Ergebnisse werden gegen die aktuelle Bahnlänge
+geprüft, bestehende gegen ihre gespeicherte Rundeneinteilung – auch in den Regeln.
 
 Der Timer lädt die Personenliste erst nach Aufbau der bedienbaren Stoppuhr im
 Hintergrund. Die Ergebnisprüfung ergänzt nachgeladene Personen, ohne laufende

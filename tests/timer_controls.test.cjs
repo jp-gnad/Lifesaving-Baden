@@ -81,7 +81,7 @@ test("older browsers retain native click activation", () => {
   assert.equal(activations, 1);
 });
 
-async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline]) {
+async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25") {
   const nodes = new Map();
   const find = (key) => {
     if (!nodes.has(key)) {
@@ -122,8 +122,9 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
     timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
+    renderParticipantGroups: require("../timer/participant-picker.js").create(require("../timer/core.js")).renderGroups,
     routeVersion: 1,
-    eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify(enabledDisciplines) }) },
+    eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, pool_length: poolLength, enabled_disciplines_json: JSON.stringify(enabledDisciplines) }) },
     document: { querySelector: find, documentElement: { clientHeight: 800 } },
     app: node(), animationFrame: null,
     api: async () => participantResponse || ({ event: { name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }, participants: [] }),
@@ -263,6 +264,41 @@ test("running discipline changes still respect the event's enabled disciplines",
   h.choose("rescue50");
   assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert");
   assert.equal(h.find("#progress").textContent, "0 / max. 20 Laps");
+});
+
+test("100 m obstacle lap counts and in-flight discipline selection follow the event pool length", async () => {
+  for (const [poolLength, laps] of [["25", 4], ["50", 2]]) {
+    const h = await stopwatch("normal", null, ["normal", "obstacle100"], poolLength);
+    h.click("right-action"); h.choose("obstacle100");
+    assert.equal(h.find("#progress").textContent, `0 / ${laps} Laps`);
+    assert.match(h.find("#lap-list").innerHTML, new RegExp(`Runde 1 \\(${poolLength} m\\)`));
+    for (let index = 1; index < laps; index++) {
+      h.advance(1000); h.click("left-action");
+    }
+    assert.equal(h.find("#left-action").hidden, true);
+    assert.equal(h.find("#progress").textContent, `${laps - 1} / ${laps} Laps`);
+    h.advance(1000); h.click("right-action");
+    assert.equal(h.find("#review-view").hidden, false);
+    assert.equal(h.find("#clock").textContent, `0:0${laps},00`);
+  }
+  const long = await stopwatch("normal", null, ["normal", "obstacle100"], "50");
+  long.click("right-action"); long.advance(1000); long.click("left-action");
+  long.advance(1000); long.click("left-action"); long.choose("obstacle100");
+  assert.equal(long.find("#mode-name").textContent, "Benutzerdefiniert", "a two-lap course cannot be selected in lap three");
+});
+
+test("100 m obstacle is selectable inside the closed additional disciplines section after the six standard individual disciplines", async () => {
+  const ids = Object.keys(require("../timer/core.js").disciplines);
+  const h = await stopwatch("normal", null, ids);
+  h.click("mode-button"); h.group("individual");
+  const html = h.find("#mode-discipline-list").innerHTML;
+  const standard = html.slice(0, html.indexOf("<details"));
+  assert.equal((standard.match(/data-discipline=/g) || []).length, 6);
+  assert.ok(!standard.includes("obstacle100"));
+  assert.match(html, /<details class="additional-disciplines"><summary>Weitere Disziplinen<\/summary>/);
+  assert.ok(html.indexOf('data-discipline="obstacle100"') > html.indexOf("<details"));
+  h.choose("obstacle100");
+  assert.equal(h.find("#mode-name").textContent, "100 m Hindernis");
 });
 
 test("the stopped timer can reopen its existing review without restarting time or losing assignments and drafts", async () => {

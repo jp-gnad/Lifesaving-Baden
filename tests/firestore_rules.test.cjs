@@ -44,6 +44,29 @@ const dbFor = (uid, claims = {}) => uid
   ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore()
   : env.unauthenticatedContext().firestore();
 
+test("100 m obstacle enforces course-specific complete lap groups without changing write permissions", { skip: !enabled }, async () => {
+  await seed({
+    "timerEvents/obstacle-short": { ...event("everyone"), poolLength: "25", enabledDisciplines: ["obstacle100"] },
+    "timerEvents/obstacle-long": { ...event("everyone"), poolLength: "50", enabledDisciplines: ["obstacle100"] },
+    "timerEvents/obstacle-locked": { ...event("locked"), poolLength: "25", enabledDisciplines: ["obstacle100"] },
+    "users/obstacle-admin": { role: "admin" },
+  });
+  const db = dbFor(null);
+  const obstacle = (laps) => ({ ...result(), discipline: "obstacle100", segments: Array(laps).fill(100), frequencies: Array(laps).fill(null),
+    lapGroups: Array.from({ length: laps }, (_, index) => ({ laps: [index + 1] })), totalCentiseconds: laps * 100 });
+  for (const [id, laps] of [["obstacle-short", 4], ["obstacle-long", 2]]) {
+    const ref = sdk.doc(db, `timerEvents/${id}/results/valid`);
+    await assertSucceeds(sdk.setDoc(ref, obstacle(laps)));
+    await assertFails(sdk.setDoc(sdk.doc(db, `timerEvents/${id}/results/wrong`), obstacle(laps === 2 ? 4 : 2)));
+    await assertFails(sdk.setDoc(sdk.doc(db, `timerEvents/${id}/results/three`), obstacle(3)));
+    const admin = dbFor("obstacle-admin");
+    await assertSucceeds(sdk.updateDoc(sdk.doc(admin, `timerEvents/${id}`), { poolLength: laps === 4 ? "50" : "25", updatedAt: sdk.serverTimestamp() }));
+    await assertSucceeds(sdk.updateDoc(ref, { segments: [laps * 100], frequencies: [null], lapGroups: [{ laps: Array.from({ length: laps }, (_, index) => index + 1) }], updatedAt: sdk.serverTimestamp() }));
+    await assertFails(sdk.updateDoc(ref, { lapGroups: [{ laps: laps === 4 ? [1, 2] : [1, 2, 3, 4] }], updatedAt: sdk.serverTimestamp() }));
+  }
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/obstacle-locked/results/denied"), obstacle(4)));
+});
+
 test("timer event and result lists require bounded queries, including admins and cursor pages", { skip: !enabled }, async () => {
   const records = { "users/paging-admin": { role: "admin" }, "timerEvents/paging": event("everyone"), "timerEvents/private-page": event("locked") };
   for (let i = 0; i < 53; i++) {

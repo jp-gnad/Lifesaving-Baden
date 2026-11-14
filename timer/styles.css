@@ -475,6 +475,9 @@ dialog::backdrop { background: rgba(20, 29, 44, .48); }
 .dialog-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .dialog-title-row h2 { margin: 0; }
 .discipline-list { display: grid; gap: 8px; }
+.additional-disciplines { min-width: 0; margin-top: 4px; }
+.additional-disciplines > summary { padding: 9px 2px; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.additional-disciplines[open] > summary { margin-bottom: 4px; }
 .discipline-choice { width: 100%; min-height: 58px; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
 .discipline-choice > span:first-child { display: grid; }
 .discipline-choice small { color: var(--muted); }
@@ -550,6 +553,9 @@ dialog::backdrop { background: rgba(20, 29, 44, .48); }
 .participant-gender-filter button { min-width: 0; border: 0; border-radius: 6px; padding: 4px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 650; }
 .participant-gender-filter button.active { background: #fff; color: var(--primary-dark); box-shadow: 0 1px 3px rgba(23, 32, 51, .12); }
 .participant-picker-list { flex: 1 1 auto; min-height: 0; display: grid; align-content: start; gap: 7px; margin-top: 14px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.participant-picker-age-group { min-width: 0; display: grid; gap: 7px; }
+.participant-picker-age-group + .participant-picker-age-group { margin-top: 6px; }
+.participant-picker-age-heading { margin: 2px 3px 0; color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1.4; }
 .participant-picker-option { width: 100%; min-width: 0; min-height: 58px; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: #fff; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; }
 .participant-picker-option > .participant-picker-main { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .participant-picker-copy { min-width: 0; display: grid; gap: 2px; }

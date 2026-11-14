@@ -39,6 +39,7 @@ function fixture({ deferredEvent = null } = {}) {
   const context = vm.createContext({
     ...require("../timer/core.js"), routeVersion: 0, activeResultView: null, routeCleanup: null, cooldownTimer: null, refreshTimer: null, animationFrame: null,
     timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
+    renderParticipantGroups: require("../timer/participant-picker.js").create(require("../timer/core.js")).renderGroups,
     app: node("app"), document: { querySelector: node, querySelectorAll: () => [], body: { classList } },
     window: { timerFirestoreApi: {
       clearParticipantCache() {},
@@ -115,6 +116,40 @@ test("PDF loads every page and sorts the complete selected group; failure produc
   await h.node("#create-results-pdf").handlers.click({ currentTarget: h.node("#create-results-pdf") });
   assert.equal(h.pdfs.length, 1);
   assert.match(h.toasts.at(-1), /offline/);
+});
+
+test("100 m obstacle export and editing use saved course labels, and mixed courses align their distance columns", async () => {
+  for (const laps of [2, 4]) {
+    const h = fixture(); h.event.pool_length = laps === 2 ? "25" : "50";
+    await h.context.renderViewer("e", "obstacle100", "male");
+    const result = row("obstacle", { discipline: "obstacle100", segments: Array(laps).fill(100), total_centiseconds: laps * 100 });
+    h.rows([result]); h.receive([result]);
+    await h.node("#create-results-pdf").handlers.click({ currentTarget: {} });
+    assert.equal(h.pdfs[0][2].length, laps + 3);
+    assert.equal(h.pdfs[0][2][2], `Runde 1 (${laps === 2 ? 50 : 25} m)`);
+    h.node("edit-obstacle").handlers.click(); await new Promise(setImmediate);
+    assert.ok(h.node("#result-edit-fields .result-edit-laps").innerHTML.includes(`Runde 1 (${laps === 2 ? 50 : 25} m)`));
+  }
+  const h = fixture(); await h.context.renderViewer("e", "obstacle100", "male");
+  const results = [row("long", { discipline: "obstacle100", participant_name: "Long", segments: [100, 200], total_centiseconds: 300 }),
+    row("short", { discipline: "obstacle100", participant_name: "Short", segments: [100, 100, 100, 100], total_centiseconds: 400 })];
+  h.rows(results); h.receive(results);
+  await h.node("#create-results-pdf").handlers.click({ currentTarget: {} });
+  assert.deepEqual(Array.from(h.pdfs[0][2]).slice(2, 6), ["25 m", "50 m", "75 m", "100 m"]);
+  const long = h.pdfs[0][3][0];
+  assert.equal(long[2].colSpan, 2);
+  assert.equal(long[3].skip, true);
+  assert.equal(long[4].colSpan, 2);
+  assert.equal(long[5].skip, true);
+});
+
+test("additional disciplines are collapsed in the results group selector", async () => {
+  const h = fixture(); await h.context.renderViewer("e");
+  h.receive([row("standard", { discipline: "rescue50", segments: [100, 100] }), row("extra", { discipline: "obstacle100", segments: [100, 100] })]);
+  const html = h.node("#results").innerHTML;
+  assert.ok(!html.slice(0, html.indexOf("<details")).includes("100 m Hindernis"));
+  assert.match(html, /<details class="additional-disciplines"><summary>Weitere Disziplinen<\/summary>/);
+  assert.ok(html.indexOf('data-discipline="obstacle100"') > html.indexOf("<details"));
 });
 
 test("editing loads participants lazily and deleting a result relies on the existing live page", async () => {

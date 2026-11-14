@@ -296,3 +296,18 @@ test("queued writes survive route cache cleanup but abort when the account chang
   await assert.rejects(oldAccount, /Anmeldung/);
   assert.equal(h.data.get("timerEvents/e").name, "Hintergrund");
 });
+
+test("100 m obstacle writes enforce the event course while edits retain a saved course after event changes", async () => {
+  for (const [poolLength, laps] of [["25", 4], ["50", 2]]) {
+    const h = await adapter({ "timerEvents/e": event({ poolLength, timerAccess: "organizer", resultsAccess: "organizer", resultEditAccess: "organizer" }), "timerEvents/e/participants/p": person("Test") });
+    const payload = { participantId: "p", discipline: "obstacle100", segments: Array(laps).fill(100), clientSubmissionId: `obstacle-${poolLength}-saved` };
+    const saved = await h.api.request("/events/e/results", { method: "POST", body: payload });
+    const record = h.data.get(`timerEvents/e/results/${saved.id}`);
+    assert.equal(record.segments.length, laps);
+    assert.equal(record.lapGroups.at(-1).laps.at(-1), laps);
+    await assert.rejects(h.api.request("/events/e/results", { method: "POST", body: { ...payload, clientSubmissionId: `obstacle-${poolLength}-wrong`, segments: Array(laps === 4 ? 2 : 4).fill(100) } }), { status: 400 });
+    h.data.get("timerEvents/e").poolLength = poolLength === "25" ? "50" : "25";
+    await h.api.request(`/events/e/results/${saved.id}`, { method: "PATCH", body: { participantId: "p", segments: [laps * 100], lapGroups: [Array.from({ length: laps }, (_, index) => index + 1)] } });
+    assert.equal(h.data.get(`timerEvents/e/results/${saved.id}`).lapGroups[0].laps.length, laps);
+  }
+});
