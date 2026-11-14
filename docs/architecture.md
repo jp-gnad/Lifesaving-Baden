@@ -63,6 +63,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
 | `timer/time-input.js` | `TimerTimeInput`: Live-Eingabemaske für bis zu sechs Ziffern, Cursor-/Löschverhalten und gemeinsames Einlesen der Zeitfelder in beiden Ergebnis-Editoren. `create({ parseTime })` erhält den bestehenden Zeitparser; die gespeicherten Werte bleiben Hundertstelsekunden. |
 | `timer/participant-picker.js` | `TimerParticipantPicker.create({ escapeHtml }).renderGroups(...)`: gemeinsame dezente Altersklassen-Gruppierung für Ergebnisprüfung, Ergebnisbearbeitung und Importauswahl. Erhält bereits gefilterte Personen und eine Renderfunktion; lädt keine Daten. |
+| `timer/custom-discipline-picker.js` | `TimerCustomDisciplinePicker.create(...).mount(...)`: optionaler Name und Auswahl früherer Namen für Benutzerdefiniert; begrenzte, nach Rundenzahl gefilterte Event-Abfragen im Hintergrund, lokale vorgemerkte Namen und Schutz vor verspäteten Antworten. |
 | `timer/event-cache.js` | `TimerEventCache.create(...)`: höchstens 50 Event-Metadatensätze für sofortige Navigation zwischen Event, Einstellungen und Timer. Nach 30 Sekunden im Hintergrund erneuern; bei Konto-/Rollenwechsel leeren. Keine Teilnehmerdaten. |
 | `timer/save-queue.js` | `TimerSaveQueue.create(...)`: lokale Schreibwarteschlange mit sequenzieller Hintergrundübertragung, Wiederholung und Kontobindung. Die Oberfläche wartet auf den lokalen Transaktionsabschluss, nicht auf Firebase. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
@@ -98,6 +99,13 @@ Konto-ID gebunden; Event-/Personenneuanlagen verwenden bei Wiederholungen diesel
 prüfen Konto-/Rollenwechsel aber weiterhin vor Mutationen. Die atomaren
 Teilnehmer-/Identitätstransaktionen und die Firestore-Regeln bleiben maßgeblich.
 
+Benutzerdefinierte Disziplinennamen stehen im Event unter `customDisciplines`.
+Name und Anzahl der ursprünglich gemessenen Runden bestimmen die Identität;
+verbundene Runden behalten ihre ursprüngliche Lap-Abdeckung. Ein neuer Name und
+das zugehörige Einzelergebnis werden atomar geschrieben. Die Auswahl liest nur
+passende Namen in Seiten von höchstens 50 Dokumenten; normale Saves scannen keine
+Ergebnisse. Ergebnislisten/PDFs zeigen den Namen und bieten einen Namensfilter.
+
 Normales Speichern und erfolgreiche Hintergrundübertragungen zeigen keine
 automatischen Erfolgsmeldungen. Der Status unten erscheint nur bei noch nicht
 übertragenen Offline-Änderungen oder Übertragungsfehlern. Fehler und ausdrücklich
@@ -115,6 +123,7 @@ angeforderte Rückmeldungen bleiben sichtbar.
 | `timerEvents/{eventId}/participants/{id}` | Eventteilnehmer | `participant-store.js` |
 | `timerEvents/{eventId}/participantIdentities/{key}` | Dublettenschutz, auch bei Parallelzugriffen | dieselbe Transaktion wie der Teilnehmer |
 | `timerEvents/{eventId}/results/{id}` | Einzelergebnis mit Personensnapshot | Timer-Adapter; idempotente Offline-Übertragung |
+| `timerEvents/{eventId}/customDisciplines/{id}` | Wiederverwendbarer Disziplinenname mit fester Rundenzahl, ausschließlich für Benutzerdefiniert | Timer-Adapter: atomar mit einem Ergebnis; Katalogeinträge sind unveränderlich. |
 | `clubs/{id}` und `clubs/{id}/people/{id}` | Verantwortliche, Kader, Aktivjahre und Nachweise | `clubs-store.js` |
 | `clubProfiles/{uid}`, `clubAccounts/{uid}` | Profile und Clubzuordnungen | Club-/Personenlink-Transaktionen |
 | `users/{uid}/worktimeEntries/{id}` | Arbeitsaufgaben und Intervalle | `worktime-store.js` |

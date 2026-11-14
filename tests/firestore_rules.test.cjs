@@ -44,6 +44,49 @@ const dbFor = (uid, claims = {}) => uid
   ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore()
   : env.unauthenticatedContext().firestore();
 
+test("named custom disciplines are linked atomically within one event and require matching individual lap counts", { skip: !enabled }, async () => {
+  await seed({ "timerEvents/custom-names": event("everyone"), "timerEvents/custom-other": event("everyone"), "timerEvents/custom-private": event("locked") });
+  const db = dbFor(null);
+  const definitionId = "4-100m%20brust";
+  const named = (laps = 4) => ({ ...result(), segments: Array(laps).fill(100), frequencies: Array(laps).fill(null),
+    lapGroups: Array.from({ length: laps }, (_, index) => ({ laps: [index + 1] })), totalCentiseconds: laps * 100,
+    customDisciplineId: definitionId, customDisciplineName: "100m Brust", customLapCount: laps });
+  const definition = (resultId) => ({ name: "100m Brust", lapCount: 4, resultId, createdAt: sdk.serverTimestamp() });
+  const catalog = sdk.doc(db, `timerEvents/custom-names/customDisciplines/${definitionId}`);
+  const first = sdk.doc(db, "timerEvents/custom-names/results/first");
+  await assertFails(sdk.setDoc(first, named()));
+  await assertFails(sdk.setDoc(catalog, definition("first")));
+  const batch = sdk.writeBatch(db); batch.set(first, named()); batch.set(catalog, definition("first"));
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/reuse"), named()));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/wrong-laps"), named(2)));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/forged-laps"), { ...named(2), customLapCount: 4 }));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/custom-other/results/cross-event"), named()));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/team"), { ...named(), participantIds: ["p", "a", "b", "c"] }));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/fixed-discipline"), { ...named(), discipline: "rescue50" }));
+  await assertFails(sdk.updateDoc(catalog, { name: "Andere Disziplin" }));
+  await assertSucceeds(sdk.updateDoc(first, { note: "Notiz", updatedAt: sdk.serverTimestamp() }));
+  await assertSucceeds(sdk.updateDoc(first, { customDisciplineId: "", customDisciplineName: "", customLapCount: 0, updatedAt: sdk.serverTimestamp() }));
+  await assertSucceeds(sdk.setDoc(sdk.doc(db, "timerEvents/custom-names/results/legacy"), result()));
+  const collection = sdk.collection(db, "timerEvents/custom-names/customDisciplines");
+  await assertFails(sdk.getDocs(collection));
+  const page = await assertSucceeds(sdk.getDocs(sdk.query(collection, sdk.where("lapCount", "==", 4), sdk.limit(50))));
+  assert.equal(page.size, 1);
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, "timerEvents/custom-private/customDisciplines"), sdk.limit(50))));
+  const denied = sdk.writeBatch(db);
+  denied.set(sdk.doc(db, "timerEvents/custom-private/results/first"), named());
+  denied.set(sdk.doc(db, `timerEvents/custom-private/customDisciplines/${definitionId}`), definition("first"));
+  await assertFails(denied.commit());
+  await seed({ "users/custom-athlete": { role: "athlete" } });
+  const athlete = dbFor("custom-athlete");
+  const athleteResult = sdk.doc(athlete, "timerEvents/custom-other/results/athlete");
+  const athleteBatch = sdk.writeBatch(athlete);
+  athleteBatch.set(athleteResult, named());
+  athleteBatch.set(sdk.doc(athlete, `timerEvents/custom-other/customDisciplines/${definitionId}`), definition("athlete"));
+  await assertSucceeds(athleteBatch.commit());
+  await assertSucceeds(sdk.updateDoc(athleteResult, { note: "Angemeldeter Sportler", updatedAt: sdk.serverTimestamp() }));
+});
+
 test("100 m obstacle enforces course-specific complete lap groups without changing write permissions", { skip: !enabled }, async () => {
   await seed({
     "timerEvents/obstacle-short": { ...event("everyone"), poolLength: "25", enabledDisciplines: ["obstacle100"] },

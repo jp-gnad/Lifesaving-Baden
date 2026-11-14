@@ -15,7 +15,7 @@ function node() {
     addEventListener(type, callback) { (this.handlers[type] ||= []).push(callback); },
     emit(type, values = {}) {
       const event = { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0,
-        clientX: 50, clientY: 450, detail: 1, preventDefault() { this.defaultPrevented = true; }, ...values };
+        clientX: 50, clientY: 450, detail: 1, currentTarget: this, preventDefault() { this.defaultPrevented = true; }, ...values };
       for (const handler of this.handlers[type] || []) handler(event);
       return event;
     },
@@ -82,6 +82,7 @@ test("older browsers retain native click activation", () => {
 });
 
 async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25") {
+  const savedResults = [];
   const nodes = new Map();
   const find = (key) => {
     if (!nodes.has(key)) {
@@ -130,13 +131,18 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
     api: async () => participantResponse || ({ event: { name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }, participants: [] }),
     performance: { now: () => now }, requestAnimationFrame(callback) { frame = callback; return 1; }, cancelAnimationFrame() {},
     setTimeout: () => 1, clearTimeout() {},
-    compareParticipantsByOrganization: () => 0, setDocumentTitle() {}, icon: () => "",
+    compareParticipantsByOrganization: () => 0, setDocumentTitle() {}, icon: () => "", personAvatar: () => "", birthYearText: String,
+    async saveResultOfflineFirst(eventId, payload) { savedResults.push(payload); },
     bindDialogClose() {}, setTimerInteractionLock() {}, setReviewInteractionLock() {}, showDialog(dialog) { dialog.open = true; },
   });
   const source = fs.readFileSync(require.resolve("../timer/app.js"), "utf8");
+  context.customDisciplinePicker = require("../timer/custom-discipline-picker.js").create({ ...require("../timer/core.js"),
+    api: (...args) => context.api(...args), localOptions: async (eventId, count) => savedResults.filter((entry) => entry.customDisciplineName && entry.customLapCount === count)
+      .map((entry) => ({ id: require("../timer/core.js").customDisciplineKey(entry.customDisciplineName, count), name: entry.customDisciplineName, lapCount: count })),
+  });
   vm.runInContext(source.slice(source.indexOf("async function renderTimer(id)"), source.indexOf("async function renderViewer(")), context);
   await context.renderTimer("e");
-  return { find, actions,
+  return { find, actions, savedResults,
     advance(ms) { now += ms; frame?.(); },
     click(id) { find(`#${id}`).click(); },
     hold(id, ms) { const button = find(`#${id}`); button.emit("pointerdown"); now += ms; frame?.(); button.emit("pointerup"); button.emit("click"); },
@@ -331,4 +337,32 @@ test("the stopped timer can reopen its existing review without restarting time o
   assert.equal(h.find("#review-result").disabled, true, "continuing a measurement hides the review shortcut");
   h.advance(500);
   assert.equal(h.find("#clock").textContent, "0:02,00");
+});
+
+test("a named four-lap custom result can be saved immediately and reused for the next four-lap measurement but not a two-lap one", async () => {
+  const h = await stopwatch("normal", { participants: [{ id: "p", name: "Test", age_group: "Offen", birth_year: 5, gender: "male", organization: "Baden" }] });
+  await new Promise(setImmediate);
+  const measure = (laps) => {
+    h.click("right-action");
+    for (let index = 1; index < laps; index++) { h.advance(1000); h.click("left-action"); }
+    h.advance(1000); h.click("right-action");
+  };
+  measure(4);
+  h.find("#review-view #review-custom-discipline [data-custom-name]").value = "100m Brust";
+  h.find("#review-view").querySelectorAll(".participant-select")[0].value = "p";
+  h.find("#review-view #close-review").click(); h.click("review-result");
+  assert.equal(h.find("#review-view #review-custom-discipline [data-custom-name]").value, "100m Brust");
+  h.find("#review-view #save-result").click(); await new Promise(setImmediate);
+  assert.equal(h.savedResults[0].customDisciplineName, "100m Brust");
+  assert.equal(h.savedResults[0].customLapCount, 4);
+  assert.equal(h.savedResults[0].participantId, "p");
+  assert.equal(h.find("#clock-status").textContent, "Bereit");
+  measure(4); await new Promise(setImmediate);
+  const choice = h.find("#review-view #review-custom-discipline [data-custom-choice]");
+  assert.ok(choice.innerHTML.includes("100m Brust"));
+  choice.value = require("../timer/core.js").customDisciplineKey("100m Brust", 4); choice.emit("change");
+  assert.equal(h.find("#review-view #review-custom-discipline [data-custom-name]").value, "100m Brust");
+  h.find("#review-view #discard-review").click();
+  measure(2); await new Promise(setImmediate);
+  assert.ok(!h.find("#review-view #review-custom-discipline [data-custom-choice]").innerHTML.includes("100m Brust"));
 });

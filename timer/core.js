@@ -151,6 +151,28 @@
     return result.segments.map((_, index) => [index + 1]);
   }
 
+  function customDisciplineName(value = "") {
+    return String(value).normalize("NFKC").trim().replace(/\s+/g, " ");
+  }
+
+  function customDisciplineKey(name, lapCount) {
+    const normalized = customDisciplineName(name).toLocaleLowerCase("de-DE");
+    return `${lapCount}-${encodeURIComponent(normalized).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+  }
+
+  function resultLapCount(result) {
+    const groups = result.lap_groups || result.lapGroups;
+    if (!Array.isArray(groups) || !groups.length) return result.segments?.length || 0;
+    const last = groups.at(-1);
+    const laps = Array.isArray(last) ? last : last?.laps;
+    return Array.isArray(laps) && laps.length ? laps.at(-1) : 0;
+  }
+
+  function resultDisciplineName(result) {
+    return result?.discipline === "normal" && (result.custom_discipline_name || result.customDisciplineName)
+      || disciplines[result?.discipline]?.name || "Benutzerdefiniert";
+  }
+
 
   for (const discipline of Object.values(disciplines)) {
     if (discipline.lapLabels) Object.freeze(discipline.lapLabels);
@@ -163,7 +185,7 @@
   const api = Object.freeze({
     escapeHtml,
     disciplines, disciplineGroups, disciplinesForEvent, disciplineForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups,
-    formatCumulativeReviewTime: formatTime,
+    formatCumulativeReviewTime: formatTime, customDisciplineName, customDisciplineKey, resultLapCount, resultDisciplineName,
   });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.TimerCore = api;

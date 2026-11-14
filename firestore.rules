@@ -62,9 +62,7 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/timerEvents/$(eventId)).data;
     }
 
-    function eventAllows(eventId, field) {
-      let data = eventData(eventId);
-      let rank = signedIn() ? callerRoleRank() : 0;
+    function eventFieldAllows(data, field, rank) {
       return rank == 5
         || (
           data.keys().hasAny([field])
@@ -76,6 +74,24 @@ service cloud.firestore {
             || (data[field] == "organizer" && rank >= 4)
           )
         );
+    }
+
+    function eventAllows(eventId, field) {
+      return eventFieldAllows(eventData(eventId), field, signedIn() ? callerRoleRank() : 0);
+    }
+
+    function canEditEventResults(eventId) {
+      let data = eventData(eventId);
+      let rank = signedIn() ? callerRoleRank() : 0;
+      return eventFieldAllows(data, "resultsAccess", rank)
+        && eventFieldAllows(data, "resultEditAccess", rank);
+    }
+
+    function canWriteCustomDiscipline(eventId) {
+      let data = eventData(eventId);
+      let rank = signedIn() ? callerRoleRank() : 0;
+      return eventFieldAllows(data, "timerAccess", rank)
+        || (eventFieldAllows(data, "resultsAccess", rank) && eventFieldAllows(data, "resultEditAccess", rank));
     }
 
     function ownerKeepsProtectedFieldsSafe() {
@@ -528,6 +544,9 @@ service cloud.firestore {
           "officialCentiseconds",
           "submissionKey",
           "note",
+          "customDisciplineId",
+          "customDisciplineName",
+          "customLapCount",
           "createdAt",
           "updatedAt"
         ])
@@ -569,7 +588,29 @@ service cloud.firestore {
         && (data.submissionKey == null || data.submissionKey is string)
         && (data.submissionKey == null || data.submissionKey.size() <= 64)
         && data.note is string
-        && data.note.size() <= 300;
+        && data.note.size() <= 300
+        && data.get("customDisciplineId", "") is string
+        && data.get("customDisciplineId", "").size() <= 1000
+        && data.get("customDisciplineName", "") is string
+        && data.get("customDisciplineName", "").size() <= 80
+        && data.get("customLapCount", 0) is int
+        && (data.discipline != "normal" || (data.participantIds.size() == 1 && data.teamMembers.size() == 0));
+    }
+
+    function validCustomResult(eventId, data) {
+      let id = data.get("customDisciplineId", "");
+      let name = data.get("customDisciplineName", "");
+      let count = data.get("customLapCount", 0);
+      let groups = data.lapGroups;
+      let last = groups[groups.size() - 1];
+      return id == "" ? name == "" && count == 0
+        : data.discipline == "normal" && id.matches("^[A-Za-z0-9%._~-]+$")
+          && name.trim().size() > 0 && count >= 1 && count <= 20
+          && data.segments.size() <= count
+          && last is map && last.laps is list && last.laps.size() > 0
+          && last.laps[last.laps.size() - 1] == count
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/customDisciplines/$(id)).data.name == name
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/customDisciplines/$(id)).data.lapCount == count;
     }
 
     function obstacle100CoveredLaps(groups) {
@@ -604,15 +645,17 @@ service cloud.firestore {
     function validResultCreate(eventId) {
       let data = request.resource.data;
       return validResultData(data)
+        && validCustomResult(eventId, data)
         && (data.discipline != "obstacle100"
           || (validObstacle100Groups(data.lapGroups) && obstacle100CoveredLaps(data.lapGroups) == obstacle100EventLaps(eventId)))
         && data.createdAt == request.time
         && data.updatedAt == request.time;
     }
 
-    function validResultUpdate() {
+    function validResultUpdate(eventId) {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return validResultData(request.resource.data)
+        && validCustomResult(eventId, request.resource.data)
         && (request.resource.data.discipline != "obstacle100"
           || (validObstacle100Groups(request.resource.data.lapGroups)
             && obstacle100CoveredLaps(request.resource.data.lapGroups) == obstacle100CoveredLaps(resource.data.lapGroups)))
@@ -632,6 +675,9 @@ service cloud.firestore {
           "officialCentiseconds",
           "note",
           "createdPauseGeneration",
+          "customDisciplineId",
+          "customDisciplineName",
+          "customLapCount",
           "updatedAt"
         ]);
     }
@@ -657,6 +703,24 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time;
       allow delete: if isOrganizer();
+
+      match /customDisciplines/{definitionId} {
+        allow get: if isOrganizer() || eventAllows(eventId, "timerAccess") || eventAllows(eventId, "resultsAccess");
+        allow list: if boundedTimerList()
+          && (isOrganizer() || eventAllows(eventId, "timerAccess") || eventAllows(eventId, "resultsAccess"));
+        allow create: if canWriteCustomDiscipline(eventId)
+          && request.resource.data.keys().hasAll(["name", "lapCount", "resultId", "createdAt"])
+          && request.resource.data.keys().hasOnly(["name", "lapCount", "resultId", "createdAt"])
+          && request.resource.data.name is string && request.resource.data.name.trim().size() > 0 && request.resource.data.name.size() <= 80
+          && request.resource.data.lapCount is int && request.resource.data.lapCount >= 1 && request.resource.data.lapCount <= 20
+          && request.resource.data.resultId is string && request.resource.data.resultId.matches("^[^/]+$")
+          && request.resource.data.resultId.size() <= 1500 && request.resource.data.createdAt == request.time
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/results/$(request.resource.data.resultId)).data.discipline == "normal"
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/results/$(request.resource.data.resultId)).data.customDisciplineId == definitionId
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/results/$(request.resource.data.resultId)).data.customDisciplineName == request.resource.data.name
+          && getAfter(/databases/$(database)/documents/timerEvents/$(eventId)/results/$(request.resource.data.resultId)).data.customLapCount == request.resource.data.lapCount;
+        allow delete: if isOrganizer();
+      }
 
       match /participantIdentities/{identityKey} {
         allow get: if eventAllows(eventId, "participantEditAccess");
@@ -691,11 +755,9 @@ service cloud.firestore {
           || eventAllows(eventId, "resultsAccess"));
         allow create: if eventAllows(eventId, "timerAccess")
           && validResultCreate(eventId);
-        allow update: if eventAllows(eventId, "resultsAccess")
-          && eventAllows(eventId, "resultEditAccess")
-          && validResultUpdate();
-        allow delete: if eventAllows(eventId, "resultsAccess")
-          && eventAllows(eventId, "resultEditAccess");
+        allow update: if canEditEventResults(eventId)
+          && validResultUpdate(eventId);
+        allow delete: if canEditEventResults(eventId);
       }
     }
 

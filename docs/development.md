@@ -51,6 +51,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |
 | Bahnlängenabhängige 100 m Hindernis und weitere Disziplinen | `timer_modules.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
+| Eigene Disziplinennamen je Event und Rundenzahl | `timer_custom_disciplines.test.cjs`, `timer_import.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
 | Stoppuhrbedienung, langes Halten, Runden zurücknehmen und Disziplinwechsel im Lauf | `timer_controls.test.cjs` (simulierte Uhr, ohne Firebase) |
 | Live-Formatierung von Zeiteingaben, Löschen/Cursor und Ergebnisbearbeitung | `timer_time_input.test.cjs`, `timer_result_view.test.cjs` |
 | Altersklassen in der Personenauswahl | `timer_participant_picker.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `timer_people_view.test.cjs` |

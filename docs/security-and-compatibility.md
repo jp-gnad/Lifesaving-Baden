@@ -86,6 +86,19 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
 
 ## Kontingent und Veröffentlichung
 
+Benannte benutzerdefinierte Ergebnisse tragen optional `customDisciplineId`,
+`customDisciplineName` und `customLapCount`. Alte Ergebnisse ohne diese Felder
+bleiben gültig. Die Regeln gleichen Namen und Rundenzahl mit einem Katalogeintrag
+im selben Event ab und erlauben dafür ausschließlich Einzelergebnisse. Neue
+Katalogeinträge entstehen atomar mit einem zugehörigen Ergebnis; bestehende
+Einträge dürfen nicht umbenannt oder auf eine andere Rundenzahl geändert werden.
+Kataloglisten sind auf höchstens 50 Einträge pro Abfrage begrenzt. Event-Löschen
+durchläuft auch diesen Katalog ausdrücklich in Seiten; einzelne Ergebnislöschungen
+bewahren die Namen für spätere Messungen auf.
+Für diese Namensfunktion zuerst die kompatiblen Firestore-Regeln veröffentlichen,
+danach die Timer-Dateien. Ohne die neuen Regeln werden benannte Ergebnisse und
+Katalogabfragen abgewiesen; die bisherige unbenannte Speicherung bleibt erlaubt.
+
 Das Projekt soll kostenlos bleiben. Dieser Umbau benötigt keinen neuen Firebase-
 Dienst und ändert weder Tarif noch Abrechnung. Codeoptimierung ist keine
 serverseitige Kostenbegrenzung; keine Billing-Verknüpfung im Rahmen von Codearbeit anlegen.
@@ -97,7 +110,7 @@ können weiterhin Kontingent verbrauchen. Rollen-/Eventrechte sind unverändert
 zusätzlich erforderlich; Teilnehmerlisten haben weiterhin ihre bisherigen Regeln.
 App Check ist nicht eingerichtet oder aktiviert worden.
 
-Für diesen Umstieg zuerst die neue Website veröffentlichen und anschließend die
+Beim Umstieg auf begrenzte Listen zuerst die neue Website veröffentlichen und anschließend die
 verschärften Regeln. Alte Browserstände mit unbegrenzten Listen werden danach
 abgewiesen und müssen aktualisiert werden. Neue zusammengesetzte Indizes oder
 Datenmigrationen sind nicht erforderlich.

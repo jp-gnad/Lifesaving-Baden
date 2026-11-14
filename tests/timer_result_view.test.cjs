@@ -69,6 +69,9 @@ function fixture({ deferredEvent = null } = {}) {
     setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, cancelAnimationFrame() {},
     setReviewInteractionLock() {}, setTimerInteractionLock() {}, renderError(error) { throw error; }, renderHome() {},
   });
+  context.customDisciplinePicker = require("../timer/custom-discipline-picker.js").create({ ...require("../timer/core.js"),
+    api: (...args) => context.api(...args), localOptions: async () => [],
+  });
   vm.runInContext(code, context);
   return { context, event, requests, feeds, pdfs, toasts, node,
     rows(value) { rows = value; },
@@ -150,6 +153,23 @@ test("additional disciplines are collapsed in the results group selector", async
   assert.ok(!html.slice(0, html.indexOf("<details")).includes("100 m Hindernis"));
   assert.match(html, /<details class="additional-disciplines"><summary>Weitere Disziplinen<\/summary>/);
   assert.ok(html.indexOf('data-discipline="obstacle100"') > html.indexOf("<details"));
+});
+
+test("custom result names and round counts distinguish results and the explicit PDF export uses the selected name", async () => {
+  const h = fixture(); await h.context.renderViewer("e", "normal", "male");
+  const results = [
+    row("four", { participant_name: "CorrectPerson", custom_discipline_id: "4-brust", custom_discipline_name: "100m Brust", custom_lap_count: 4, segments: [100, 100, 100, 100] }),
+    row("two", { participant_name: "WrongCountPerson", custom_discipline_id: "2-brust", custom_discipline_name: "100m Brust", custom_lap_count: 2, segments: [100, 100] }),
+    row("legacy", { participant_name: "LegacyPerson" }),
+  ];
+  h.rows(results); h.receive(results);
+  assert.match(h.node("#results").innerHTML, /100m Brust · 4 Runden/);
+  const filter = h.node("#custom-results-filter"); filter.value = "4-brust"; filter.handlers.change();
+  assert.ok(h.node("#results").innerHTML.includes("CorrectPerson"));
+  assert.ok(!h.node("#results").innerHTML.includes("WrongCountPerson"));
+  await h.node("#create-results-pdf").handlers.click({ currentTarget: {} });
+  assert.equal(h.pdfs[0][3].length, 1);
+  assert.match(h.pdfs[0][3][0][0], /100m Brust \(4 Runden\)/);
 });
 
 test("editing loads participants lazily and deleting a result relies on the existing live page", async () => {

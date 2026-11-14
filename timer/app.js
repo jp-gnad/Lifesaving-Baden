@@ -1,7 +1,8 @@
 const {
-  escapeHtml, disciplines, disciplineGroups, disciplinesForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups
+  escapeHtml, disciplines, disciplineGroups, disciplinesForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, resultLapCount, resultDisciplineName, customDisciplineKey, customDisciplineName
 } = window.TimerCore;
 const timeInput = window.TimerTimeInput.create({ parseTime });
+const customDisciplinePicker = window.TimerCustomDisciplinePicker.create({ api, localOptions: pendingCustomDisciplineOptions, escapeHtml, customDisciplineKey, customDisciplineName });
 const { renderGroups: renderParticipantGroups } = window.TimerParticipantPicker.create({ escapeHtml });
 const { createResultsPdf, loadEventPdfImage, openPdf } = window.TimerResultsPdf.create({ eventIconUrls });
 
@@ -382,6 +383,18 @@ async function syncPendingResults(options = {}) {
 
 async function saveResultOfflineFirst(eventId, payload) {
   return saveQueue.enqueue(eventId, payload);
+}
+
+async function pendingCustomDisciplineOptions(eventId, count) {
+  const pending = await saveQueue.list();
+  const definitions = new Map();
+  for (const record of pending) {
+    const payload = record.payload;
+    if (record.eventId !== eventId || !payload.customDisciplineName || payload.customLapCount !== count) continue;
+    const id = payload.customDisciplineId || customDisciplineKey(payload.customDisciplineName, count);
+    definitions.set(id, { id, name: payload.customDisciplineName, lapCount: count });
+  }
+  return [...definitions.values()];
 }
 
 async function saveInBackground(eventId, path, method, payload = {}) {
@@ -887,6 +900,7 @@ async function renderTimer(id) {
   let participantsLoading = null;
   let participantLoadError = "";
   let refreshReviewParticipants = null;
+  let customReviewPicker = null;
   function loadTimerParticipants() {
     if (participantsLoading) return participantsLoading;
     participantLoadError = "";
@@ -920,6 +934,7 @@ async function renderTimer(id) {
     frequencyTaps: 0,
     officialTime: null,
     note: "",
+    customDefinition: {},
     discipline: initialDiscipline,
   };
 
@@ -1148,9 +1163,10 @@ async function renderTimer(id) {
   }
 
   function resetTimer() {
+    customReviewPicker?.destroy(); customReviewPicker = null;
     refreshReviewParticipants = null;
     cancelAnimationFrame(animationFrame);
-    Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "" });
+    Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "", customDefinition: {} });
     resetFrequencyCapture();
     elements.clock.textContent = "0:00,00";
     elements["clock-status"].textContent = "Bereit";
@@ -1199,6 +1215,7 @@ async function renderTimer(id) {
   }
 
   function showReview() {
+    customReviewPicker?.destroy(); customReviewPicker = null;
     const review = elements["review-view"];
     const item = config();
     const reviewSegments = item.flexible
@@ -1230,6 +1247,7 @@ async function renderTimer(id) {
       <div class="review-time-summary"><div class="field stopped-time-field"><label>Gestoppte Zeit</label><div class="total-summary"><strong id="save-total" aria-live="polite">${formatTime(capturedTotal())}</strong></div></div>
       <div class="field official-time-field"><label for="official-time">Offizielle Zeit</label><input id="official-time" inputmode="numeric" enterkeyhint="done" placeholder="z. B. 1:23,45" value="${timer.officialTime === null ? "" : formatTime(timer.officialTime)}" aria-describedby="save-error"></div></div>
       ${item.team ? `${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neue Person</button>` : `<div class="review-assignment-row">${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neu</button></div>`}
+      ${timer.discipline === "normal" ? '<div class="custom-discipline-fields" id="review-custom-discipline"></div>' : ""}
       <label class="field review-note-field" for="result-note"><span>Notiz <small>optional</small></span><textarea id="result-note" maxlength="300" rows="2" placeholder="Kurzes Feedback">${escapeHtml(timer.note)}</textarea></label>
       <p class="form-error" id="save-error" role="alert"></p>
       <p class="muted small" id="review-participant-status" role="status"></p><button class="button secondary small" id="retry-review-participants" type="button" hidden>Personen erneut laden</button>
@@ -1282,6 +1300,10 @@ async function renderTimer(id) {
     const reviewEditor = review.querySelector("#review-editor");
     const reviewTitle = review.querySelector("#review-title");
     let savingResult = false;
+    if (timer.discipline === "normal") customReviewPicker = customDisciplinePicker.mount(review.querySelector("#review-custom-discipline"), {
+      eventId: id, prefix: "review-custom", lapCount: resultLapCount({ segments: reviewSegments, lapGroups }), initial: timer.customDefinition,
+      isCurrent: () => version === routeVersion && authContext.user?.uid === currentTimerAuth.user?.uid,
+    });
     let activeParticipantSelect = null;
     let participantGenderFilter = "";
     let preferredParticipantGenderFilter = "";
@@ -1441,6 +1463,9 @@ async function renderTimer(id) {
       syncLapGroupsFromInputs();
       const segments = lapGroups.map((group) => group.value);
       const frequencies = lapGroups.map((group) => group.frequency);
+      customReviewPicker?.update(resultLapCount({ segments, lapGroups }));
+      const customDefinition = customReviewPicker?.read();
+      const invalidCustomName = (customDefinition?.customDisciplineName.length || 0) > 80;
       const officialText = officialInput.value.trim();
       const officialTime = officialText ? timeInput.parse(officialText) : null;
       const invalidSegments = segments.some((value) => value !== null && (!Number.isInteger(value) || value <= 0));
@@ -1458,7 +1483,9 @@ async function renderTimer(id) {
             ? "Bitte eine gültige Zeit im Format m:ss,00 eingeben."
             : (invalidFrequencies ? "Frequenzen bitte als ganze Zahl von 1 bis 999 eingeben." : "")))
         : "";
-      return invalidSegments || missingSegments || invalidOfficialTime || invalidFrequencies ? null : {
+      if (showError && invalidCustomName) review.querySelector("#save-error").textContent = "Der Disziplinenname darf höchstens 80 Zeichen lang sein.";
+      return invalidSegments || missingSegments || invalidOfficialTime || invalidFrequencies || invalidCustomName ? null : {
+        customDefinition,
         segments,
         frequencies,
         officialTime,
@@ -1607,6 +1634,7 @@ async function renderTimer(id) {
         timer.displayed = corrections.segments.reduce((sum, value) => sum + (value || 0), 0);
         timer.officialTime = corrections.officialTime;
         timer.note = noteInput.value;
+        timer.customDefinition = corrections.customDefinition || {};
         elements.clock.textContent = formatTime(timer.displayed);
       }
       review.hidden = true;
@@ -1642,7 +1670,7 @@ async function renderTimer(id) {
         savingResult = true;
         button.disabled = true;
         const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-        await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
+        await saveResultOfflineFirst(id, { ...assignment, ...(corrections.customDefinition || {}), discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
         if (version !== routeVersion || authContext.user?.uid !== currentTimerAuth.user?.uid) return;
         resetTimer();
       } catch (err) {
@@ -1751,6 +1779,7 @@ async function renderTimer(id) {
   updateControls();
   setTimerInteractionLock(true);
   loadTimerParticipants();
+  routeCleanup = () => { customReviewPicker?.destroy(); refreshReviewParticipants = null; };
 }
 
 async function renderViewer(id, initialDiscipline = null, initialGender = null, options = {}) {
@@ -1833,6 +1862,9 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
   const resultParticipantFilterToggle = document.querySelector("#result-participant-filter-toggle");
   const resultParticipantAgeFilter = document.querySelector("#result-participant-age-filter");
   let pageResults = [];
+  let resultCustomPicker = null;
+  let selectedCustomDisciplineId = "";
+  const customResultNames = new Map();
   let exporting = false;
   let pageIndex = 0;
   let hasMore = false;
@@ -2001,6 +2033,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       }
       if (!eventCan(event, "can_edit_results")) return;
     } catch (error) { if (isCurrent()) showToast(error.message); return; }
+    resultCustomPicker?.destroy(); resultCustomPicker = null;
     editingResult = result;
     resultEditError.textContent = "";
     resultEditForm.querySelector('button[type="submit"], button:not([type])').disabled = false;
@@ -2026,7 +2059,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       : assignmentControl("result-participant", "Person", selectedParticipantIds[0] || "");
     const stoppedTime = result.segments.reduce((sum, value) => sum + (Number.isInteger(value) && value > 0 ? value : 0), 0);
     resultEditFields.innerHTML = `
-      <div class="result-edit-person"><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(disciplines[result.discipline].name)}</span></div>
+      <div class="result-edit-person"><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(resultDisciplineName(result))}</span></div>
       <div class="result-edit-assignment">${assignmentMarkup}</div>
       <div class="review-time-summary result-edit-times-summary">
         <div class="field"><span class="label">Gestoppt</span><div class="total-summary"><strong id="result-edit-stopped">${formatTime(stoppedTime)}</strong></div></div>
@@ -2034,12 +2067,18 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       </div>
       <div class="result-edit-lap-toolbar"><span class="label">Runden</span><div><button class="button secondary small" id="result-edit-glue-mode" type="button" aria-pressed="false">${icon("link")} Link</button><button class="button secondary small" id="result-edit-undo-glue" type="button" hidden>${icon("undo")} Rückgängig</button></div></div>
       <div class="result-edit-laps"></div>
+      ${result.discipline === "normal" ? '<div class="custom-discipline-fields" id="result-custom-discipline"></div>' : ""}
       <label class="field result-edit-note-field"><span>Notiz <small>optional</small></span><textarea id="result-edit-note" maxlength="300" rows="2" placeholder="Kurzes Feedback">${escapeHtml(result.note || "")}</textarea></label>`;
     const assignmentSelects = [...resultEditFields.querySelectorAll(".result-participant-select")];
     assignmentSelects.forEach(updateResultParticipantTrigger);
     resultEditFields.querySelectorAll(".result-participant-picker-trigger").forEach((trigger) => trigger.addEventListener("click", () => {
       openResultParticipantPicker(resultEditFields.querySelector(`#${trigger.dataset.selectId}`));
     }));
+    if (result.discipline === "normal") resultCustomPicker = customDisciplinePicker.mount(resultEditFields.querySelector("#result-custom-discipline"), {
+      eventId: id, prefix: "result-custom", lapCount: resultLapCount(result),
+      initial: { customDisciplineName: result.custom_discipline_name || "", customDisciplineId: result.custom_discipline_id || "", customLapCount: result.custom_lap_count || resultLapCount(result) },
+      isCurrent,
+    });
     timeInput.bind(resultEditFields.querySelector("#result-edit-official"));
     const updateStoppedTime = () => {
       const values = [...resultEditFields.querySelectorAll(".result-edit-segment")]
@@ -2177,6 +2216,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const assignmentSelects = [...resultEditFields.querySelectorAll(".result-participant-select")];
     const participantIds = assignmentSelects.map((select) => select.value);
     const item = disciplineForResult(editingResult, event);
+    const customDefinition = resultCustomPicker?.read();
+    if ((customDefinition?.customDisciplineName.length || 0) > 80) {
+      resultEditError.textContent = "Der Disziplinenname darf höchstens 80 Zeichen lang sein.";
+      return;
+    }
     if (participantIds.some((participantId) => !participantId)) {
       resultEditError.textContent = item.team ? "Bitte alle vier Positionen besetzen." : "Bitte eine Person auswählen.";
       return;
@@ -2210,7 +2254,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       resultEditError.textContent = "";
       const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
       await saveInBackground(id, `/events/${encodeURIComponent(id)}/results/${encodeURIComponent(editingResult.id)}`, "PATCH",
-        { ...assignment, segments, frequencies, lapGroups, officialTime, note });
+        { ...assignment, ...(customDefinition || {}), segments, frequencies, lapGroups, officialTime, note });
       if (!isCurrent()) return;
       resultEditDialog.close();
       editingResult = null;
@@ -2237,12 +2281,17 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     }
   });
 
+  function matchesCustomDiscipline(result, selectedId) {
+    return !selectedId || (selectedId === "__unnamed__" ? !result.custom_discipline_id : result.custom_discipline_id === selectedId);
+  }
+
   function renderResultList() {
     document.body.classList.remove("viewer-overview");
     const item = disciplines[selected.discipline];
     overviewHead.hidden = true;
     setDocumentTitle(`${item.name} · ${genderName(selected.gender)} – ${event.name}`);
-    const results = pageResults.filter((result) => result.discipline === selected.discipline && (item.mixed || result.gender === selected.gender));
+    const results = pageResults.filter((result) => result.discipline === selected.discipline && (item.mixed || result.gender === selected.gender)
+      && (selected.discipline !== "normal" || matchesCustomDiscipline(result, selectedCustomDisciplineId)));
     const cardView = `<div class="result-list">
       ${results.map((result) => {
         const teamMembers = result.team_members || [];
@@ -2276,6 +2325,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
           : `<div class="result-head"><div>${resultIdentity}${details}</div>${editButton}</div>`;
         return `<article class="result-card">
         ${cardHead}
+        ${result.discipline === "normal" && result.custom_discipline_name ? `<p class="result-custom-name">${escapeHtml(resultDisciplineName(result))} · ${result.custom_lap_count || resultLapCount(result)} Runden</p>` : ""}
         <div class="result-times"><div><span>Gestoppt</span><strong>${formatTime(stoppedTime)}</strong></div><div class="official"><span>Offiziell</span><strong>${result.official_centiseconds == null ? "–" : formatTime(result.official_centiseconds)}</strong></div></div>
         ${expandedDetails}
       </article>`;
@@ -2283,7 +2333,13 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="${viewerRoot}" ${resultsOnly ? "" : "data-history-back"}>${icon("arrow-left")} Ergebnisse</a>
       <div class="viewer-list-heading"><div class="viewer-list-title"><p class="eyebrow">${genderName(selected.gender)}</p><h2>${escapeHtml(item.name)}</h2></div>
         <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${eventPdfImageReady && !exporting ? "" : "disabled"}>PDF</button></div>
+      ${selected.discipline === "normal" ? `<label class="field custom-results-filter"><span>Disziplin</span><select id="custom-results-filter"><option value="">Alle benutzerdefinierten Disziplinen</option><option value="__unnamed__">Ohne Namen</option>${[...customResultNames].sort(([, left], [, right]) => left.name.localeCompare(right.name, "de", { numeric: true, sensitivity: "base" })).map(([key, definition]) => `<option value="${escapeHtml(key)}">${escapeHtml(definition.name)} · ${definition.lapCount} Runden</option>`).join("")}</select></label>` : ""}
       ${results.length ? cardView : `<div class="empty">${hasMore || pageIndex > 0 ? "Keine Ergebnisse dieser Gruppe auf dieser Seite. Weitere Seiten sind über die Seitennavigation erreichbar." : "Noch keine Ergebnisse."}</div>`}`;
+    if (selected.discipline === "normal") {
+      const filter = document.querySelector("#custom-results-filter");
+      filter.value = selectedCustomDisciplineId;
+      filter.addEventListener("change", () => { selectedCustomDisciplineId = filter.value; renderResultList(); });
+    }
     resultsRoot.querySelectorAll(".edit-result").forEach((button) => button.addEventListener("click", () => {
       const result = results.find((entry) => entry.id === button.dataset.id);
       if (result) openResultEditor(result);
@@ -2292,14 +2348,14 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       if (exporting) return;
       exporting = true;
       const button = click.currentTarget;
-      const exportSelection = { ...selected };
+      const exportSelection = { ...selected, customId: selected.discipline === "normal" ? selectedCustomDisciplineId : "" };
       button.disabled = true;
       try {
         const all = await window.TimerResultFeed.readAll(
           (cursor) => api(`/events/${id}/results${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
           () => { if (!isCurrent()) throw new Error("Ansicht wurde geschlossen."); },
         );
-        const results = all.filter((result) => result.discipline === exportSelection.discipline && (item.mixed || result.gender === exportSelection.gender))
+        const results = all.filter((result) => result.discipline === exportSelection.discipline && (item.mixed || result.gender === exportSelection.gender) && matchesCustomDiscipline(result, exportSelection.customId))
           .sort((left, right) => (left.official_centiseconds ?? left.total_centiseconds) - (right.official_centiseconds ?? right.total_centiseconds) || left.created_at.localeCompare(right.created_at));
         const lapCount = item.flexible || exportSelection.discipline === "obstacle100"
           ? results.reduce((max, result) => Math.max(max, ...resultLapGroups(result).flat(), result.segments.length), 0)
@@ -2315,9 +2371,10 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
         ];
         const rows = results.map((result) => {
           const teamMembers = result.team_members || [];
-          const person = teamMembers.length
+          const identity = teamMembers.length
             ? teamMembers.map((member) => `${member.position}. ${member.name} (${birthYearText(member.birth_year)})`).join(" / ")
             : `${result.participant_name} (${birthYearText(result.birth_year)})`;
+          const person = result.discipline === "normal" && result.custom_discipline_name ? `${identity} - ${resultDisciplineName(result)} (${result.custom_lap_count || resultLapCount(result)} Runden)` : identity;
           const ageGroup = teamMembers.length
             ? [...new Set(teamMembers.map((member) => member.age_group).filter(Boolean))].join("/")
             : result.age_group;
@@ -2386,6 +2443,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     if (!isCurrent()) return;
     event = data.event;
     pageResults = data.results;
+    for (const result of pageResults) if (result.discipline === "normal" && result.custom_discipline_id) customResultNames.set(result.custom_discipline_id, { name: resultDisciplineName(result), lapCount: result.custom_lap_count || resultLapCount(result) });
     pageIndex = data.pageIndex;
     hasMore = data.hasMore;
     pagePending = false;
@@ -2434,6 +2492,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     },
   };
   routeCleanup = () => {
+    resultCustomPicker?.destroy();
     feed.stop();
     activeResultView = null;
   };

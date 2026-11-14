@@ -42,7 +42,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn('if (level === "authenticated") return authContext.authenticated', adapter)
         self.assertIn('if (level === "athlete") return authContext.isAthlete', adapter)
         self.assertIn('return level === "organizer" && authContext.isOrganizer', adapter)
-        event_access_rule = rules[rules.index("function eventAllows"):rules.index("function ownerKeepsProtectedFieldsSafe")]
+        event_access_rule = rules[rules.index("function eventFieldAllows"):rules.index("function ownerKeepsProtectedFieldsSafe")]
         self.assertIn("return rank == 5", event_access_rule)
         self.assertNotIn("return isOrganizer()", event_access_rule)
 

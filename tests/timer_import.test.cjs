@@ -28,6 +28,7 @@ function memoryDb(records) {
   });
   const collection = (name, filters = {}) => ({
     doc: (id) => doc(`${name}/${id}`),
+    where: (field, operator, value) => collection(name, { ...filters, equality: { field, value } }),
     orderBy: (order) => collection(name, { ...filters, order }),
     startAfter: (after) => collection(name, { ...filters, after }),
     startAt: (start) => collection(name, { ...filters, start }),
@@ -40,6 +41,7 @@ function memoryDb(records) {
         .map((key) => snapshot(doc(key)))
         .filter((item) => (!filters.start || item.data().searchName >= filters.start) && (!filters.end || item.data().searchName <= filters.end))
         .filter((item) => !filters.after || item.id > filters.after)
+        .filter((item) => !filters.equality || item.data()[filters.equality.field] === filters.equality.value)
         .sort((left, right) => {
           const key = (item) => filters.order === "__name__" ? item.id : String(item.data()[filters.order] || "");
           return key(left) < key(right) ? -1 : key(left) > key(right) ? 1 : 0;
@@ -310,4 +312,37 @@ test("100 m obstacle writes enforce the event course while edits retain a saved 
     await h.api.request(`/events/e/results/${saved.id}`, { method: "PATCH", body: { participantId: "p", segments: [laps * 100], lapGroups: [Array.from({ length: laps }, (_, index) => index + 1)] } });
     assert.equal(h.data.get(`timerEvents/e/results/${saved.id}`).lapGroups[0].laps.length, laps);
   }
+});
+
+test("custom names are atomic, event-scoped, reusable only with matching lap coverage, and remain individual", async () => {
+  const h = await adapter({ "timerEvents/e": event({ timerAccess: "organizer", resultsAccess: "organizer", resultEditAccess: "organizer" }),
+    "timerEvents/other": event({ timerAccess: "organizer" }), "timerEvents/e/participants/p": person("Test") });
+  const payload = { discipline: "normal", participantId: "p", segments: [100, 100, 100, 100], customDisciplineName: "100m Brust", customLapCount: 4 };
+  const first = await h.api.request("/events/e/results", { method: "POST", body: { ...payload, clientSubmissionId: "custom-first-123" } });
+  const saved = h.data.get(`timerEvents/e/results/${first.id}`);
+  const key = saved.customDisciplineId;
+  assert.equal(saved.participantIds.length, 1); assert.equal(saved.teamMembers.length, 0);
+  await h.api.request("/events/e/results", { method: "POST", body: { ...payload, customDisciplineName: "100m BRUST", clientSubmissionId: "custom-next-123" } });
+  assert.equal([...h.data.keys()].filter((path) => path.includes("/customDisciplines/")).length, 1);
+  assert.equal(h.data.get("timerEvents/e/results/custom-next-123").customDisciplineName, "100m Brust");
+  await assert.rejects(h.api.request("/events/e/results", { method: "POST", body: { ...payload, customDisciplineId: key, customLapCount: 2, segments: [100, 100] } }), /andere Rundenzahl/);
+  await h.api.request(`/events/e/results/${first.id}`, { method: "PATCH", body: { ...payload, customDisciplineId: key, segments: [400], lapGroups: [[1, 2, 3, 4]] } });
+  assert.equal(h.data.get(`timerEvents/e/results/${first.id}`).customLapCount, 4);
+  const names = await h.api.request("/events/e/custom-disciplines?laps=4");
+  assert.equal(names.customDisciplines.length, 1);
+  assert.equal((await h.api.request("/events/e/custom-disciplines?laps=2")).customDisciplines.length, 0);
+  assert.equal((await h.api.request("/events/other/custom-disciplines?laps=4")).customDisciplines.length, 0);
+  assert.equal(h.queries.filter((query) => query.path.endsWith("/customDisciplines")).every((query) => query.limit === 50 && query.equality.field === "lapCount"), true);
+  await h.api.request(`/events/e/results/${first.id}`, { method: "DELETE" });
+  assert.equal((await h.api.request("/events/e/custom-disciplines?laps=4")).customDisciplines.length, 1, "event names survive deleting an individual result");
+});
+
+test("parallel named results share one definition and a replay never creates a duplicate result", async () => {
+  const h = await adapter({ "timerEvents/e": event({ timerAccess: "organizer" }), "timerEvents/e/participants/p": person("Test") });
+  const body = { discipline: "normal", participantId: "p", segments: [100, 100], customDisciplineName: "Brust", customLapCount: 2 };
+  await Promise.all(["named-first", "named-second"].map((id) => h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: id } })));
+  await h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: "named-first" } });
+  assert.equal([...h.data.keys()].filter((path) => path.includes("/customDisciplines/")).length, 1);
+  assert.equal([...h.data.keys()].filter((path) => path.includes("/results/")).length, 2);
+  assert.equal(h.reads.get("timerEvents/e/results"), undefined, "saving and resolving names never scans the results collection");
 });

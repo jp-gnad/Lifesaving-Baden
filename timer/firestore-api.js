@@ -178,6 +178,13 @@
   const directoryCollection = db.collection("timerParticipantDirectory");
   const participantStore = window.TimerParticipantStore;
   const participantCache = new Map();
+  const customDisciplineCache = new Map();
+  const knownCustomDisciplines = new Map();
+  function rememberCustomResult(eventId, data) {
+    if (data.customDisciplineId) knownCustomDisciplines.set(`${eventId}/${data.customDisciplineId}`, {
+      eventId, id: data.customDisciplineId, name: data.customDisciplineName, lapCount: data.customLapCount,
+    });
+  }
   const searchCache = new Map();
   let participantSession = 0;
   let accountSession = 0;
@@ -186,6 +193,8 @@
   function clearParticipantCache() {
     participantSession += 1;
     participantCache.clear();
+    customDisciplineCache.clear();
+    knownCustomDisciplines.clear();
     searchCache.clear();
     directoryReadyPromise = null;
   }
@@ -399,6 +408,9 @@
     return {
       id: snapshot.id,
       discipline: data.discipline,
+      custom_discipline_id: data.customDisciplineId || "",
+      custom_discipline_name: data.customDisciplineName || "",
+      custom_lap_count: data.customLapCount || 0,
       participant_id: data.participantId || person.id || "",
       participant_name: person.name || "",
       birth_year: Number(person.birthYear),
@@ -477,16 +489,18 @@
     });
   }
 
-  async function allResultDocuments(eventRef) {
+  async function allCollectionDocuments(collection) {
     const documents = [];
     let cursor = null;
     do {
-      const snapshot = await pageQuery(eventRef.collection("results"), cursor).get();
+      const snapshot = await pageQuery(collection, cursor).get();
       documents.push(...snapshot.docs);
       if (snapshot.docs.length < PAGE_SIZE) return documents;
       cursor = snapshot.docs.at(-1).id;
     } while (true);
   }
+
+  const allResultDocuments = (eventRef) => allCollectionDocuments(eventRef.collection("results"));
 
   function directoryIsReady() {
     if (!directoryReadyPromise) {
@@ -618,9 +632,10 @@
 
   async function deleteEvent(eventId, check = participantSessionCheck()) {
     const eventRef = eventsCollection.doc(eventId);
-    const [participants, results] = await Promise.all([
+    const [participants, results, customDisciplines] = await Promise.all([
       eventRef.collection("participants").get(),
       allResultDocuments(eventRef),
+      allCollectionDocuments(eventRef.collection("customDisciplines")),
     ]);
     const event = await eventSnapshot(eventId);
     check();
@@ -629,7 +644,7 @@
       await participantStore.commit(db, eventRef, person.id, null, fieldValue, check);
     }
     const identities = await eventRef.collection("participantIdentities").get();
-    await deleteDocuments([...identities.docs, ...results], check);
+    await deleteDocuments([...identities.docs, ...results, ...customDisciplines], check);
     check();
     await eventRef.delete();
     participantCache.delete(eventId);
@@ -779,6 +794,27 @@
       const snapshot = await eventSnapshot(eventId);
       const event = mapEvent(snapshot);
 
+      if (parts[2] === "custom-disciplines" && parts.length === 3 && method === "GET") {
+        if (!authContext.isOrganizer && !event.can_use_timer && !event.can_view_results) throw appError("Dafür fehlen dir die erforderlichen Rechte.", 403);
+        const laps = Number(url.searchParams.get("laps"));
+        if (!Number.isInteger(laps) || laps < 1 || laps > 20) throw appError("Ungültige Rundenzahl.");
+        const cursor = url.searchParams.get("cursor");
+        const key = JSON.stringify([eventId, laps, cursor]);
+        if (!customDisciplineCache.has(key)) {
+          const query = pageQuery(snapshot.ref.collection("customDisciplines").where("lapCount", "==", laps), cursor);
+          const pending = query.get().then((page) => {
+            checkSession();
+            return { customDisciplines: page.docs.map((doc) => ({ id: doc.id, name: doc.data().name, lapCount: doc.data().lapCount })), ...pageInfo(page) };
+          }).catch((error) => { if (customDisciplineCache.get(key) === pending) customDisciplineCache.delete(key); throw error; });
+          customDisciplineCache.set(key, pending);
+        }
+        const page = await customDisciplineCache.get(key);
+        checkSession();
+        const definitions = new Map(page.customDisciplines.map((item) => [item.id, item]));
+        for (const item of knownCustomDisciplines.values()) if (item.eventId === eventId && item.lapCount === laps) definitions.set(item.id, item);
+        return { ...page, customDisciplines: [...definitions.values()] };
+      }
+
       if (parts[2] === "participants" && parts[3] === "import" && method === "GET") {
         requireOrganizer();
         requirePermission(event, "can_import_participants");
@@ -927,6 +963,19 @@
           ? participants.find((participant) => participant.gender === "male") || participants[0]
           : participants[0];
         const timing = validatedResultTiming(body, discipline);
+        let custom = {};
+        if (disciplineId === "normal") {
+          const requestedName = body.customDisciplineName === undefined ? existingData?.customDisciplineName || "" : body.customDisciplineName;
+          const name = cleanText(window.TimerCore.customDisciplineName(cleanText(requestedName, "Disziplinenname", 80, false)), "Disziplinenname", 80, false);
+          const lapCount = window.TimerCore.resultLapCount(timing);
+          if (name && body.customLapCount !== undefined && body.customLapCount !== lapCount) throw appError("Der Disziplinenname passt nicht zur Rundenzahl.");
+          const requestedId = body.customDisciplineName === undefined && body.customDisciplineId === undefined ? existingData?.customDisciplineId : body.customDisciplineId;
+          const id = name ? requestedId || window.TimerCore.customDisciplineKey(name, lapCount) : "";
+          if (id && (typeof id !== "string" || id.length > 1000 || !/^[A-Za-z0-9%._~-]+$/.test(id))) throw appError("Ungültige benutzerdefinierte Disziplin.");
+          custom = { customDisciplineId: id, customDisciplineName: name, customLapCount: name ? lapCount : 0 };
+        } else if (body.customDisciplineName || body.customDisciplineId || body.customLapCount) {
+          throw appError("Eigene Disziplinennamen sind nur bei Benutzerdefiniert möglich.");
+        }
         return {
           discipline: disciplineId,
           participantId: primary.id,
@@ -934,8 +983,32 @@
           participant: participantSnapshot(primary),
           teamMembers: discipline.team ? participants.map(participantSnapshot) : [],
           ...timing,
+          ...custom,
           note: cleanText(body.note === undefined ? existingData?.note || "" : body.note, "Notiz", 300, false),
         };
+      }
+
+      async function writeNamedResult(resultRef, payload, body, create) {
+        const definitionRef = snapshot.ref.collection("customDisciplines").doc(payload.customDisciplineId);
+        const outcome = await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(resultRef);
+          if (create && current.exists) return { alreadySaved: true, ...current.data() };
+          if (!create && !current.exists) throw appError("Ergebnis nicht gefunden.", 404);
+          const existingDefinition = await transaction.get(definitionRef);
+          const definition = existingDefinition.exists ? existingDefinition.data() : { name: payload.customDisciplineName, lapCount: payload.customLapCount };
+          if (definition.lapCount !== payload.customLapCount) throw appError("Diese Disziplin hat eine andere Rundenzahl.");
+          if (window.TimerCore.customDisciplineName(definition.name).toLocaleLowerCase("de-DE") !== payload.customDisciplineName.toLocaleLowerCase("de-DE")) throw appError("Disziplinenname und Auswahl passen nicht zusammen.");
+          if (!existingDefinition.exists && definitionRef.id !== window.TimerCore.customDisciplineKey(definition.name, definition.lapCount)) throw appError("Die gewählte Disziplin wurde nicht gefunden.");
+          checkSession();
+          if (!existingDefinition.exists) transaction.set(definitionRef, { ...definition, resultId: resultRef.id, createdAt: fieldValue.serverTimestamp() });
+          const saved = { ...payload, customDisciplineName: definition.name, updatedAt: fieldValue.serverTimestamp() };
+          if (create) transaction.set(resultRef, { ...saved, submissionKey: body.clientSubmissionId || null, createdAt: fieldValue.serverTimestamp() });
+          else transaction.update(resultRef, { ...saved, createdPauseGeneration: fieldValue.delete() });
+          return { definition: { id: definitionRef.id, ...definition }, ...saved };
+        });
+        checkSession();
+        rememberCustomResult(eventId, outcome);
+        return outcome;
       }
 
       if (parts[2] === "results" && parts.length === 3 && method === "POST") {
@@ -948,6 +1021,7 @@
         const existing = await resultRef.get();
         if (existing.exists) {
           const data = existing.data() || {};
+          rememberCustomResult(eventId, data);
           return {
             id,
             totalCentiseconds: data.totalCentiseconds,
@@ -957,7 +1031,8 @@
         }
         const payload = await resultWritePayload(body);
         checkSession();
-        await resultRef.set({
+        if (payload.customDisciplineId) await writeNamedResult(resultRef, payload, body, true);
+        else await resultRef.set({
           ...payload,
           submissionKey: body.clientSubmissionId || null,
           createdAt: fieldValue.serverTimestamp(),
@@ -977,7 +1052,8 @@
         if (!existing.exists) throw appError("Ergebnis nicht gefunden.", 404);
         const payload = await resultWritePayload(parseBody(options), existing.data() || {});
         checkSession();
-        await resultRef.update({ ...payload, createdPauseGeneration: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp() });
+        if (payload.customDisciplineId) await writeNamedResult(resultRef, payload, parseBody(options), false);
+        else await resultRef.update({ ...payload, createdPauseGeneration: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp() });
         return { ok: true, totalCentiseconds: payload.totalCentiseconds, officialCentiseconds: payload.officialCentiseconds };
       }
 
