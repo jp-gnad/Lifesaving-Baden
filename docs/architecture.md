@@ -63,6 +63,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
 | `timer/time-input.js` | `TimerTimeInput`: Live-Eingabemaske für bis zu sechs Ziffern, Cursor-/Löschverhalten und gemeinsames Einlesen der Zeitfelder in beiden Ergebnis-Editoren. `create({ parseTime })` erhält den bestehenden Zeitparser; die gespeicherten Werte bleiben Hundertstelsekunden. |
 | `timer/participant-picker.js` | `TimerParticipantPicker.create({ escapeHtml }).renderGroups(...)`: gemeinsame dezente Altersklassen-Gruppierung für Ergebnisprüfung, Ergebnisbearbeitung und Importauswahl. Erhält bereits gefilterte Personen und eine Renderfunktion; lädt keine Daten. |
+| `timer/participant-updates.js` | `TimerParticipantUpdates.create({ getAccountId })`: lokale Personenänderungen nach dauerhafter Vormerkung und Serverbestätigung zusammenführen. Überlebt Ansichtswechsel, gleicht verspätete Listen ab und leert sich bei Konto-/Rollenwechsel; keine Datenbankzugriffe. |
 | `timer/custom-discipline-picker.js` | `TimerCustomDisciplinePicker.create(...).mount(...)`: optionaler Name und Auswahl früherer Namen für Benutzerdefiniert; begrenzte, nach Rundenzahl gefilterte Event-Abfragen im Hintergrund, lokale vorgemerkte Namen und Schutz vor verspäteten Antworten. |
 | `timer/event-cache.js` | `TimerEventCache.create(...)`: höchstens 50 Event-Metadatensätze für sofortige Navigation zwischen Event, Einstellungen und Timer. Nach 30 Sekunden im Hintergrund erneuern; bei Konto-/Rollenwechsel leeren. Keine Teilnehmerdaten. |
 | `timer/save-queue.js` | `TimerSaveQueue.create(...)`: lokale Schreibwarteschlange mit sequenzieller Hintergrundübertragung, Wiederholung und Kontobindung. Die Oberfläche wartet auf den lokalen Transaktionsabschluss, nicht auf Firebase. |
@@ -91,6 +92,12 @@ Hintergrund. Die Ergebnisprüfung ergänzt nachgeladene Personen, ohne laufende
 Zeitkorrekturen oder Zuordnungen zu überschreiben. Die Event-Startseite benötigt
 keinen Teilnehmer-Read. Vorgemerkte Änderungen werden auf heruntergeladene
 Event-/Teilnehmeransichten angewendet, bis die Übertragung bestätigt ist.
+Ein sitzungsgebundenes Änderungsjournal übernimmt neu angelegte oder importierte
+Personen direkt in die Timer-Auswahl. Es bewahrt bestätigte Änderungen auch nach
+Entfernen aus der Warteschlange, damit verspätete Listen sie nicht verschwinden
+lassen. Neuere Bearbeitungen und Löschungen haben Vorrang vor älteren Antworten.
+Die Stoppuhr startet mit diesen lokalen Personen; wartende Einträge aus IndexedDB
+und der normale Personenabruf ergänzen die Auswahl unabhängig im Hintergrund.
 
 Die Schreibwarteschlange bewahrt alte Ergebnisdatensätze und zusätzliche
 Schreibbefehle im bestehenden IndexedDB-Store auf. Neue Befehle sind an die

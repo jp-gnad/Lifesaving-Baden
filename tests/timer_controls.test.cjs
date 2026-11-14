@@ -81,7 +81,7 @@ test("older browsers retain native click activation", () => {
   assert.equal(activations, 1);
 });
 
-async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25", timerAuth = {}) {
+async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25", timerAuth = {}, changes = []) {
   const savedResults = [];
   const nodes = new Map();
   const find = (key) => {
@@ -120,8 +120,11 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
   const window = inputContext();
   window.scrollTo = () => {};
   window.timerFirestoreApi = { getAuthContext: async () => timerAuth };
+  const participantUpdates = require("../timer/participant-updates.js").create({ getAccountId: () => timerAuth.user?.uid || null });
+  changes.forEach((record) => participantUpdates.remember(record));
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
+    participantUpdates, saveQueue: { list: async () => changes },
     timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
     renderParticipantGroups: require("../timer/participant-picker.js").create(require("../timer/core.js")).renderGroups,
     routeVersion: 1,
@@ -173,6 +176,26 @@ test("the timer opens and starts while its participant download is still pending
   h.advance(1250);
   assert.equal(h.find("#clock").textContent, "0:01,25");
   assert.equal(h.find("#clock-status").textContent, "Läuft");
+});
+
+test("a person just added in People is immediately selectable while the roster downloads and survives its stale response", async () => {
+  let resolve;
+  const roster = new Promise((done) => { resolve = done; });
+  const created = { accountId: null, eventId: "e", clientSubmissionId: "new-person", createdAt: "2026-11-14", operation: { method: "POST", path: "/events/e/participants" },
+    payload: { name: "Neue Person", birthYear: "2005", ageGroup: "Offen", gender: "male", organization: "Baden" } };
+  const h = await stopwatch("normal", roster, ["normal"], "25", {}, [created]);
+  h.click("right-action"); h.advance(1000); h.click("right-action");
+  const review = h.find("#review-view");
+  const select = review.querySelectorAll(".participant-select")[0];
+  assert.match(select.innerHTML, /Neue Person/);
+  select.value = "new-person";
+  h.find("#review-view #official-time").value = "1,23";
+  resolve({ participants: [] }); await new Promise(setImmediate);
+  assert.match(select.innerHTML, /Neue Person/);
+  assert.equal(select.value, "new-person");
+  assert.equal(h.find("#review-view #official-time").value, "1,23");
+  h.find("#review-view #save-result").click(); await new Promise(setImmediate);
+  assert.equal(h.savedResults[0].participantId, "new-person");
 });
 
 test("undo merges the previous lap with the live lap without losing elapsed time and can be repeated", async () => {

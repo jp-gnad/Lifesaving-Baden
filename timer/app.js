@@ -82,6 +82,7 @@ let metadataVersion = 0;
 const eventCache = window.TimerEventCache.create({
   load: async (id) => (await api(`/events/${encodeURIComponent(id)}?participants=0`)).event,
 });
+const participantUpdates = window.TimerParticipantUpdates.create({ getAccountId: () => window.timerFirestoreApi.getActiveAccountId() });
 const saveQueue = window.TimerSaveQueue.create({
   store: window.TimerOfflineStore,
   request: api,
@@ -95,7 +96,8 @@ const saveQueue = window.TimerSaveQueue.create({
   newId: () => crypto.randomUUID(),
   changed: updateOfflineSyncStatus,
   failed: (record, error) => showToast(`Übertragung ausstehend: ${error.message}`),
-  completed: (record) => {
+  completed: (record, response) => {
+    participantUpdates.remember(record, response);
     if (record.operation?.path === `/events/${encodeURIComponent(record.eventId)}`) {
       if (record.operation.method === "PATCH") {
         eventCache.refresh(record.eventId).catch(() => {});
@@ -339,20 +341,7 @@ async function applyPendingView(response) {
   if (!response.event) return;
   response.event = projectEvent(response.event);
   if (!response.participants) return;
-  const people = new Map(response.participants.map((person) => [person.id, person]));
-  const prefix = `/events/${encodeURIComponent(response.event.id)}/participants`;
-  for (const record of pending) {
-    const operation = record.operation;
-    if (!operation || record.eventId !== response.event.id || !operation.path.startsWith(prefix)) continue;
-    const imported = operation.path === `${prefix}/import` && operation.method === "POST";
-    const payload = imported ? record.payload.previewParticipant : record.payload;
-    const personId = operation.path === prefix || imported ? record.clientSubmissionId : decodeURIComponent(operation.path.slice(prefix.length + 1));
-    if (operation.method === "DELETE") people.delete(personId);
-    else if (payload?.name && payload.gender) people.set(personId, { ...people.get(personId), id: personId,
-      name: payload.name, birth_year: Number(payload.birthYear) % 100, age_group: payload.ageGroup,
-      gender: payload.gender, organization: payload.organization });
-  }
-  response.participants = [...people.values()];
+  response.participants = participantUpdates.apply(response.event.id, response.participants, pending);
 }
 
 async function updateOfflineSyncStatus() {
@@ -398,7 +387,9 @@ async function pendingCustomDisciplineOptions(eventId, count) {
 }
 
 async function saveInBackground(eventId, path, method, payload = {}) {
-  return saveQueue.enqueue(eventId, payload, { path, method });
+  const queued = await saveQueue.enqueue(eventId, payload, { path, method });
+  participantUpdates.remember(queued.record);
+  return queued;
 }
 
 function route() {
@@ -894,7 +885,7 @@ async function renderTimer(id) {
     return;
   }
   const disciplines = disciplinesForEvent(event);
-  const participants = [];
+  const participants = participantUpdates.apply(id, []);
   const localParticipantDrafts = new Map();
   let participantsReady = false;
   let participantsLoading = null;
@@ -906,7 +897,7 @@ async function renderTimer(id) {
     participantLoadError = "";
     participantsLoading = api(`/events/${encodeURIComponent(id)}`).then((data) => {
       if (version !== routeVersion) return;
-      participants.splice(0, participants.length, ...data.participants);
+      participants.splice(0, participants.length, ...participantUpdates.apply(id, data.participants));
       for (const person of localParticipantDrafts.values()) {
         if (!participants.some((candidate) => candidate.id === person.id)) participants.push(person);
       }
@@ -1781,6 +1772,12 @@ async function renderTimer(id) {
   updateControls();
   setTimerInteractionLock(true);
   loadTimerParticipants();
+  saveQueue.list().then((pending) => {
+    if (version !== routeVersion) return;
+    participants.splice(0, participants.length, ...participantUpdates.apply(id, participants, pending));
+    participants.sort(compareParticipantsByOrganization);
+    refreshReviewParticipants?.();
+  }).catch(() => {});
   routeCleanup = () => { customReviewPicker?.destroy(); refreshReviewParticipants = null; };
 }
 
@@ -2579,7 +2576,7 @@ timerAccountLogout?.addEventListener("click", async () => {
   }
 });
 window.addEventListener("timer-auth-change", (event) => {
-  if (event.detail?.participantsInvalidated) { metadataVersion += 1; eventCache.clear(); }
+  if (event.detail?.participantsInvalidated) { metadataVersion += 1; eventCache.clear(); participantUpdates.clear(); }
   syncPendingResults({ includeBlocked: event.detail?.participantsInvalidated === true }).catch(() => {});
   refreshTimerAccount().catch(() => {});
   if (event.detail?.participantsInvalidated && (activeResultView || document.querySelector("#person-form"))) renderRoute();

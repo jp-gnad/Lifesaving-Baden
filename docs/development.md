@@ -59,6 +59,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Sofortige Navigation, Hintergrundspeicherung, Wiederholungen und Kontowechsel | `timer_save_queue.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`; zusätzlich Emulator-Suites bei Adapter-/Store-Änderungen |
 | Ergebnis-Seiten, Live-Verbindungen und vollständiger Export | `timer_result_feed.test.cjs`, `timer_result_view.test.cjs`, `timer_import.test.cjs`; bei Query-/Regeländerungen zusätzlich Regeln |
 | Teilnehmerimport und Cache | `timer_import.test.cjs`, `timer_people_view.test.cjs`, Firestore-Regeltests |
+| Sofortige Personenauswahl nach Neuanlage/Import und verspätete Listen | `timer_participant_updates.test.cjs`, `timer_controls.test.cjs`, `timer_save_queue.test.cjs`, `timer_people_view.test.cjs` |
 | Clubs und Startberechtigungen | `start_eligibility.test.cjs`, `clubs_rules.test.cjs`, `clubs_notifications.test.cjs`, Auth-Tests |
 | Arbeitszeiten | `worktime.test.cjs`, `firestore_rules.test.cjs` |
 | Wartungs-CLIs und Quelldaten | `maintenance_tools.test.cjs`, `test_participant_directory.py` |

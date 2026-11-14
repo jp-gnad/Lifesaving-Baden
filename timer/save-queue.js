@@ -128,7 +128,7 @@
       completions.set(clientSubmissionId, { resolve });
       notify();
       sync().catch(() => {});
-      return { clientSubmissionId, completion };
+      return { clientSubmissionId, completion, record };
     }
 
     return Object.freeze({ enqueue, sync, list, isSyncing: () => Boolean(running) });
