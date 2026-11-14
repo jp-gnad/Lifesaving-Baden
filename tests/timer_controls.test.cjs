@@ -6,7 +6,7 @@ const vm = require("node:vm");
 function node() {
   const classes = new Set();
   return {
-    disabled: false, hidden: false, innerHTML: "", textContent: "", handlers: {},
+    disabled: false, hidden: false, innerHTML: "", textContent: "", value: "", dataset: {}, handlers: {},
     classList: {
       add: (name) => classes.add(name), remove: (name) => classes.delete(name),
       toggle(name, force) { if (force) classes.add(name); else classes.delete(name); },
@@ -23,6 +23,7 @@ function node() {
     setPointerCapture(id) { this.captured = id; },
     getBoundingClientRect: () => ({ left: 0, right: 150, top: 400, bottom: 480 }),
     querySelectorAll: () => [], close() { this.open = false; },
+    setAttribute() {},
   };
 }
 
@@ -83,16 +84,44 @@ test("older browsers retain native click activation", () => {
 async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline]) {
   const nodes = new Map();
   const find = (key) => {
-    if (!nodes.has(key)) nodes.set(key, node());
+    if (!nodes.has(key)) {
+      const element = node();
+      nodes.set(key, element);
+      let markup = "";
+      Object.defineProperty(element, "innerHTML", {
+        get: () => markup,
+        set(value) {
+          markup = value;
+          for (const child of nodes.keys()) if (child.startsWith(`${key} `)) nodes.delete(child);
+        },
+      });
+      element.querySelector = (selector) => find(`${key} ${selector}`);
+      element.querySelectorAll = (selector) => {
+        if (!selector.startsWith(".")) return [];
+        return [...markup.matchAll(/<(input|select)\b([^>]*)>/g)]
+          .filter((match) => (match[2].match(/class="([^"]*)"/)?.[1] || "").split(" ").includes(selector.slice(1)))
+          .map((match, index) => {
+            const input = find(`${key} ${selector}-${index}`);
+            if (!input.initialized) {
+              input.value = match[2].match(/value="([^"]*)"/)?.[1] || "";
+              input.type = match[2].match(/type="([^"]*)"/)?.[1] || "text";
+              input.initialized = true;
+            }
+            return input;
+          });
+      };
+    }
     return nodes.get(key);
   };
   const actions = node();
   find("#left-action").parentElement = actions;
   let now = 0, frame;
   const window = inputContext();
+  window.scrollTo = () => {};
   window.timerFirestoreApi = { getAuthContext: async () => ({}) };
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
+    timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
     routeVersion: 1,
     eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify(enabledDisciplines) }) },
     document: { querySelector: find, documentElement: { clientHeight: 800 } },
@@ -101,7 +130,7 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
     performance: { now: () => now }, requestAnimationFrame(callback) { frame = callback; return 1; }, cancelAnimationFrame() {},
     setTimeout: () => 1, clearTimeout() {},
     compareParticipantsByOrganization: () => 0, setDocumentTitle() {}, icon: () => "",
-    bindDialogClose() {}, setTimerInteractionLock() {}, showDialog(dialog) { dialog.open = true; },
+    bindDialogClose() {}, setTimerInteractionLock() {}, setReviewInteractionLock() {}, showDialog(dialog) { dialog.open = true; },
   });
   const source = fs.readFileSync(require.resolve("../timer/app.js"), "utf8");
   vm.runInContext(source.slice(source.indexOf("async function renderTimer(id)"), source.indexOf("async function renderViewer(")), context);
@@ -234,4 +263,36 @@ test("running discipline changes still respect the event's enabled disciplines",
   h.choose("rescue50");
   assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert");
   assert.equal(h.find("#progress").textContent, "0 / max. 20 Laps");
+});
+
+test("the stopped timer can reopen its existing review without restarting time or losing assignments and drafts", async () => {
+  const h = await stopwatch();
+  assert.equal(h.find("#review-result").disabled, true);
+  h.click("right-action"); h.advance(1500); h.click("right-action");
+  assert.equal(h.find("#timer-view").hidden, true);
+  assert.equal(h.find("#review-view").hidden, false);
+  const review = h.find("#review-view");
+  const participant = review.querySelectorAll(".participant-select")[0];
+  participant.value = "person-selected";
+  const note = review.querySelector("#result-note");
+  note.value = "Notiz im Entwurf";
+  const official = review.querySelector("#official-time");
+  official.value = "1,23";
+  review.querySelector("#close-review").click();
+  assert.equal(review.hidden, true);
+  assert.equal(h.find("#timer-view").hidden, false);
+  assert.equal(h.find("#review-result").disabled, false);
+  h.click("review-result");
+  assert.equal(review.hidden, false);
+  assert.equal(h.find("#timer-view").hidden, true);
+  assert.equal(review.querySelectorAll(".participant-select")[0], participant);
+  assert.equal(participant.value, "person-selected");
+  assert.equal(review.querySelector("#result-note").value, "Notiz im Entwurf");
+  assert.equal(review.querySelector("#official-time").value, "1,23");
+  assert.equal(h.find("#clock").textContent, "0:01,50");
+  review.querySelector("#close-review").click();
+  h.click("right-action");
+  assert.equal(h.find("#review-result").disabled, true, "continuing a measurement hides the review shortcut");
+  h.advance(500);
+  assert.equal(h.find("#clock").textContent, "0:02,00");
 });

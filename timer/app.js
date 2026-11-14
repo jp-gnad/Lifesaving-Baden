@@ -934,7 +934,7 @@ async function renderTimer(id) {
           <button class="button secondary timer-control" id="left-action" disabled>${icon("trash")} Löschen</button>
           <button class="button timer-control" id="right-action">${icon("play")} Start</button>
         </div>
-        <div class="timer-corrections"><button class="undo-lap" id="undo-lap" type="button" aria-label="Letzte Runde zurücknehmen" title="Letzte Runde zurücknehmen" disabled>${icon("undo")}</button></div>
+        <div class="timer-corrections"><button class="undo-lap" id="undo-lap" type="button" aria-label="Letzte Runde zurücknehmen" title="Letzte Runde zurücknehmen" disabled>${icon("undo")}</button><button class="review-result" id="review-result" type="button" aria-label="Ergebnis prüfen" title="Ergebnis prüfen" disabled>${icon("arrow-right")}</button></div>
       </section>
       <div class="card lap-list" id="lap-list" hidden></div>
       <dialog id="discipline-dialog"><div class="dialog-body mode-dialog-body"><div class="mode-dialog-header"><button class="button secondary icon-button" id="mode-back" type="button" aria-label="Zurück zu den Kategorien" hidden>${icon("arrow-left")}</button><h2 id="mode-dialog-title">Stoppmodus</h2><button class="button secondary icon-button" id="close-mode" aria-label="Menü schließen">${icon("x")}</button></div>
@@ -945,7 +945,7 @@ async function renderTimer(id) {
       <section class="review-view" id="review-view" hidden></section>
     </div>`;
 
-  const elements = Object.fromEntries(["timer-view", "review-view", "mode-button", "mode-name", "mode-laps", "discipline-dialog", "clock-status", "clock", "frequency-progress", "left-action", "right-action", "undo-lap", "progress", "lap-list"].map((key) => [key, document.querySelector(`#${key}`)]));
+  const elements = Object.fromEntries(["timer-view", "review-view", "mode-button", "mode-name", "mode-laps", "discipline-dialog", "clock-status", "clock", "frequency-progress", "left-action", "right-action", "undo-lap", "review-result", "progress", "lap-list"].map((key) => [key, document.querySelector(`#${key}`)]));
   let frequencyFeedbackTimer = null;
 
   const currentCs = () => timer.status === "running" ? timer.displayed + Math.floor((performance.now() - timer.startedAt) / 10) : timer.displayed;
@@ -1117,6 +1117,7 @@ async function renderTimer(id) {
     const item = config();
     elements["mode-button"].disabled = timer.status === "stopped";
     elements["undo-lap"].disabled = timer.status !== "running" || timer.segments.length === 0;
+    elements["review-result"].disabled = timer.status !== "stopped";
     const actions = elements["left-action"].parentElement;
     elements["left-action"].hidden = false;
     actions.classList.remove("final-lap");
@@ -1177,6 +1178,17 @@ async function renderTimer(id) {
     timer.lapGroups = [];
     resetFrequencyCapture();
     renderLaps(); updateProgress(); updateControls();
+  }
+
+  function reopenReview() {
+    if (timer.status !== "stopped") return;
+    // Keep the existing editor and its assignments/drafts when switching back.
+    elements["timer-view"].hidden = true;
+    elements["review-view"].hidden = false;
+    setTimerInteractionLock(false);
+    setReviewInteractionLock(true);
+    setDocumentTitle(`Ergebnis prüfen – ${event.name}`);
+    window.scrollTo(0, 0);
   }
 
   function showReview() {
@@ -1661,6 +1673,7 @@ async function renderTimer(id) {
     elements["discipline-dialog"].close();
   });
   window.TimerControlInput.bindRelease(elements["undo-lap"], undoLap);
+  window.TimerControlInput.bindRelease(elements["review-result"], reopenReview);
   window.TimerControlInput.bindRelease(elements["left-action"], () => {
     if (timer.status === "stopped") {
       resetTimer();
