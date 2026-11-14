@@ -61,6 +61,8 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/core.js` | `TimerCore`: Disziplinen, Zugriffslabels, Datums-/Zeitformatierung, Zeitparser, Lap-Gruppen, HTML-Escaping. Keine DOM-/Firestore-Zugriffe. |
 | `timer/app.js` | DOM-Einstieg, Hash-Routing, Uhr, Ergebnisansichten, Synchronisation vorgemerkter Ergebnisse. Verbindet die übrigen Module. |
 | `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
+| `timer/event-cache.js` | `TimerEventCache.create(...)`: höchstens 50 Event-Metadatensätze für sofortige Navigation zwischen Event, Einstellungen und Timer. Nach 30 Sekunden im Hintergrund erneuern; bei Konto-/Rollenwechsel leeren. Keine Teilnehmerdaten. |
+| `timer/save-queue.js` | `TimerSaveQueue.create(...)`: lokale Schreibwarteschlange mit sequenzieller Hintergrundübertragung, Wiederholung und Kontobindung. Die Oberfläche wartet auf den lokalen Transaktionsabschluss, nicht auf Firebase. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
 | `timer/firestore-api.js` | `timerFirestoreApi`: `request`, Auth-Kontext, Ergebnislistener und Cache-Lebenszyklus. Kennt die Firestore-Struktur. |
 | `timer/result-feed.js` | `TimerResultFeed.create(...)`: Listener-Lebenszyklus, Seitennavigation und Sichtbarkeit; `readAll(...)` ausschließlich für ausdrückliche vollständige Exporte. Abhängigkeiten werden übergeben. |
@@ -72,6 +74,19 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 Die Disziplin-Definitionen werden von Oberfläche und Firestore-Adapter gemeinsam
 verwendet. Fachlogik muss deshalb nicht in beiden Dateien parallel gepflegt werden.
 Die serverseitigen Sicherheitsregeln bleiben davon unabhängig.
+
+Der Timer lädt die Personenliste erst nach Aufbau der bedienbaren Stoppuhr im
+Hintergrund. Die Ergebnisprüfung ergänzt nachgeladene Personen, ohne laufende
+Zeitkorrekturen oder Zuordnungen zu überschreiben. Die Event-Startseite benötigt
+keinen Teilnehmer-Read. Vorgemerkte Änderungen werden auf heruntergeladene
+Event-/Teilnehmeransichten angewendet, bis die Übertragung bestätigt ist.
+
+Die Schreibwarteschlange bewahrt alte Ergebnisdatensätze und zusätzliche
+Schreibbefehle im bestehenden IndexedDB-Store auf. Neue Befehle sind an die
+Konto-ID gebunden; Event-/Personenneuanlagen verwenden bei Wiederholungen dieselbe
+`clientMutationId`. Hintergrundschreibvorgänge überleben Ansichtswechsel,
+prüfen Konto-/Rollenwechsel aber weiterhin vor Mutationen. Die atomaren
+Teilnehmer-/Identitätstransaktionen und die Firestore-Regeln bleiben maßgeblich.
 
 ## Daten und verantwortliche Schreibpfade
 

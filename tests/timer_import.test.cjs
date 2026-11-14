@@ -10,6 +10,7 @@ function memoryDb(records) {
   const reads = new Map();
   const queries = [];
   const listeners = [];
+  const readGates = new Map();
   const listen = (path, filters, receive, fail) => {
     const entry = { path, filters, receive, fail, stopped: false };
     listeners.push(entry);
@@ -19,7 +20,7 @@ function memoryDb(records) {
   const snapshot = (ref) => ({ id: ref.id, ref, exists: data.has(ref.path), data: () => ({ ...data.get(ref.path) }) });
   const doc = (name) => ({
     path: name, id: name.split("/").at(-1), collection: (child) => collection(`${name}/${child}`),
-    async get() { count(name); return snapshot(this); },
+    async get() { count(name); await readGates.get(name)?.(); return snapshot(this); },
     async set(value) { data.set(name, value); },
     async update(value) { data.set(name, { ...data.get(name), ...value }); },
     async delete() { data.delete(name); },
@@ -69,12 +70,12 @@ function memoryDb(records) {
     tail = run.catch(() => {});
     return run;
   } };
-  return { db, data, reads, queries, listeners };
+  return { db, data, reads, queries, listeners, readGates };
 }
 
 const person = (name, input = {}) => ({ name, birthYear: 5, gender: "female", organization: "Baden", ageGroup: "Offen", createdAt: "2026-01-01", updatedAt: "2026-01-01", ...input });
 const event = (input = {}) => ({ name: "Test", eventDate: "2026-11-12", participantIndexVersion: 1, participantEditAccess: "organizer", participantViewAccess: "organizer", ...input });
-const sdk = { serverTimestamp: () => "2026-11-12T12:00:00.000Z" };
+const sdk = { serverTimestamp: () => "2026-11-12T12:00:00.000Z", delete: () => undefined };
 
 async function adapter(records) {
   const h = memoryDb(records);
@@ -253,4 +254,45 @@ test("result view avoids the participant scan until editing, and event deletion 
   assert.equal([...h.data.keys()].some((key) => key.startsWith("timerEvents/e")), false);
   assert.equal(h.queries.filter((query) => query.path.endsWith("/results")).length, 3);
   assert.ok(h.queries.filter((query) => query.path.endsWith("/results")).every((query) => query.limit === 50));
+});
+
+
+test("queued event and participant creation reuse stable IDs after an uncertain response", async () => {
+  const h = await adapter({});
+  const createEvent = { method: "POST", background: true, body: JSON.stringify({ name: "Queued", clientMutationId: "queued-event-123" }) };
+  assert.equal((await h.api.request("/events", createEvent)).id, "queued-event-123");
+  await h.api.request("/events", createEvent);
+  assert.equal([...h.data.keys()].filter((key) => key.startsWith("timerEvents/")).length, 1);
+  h.data.set("timerEvents/queued-event-123", event());
+  const createPerson = { method: "POST", background: true, body: JSON.stringify({ ...person("Neu"), clientMutationId: "queued-person-123" }) };
+  const first = await h.api.request("/events/queued-event-123/participants", createPerson);
+  const replay = await h.api.request("/events/queued-event-123/participants", createPerson);
+  assert.equal(first.id, "queued-person-123");
+  assert.equal(replay.participant.id, first.id);
+  assert.equal([...h.data.keys()].filter((key) => key.includes("/participants/")).length, 1);
+  assert.equal(h.data.get(`timerEvents/queued-event-123/participantIdentities/${store.identity(person("Neu"))}`).participantIds.length, 1);
+});
+
+test("queued writes survive route cache cleanup but abort when the account changes", async () => {
+  const h = await adapter({ "timerEvents/e": event() });
+  let release, entered;
+  const reading = new Promise((resolve) => { entered = resolve; });
+  const gate = new Promise((resolve) => { release = resolve; });
+  h.readGates.set("timerEvents/e", () => { entered(); return gate; });
+  const pending = h.api.request("/events/e", { method: "PATCH", background: true, body: JSON.stringify({ name: "Hintergrund" }) });
+  await reading;
+  h.api.clearParticipantCache();
+  release();
+  await pending;
+  assert.equal(h.data.get("timerEvents/e").name, "Hintergrund");
+  let releaseAgain, enteredAgain;
+  const readingAgain = new Promise((resolve) => { enteredAgain = resolve; });
+  const gateAgain = new Promise((resolve) => { releaseAgain = resolve; });
+  h.readGates.set("timerEvents/e", () => { enteredAgain(); return gateAgain; });
+  const oldAccount = h.api.request("/events/e", { method: "PATCH", background: true, body: JSON.stringify({ name: "Veraltet" }) });
+  await readingAgain;
+  await h.auth.signOut();
+  releaseAgain();
+  await assert.rejects(oldAccount, /Anmeldung/);
+  assert.equal(h.data.get("timerEvents/e").name, "Hintergrund");
 });

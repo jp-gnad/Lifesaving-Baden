@@ -45,6 +45,9 @@ function fixture({ deferredEvent = null } = {}) {
       const results = rows.slice(start, start + 50);
       return { results, hasMore: results.length === 50, nextCursor: results.at(-1)?.id };
     },
+    async saveInBackground(id, url, method, payload) {
+      return context.api(url, { method, body: JSON.stringify(payload) });
+    },
     route: () => ({ page: "viewer", id: "e", discipline: "normal", gender: "male" }),
     setDocumentTitle() {}, safeExternalUrl: () => "", loadEventPdfImage: async () => null,
     compareParticipantsByOrganization: () => 0, birthYearText: () => "05", personAvatar: () => "", icon: () => "",

@@ -3,7 +3,7 @@
 
   function create(dependencies) {
     const {
-      app, api, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity, getRouteVersion, setRouteCleanup, refresh
+      app, api, saveInBackground, validateParticipant, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity, getRouteVersion, setRouteCleanup, refresh
     } = dependencies;
 
     async function renderPeople(id, viewData = null) {
@@ -20,9 +20,10 @@
       const importedIdentities = new Set(participants.map((person) => window.TimerParticipantStore.identity(person)));
       const showSaved = async (participant, removedId = participant?.id) => {
         if (!isCurrent()) return;
-        const next = participants.filter((person) => person.id !== removedId);
-        if (participant) next.push(participant);
-        await renderPeople(id, { event, participants: next });
+        const index = participants.findIndex((person) => person.id === removedId);
+        if (index >= 0) participants.splice(index, 1);
+        if (participant) participants.push(participant);
+        await renderPeople(id, { event, participants });
       };
       participants.sort(compareParticipantsByOrganization);
       const personCardContent = (person) => `<div class="person-card-content">${personAvatar(person)}<div class="person-card-copy"><div class="person-head"><strong>${escapeHtml(person.name)} (${birthYearText(person.birth_year)})</strong></div>
@@ -80,6 +81,7 @@
       let importSearchTimer = null;
       let importRequest = 0;
       let importing = false;
+      let importCandidates = [];
       document.querySelector("#refresh-people").addEventListener("click", () => refresh());
       setRouteCleanup(() => {
         clearTimeout(importSearchTimer);
@@ -128,6 +130,7 @@
         try {
           const { candidates, directoryReady } = await api(`/events/${id}/participants/import?q=${encodeURIComponent(searchValue)}`);
           if (!isCurrent() || requestId !== importRequest || !importDialog.open) return;
+          importCandidates = candidates;
           candidates.forEach((candidate) => {
             candidate.alreadyImported = importedIdentities.has(window.TimerParticipantStore.identity(candidate));
           });
@@ -163,14 +166,17 @@
       importResults.addEventListener("click", async (clickEvent) => {
         const button = clickEvent.target.closest(".import-person-option");
         if (!button || button.disabled || importing) return;
+        const candidate = importCandidates.find((person) => person.id === button.dataset.id);
+        if (!candidate) return;
         try {
           importing = true;
           button.disabled = true;
-          const { participant } = await api(`/events/${id}/participants/import`, { method: "POST", body: JSON.stringify({ candidateId: button.dataset.id }) });
+          const queued = await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants/import`, "POST", { candidateId: button.dataset.id, previewParticipant: candidate });
           if (!isCurrent()) return;
           importDialog.close();
-          showToast("Person wurde importiert.");
-          await showSaved(participant);
+          showToast("Import lokal vorgemerkt. Übertragung läuft im Hintergrund.");
+          await showSaved({ id: queued.clientSubmissionId, name: candidate.name, birth_year: Number(candidate.birthYear) % 100,
+            age_group: candidate.ageGroup, gender: candidate.gender, organization: candidate.organization });
         } catch (err) {
           if (!isCurrent()) return;
           importing = false;
@@ -198,12 +204,14 @@
         try {
           button.disabled = true;
           const values = Object.fromEntries(new FormData(submitEvent.currentTarget));
+          validateParticipant(values);
           const editId = submitEvent.currentTarget.dataset.editId;
-          const { participant } = await api(`/events/${id}/participants${editId ? `/${encodeURIComponent(editId)}` : ""}`, { method: editId ? "PATCH" : "POST", body: JSON.stringify(values) });
+          const queued = await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants${editId ? `/${encodeURIComponent(editId)}` : ""}`, editId ? "PATCH" : "POST", values);
           if (!isCurrent()) return;
           dialog.close();
-          showToast(editId ? "Person wurde aktualisiert." : "Person wurde hinzugefügt.");
-          await showSaved(participant);
+          showToast("Person lokal vorgemerkt. Übertragung läuft im Hintergrund.");
+          await showSaved({ id: editId || queued.clientSubmissionId, name: values.name.trim(), birth_year: Number(values.birthYear),
+            age_group: values.ageGroup.trim(), gender: values.gender, organization: values.organization.trim() });
         } catch (err) {
           if (!isCurrent()) return;
           document.querySelector("#person-error").textContent = err.message;
@@ -217,10 +225,10 @@
         if (!confirm(`${person.name} wirklich löschen?${warning}`)) return;
         try {
           deletePersonButton.disabled = true;
-          await api(`/events/${id}/participants/${encodeURIComponent(person.id)}`, { method: "DELETE" });
+          await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants/${encodeURIComponent(person.id)}`, "DELETE");
           if (!isCurrent()) return;
           dialog.close();
-          showToast("Person wurde gelöscht.");
+          showToast("Löschen lokal vorgemerkt. Übertragung läuft im Hintergrund.");
           await showSaved(null, person.id);
         } catch (err) { if (isCurrent()) { showToast(err.message); deletePersonButton.disabled = false; } }
       });

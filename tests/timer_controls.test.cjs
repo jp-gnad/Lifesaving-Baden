@@ -80,7 +80,7 @@ test("older browsers retain native click activation", () => {
   assert.equal(activations, 1);
 });
 
-async function stopwatch(discipline = "normal") {
+async function stopwatch(discipline = "normal", participantResponse = null) {
   const nodes = new Map();
   const find = (key) => {
     if (!nodes.has(key)) nodes.set(key, node());
@@ -93,9 +93,11 @@ async function stopwatch(discipline = "normal") {
   window.timerFirestoreApi = { getAuthContext: async () => ({}) };
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
+    routeVersion: 1,
+    eventCache: { read: async () => ({ id: "e", name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }) },
     document: { querySelector: find, documentElement: { clientHeight: 800 } },
     app: node(), animationFrame: null,
-    api: async () => ({ event: { name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }, participants: [] }),
+    api: async () => participantResponse || ({ event: { name: "Test", can_use_timer: true, enabled_disciplines_json: JSON.stringify([discipline]) }, participants: [] }),
     performance: { now: () => now }, requestAnimationFrame(callback) { frame = callback; return 1; }, cancelAnimationFrame() {},
     setTimeout: () => 1, clearTimeout() {},
     compareParticipantsByOrganization: () => 0, setDocumentTitle() {}, icon: () => "",
@@ -119,6 +121,15 @@ test("Start and Runde still activate exactly once after holding for 40 seconds",
   h.hold("left-action", 40000);
   assert.equal(h.find("#clock").textContent, "0:40,00");
   assert.equal(h.find("#progress").textContent, "1 / max. 20 Laps");
+});
+
+test("the timer opens and starts while its participant download is still pending", { timeout: 1000 }, async () => {
+  const h = await stopwatch("normal", new Promise(() => {}));
+  assert.equal(h.find("#right-action").textContent, "Start");
+  h.click("right-action");
+  h.advance(1250);
+  assert.equal(h.find("#clock").textContent, "0:01,25");
+  assert.equal(h.find("#clock-status").textContent, "Läuft");
 });
 
 test("undo merges the previous lap with the live lap without losing elapsed time and can be repeated", async () => {

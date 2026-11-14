@@ -40,6 +40,10 @@ function view({ existingId = "old", existingName = "Anna Müller" } = {}) {
       if (options?.method === "POST") return { id: added.id, participant: added };
       throw new Error(`Unexpected request: ${url}`);
     },
+    async saveInBackground(id, url, method, payload) {
+      const response = await context.api(url, { method, body: JSON.stringify(payload) });
+      return { clientSubmissionId: response.id, completion: Promise.resolve(response) };
+    },
     eventCan: (event, field) => event[field],
     normalizedIdentity: (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, ""),
     compareParticipantsByOrganization: () => 0, personAvatar: () => "", birthYearText: String, escapeHtml: require("../timer/core.js").escapeHtml, icon: () => "",

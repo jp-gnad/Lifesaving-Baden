@@ -180,6 +180,7 @@
   const participantCache = new Map();
   const searchCache = new Map();
   let participantSession = 0;
+  let accountSession = 0;
   let directoryReadyPromise = null;
 
   function clearParticipantCache() {
@@ -189,14 +190,16 @@
     directoryReadyPromise = null;
   }
 
-  function participantSessionCheck() {
-    const session = participantSession;
+  function participantSessionCheck(background = false) {
+    const session = background ? accountSession : participantSession;
     const uid = auth.currentUser?.uid;
-    return () => {
-      if (session !== participantSession || auth.currentUser?.uid !== uid) {
+    const check = () => {
+      if (session !== (background ? accountSession : participantSession) || auth.currentUser?.uid !== uid) {
         throw appError("Die Ansicht oder Anmeldung hat sich geändert. Bitte erneut öffnen.", 409);
       }
     };
+    check.background = background;
+    return check;
   }
 
   let authContext = {
@@ -216,7 +219,7 @@
   let authRefreshVersion = 0;
   async function refreshTimerAuthContext(user) {
     const userChanged = authContext.user?.uid !== user?.uid;
-    if (userChanged) clearParticipantCache();
+    if (userChanged) { accountSession += 1; clearParticipantCache(); }
     const refreshVersion = ++authRefreshVersion;
     await Promise.all([authPersistenceReady, persistenceReady]);
     let userData = {};
@@ -252,7 +255,7 @@
     const permissionsChanged = authContext.authenticated !== authenticated
       || authContext.isOrganizer !== isOrganizer || authContext.isAdmin !== isAdmin
       || authContext.isAthlete !== isAthlete || authContext.isTrainer !== isTrainer;
-    if (permissionsChanged && !userChanged) clearParticipantCache();
+    if (permissionsChanged && !userChanged) { accountSession += 1; clearParticipantCache(); }
     authContext = {
       user,
       authenticated,
@@ -556,9 +559,17 @@
     if (!event.can_import_participants) {
       throw appError("Ein Organisator muss die Personenansicht dieses Events einmal öffnen, bevor Personen geändert werden können.", 409);
     }
-    await listParticipants(snapshot.id);
-    check();
-    await participantStore.migrate(db, snapshot.ref, participantCache.get(snapshot.id).snapshot, fieldValue, check);
+    if (check.background) {
+      // A legacy-index migration belongs to the queued write, not the view
+      // whose participant cache may be released during navigation.
+      const roster = await snapshot.ref.collection("participants").get();
+      check();
+      await participantStore.migrate(db, snapshot.ref, roster, fieldValue, check);
+    } else {
+      await listParticipants(snapshot.id);
+      check();
+      await participantStore.migrate(db, snapshot.ref, participantCache.get(snapshot.id).snapshot, fieldValue, check);
+    }
   }
 
   async function searchDirectory(prefix) {
@@ -596,35 +607,110 @@
     };
   }
 
-  async function deleteDocuments(documents) {
+  async function deleteDocuments(documents, check = () => {}) {
     for (let offset = 0; offset < documents.length; offset += 400) {
       const batch = db.batch();
       documents.slice(offset, offset + 400).forEach((document) => batch.delete(document.ref));
+      check();
       await batch.commit();
     }
   }
 
-  async function deleteEvent(eventId) {
+  async function deleteEvent(eventId, check = participantSessionCheck()) {
     const eventRef = eventsCollection.doc(eventId);
     const [participants, results] = await Promise.all([
       eventRef.collection("participants").get(),
       allResultDocuments(eventRef),
     ]);
     const event = await eventSnapshot(eventId);
-    await prepareParticipantIndex(event, mapEvent(event));
-    const check = participantSessionCheck();
+    check();
+    await prepareParticipantIndex(event, mapEvent(event), check);
     for (const person of participants.docs) {
       await participantStore.commit(db, eventRef, person.id, null, fieldValue, check);
     }
     const identities = await eventRef.collection("participantIdentities").get();
-    await deleteDocuments([...identities.docs, ...results]);
+    await deleteDocuments([...identities.docs, ...results], check);
+    check();
     await eventRef.delete();
     participantCache.delete(eventId);
   }
 
+  function mutationId(body) {
+    if (!body.clientMutationId) return crypto.randomUUID();
+    if (typeof body.clientMutationId !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(body.clientMutationId)) throw appError("Ungültige Speicher-ID.");
+    return body.clientMutationId;
+  }
+
+  function eventCreationData(body) {
+    const eventDate = body.eventDate ? cleanText(body.eventDate, "Datum", 10) : null;
+    if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
+    return {
+      name: cleanText(body.name, "Eventname"),
+      eventDate,
+      location: cleanText(body.location, "Ort", 120, false),
+      poolLength: "25",
+      customPoolLength: null,
+      enabledDisciplines: DEFAULT_DISCIPLINES,
+      resultUrl: "",
+      ...DEFAULT_ACCESS,
+      participantIndexVersion: 1,
+      createdAt: fieldValue.serverTimestamp(),
+      updatedAt: fieldValue.serverTimestamp(),
+    };
+  }
+
+  function previewEvent(id, body) {
+    return mapEvent({ id, data: () => eventCreationData(body) });
+  }
+
+  function eventUpdateData(current, body) {
+    const eventDateValue = body.eventDate === undefined ? current.eventDate : body.eventDate;
+    const eventDate = eventDateValue ? cleanText(eventDateValue, "Datum", 10) : null;
+    if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
+    const poolLength = body.poolLength === undefined ? current.poolLength || "25" : String(body.poolLength);
+    if (!["25", "50", "custom"].includes(poolLength)) throw appError("Ungültige Bahnlänge.");
+    const customPoolLength = poolLength === "custom"
+      ? Number(body.customPoolLength === undefined ? current.customPoolLength : body.customPoolLength)
+      : null;
+    if (poolLength === "custom" && (!Number.isFinite(customPoolLength) || customPoolLength <= 0 || customPoolLength > 10000)) {
+      throw appError("Bitte eine gültige benutzerdefinierte Bahnlänge eingeben.");
+    }
+    const enabledDisciplines = validatedEnabledDisciplines(body.enabledDisciplines, current.enabledDisciplines || DEFAULT_DISCIPLINES);
+    return {
+      name: cleanText(body.name === undefined ? current.name : body.name, "Eventname"),
+      eventDate,
+      location: cleanText(body.location === undefined ? current.location : body.location, "Ort", 120, false),
+      timerEnabled: fieldValue.delete(),
+      resultsMode: fieldValue.delete(),
+      resultsPausedAt: fieldValue.delete(),
+      resultsPauseGeneration: fieldValue.delete(),
+      participantMode: fieldValue.delete(),
+      poolLength,
+      customPoolLength,
+      enabledDisciplines,
+      resultUrl: validatedEventUrl(body.resultUrl === undefined ? current.resultUrl : body.resultUrl),
+      timerAccess: accessLevel(body.timerAccess, accessLevel(current.timerAccess, DEFAULT_ACCESS.timerAccess)),
+      resultsAccess: accessLevel(body.resultsAccess, accessLevel(current.resultsAccess, DEFAULT_ACCESS.resultsAccess)),
+      participantViewAccess: accessLevel(body.participantViewAccess, accessLevel(current.participantViewAccess, DEFAULT_ACCESS.participantViewAccess)),
+      participantEditAccess: accessLevel(body.participantEditAccess, accessLevel(current.participantEditAccess, DEFAULT_ACCESS.participantEditAccess)),
+      resultEditAccess: accessLevel(body.resultEditAccess, accessLevel(current.resultEditAccess, DEFAULT_ACCESS.resultEditAccess)),
+      updatedAt: fieldValue.serverTimestamp(),
+    };
+  }
+
+  function previewEventUpdate(event, body) {
+    const data = { name: event.name, eventDate: event.event_date, location: event.location,
+      poolLength: event.pool_length, customPoolLength: event.custom_pool_length,
+      enabledDisciplines: window.TimerCore.enabledDisciplinesForEvent(event), resultUrl: event.result_url,
+      timerAccess: event.timer_access, resultsAccess: event.results_access,
+      participantViewAccess: event.participant_view_access, participantEditAccess: event.participant_edit_access,
+      resultEditAccess: event.result_edit_access };
+    return mapEvent({ id: event.id, data: () => eventUpdateData(data, body) });
+  }
+
   async function request(path, options = {}) {
     await Promise.all([initialAuth, persistenceReady]);
-    const checkSession = participantSessionCheck();
+    const checkSession = participantSessionCheck(options.background === true);
     const method = String(options.method || "GET").toUpperCase();
     const url = new URL(path, window.location.origin);
     const parts = url.pathname.split("/").filter(Boolean).map((part) => {
@@ -646,21 +732,13 @@
       if (parts.length === 1 && method === "POST") {
         requireOrganizer();
         const body = parseBody(options);
-        const eventDate = body.eventDate ? cleanText(body.eventDate, "Datum", 10) : null;
-        if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
-        const id = crypto.randomUUID();
-        await eventsCollection.doc(id).set({
-          name: cleanText(body.name, "Eventname"),
-          eventDate,
-          location: cleanText(body.location, "Ort", 120, false),
-          poolLength: "25",
-          customPoolLength: null,
-          enabledDisciplines: DEFAULT_DISCIPLINES,
-          resultUrl: "",
-          ...DEFAULT_ACCESS,
-          participantIndexVersion: 1,
-          createdAt: fieldValue.serverTimestamp(),
-          updatedAt: fieldValue.serverTimestamp(),
+        const id = mutationId(body);
+        const data = eventCreationData(body);
+        const ref = eventsCollection.doc(id);
+        await db.runTransaction(async (transaction) => {
+          const existing = await transaction.get(ref);
+          checkSession();
+          if (!existing.exists) transaction.set(ref, data);
         });
         return { id };
       }
@@ -684,7 +762,7 @@
       if (parts.length === 2 && method === "DELETE") {
         requireOrganizer();
         await eventSnapshot(eventId);
-        await deleteEvent(eventId);
+        await deleteEvent(eventId, checkSession);
         return { ok: true };
       }
 
@@ -692,39 +770,8 @@
         requireOrganizer();
         const body = parseBody(options);
         const snapshot = await eventSnapshot(eventId);
-        const current = snapshot.data() || {};
-        const eventDateValue = body.eventDate === undefined ? current.eventDate : body.eventDate;
-        const eventDate = eventDateValue ? cleanText(eventDateValue, "Datum", 10) : null;
-        if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw appError("Ungültiges Datum.");
-        const poolLength = body.poolLength === undefined ? current.poolLength || "25" : String(body.poolLength);
-        if (!["25", "50", "custom"].includes(poolLength)) throw appError("Ungültige Bahnlänge.");
-        const customPoolLength = poolLength === "custom"
-          ? Number(body.customPoolLength === undefined ? current.customPoolLength : body.customPoolLength)
-          : null;
-        if (poolLength === "custom" && (!Number.isFinite(customPoolLength) || customPoolLength <= 0 || customPoolLength > 10000)) {
-          throw appError("Bitte eine gültige benutzerdefinierte Bahnlänge eingeben.");
-        }
-        const enabledDisciplines = validatedEnabledDisciplines(body.enabledDisciplines, current.enabledDisciplines || DEFAULT_DISCIPLINES);
-        const update = {
-          name: cleanText(body.name === undefined ? current.name : body.name, "Eventname"),
-          eventDate,
-          location: cleanText(body.location === undefined ? current.location : body.location, "Ort", 120, false),
-          timerEnabled: fieldValue.delete(),
-          resultsMode: fieldValue.delete(),
-          resultsPausedAt: fieldValue.delete(),
-          resultsPauseGeneration: fieldValue.delete(),
-          participantMode: fieldValue.delete(),
-          poolLength,
-          customPoolLength,
-          enabledDisciplines,
-          resultUrl: validatedEventUrl(body.resultUrl === undefined ? current.resultUrl : body.resultUrl),
-          timerAccess: accessLevel(body.timerAccess, accessLevel(current.timerAccess, DEFAULT_ACCESS.timerAccess)),
-          resultsAccess: accessLevel(body.resultsAccess, accessLevel(current.resultsAccess, DEFAULT_ACCESS.resultsAccess)),
-          participantViewAccess: accessLevel(body.participantViewAccess, accessLevel(current.participantViewAccess, DEFAULT_ACCESS.participantViewAccess)),
-          participantEditAccess: accessLevel(body.participantEditAccess, accessLevel(current.participantEditAccess, DEFAULT_ACCESS.participantEditAccess)),
-          resultEditAccess: accessLevel(body.resultEditAccess, accessLevel(current.resultEditAccess, DEFAULT_ACCESS.resultEditAccess)),
-          updatedAt: fieldValue.serverTimestamp(),
-        };
+        const update = eventUpdateData(snapshot.data() || {}, body);
+        checkSession();
         await snapshot.ref.update(update);
         return { ok: true };
       }
@@ -765,6 +812,16 @@
         requirePermission(event, "can_import_participants");
         const body = parseBody(options);
         const candidateId = cleanText(body.candidateId, "Person", 64);
+        const id = mutationId(body);
+        if (body.clientMutationId) {
+          const existing = await snapshot.ref.collection("participants").doc(id).get();
+          checkSession();
+          if (existing.exists) {
+            const participant = mapParticipant(existing);
+            updateParticipantCache(eventId, id, participant);
+            return { id, participant };
+          }
+        }
         const candidate = await directoryCollection.doc(candidateId).get();
         if (!candidate.exists) throw appError("Person wurde nicht gefunden.", 404);
         const data = candidate.data() || {};
@@ -773,7 +830,6 @@
         const gender = data.gender === "w" ? "female" : "male";
         const birthYear = Number(data.birthYear);
         await prepareParticipantIndex(snapshot, event, checkSession);
-        const id = crypto.randomUUID();
         const saved = await participantStore.commit(db, snapshot.ref, id, {
           name: data.name,
           birthYear: birthYear % 100,
@@ -791,8 +847,17 @@
       if (parts[2] === "participants" && parts.length === 3 && method === "POST") {
         requirePermission(event, "can_edit_participants");
         const body = parseBody(options);
+        const id = mutationId(body);
+        if (body.clientMutationId) {
+          const existing = await snapshot.ref.collection("participants").doc(id).get();
+          checkSession();
+          if (existing.exists) {
+            const participant = mapParticipant(existing);
+            updateParticipantCache(eventId, id, participant);
+            return { id, participant };
+          }
+        }
         await prepareParticipantIndex(snapshot, event, checkSession);
-        const id = crypto.randomUUID();
         const saved = await participantStore.commit(db, snapshot.ref, id, participantPayload(body), fieldValue, checkSession, true);
         checkSession();
         const participant = mapParticipant(saved);
@@ -889,6 +954,7 @@
           };
         }
         const payload = await resultWritePayload(body);
+        checkSession();
         await resultRef.set({
           ...payload,
           submissionKey: body.clientSubmissionId || null,
@@ -908,6 +974,7 @@
         const existing = await resultRef.get();
         if (!existing.exists) throw appError("Ergebnis nicht gefunden.", 404);
         const payload = await resultWritePayload(parseBody(options), existing.data() || {});
+        checkSession();
         await resultRef.update({ ...payload, createdPauseGeneration: fieldValue.delete(), updatedAt: fieldValue.serverTimestamp() });
         return { ok: true, totalCentiseconds: payload.totalCentiseconds, officialCentiseconds: payload.officialCentiseconds };
       }
@@ -917,6 +984,7 @@
         const resultRef = snapshot.ref.collection("results").doc(parts[3]);
         const existing = await resultRef.get();
         if (!existing.exists) throw appError("Ergebnis nicht gefunden.", 404);
+        checkSession();
         await resultRef.delete();
         return { ok: true };
       }
@@ -928,5 +996,7 @@
     }
   }
 
-  window.timerFirestoreApi = { request, getAuthContext, signOut, watchResults, clearParticipantCache };
+  window.timerFirestoreApi = { request, getAuthContext, signOut, watchResults, clearParticipantCache, previewEvent, previewEventUpdate,
+    validateParticipant: participantPayload,
+    getActiveAccountId: () => auth.currentUser?.uid || null };
 })();

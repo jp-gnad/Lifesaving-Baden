@@ -1,4 +1,3 @@
-const { getPendingResults, getPendingResult, putPendingResult, deletePendingResult } = window.TimerOfflineStore;
 const {
   escapeHtml, disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, formatCumulativeReviewTime
 } = window.TimerCore;
@@ -70,18 +69,45 @@ let toastTimer = null;
 let dialogScrollPosition = null;
 let dialogReleaseFrame = null;
 let dialogRestoreTimer = null;
-let offlineSyncPromise = null;
 let routeCleanup = null;
 let routeVersion = 0;
 let activeResultView = null;
 let eventListTab = "current";
 let currentTimerAuth = { user: null, authenticated: false, isOrganizer: false, isAdmin: false, role: "guest" };
+let metadataVersion = 0;
+
+const eventCache = window.TimerEventCache.create({
+  load: async (id) => (await api(`/events/${encodeURIComponent(id)}?participants=0`)).event,
+});
+const saveQueue = window.TimerSaveQueue.create({
+  store: window.TimerOfflineStore,
+  request: api,
+  getAccountId: async () => {
+    const context = await window.timerFirestoreApi.getAuthContext();
+    const id = window.timerFirestoreApi.getActiveAccountId();
+    if ((context.user?.uid || null) !== id) throw new Error("Die Anmeldung wird gerade aktualisiert. Bitte erneut versuchen.");
+    return id;
+  },
+  online: () => navigator.onLine,
+  newId: () => crypto.randomUUID(),
+  changed: updateOfflineSyncStatus,
+  failed: (record, error) => showToast(`Übertragung ausstehend: ${error.message}`),
+  completed: (record) => {
+    if (record.operation?.path === `/events/${encodeURIComponent(record.eventId)}`) {
+      if (record.operation.method === "PATCH") {
+        eventCache.refresh(record.eventId).catch(() => {});
+        saveQueue.sync({ includeBlocked: true }).catch(() => {});
+      }
+    }
+  },
+});
 
 const peopleView = window.TimerPeopleView.create({
-  app, api, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
+  app, api, saveInBackground, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
   getRouteVersion: () => routeVersion,
   setRouteCleanup: (cleanup) => { routeCleanup = cleanup; },
   refresh: () => renderRoute(),
+  validateParticipant: (values) => window.timerFirestoreApi.validateParticipant(values),
 });
 
 function icon(name) {
@@ -266,9 +292,18 @@ function showToast(message) {
 }
 
 async function api(path, options = {}) {
+  const requestVersion = metadataVersion;
   try {
     if (!window.timerFirestoreApi) throw new Error("Firebase wurde nicht geladen.");
-    return await window.timerFirestoreApi.request(path, options);
+    const response = await window.timerFirestoreApi.request(path, options);
+    if (requestVersion === metadataVersion && String(options.method || "GET").toUpperCase() === "GET") {
+      await applyPendingView(response);
+      if (requestVersion !== metadataVersion) throw Object.assign(new Error("Die Anmeldung hat sich geändert. Bitte erneut öffnen."), { status: 409 });
+      if (response.event && response.participants && !path.includes("participants=0")) response.event.participant_count = response.participants.length;
+      if (response.event) eventCache.remember(response.event);
+      response.events?.forEach((event) => eventCache.remember(event));
+    }
+    return response;
   } catch (cause) {
     if (cause?.status) throw cause;
     const error = new Error(cause?.message || "Keine Internetverbindung.");
@@ -279,91 +314,75 @@ async function api(path, options = {}) {
   }
 }
 
+async function applyPendingView(response) {
+  if (!response.event && !response.events) return;
+  const pending = await saveQueue.list().catch(() => []);
+  const projectEvent = (event) => {
+    for (const record of pending) {
+      if (record.eventId === event.id && record.operation?.path === `/events/${encodeURIComponent(event.id)}` && record.operation.method === "PATCH") {
+        event = window.timerFirestoreApi.previewEventUpdate(event, record.payload);
+      }
+    }
+    return event;
+  };
+  if (response.events) {
+    const events = new Map(response.events.map((event) => [event.id, event]));
+    for (const record of pending) {
+      if (record.operation?.path === "/events" && record.operation.method === "POST") events.set(record.eventId, window.timerFirestoreApi.previewEvent(record.eventId, record.payload));
+      if (record.operation?.path === `/events/${encodeURIComponent(record.eventId)}` && record.operation.method === "DELETE") events.delete(record.eventId);
+    }
+    response.events = [...events.values()].map(projectEvent);
+  }
+  if (!response.event) return;
+  response.event = projectEvent(response.event);
+  if (!response.participants) return;
+  const people = new Map(response.participants.map((person) => [person.id, person]));
+  const prefix = `/events/${encodeURIComponent(response.event.id)}/participants`;
+  for (const record of pending) {
+    const operation = record.operation;
+    if (!operation || record.eventId !== response.event.id || !operation.path.startsWith(prefix)) continue;
+    const imported = operation.path === `${prefix}/import` && operation.method === "POST";
+    const payload = imported ? record.payload.previewParticipant : record.payload;
+    const personId = operation.path === prefix || imported ? record.clientSubmissionId : decodeURIComponent(operation.path.slice(prefix.length + 1));
+    if (operation.method === "DELETE") people.delete(personId);
+    else if (payload?.name && payload.gender) people.set(personId, { ...people.get(personId), id: personId,
+      name: payload.name, birth_year: Number(payload.birthYear) % 100, age_group: payload.ageGroup,
+      gender: payload.gender, organization: payload.organization });
+  }
+  response.participants = [...people.values()];
+}
+
 async function updateOfflineSyncStatus() {
   if (!offlineSyncStatus || !offlineSyncText) return;
   try {
-    const pending = await getPendingResults();
+    const pending = await saveQueue.list();
     offlineSyncStatus.hidden = pending.length === 0;
     offlineSyncStatus.classList.toggle("has-error", pending.some((record) => record.blocked));
     if (!pending.length) return;
-    if (offlineSyncPromise) {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Ergebnis" : "Ergebnisse"} wird synchronisiert …`;
+    if (saveQueue.isSyncing()) {
+      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wird" : "Vorgänge werden"} synchronisiert …`;
     } else if (pending.some((record) => record.blocked)) {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Ergebnis wartet" : "Ergebnisse warten"} · Erneut versuchen`;
+      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wartet" : "Vorgänge warten"} · Erneut versuchen`;
     } else {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Ergebnis wartet" : "Ergebnisse warten"}`;
+      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wartet" : "Vorgänge warten"}`;
     }
   } catch {
     offlineSyncStatus.hidden = true;
   }
 }
 
-function isRetryableSyncError(error) {
-  return error?.isNetworkError || error?.status === 408 || error?.status === 423 || error?.status === 429 || Number(error?.status) >= 500;
-}
-
-async function uploadPendingResult(record) {
-  try {
-    await api(`/events/${record.eventId}/results`, {
-      method: "POST",
-      body: JSON.stringify(record.payload),
-    });
-    await deletePendingResult(record.clientSubmissionId);
-    return { success: true, retryable: false };
-  } catch (error) {
-    const retryable = isRetryableSyncError(error);
-    await putPendingResult({
-      ...record,
-      attempts: (record.attempts || 0) + 1,
-      lastAttemptAt: new Date().toISOString(),
-      lastError: error.message,
-      blocked: !retryable,
-    });
-    return { success: false, retryable };
-  }
-}
-
-async function syncPendingResults({ includeBlocked = false, notify = false } = {}) {
-  if (offlineSyncPromise) return offlineSyncPromise;
-  offlineSyncPromise = (async () => {
-    const pending = (await getPendingResults())
-      .filter((record) => includeBlocked || !record.blocked)
-      .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)));
-    await updateOfflineSyncStatus();
-    let synced = 0;
-    for (const record of pending) {
-      if (!navigator.onLine) break;
-      const outcome = await uploadPendingResult(record);
-      if (outcome.success) synced += 1;
-      else if (outcome.retryable) break;
-    }
-    if (notify && synced) showToast(`${synced} ${synced === 1 ? "Ergebnis wurde" : "Ergebnisse wurden"} synchronisiert.`);
-    return synced;
-  })();
-  try {
-    return await offlineSyncPromise;
-  } finally {
-    offlineSyncPromise = null;
-    await updateOfflineSyncStatus();
-  }
+async function syncPendingResults(options = {}) {
+  const synced = await saveQueue.sync(options);
+  if (options.notify && synced) showToast(`${synced} ${synced === 1 ? "Vorgang wurde" : "Vorgänge wurden"} synchronisiert.`);
+  return synced;
 }
 
 async function saveResultOfflineFirst(eventId, payload) {
-  const clientSubmissionId = crypto.randomUUID();
-  const record = {
-    clientSubmissionId,
-    eventId,
-    payload: { ...payload, clientSubmissionId },
-    createdAt: new Date().toISOString(),
-    attempts: 0,
-    blocked: false,
-  };
-  await putPendingResult(record);
-  await updateOfflineSyncStatus();
-  if (!navigator.onLine) return false;
-  await syncPendingResults();
-  if (await getPendingResult(clientSubmissionId)) await syncPendingResults();
-  return !(await getPendingResult(clientSubmissionId));
+  return saveQueue.enqueue(eventId, payload);
+}
+
+async function saveInBackground(eventId, path, method, payload = {}) {
+  return saveQueue.enqueue(eventId, payload, { path, method });
 }
 
 function route() {
@@ -656,11 +675,19 @@ async function renderHome() {
       submit.disabled = true;
       error.textContent = "";
       const values = Object.fromEntries(new FormData(event.currentTarget));
-      const created = await api("/events", { method: "POST", body: JSON.stringify(values) });
+      // Validate locally with the same defaults as the adapter, then persist
+      // the command before leaving the form. The ID survives every retry.
+      window.timerFirestoreApi.previewEvent("draft", values);
+      const created = await saveInBackground(null, "/events", "POST", values);
+      if (version !== routeVersion) return;
+      created.id = created.clientSubmissionId;
+      eventCache.remember(window.timerFirestoreApi.previewEvent(created.id, values));
       dialog.close();
+      showToast("Event lokal vorgemerkt. Übertragung läuft im Hintergrund.");
       history.pushState(null, "", `#/event/${created.id}`);
       location.hash = `#/settings/${created.id}`;
     } catch (err) {
+      if (version !== routeVersion) return;
       error.textContent = err.message;
       submit.disabled = false;
     }
@@ -668,11 +695,13 @@ async function renderHome() {
 }
 
 async function renderEvent(id) {
-  const { event, participants } = await api(`/events/${id}`);
+  const version = routeVersion;
+  const event = await eventCache.read(id);
+  if (version !== routeVersion) return;
   setDocumentTitle(event.name);
   app.innerHTML = `
     <div class="page-head event-page-head"><div><div class="event-title-row">${eventIconMarkup(event, "event-title-icon")}<h1>${escapeHtml(event.name)}</h1><button class="button secondary icon-button" id="copy-event-link" type="button" aria-label="Event-Link kopieren" title="Event-Link kopieren">${icon("link")}</button>${eventCan(event, "can_manage_event") ? `<a class="button secondary icon-button" href="#/settings/${id}" aria-label="Event-Einstellungen" title="Event-Einstellungen">${icon("settings")}</a>` : ""}</div>
-      <p class="event-summary">${escapeHtml(dateText(event.event_date))} · ${event.location ? escapeHtml(event.location) : "Kein Ort"} · ${eventCan(event, "can_view_participants") || eventCan(event, "can_use_timer") ? `${participants.length} Personen` : "Personen geschützt"}</p></div>
+      <p class="event-summary">${escapeHtml(dateText(event.event_date))} · ${event.location ? escapeHtml(event.location) : "Kein Ort"} · ${eventCan(event, "can_view_participants") || eventCan(event, "can_use_timer") ? `${Number.isInteger(event.participant_count) ? `${event.participant_count} ` : ""}Personen` : "Personen geschützt"}</p></div>
     </div>
     <div class="event-action-grid ${!eventCan(event, "can_view_participants") ? "people-hidden" : ""}">
       ${eventCan(event, "can_use_timer")
@@ -694,7 +723,9 @@ async function renderEvent(id) {
 }
 
 async function renderEventSettings(id, section = null) {
-  const { event } = await api(`/events/${id}`);
+  const version = routeVersion;
+  const event = await eventCache.read(id);
+  if (version !== routeVersion) return;
   if (!eventCan(event, "can_manage_event")) throw new Error("Diese Einstellungen sind nur für Organisatoren verfügbar.");
   const validSections = new Set(["event", "timer", "results", "access"]);
   const activeSection = validSections.has(section) ? section : null;
@@ -796,26 +827,35 @@ async function renderEventSettings(id, section = null) {
     try {
       submitButton.disabled = true;
       error.textContent = "";
-      await api(`/events/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
-      syncPendingResults({ includeBlocked: true }).catch(() => {});
+      const preview = window.timerFirestoreApi.previewEventUpdate(event, payload);
+      await saveInBackground(id, `/events/${encodeURIComponent(id)}`, "PATCH", payload);
+      if (version !== routeVersion) return;
+      eventCache.remember(preview);
+      showToast("Änderungen lokal gesichert. Übertragung läuft im Hintergrund.");
       if (activeSection && history.length > 2) history.go(-2);
       else if (activeSection) location.hash = `#/event/${id}`;
       else if (history.length > 1) history.back();
       else location.hash = `#/event/${id}`;
     } catch (err) {
+      if (version !== routeVersion) return;
       error.textContent = err.message;
       submitButton.disabled = false;
     }
   });
   document.querySelector("#delete-event-settings")?.addEventListener("click", async (deleteEvent) => {
+    const button = deleteEvent.currentTarget;
     if (!confirm(`Event „${event.name}“ mit allen Personen und Ergebnissen unwiderruflich löschen?`)) return;
     try {
-      deleteEvent.currentTarget.disabled = true;
-      await api(`/events/${id}`, { method: "DELETE" });
+      button.disabled = true;
+      await saveInBackground(id, `/events/${encodeURIComponent(id)}`, "DELETE");
+      if (version !== routeVersion) return;
+      eventCache.forget(id);
+      showToast("Event-Löschung vorgemerkt. Übertragung läuft im Hintergrund.");
       location.hash = "#/";
     } catch (err) {
+      if (version !== routeVersion) return;
       document.querySelector("#event-settings-error").textContent = err.message;
-      deleteEvent.currentTarget.disabled = false;
+      button.disabled = false;
     }
   });
 }
@@ -825,10 +865,12 @@ async function renderPeople(id, viewData = null) {
 }
 
 async function renderTimer(id) {
-  const [{ event, participants }, authContext] = await Promise.all([
-    api(`/events/${id}`),
+  const version = routeVersion;
+  const [event, authContext] = await Promise.all([
+    eventCache.read(id),
     window.timerFirestoreApi.getAuthContext(),
   ]);
+  if (version !== routeVersion) return;
   currentTimerAuth = authContext;
   if (!eventCan(event, "can_use_timer")) {
     setDocumentTitle(`Kein Timer-Zugriff – ${event.name}`);
@@ -836,7 +878,31 @@ async function renderTimer(id) {
     setTimerInteractionLock(true);
     return;
   }
-  participants.sort(compareParticipantsByOrganization);
+  const participants = [];
+  const localParticipantDrafts = new Map();
+  let participantsReady = false;
+  let participantsLoading = null;
+  let participantLoadError = "";
+  let refreshReviewParticipants = null;
+  function loadTimerParticipants() {
+    if (participantsLoading) return participantsLoading;
+    participantLoadError = "";
+    participantsLoading = api(`/events/${encodeURIComponent(id)}`).then((data) => {
+      if (version !== routeVersion) return;
+      participants.splice(0, participants.length, ...data.participants);
+      for (const person of localParticipantDrafts.values()) {
+        if (!participants.some((candidate) => candidate.id === person.id)) participants.push(person);
+      }
+      participants.sort(compareParticipantsByOrganization);
+      participantsReady = true;
+    }).catch((error) => {
+      if (version === routeVersion) participantLoadError = error.message;
+    }).finally(() => {
+      participantsLoading = null;
+      if (version === routeVersion) refreshReviewParticipants?.();
+    });
+    return participantsLoading;
+  }
   const enabledDisciplineIds = enabledDisciplinesForEvent(event);
   const initialDiscipline = enabledDisciplineIds[0] || "normal";
   setDocumentTitle(`Timer – ${event.name}`);
@@ -1066,6 +1132,7 @@ async function renderTimer(id) {
   }
 
   function resetTimer() {
+    refreshReviewParticipants = null;
     cancelAnimationFrame(animationFrame);
     Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "" });
     resetFrequencyCapture();
@@ -1138,6 +1205,7 @@ async function renderTimer(id) {
       ${item.team ? `${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neue Person</button>` : `<div class="review-assignment-row">${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neu</button></div>`}
       <label class="field review-note-field" for="result-note"><span>Notiz <small>optional</small></span><textarea id="result-note" maxlength="300" rows="2" placeholder="Kurzes Feedback">${escapeHtml(timer.note)}</textarea></label>
       <p class="form-error" id="save-error" role="alert"></p>
+      <p class="muted small" id="review-participant-status" role="status"></p><button class="button secondary small" id="retry-review-participants" type="button" hidden>Personen erneut laden</button>
       <div class="form-actions save-actions"><button class="button" id="save-result" ${participants.length >= (item.team ? 4 : 1) ? "" : "disabled"}>${icon("save")} Ergebnis speichern</button></div></section>
       <section class="review-editor" id="review-editor" hidden>
         <div class="review-tools"><div class="time-mode-toggle" role="group" aria-label="Zeitdarstellung"><button type="button" class="active" data-time-mode="segment" aria-pressed="true">Sekunden</button><button type="button" data-time-mode="cumulative" aria-pressed="false">Kumuliert</button></div><div class="review-mode-actions"><button class="button secondary small glue-mode-toggle" id="glue-mode" type="button" aria-pressed="false">${icon("link")} Link</button><button class="button secondary small" id="finish-edit" type="button">${icon("check")} Fertig</button></div></div>
@@ -1186,11 +1254,31 @@ async function renderTimer(id) {
     const reviewSummary = review.querySelector("#review-summary");
     const reviewEditor = review.querySelector("#review-editor");
     const reviewTitle = review.querySelector("#review-title");
+    let savingResult = false;
     let activeParticipantSelect = null;
     let participantGenderFilter = "";
     let preferredParticipantGenderFilter = "";
     let preferredParticipantAgeFilter = "";
     let requiredParticipantGenderFilter = "";
+    refreshReviewParticipants = () => {
+      const status = review.querySelector("#review-participant-status");
+      status.textContent = participantsReady ? "" : (participantLoadError || "Personen werden im Hintergrund geladen …");
+      status.hidden = participantsReady;
+      review.querySelector("#retry-review-participants").hidden = participantsReady || !participantLoadError;
+      participantSelects.forEach((select) => {
+        const selected = select.value;
+        select.innerHTML = `<option value="">Auswählen …</option>${optionMarkup()}`;
+        select.value = selected;
+        updateParticipantTrigger(select);
+      });
+      saveResult.disabled = savingResult || participants.length < (item.team ? 4 : 1);
+      renderParticipantAgeFilter();
+      renderParticipantPicker();
+    };
+    review.querySelector("#retry-review-participants").addEventListener("click", () => {
+      loadTimerParticipants();
+      refreshReviewParticipants();
+    });
 
     function participantName(person) {
       return `${person.name} (${birthYearText(person.birth_year)})`;
@@ -1470,8 +1558,11 @@ async function renderTimer(id) {
         submitButton.disabled = true;
         review.querySelector("#review-person-error").textContent = "";
         const values = Object.fromEntries(new FormData(personForm));
-        const created = await api(`/events/${id}/participants`, { method: "POST", body: JSON.stringify(values) });
-        const person = { id: created.id, name: values.name, birth_year: Number(values.birthYear), age_group: values.ageGroup, gender: values.gender, organization: values.organization };
+        window.timerFirestoreApi.validateParticipant(values);
+        const created = await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants`, "POST", values);
+        if (version !== routeVersion) return;
+        const person = { id: created.clientSubmissionId, name: values.name, birth_year: Number(values.birthYear), age_group: values.ageGroup, gender: values.gender, organization: values.organization };
+        localParticipantDrafts.set(person.id, person);
         participants.push(person);
         participants.sort(compareParticipantsByOrganization);
         participantSelects.forEach((select) => {
@@ -1485,8 +1576,9 @@ async function renderTimer(id) {
         updateParticipantTrigger(emptySelect);
         saveResult.disabled = participants.length < (item.team ? 4 : 1);
         personDialog.close();
-        showToast("Person wurde hinzugefügt und ausgewählt.");
+        showToast("Person lokal vorgemerkt und ausgewählt. Übertragung läuft im Hintergrund.");
       } catch (err) {
+        if (version !== routeVersion) return;
         review.querySelector("#review-person-error").textContent = err.message;
         submitButton.disabled = false;
       }
@@ -1518,6 +1610,8 @@ async function renderTimer(id) {
     });
     review.querySelector("#discard-review").addEventListener("click", resetTimer);
     saveResult.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      if (savingResult) return;
       const corrections = readCorrections(true);
       const participantIds = participantSelects.map((select) => select.value);
       const missingAssignment = participantIds.some((participantId) => !participantId);
@@ -1530,17 +1624,22 @@ async function renderTimer(id) {
         return;
       }
       try {
-        event.currentTarget.disabled = true;
+        savingResult = true;
+        button.disabled = true;
         const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-        const synced = await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
+        await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
+        if (version !== routeVersion || authContext.user?.uid !== currentTimerAuth.user?.uid) return;
         resetTimer();
-        showToast(synced ? "Ergebnis gespeichert und synchronisiert." : "Ergebnis lokal gespeichert. Synchronisierung läuft.");
+        showToast("Ergebnis lokal gespeichert. Synchronisierung läuft im Hintergrund.");
       } catch (err) {
+        if (version !== routeVersion) return;
+        savingResult = false;
         review.querySelector("#save-error").textContent = `Ergebnis konnte nicht sicher auf diesem Gerät gespeichert werden: ${err.message}`;
-        event.currentTarget.disabled = false;
+        button.disabled = false;
       }
     });
     window.scrollTo(0, 0);
+    refreshReviewParticipants();
   }
 
   bindDialogClose(elements["discipline-dialog"]);
@@ -1635,6 +1734,7 @@ async function renderTimer(id) {
   updateMode();
   updateControls();
   setTimerInteractionLock(true);
+  loadTimerParticipants();
 }
 
 async function renderViewer(id, initialDiscipline = null, initialGender = null, options = {}) {
@@ -2091,12 +2191,12 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       submitButton.disabled = true;
       resultEditError.textContent = "";
       const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-      await api(`/events/${id}/results/${encodeURIComponent(editingResult.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ ...assignment, segments, frequencies, lapGroups, officialTime, note }),
-      });
+      await saveInBackground(id, `/events/${encodeURIComponent(id)}/results/${encodeURIComponent(editingResult.id)}`, "PATCH",
+        { ...assignment, segments, frequencies, lapGroups, officialTime, note });
+      if (!isCurrent()) return;
       resultEditDialog.close();
       editingResult = null;
+      showToast("Änderung lokal gesichert. Übertragung läuft im Hintergrund.");
       // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
@@ -2108,9 +2208,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     if (!editingResult || !confirm("Dieses Ergebnis unwiderruflich löschen?")) return;
     try {
       deleteResultButton.disabled = true;
-      await api(`/events/${id}/results/${encodeURIComponent(editingResult.id)}`, { method: "DELETE" });
+      await saveInBackground(id, `/events/${encodeURIComponent(id)}/results/${encodeURIComponent(editingResult.id)}`, "DELETE");
+      if (!isCurrent()) return;
       resultEditDialog.close();
       editingResult = null;
+      showToast("Löschen vorgemerkt. Übertragung läuft im Hintergrund.");
       // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
@@ -2392,6 +2494,8 @@ timerAccountLogout?.addEventListener("click", async () => {
   }
 });
 window.addEventListener("timer-auth-change", (event) => {
+  if (event.detail?.participantsInvalidated) { metadataVersion += 1; eventCache.clear(); }
+  syncPendingResults({ includeBlocked: event.detail?.participantsInvalidated === true }).catch(() => {});
   refreshTimerAccount().catch(() => {});
   if (event.detail?.participantsInvalidated && (activeResultView || document.querySelector("#person-form"))) renderRoute();
 });
@@ -2401,10 +2505,11 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncPendingResults({ includeBlocked: true }).catch(() => {});
 });
 offlineSyncStatus?.addEventListener("click", async () => {
+  showToast(saveQueue.isSyncing() ? "Übertragung läuft im Hintergrund." : "Synchronisierung wird im Hintergrund versucht.");
   try {
     const synced = await syncPendingResults({ includeBlocked: true, notify: true });
     if (synced) return;
-    const pending = await getPendingResults();
+    const pending = await saveQueue.list();
     const error = pending.find((record) => record.lastError)?.lastError;
     showToast(error ? `Synchronisierung fehlgeschlagen: ${error}` : "Synchronisierung ist weiterhin ausstehend.");
   } catch (error) {

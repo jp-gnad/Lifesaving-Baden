@@ -74,6 +74,15 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
   Versuch behalten. Auf Serverseite dieselbe Submission-ID wiederverwenden.
 - Firestore-Offlinespeicher und Service-Worker-Dateicache separat betrachten.
 - Neue Skriptversionen müssen sowohl im HTML als auch im Precache stehen.
+- Neue Einträge dürfen zusätzlich `operation` (Pfad/Methode) und `accountId`
+  tragen. Ohne `operation` bleibt ein Altbestand ein Ergebnis-POST mit seiner
+  ursprünglichen Submission-ID. Neue Einträge werden ausschließlich für ihr
+  Ursprungskonto übertragen. `clientMutationId` hält Event-/Personenneuanlagen
+  bei erneutem Senden eindeutig; Reservierungen bleiben transaktional.
+- Ansichtswechsel dürfen Hintergrundschreibvorgänge nicht abbrechen. Dafür
+  prüft der Adapter bei `background: true` die Kontositzung einschließlich Rollen
+  getrennt vom Lebenszyklus des Teilnehmercaches. Cachewerte autorisieren keine
+  Schreibvorgänge.
 
 ## Kontingent und Veröffentlichung
 
