@@ -108,7 +108,7 @@ test("PDF loads every page and sorts the complete selected group; failure produc
   await h.node("#create-results-pdf").handlers.click({ currentTarget: h.node("#create-results-pdf") });
   assert.equal(h.pdfs.length, 1);
   assert.equal(h.pdfs[0][3].length, 123);
-  assert.match(h.pdfs[0][3][0][0], /Person 122/);
+  assert.match(h.pdfs[0][3][0][0].main, /Person 122/);
   assert.equal(h.requests.filter((request) => request.url.includes("/results")).length, 3);
   assert.equal(h.feeds.length, 1);
   const original = h.context.api;
@@ -169,7 +169,26 @@ test("custom result names and round counts distinguish results and the explicit 
   assert.ok(!h.node("#results").innerHTML.includes("WrongCountPerson"));
   await h.node("#create-results-pdf").handlers.click({ currentTarget: {} });
   assert.equal(h.pdfs[0][3].length, 1);
-  assert.match(h.pdfs[0][3][0][0], /100m Brust \(4 Runden\)/);
+  assert.match(h.pdfs[0][3][0][0].main, /100m Brust \(4 Runden\)/);
+});
+
+test("each individual or team result shows its own escaped timekeeper source, also in the existing PDF name cell", async () => {
+  const h = fixture(); await h.context.renderViewer("e", "normal", "male");
+  const results = [row("known", { timekeeper_initials: "JPG" }), row("legacy"), row("escaped", { timekeeper_initials: "<img>" })];
+  h.rows(results); h.receive(results);
+  const html = h.node("#results").innerHTML;
+  assert.equal((html.match(/class="result-timekeeper"/g) || []).length, 3);
+  assert.match(html, /Zeitnahme: JPG/); assert.match(html, /Zeitnahme: Unbekannt/);
+  assert.match(html, /Zeitnahme: &lt;img&gt;/);
+  await h.node("#create-results-pdf").handlers.click({ currentTarget: {} });
+  const [,, headers, rows] = h.pdfs[0];
+  assert.ok(!headers.includes("Zeitnahme"));
+  assert.equal(rows[0][0].secondary, "Zeitnahme: JPG");
+  assert.equal(rows[1][0].secondary, "Zeitnahme: Unbekannt");
+  h.event.enabled_disciplines_json = '["manikinRelay4x25"]';
+  await h.context.renderViewer("e", "manikinRelay4x25", "male");
+  h.receive([row("team", { discipline: "manikinRelay4x25", timekeeper_initials: "JvA", team_members: [{ position: 1, name: "Person", birth_year: 5 }] })]);
+  assert.match(h.node("#results").innerHTML, /Zeitnahme: JvA/);
 });
 
 test("editing loads participants lazily and deleting a result relies on the existing live page", async () => {

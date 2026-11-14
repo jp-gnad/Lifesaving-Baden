@@ -4,6 +4,26 @@ const core = require("../timer/core.js");
 const { create: offlineStore } = require("../timer/offline-store.js");
 const { create: pdfExport } = require("../timer/results-pdf.js");
 
+test("timekeeper snapshots use account initials with hyphens and lowercase particles, without exposing a guest name", () => {
+  for (const [accountName, initials] of [["Jan-Philipp Gnad", "JPG"], ["Julian von Auenmüller", "JvA"], ["Johanna Gnad", "JG"]]) {
+    assert.deepEqual(core.timekeeperSnapshot({ user: { uid: "u" }, accountName }), { uid: "u", initials });
+  }
+  assert.deepEqual(core.timekeeperSnapshot({ accountName: "Johanna Gnad" }), { uid: "", initials: "Unbekannt" });
+  assert.equal(core.timekeeperSnapshot({ user: { uid: "u", displayName: "Johanna Gnad" } }).initials, "JG");
+  assert.equal(core.timekeeperSnapshot({ user: { uid: "u" } }).initials, "Unbekannt");
+  assert.equal(core.resultTimekeeperLabel({}), "Unbekannt");
+});
+
+test("PDF renders a small muted timekeeper source inside each name cell", async () => {
+  const pdf = pdfExport({ eventIconUrls: () => [] });
+  const text = await pdf.createResultsPdf("Event", "Disziplin", ["Name", "Zeit"], [
+    [{ main: "Person", secondary: "Zeitnahme: JPG" }, "1:23,45"],
+    [{ main: "Gast", secondary: "Zeitnahme: Unbekannt" }, "1:24,45"],
+  ]).text();
+  assert.match(text, /0\.48 g\nBT \/F1 5\.5 Tf [^\n]+\(Zeitnahme: JPG\) Tj ET/);
+  assert.match(text, /\(Zeitnahme: Unbekannt\) Tj ET/);
+});
+
 test("timer time parsing keeps compact mobile input, strict seconds and centisecond precision", () => {
   for (const [input, expected] of [["1:23,45", 8345], ["123.45", 8345], ["59,99", 5999], ["0:00,01", 1]]) {
     assert.equal(core.parseTime(input), expected);

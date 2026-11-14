@@ -346,3 +346,23 @@ test("parallel named results share one definition and a replay never creates a d
   assert.equal([...h.data.keys()].filter((path) => path.includes("/results/")).length, 2);
   assert.equal(h.reads.get("timerEvents/e/results"), undefined, "saving and resolving names never scans the results collection");
 });
+
+test("timekeeper snapshots persist through replay, custom names and edits, while guests and legacy submissions stay unknown", async () => {
+  const h = await adapter({ "timerEvents/e": event({ timerAccess: "everyone", resultsAccess: "everyone", resultEditAccess: "everyone" }), "timerEvents/e/participants/p": person("Person") });
+  const body = { discipline: "normal", participantId: "p", segments: [100], clientSubmissionId: "timekeeper-one", timekeeper: { uid: "organizer", initials: "JPG" } };
+  await h.api.request("/events/e/results", { method: "POST", body });
+  await h.api.request("/events/e/results", { method: "POST", body: { ...body, timekeeper: { uid: "organizer", initials: "JG" } } });
+  assert.equal(h.data.get("timerEvents/e/results/timekeeper-one").timekeeper.initials, "JPG");
+  await h.api.request("/events/e/results/timekeeper-one", { method: "PATCH", body: { note: "Korrektur", segments: [120], customDisciplineName: "Test", customLapCount: 1 } });
+  assert.equal(h.data.get("timerEvents/e/results/timekeeper-one").timekeeper.initials, "JPG");
+  const mapped = await h.api.request("/events/e/results");
+  assert.equal(mapped.results[0].timekeeper_initials, "JPG");
+  await assert.rejects(h.api.request("/events/e/results/timekeeper-one", { method: "PATCH", body: { timekeeper: { uid: "organizer", initials: "JG" } } }), /nicht geändert/);
+  await assert.rejects(h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: "forged-source", timekeeper: { uid: "someone-else", initials: "JG" } } }), /Ungültige Quelle/);
+  await h.api.signOut(); await h.api.getAuthContext();
+  await h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: "guest-source", timekeeper: { uid: "", initials: "Unbekannt" } } });
+  assert.equal(h.data.get("timerEvents/e/results/guest-source").timekeeper.initials, "Unbekannt");
+  await assert.rejects(h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: "forged-guest", timekeeper: { uid: "", initials: "JG" } } }), /Ohne Anmeldung/);
+  await h.api.request("/events/e/results", { method: "POST", body: { ...body, clientSubmissionId: "legacy-source", timekeeper: undefined } });
+  assert.equal(h.data.get("timerEvents/e/results/legacy-source").timekeeper, undefined);
+});

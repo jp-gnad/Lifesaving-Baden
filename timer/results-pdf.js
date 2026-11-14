@@ -76,7 +76,8 @@
       const approximateTextWidth = (value, size = fontSize) => pdfSafeText(value).length * size * .52;
       const longestPersonWidth = Math.max(
         approximateTextWidth(cellMain(headers[0])),
-        ...rows.map((row) => approximateTextWidth(cellMain(row[0]))),
+        ...rows.map((row) => Math.max(approximateTextWidth(cellMain(row[0])),
+          approximateTextWidth(row[0]?.secondary || "", Math.max(5, fontSize - 1.5)))),
       ) + 8;
       const otherColumnCount = Math.max(1, headers.length - 1);
       const personWidth = Math.min(longestPersonWidth, usableWidth - (otherColumnCount * 22));

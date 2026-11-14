@@ -106,6 +106,13 @@ das zugehörige Einzelergebnis werden atomar geschrieben. Die Auswahl liest nur
 passende Namen in Seiten von höchstens 50 Dokumenten; normale Saves scannen keine
 Ergebnisse. Ergebnislisten/PDFs zeigen den Namen und bieten einen Namensfilter.
 
+Beim Stoppen hält die Stoppuhr die Quelle als `timekeeper: { uid, initials }`
+fest. Das Kürzel kommt aus dem bereits geladenen Accountnamen, ohne zusätzliche
+Profilabfrage. Die Offline-Warteschlange bewahrt diesen Snapshot; spätere
+Ergebniskorrekturen ändern ihn nicht. Ergebnislisten und PDFs zeigen eine kleine
+Zeile „Zeitnahme: Kürzel“, im PDF innerhalb der bestehenden Namenszelle.
+Gäste und Altbestände ohne Quelle erscheinen als „Unbekannt“.
+
 Normales Speichern und erfolgreiche Hintergrundübertragungen zeigen keine
 automatischen Erfolgsmeldungen. Der Status unten erscheint nur bei noch nicht
 übertragenen Offline-Änderungen oder Übertragungsfehlern. Fehler und ausdrücklich

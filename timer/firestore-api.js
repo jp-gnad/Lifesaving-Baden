@@ -408,6 +408,7 @@
     return {
       id: snapshot.id,
       discipline: data.discipline,
+      timekeeper_initials: data.timekeeper?.initials || "Unbekannt",
       custom_discipline_id: data.customDisciplineId || "",
       custom_discipline_name: data.customDisciplineName || "",
       custom_lap_count: data.customLapCount || 0,
@@ -937,6 +938,19 @@
       }
 
       async function resultWritePayload(body, existingData = null) {
+        let source = {};
+        if (body.timekeeper !== undefined) {
+          if (existingData) throw appError("Die ursprüngliche Zeitnahme kann nicht geändert werden.");
+          const value = body.timekeeper;
+          const uid = authContext.user?.uid || "";
+          if (!value || typeof value !== "object" || Array.isArray(value)
+            || Object.keys(value).some((key) => !["uid", "initials"].includes(key)) || value.uid !== uid) {
+            throw appError("Ungültige Quelle der Zeitnahme.");
+          }
+          const initials = cleanText(value.initials, "Zeitnahme-Kürzel", 40);
+          if (!uid && initials !== "Unbekannt") throw appError("Ohne Anmeldung ist die Zeitnahme unbekannt.");
+          source = { timekeeper: { uid, initials } };
+        }
         const disciplineId = existingData?.discipline || body.discipline;
         if (!(disciplineId in DISCIPLINES)) throw appError("Ungültige Disziplin.");
         const discipline = existingData
@@ -984,6 +998,7 @@
           teamMembers: discipline.team ? participants.map(participantSnapshot) : [],
           ...timing,
           ...custom,
+          ...source,
           note: cleanText(body.note === undefined ? existingData?.note || "" : body.note, "Notiz", 300, false),
         };
       }

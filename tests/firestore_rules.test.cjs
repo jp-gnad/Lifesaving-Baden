@@ -81,10 +81,31 @@ test("named custom disciplines are linked atomically within one event and requir
   const athlete = dbFor("custom-athlete");
   const athleteResult = sdk.doc(athlete, "timerEvents/custom-other/results/athlete");
   const athleteBatch = sdk.writeBatch(athlete);
-  athleteBatch.set(athleteResult, named());
+  athleteBatch.set(athleteResult, { ...named(), timekeeper: { uid: "custom-athlete", initials: "JvA" } });
   athleteBatch.set(sdk.doc(athlete, `timerEvents/custom-other/customDisciplines/${definitionId}`), definition("athlete"));
   await assertSucceeds(athleteBatch.commit());
   await assertSucceeds(sdk.updateDoc(athleteResult, { note: "Angemeldeter Sportler", updatedAt: sdk.serverTimestamp() }));
+});
+
+test("timekeeper attribution belongs to the creating account, allows unknown guests and cannot be rewritten by editors", { skip: !enabled }, async () => {
+  await seed({ "timerEvents/timekeepers": event("everyone"), "users/timekeeper": { role: "athlete" }, "users/timekeeper-admin": { role: "admin" } });
+  const db = dbFor("timekeeper");
+  const ref = sdk.doc(db, "timerEvents/timekeepers/results/known");
+  const source = { uid: "timekeeper", initials: "JPG" };
+  await assertSucceeds(sdk.setDoc(ref, { ...result(), timekeeper: source }));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/timekeepers/results/forged"), { ...result(), timekeeper: { uid: "other", initials: "JG" } }));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/timekeepers/results/extra"), { ...result(), timekeeper: { ...source, email: "private@example.test" } }));
+  await assertFails(sdk.setDoc(sdk.doc(db, "timerEvents/timekeepers/results/long"), { ...result(), timekeeper: { ...source, initials: "X".repeat(41) } }));
+  const adminRef = sdk.doc(dbFor("timekeeper-admin"), "timerEvents/timekeepers/results/known");
+  await assertSucceeds(sdk.updateDoc(adminRef, { note: "Korrigiert", updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.updateDoc(adminRef, { timekeeper: { ...source, initials: "JG" }, updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.updateDoc(adminRef, { timekeeper: sdk.deleteField(), updatedAt: sdk.serverTimestamp() }));
+  const guest = dbFor(null);
+  await assertSucceeds(sdk.setDoc(sdk.doc(guest, "timerEvents/timekeepers/results/guest"), { ...result(), timekeeper: { uid: "", initials: "Unbekannt" } }));
+  await assertFails(sdk.setDoc(sdk.doc(guest, "timerEvents/timekeepers/results/forged-guest"), { ...result(), timekeeper: { uid: "", initials: "JG" } }));
+  const legacy = sdk.doc(db, "timerEvents/timekeepers/results/legacy");
+  await assertSucceeds(sdk.setDoc(legacy, result()));
+  await assertFails(sdk.updateDoc(legacy, { timekeeper: source, updatedAt: sdk.serverTimestamp() }));
 });
 
 test("100 m obstacle enforces course-specific complete lap groups without changing write permissions", { skip: !enabled }, async () => {

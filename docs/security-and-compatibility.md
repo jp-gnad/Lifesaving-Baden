@@ -86,6 +86,15 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
 
 ## Kontingent und Veröffentlichung
 
+Die optionale Ergebnisquelle `timekeeper` enthält nur die Account-ID und das
+Namenskürzel zum Zeitpunkt des Stoppens. Bei Neuanlagen muss die ID zum aktuellen
+Account gehören; Gäste verwenden eine leere ID und „Unbekannt“. Bearbeitungen
+dürfen den Snapshot weder ersetzen noch entfernen oder bei Altbeständen ergänzen.
+Die Anzeige nutzt nur das gespeicherte Kürzel, keine erneuten Accountabfragen.
+Alte Ergebnisse und vorgemerkte Übertragungen ohne Quelle bleiben gültig und
+werden als „Unbekannt“ angezeigt. Für die Quelle zuerst die kompatiblen Regeln,
+danach die Timer-Dateien veröffentlichen.
+
 Benannte benutzerdefinierte Ergebnisse tragen optional `customDisciplineId`,
 `customDisciplineName` und `customLapCount`. Alte Ergebnisse ohne diese Felder
 bleiben gültig. Die Regeln gleichen Namen und Rundenzahl mit einem Katalogeintrag

@@ -547,6 +547,7 @@ service cloud.firestore {
           "customDisciplineId",
           "customDisciplineName",
           "customLapCount",
+          "timekeeper",
           "createdAt",
           "updatedAt"
         ])
@@ -645,11 +646,22 @@ service cloud.firestore {
     function validResultCreate(eventId) {
       let data = request.resource.data;
       return validResultData(data)
+        && validTimekeeperCreate(data)
         && validCustomResult(eventId, data)
         && (data.discipline != "obstacle100"
           || (validObstacle100Groups(data.lapGroups) && obstacle100CoveredLaps(data.lapGroups) == obstacle100EventLaps(eventId)))
         && data.createdAt == request.time
         && data.updatedAt == request.time;
+    }
+
+    function validTimekeeperCreate(data) {
+      return !("timekeeper" in data) || (data.timekeeper is map
+        && data.timekeeper.keys().hasAll(["uid", "initials"])
+        && data.timekeeper.keys().hasOnly(["uid", "initials"])
+        && data.timekeeper.uid == (signedIn() ? request.auth.uid : "")
+        && data.timekeeper.initials is string
+        && data.timekeeper.initials.trim().size() > 0 && data.timekeeper.initials.size() <= 40
+        && (signedIn() || data.timekeeper.initials == "Unbekannt"));
     }
 
     function validResultUpdate(eventId) {

@@ -155,6 +155,20 @@
     return String(value).normalize("NFKC").trim().replace(/\s+/g, " ");
   }
 
+  function timekeeperSnapshot(context = {}) {
+    const uid = context.user?.uid || "";
+    const name = uid ? context.accountName || context.user.displayName || "" : "";
+    const initials = String(name).trim().split(/[\s\p{Pd}]+/u).filter(Boolean).map((part) => {
+      const letter = part.match(/\p{L}/u)?.[0] || "";
+      return part === part.toLocaleLowerCase("de-DE") ? letter.toLocaleLowerCase("de-DE") : letter.toLocaleUpperCase("de-DE");
+    }).join("").slice(0, 40);
+    return { uid, initials: initials || "Unbekannt" };
+  }
+
+  function resultTimekeeperLabel(result) {
+    return String(result?.timekeeper_initials || result?.timekeeper?.initials || "").trim() || "Unbekannt";
+  }
+
   function customDisciplineKey(name, lapCount) {
     const normalized = customDisciplineName(name).toLocaleLowerCase("de-DE");
     return `${lapCount}-${encodeURIComponent(normalized).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)}`;
@@ -185,7 +199,7 @@
   const api = Object.freeze({
     escapeHtml,
     disciplines, disciplineGroups, disciplinesForEvent, disciplineForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups,
-    formatCumulativeReviewTime: formatTime, customDisciplineName, customDisciplineKey, resultLapCount, resultDisciplineName,
+    formatCumulativeReviewTime: formatTime, customDisciplineName, customDisciplineKey, resultLapCount, resultDisciplineName, timekeeperSnapshot, resultTimekeeperLabel,
   });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.TimerCore = api;

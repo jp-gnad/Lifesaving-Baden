@@ -1,14 +1,14 @@
-const staticCache = "lifesaving-timer-static-firebase-v71";
+const staticCache = "lifesaving-timer-static-firebase-v72";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
   "./index.html",
   "./login.html",
-  "./styles.css?v=20261114-custom-names-v1",
+  "./styles.css?v=20261114-timekeeper-v1",
   "../assets/js/header.js?v=20261102-header-shadow-v1",
-  "./core.js?v=20261114-custom-names-v1",
+  "./core.js?v=20261114-timekeeper-v1",
   "./offline-store.js?v=20261112-structure-v1",
-  "./results-pdf.js?v=20261112-structure-v1",
+  "./results-pdf.js?v=20261114-timekeeper-v1",
   "./participant-picker.js?v=20261114-age-groups-v1",
   "./views/people.js?v=20261114-age-groups-v1",
   "./event-cache.js?v=20261114-background-saves-v1",
@@ -16,9 +16,9 @@ const relativeAppShell = [
   "./control-input.js?v=20261114-timer-controls-v1",
   "./time-input.js?v=20261114-live-time-input-v1",
   "./custom-discipline-picker.js?v=20261114-custom-names-v1",
-  "./app.js?v=20261114-custom-names-v1",
+  "./app.js?v=20261114-timekeeper-v1",
   "./result-feed.js?v=20261112-paged-reads-v1",
-  "./firestore-api.js?v=20261114-custom-names-v1",
+  "./firestore-api.js?v=20261114-timekeeper-v1",
   "./participant-store.js?v=20261112-import-reads-v1",
   "../assets/js/clubs-core.js?v=20261112-clubs-v1",
   "../assets/js/person-link-store.js?v=20261112-settings-links-v1",

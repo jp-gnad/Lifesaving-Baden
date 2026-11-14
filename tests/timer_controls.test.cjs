@@ -81,7 +81,7 @@ test("older browsers retain native click activation", () => {
   assert.equal(activations, 1);
 });
 
-async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25") {
+async function stopwatch(discipline = "normal", participantResponse = null, enabledDisciplines = [discipline], poolLength = "25", timerAuth = {}) {
   const savedResults = [];
   const nodes = new Map();
   const find = (key) => {
@@ -119,7 +119,7 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
   let now = 0, frame;
   const window = inputContext();
   window.scrollTo = () => {};
-  window.timerFirestoreApi = { getAuthContext: async () => ({}) };
+  window.timerFirestoreApi = { getAuthContext: async () => timerAuth };
   const context = vm.createContext({
     ...require("../timer/core.js"), window,
     timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
@@ -143,6 +143,7 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
   vm.runInContext(source.slice(source.indexOf("async function renderTimer(id)"), source.indexOf("async function renderViewer(")), context);
   await context.renderTimer("e");
   return { find, actions, savedResults,
+    setAuth(value) { context.currentTimerAuth = value; },
     advance(ms) { now += ms; frame?.(); },
     click(id) { find(`#${id}`).click(); },
     hold(id, ms) { const button = find(`#${id}`); button.emit("pointerdown"); now += ms; frame?.(); button.emit("pointerup"); button.emit("click"); },
@@ -365,4 +366,19 @@ test("a named four-lap custom result can be saved immediately and reused for the
   h.find("#review-view #discard-review").click();
   measure(2); await new Promise(setImmediate);
   assert.ok(!h.find("#review-view #review-custom-discipline [data-custom-choice]").innerHTML.includes("100m Brust"));
+});
+
+test("the result retains the account initials from Stop through review and background saving, including unknown guests", async () => {
+  const roster = { participants: [{ id: "p", name: "Person", age_group: "Offen", birth_year: 5, gender: "male", organization: "Baden" }] };
+  for (const account of [{ user: { uid: "u" }, accountName: "Jan-Philipp Gnad" }, {}]) {
+    const h = await stopwatch("normal", roster, ["normal"], "25", account);
+    await new Promise(setImmediate);
+    h.click("right-action"); h.advance(1000); h.click("right-action");
+    h.setAuth({ ...account, accountName: "Anderer Name" });
+    h.find("#review-view").querySelectorAll(".participant-select")[0].value = "p";
+    h.find("#review-view #close-review").click(); h.click("review-result");
+    h.find("#review-view #save-result").click(); await new Promise(setImmediate);
+    assert.equal(h.savedResults[0].timekeeper.initials, account.user ? "JPG" : "Unbekannt");
+    assert.equal(h.savedResults[0].timekeeper.uid, account.user?.uid || "");
+  }
 });

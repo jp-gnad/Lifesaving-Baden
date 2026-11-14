@@ -1,5 +1,5 @@
 const {
-  escapeHtml, disciplines, disciplineGroups, disciplinesForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, resultLapCount, resultDisciplineName, customDisciplineKey, customDisciplineName
+  escapeHtml, disciplines, disciplineGroups, disciplinesForEvent, disciplineForResult, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, resultLapCount, resultDisciplineName, customDisciplineKey, customDisciplineName, timekeeperSnapshot, resultTimekeeperLabel
 } = window.TimerCore;
 const timeInput = window.TimerTimeInput.create({ parseTime });
 const customDisciplinePicker = window.TimerCustomDisciplinePicker.create({ api, localOptions: pendingCustomDisciplineOptions, escapeHtml, customDisciplineKey, customDisciplineName });
@@ -935,6 +935,7 @@ async function renderTimer(id) {
     officialTime: null,
     note: "",
     customDefinition: {},
+    timekeeper: null,
     discipline: initialDiscipline,
   };
 
@@ -1166,7 +1167,7 @@ async function renderTimer(id) {
     customReviewPicker?.destroy(); customReviewPicker = null;
     refreshReviewParticipants = null;
     cancelAnimationFrame(animationFrame);
-    Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "", customDefinition: {} });
+    Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "", customDefinition: {}, timekeeper: null });
     resetFrequencyCapture();
     elements.clock.textContent = "0:00,00";
     elements["clock-status"].textContent = "Bereit";
@@ -1670,7 +1671,7 @@ async function renderTimer(id) {
         savingResult = true;
         button.disabled = true;
         const assignment = item.team ? { participantIds } : { participantId: participantIds[0] };
-        await saveResultOfflineFirst(id, { ...assignment, ...(corrections.customDefinition || {}), discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
+        await saveResultOfflineFirst(id, { ...assignment, ...(corrections.customDefinition || {}), timekeeper: timer.timekeeper, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
         if (version !== routeVersion || authContext.user?.uid !== currentTimerAuth.user?.uid) return;
         resetTimer();
       } catch (err) {
@@ -1755,6 +1756,7 @@ async function renderTimer(id) {
       timer.displayed = finalTime;
       timer.officialTime = null;
       timer.status = "stopped";
+      timer.timekeeper = timekeeperSnapshot(currentTimerAuth);
       finishFrequency();
       if (timer.frequencies[timer.segments.length] === undefined) timer.frequencies[timer.segments.length] = null;
       timer.segments.push(finalSegment);
@@ -2328,6 +2330,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
         ${result.discipline === "normal" && result.custom_discipline_name ? `<p class="result-custom-name">${escapeHtml(resultDisciplineName(result))} · ${result.custom_lap_count || resultLapCount(result)} Runden</p>` : ""}
         <div class="result-times"><div><span>Gestoppt</span><strong>${formatTime(stoppedTime)}</strong></div><div class="official"><span>Offiziell</span><strong>${result.official_centiseconds == null ? "–" : formatTime(result.official_centiseconds)}</strong></div></div>
         ${expandedDetails}
+        <p class="result-timekeeper">Zeitnahme: ${escapeHtml(resultTimekeeperLabel(result))}</p>
       </article>`;
       }).join("")}</div>`;
     resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="${viewerRoot}" ${resultsOnly ? "" : "data-history-back"}>${icon("arrow-left")} Ergebnisse</a>
@@ -2400,7 +2403,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
             secondary: result.official_centiseconds == null ? "" : `offi. ${formatTime(result.official_centiseconds)}`,
             tone: "muted",
           };
-          return [person, ageGroup, ...lapCells, timeCell];
+          return [{ main: person, secondary: `Zeitnahme: ${resultTimekeeperLabel(result)}` }, ageGroup, ...lapCells, timeCell];
         });
         openPdf(createResultsPdf(event.name, `${item.name} - ${genderName(exportSelection.gender)}`, headers, rows, eventPdfImage));
       } catch (error) { if (isCurrent()) showToast(error.message); }
