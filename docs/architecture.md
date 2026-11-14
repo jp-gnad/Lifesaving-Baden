@@ -60,6 +60,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 |---|---|
 | `timer/core.js` | `TimerCore`: Disziplinen, Zugriffslabels, Datums-/Zeitformatierung, Zeitparser, Lap-Gruppen, HTML-Escaping. Keine DOM-/Firestore-Zugriffe. |
 | `timer/app.js` | DOM-Einstieg, Hash-Routing, Uhr, Ergebnisansichten, Synchronisation vorgemerkter Ergebnisse. Verbindet die übrigen Module. |
+| `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
 | `timer/firestore-api.js` | `timerFirestoreApi`: `request`, Auth-Kontext, Ergebnislistener und Cache-Lebenszyklus. Kennt die Firestore-Struktur. |
 | `timer/result-feed.js` | `TimerResultFeed.create(...)`: Listener-Lebenszyklus, Seitennavigation und Sichtbarkeit; `readAll(...)` ausschließlich für ausdrückliche vollständige Exporte. Abhängigkeiten werden übergeben. |

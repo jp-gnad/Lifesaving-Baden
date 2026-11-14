@@ -50,6 +50,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 |---|---|
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |
+| Stoppuhrbedienung, langes Halten und Runden zurücknehmen | `timer_controls.test.cjs` (simulierte Uhr, ohne Firebase) |
 | Ergebnis-Seiten, Live-Verbindungen und vollständiger Export | `timer_result_feed.test.cjs`, `timer_result_view.test.cjs`, `timer_import.test.cjs`; bei Query-/Regeländerungen zusätzlich Regeln |
 | Teilnehmerimport und Cache | `timer_import.test.cjs`, `timer_people_view.test.cjs`, Firestore-Regeltests |
 | Clubs und Startberechtigungen | `start_eligibility.test.cjs`, `clubs_rules.test.cjs`, `clubs_notifications.test.cjs`, Auth-Tests |

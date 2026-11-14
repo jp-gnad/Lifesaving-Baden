@@ -869,6 +869,7 @@ async function renderTimer(id) {
           <button class="button secondary timer-control" id="left-action" disabled>${icon("trash")} Löschen</button>
           <button class="button timer-control" id="right-action">${icon("play")} Start</button>
         </div>
+        <div class="timer-corrections"><button class="undo-lap" id="undo-lap" type="button" aria-label="Letzte Runde zurücknehmen" title="Letzte Runde zurücknehmen" disabled>${icon("undo")}</button></div>
       </section>
       <div class="card lap-list" id="lap-list" hidden></div>
       <dialog id="discipline-dialog"><div class="dialog-body mode-dialog-body"><div class="mode-dialog-header"><button class="button secondary icon-button" id="mode-back" type="button" aria-label="Zurück zu den Kategorien" hidden>${icon("arrow-left")}</button><h2 id="mode-dialog-title">Stoppmodus</h2><button class="button secondary icon-button" id="close-mode" aria-label="Menü schließen">${icon("x")}</button></div>
@@ -879,7 +880,7 @@ async function renderTimer(id) {
       <section class="review-view" id="review-view" hidden></section>
     </div>`;
 
-  const elements = Object.fromEntries(["timer-view", "review-view", "mode-button", "mode-name", "mode-laps", "discipline-dialog", "clock-status", "clock", "frequency-progress", "left-action", "right-action", "progress", "lap-list"].map((key) => [key, document.querySelector(`#${key}`)]));
+  const elements = Object.fromEntries(["timer-view", "review-view", "mode-button", "mode-name", "mode-laps", "discipline-dialog", "clock-status", "clock", "frequency-progress", "left-action", "right-action", "undo-lap", "progress", "lap-list"].map((key) => [key, document.querySelector(`#${key}`)]));
   let frequencyFeedbackTimer = null;
 
   const currentCs = () => timer.status === "running" ? timer.displayed + Math.floor((performance.now() - timer.startedAt) / 10) : timer.displayed;
@@ -1041,6 +1042,7 @@ async function renderTimer(id) {
 
   function updateControls() {
     const item = config();
+    elements["undo-lap"].disabled = timer.status !== "running" || timer.segments.length === 0;
     const actions = elements["left-action"].parentElement;
     elements["left-action"].hidden = false;
     actions.classList.remove("final-lap");
@@ -1089,6 +1091,17 @@ async function renderTimer(id) {
     timer.segments.push(segment);
     renderLaps(); updateProgress();
     return true;
+  }
+
+  function undoLap() {
+    if (timer.status !== "running" || timer.segments.length === 0) return;
+    timer.segments.pop();
+    // Frequency measurements belong to the discarded boundaries. Start a fresh
+    // capture for the combined live lap, without changing the stopwatch origin.
+    timer.frequencies.length = timer.segments.length;
+    timer.lapGroups = [];
+    resetFrequencyCapture();
+    renderLaps(); updateProgress(); updateControls();
   }
 
   function showReview() {
@@ -1551,7 +1564,8 @@ async function renderTimer(id) {
     updateMode();
     elements["discipline-dialog"].close();
   });
-  elements["left-action"].addEventListener("click", () => {
+  window.TimerControlInput.bindRelease(elements["undo-lap"], undoLap);
+  window.TimerControlInput.bindRelease(elements["left-action"], () => {
     if (timer.status === "stopped") {
       resetTimer();
       return;
@@ -1577,7 +1591,7 @@ async function renderTimer(id) {
     updateControls();
   });
 
-  elements["right-action"].addEventListener("click", () => {
+  window.TimerControlInput.bindRelease(elements["right-action"], () => {
     if (timer.status === "idle") {
       timer.status = "running";
       timer.startedAt = performance.now();

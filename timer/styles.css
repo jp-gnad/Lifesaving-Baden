@@ -457,6 +457,13 @@ dialog::backdrop { background: rgba(20, 29, 44, .48); }
 }
 .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .timer-actions .timer-control { min-height: 84px; padding: 12px 8px; font-size: 18px; }
+.timer-control, .undo-lap { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.timer-corrections { display: flex; justify-content: flex-start; margin-top: 4px; padding: 0 7px; }
+.undo-lap { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.undo-lap .icon { width: 16px; height: 16px; }
+.undo-lap:disabled { visibility: hidden; }
+.undo-lap:hover { background: var(--surface-alt); color: var(--text); }
+.undo-lap:focus-visible { outline: 2px solid #0a84ff; outline-offset: 1px; }
 .progress-note { margin: -10px 0 20px; color: var(--muted); font-size: 14px; }
 .lap-list { margin-top: 18px; }
 .lap-row { display: flex; justify-content: space-between; gap: 20px; padding: 11px 4px; border-bottom: 1px solid var(--line); }
@@ -650,13 +657,13 @@ body.timer-page.review-active { position: fixed; inset: 0; width: 100%; height: 
 .timer-page .frequency-progress.active span { background: #f3e4a7; }
 .timer-page .frequency-progress.active span.filled { background: #d59b0b; }
 .timer-page .timer-actions { display: flex; align-items: center; justify-content: space-between; padding: 0 7px; }
-.timer-page .timer-actions .timer-control { width: min(144px, 40vw); min-height: 78px; height: 78px; border: 3px solid #f7f9fc; border-radius: 22px; padding: 0 14px; background: #e4f6e9; color: #16833b; outline: 2px solid #b8e6c5; font-size: 17px; font-weight: 600; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.timer-page .timer-actions .timer-control { width: min(144px, 40vw); min-height: 78px; height: 78px; border: 3px solid #f7f9fc; border-radius: 22px; padding: 0 14px; background: #e4f6e9; color: #16833b; outline: 2px solid #b8e6c5; font-size: 17px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .timer-page .timer-actions .timer-control.secondary { background: #e5e7eb; color: #172033; outline-color: #d1d5db; }
 .timer-page .timer-actions .timer-control.danger { background: #fde7e5; color: #d92d20; outline-color: #f5beb9; }
 .timer-page .timer-actions .timer-control:disabled { color: #98a2b3; opacity: 1; outline-color: #e4e7ec; background: #eef0f3; }
 .timer-page .timer-actions.final-lap { justify-content: center; }
 .timer-page .timer-actions.final-lap .timer-control { width: 100%; min-height: 78px; height: 78px; border-radius: 22px; font-size: 20px; font-weight: 600; }
-.timer-page .lap-list.card { margin-top: 36px; border: 0; border-top: 1px solid #d8dde7; border-radius: 0; padding: 0; background: transparent; }
+.timer-page .lap-list.card { margin-top: 6px; border: 0; border-top: 1px solid #d8dde7; border-radius: 0; padding: 0; background: transparent; }
 .timer-page.timer-locked .lap-list.card { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .timer-page .lap-row { min-height: 44px; align-items: center; border-bottom-color: #d8dde7; padding: 6px 2px; color: #172033; font-size: 16px; }
 .timer-page .lap-placeholder { color: #98a2b3; font-weight: 500; }
