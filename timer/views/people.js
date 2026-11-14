@@ -174,7 +174,6 @@
           const queued = await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants/import`, "POST", { candidateId: button.dataset.id, previewParticipant: candidate });
           if (!isCurrent()) return;
           importDialog.close();
-          showToast("Import lokal vorgemerkt. Übertragung läuft im Hintergrund.");
           await showSaved({ id: queued.clientSubmissionId, name: candidate.name, birth_year: Number(candidate.birthYear) % 100,
             age_group: candidate.ageGroup, gender: candidate.gender, organization: candidate.organization });
         } catch (err) {
@@ -209,7 +208,6 @@
           const queued = await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants${editId ? `/${encodeURIComponent(editId)}` : ""}`, editId ? "PATCH" : "POST", values);
           if (!isCurrent()) return;
           dialog.close();
-          showToast("Person lokal vorgemerkt. Übertragung läuft im Hintergrund.");
           await showSaved({ id: editId || queued.clientSubmissionId, name: values.name.trim(), birth_year: Number(values.birthYear),
             age_group: values.ageGroup.trim(), gender: values.gender, organization: values.organization.trim() });
         } catch (err) {
@@ -228,7 +226,6 @@
           await saveInBackground(id, `/events/${encodeURIComponent(id)}/participants/${encodeURIComponent(person.id)}`, "DELETE");
           if (!isCurrent()) return;
           dialog.close();
-          showToast("Löschen lokal vorgemerkt. Übertragung läuft im Hintergrund.");
           await showSaved(null, person.id);
         } catch (err) { if (isCurrent()) { showToast(err.message); deletePersonButton.disabled = false; } }
       });

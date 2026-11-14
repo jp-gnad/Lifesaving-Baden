@@ -15,11 +15,22 @@ function fixture({ deferredEvent = null } = {}) {
       innerHTML: "", textContent: "", value: "", dataset: {}, handlers: {}, classList,
       addEventListener(type, callback) { this.handlers[type] = callback; },
       setAttribute() {}, removeAttribute() {}, toggleAttribute() {}, focus() {}, close() { this.closed = true; },
+      setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; },
       querySelector: (selector) => node(`${key} ${selector}`),
       querySelectorAll(selector) {
         if (selector === ".edit-result") return [...this.innerHTML.matchAll(/class="[^"]*edit-result" data-id="([^"]+)"/g)].map((match) => {
           const button = node(`edit-${match[1]}`); button.dataset.id = match[1]; return button;
         });
+        if ([".result-edit-segment", ".result-edit-frequency"].includes(selector)) {
+          const markup = node("#result-edit-fields .result-edit-laps").innerHTML;
+          const pattern = new RegExp(`class="${selector.slice(1)}"[^>]*value="([^"]*)"`, "g");
+          return [...markup.matchAll(pattern)].map((match, index) => {
+            const input = node(`${selector}-${index}`);
+            if (!input.initialized) { input.value = match[1]; input.initialized = true; }
+            return input;
+          });
+        }
+        if (selector === ".result-participant-select") return [{ value: "p" }];
         return [];
       },
     });
@@ -27,6 +38,7 @@ function fixture({ deferredEvent = null } = {}) {
   }
   const context = vm.createContext({
     ...require("../timer/core.js"), routeVersion: 0, activeResultView: null, routeCleanup: null, cooldownTimer: null, refreshTimer: null, animationFrame: null,
+    timeInput: require("../timer/time-input.js").create(require("../timer/core.js")),
     app: node("app"), document: { querySelector: node, querySelectorAll: () => [], body: { classList } },
     window: { timerFirestoreApi: {
       clearParticipantCache() {},
@@ -119,6 +131,29 @@ test("editing loads participants lazily and deleting a result relies on the exis
   assert.equal(h.requests.filter((request) => request.url === "/events/e/results").length, 0);
   h.receive([]);
   assert.match(h.node("#results").innerHTML, /Noch keine Ergebnisse/);
+});
+
+test("saved-result editors format both time fields while typing and save their minute values correctly", async () => {
+  const h = fixture();
+  await h.context.renderViewer("e", "normal", "male");
+  h.receive([row("a", { segments: [8345], total_centiseconds: 8345 })]);
+  h.node("edit-a").handlers.click();
+  await new Promise(setImmediate);
+  const segment = h.node(".result-edit-segment-0");
+  assert.equal(segment.value, "1:23,45", "existing section times use the same notation as typed times");
+  const official = h.node("#result-edit-fields #result-edit-official");
+  for (const [input, digits, expected] of [[segment, "12345", "1:23,45"], [official, "123456", "12:34,56"]]) {
+    input.value = digits;
+    input.setSelectionRange(digits.length, digits.length);
+    input.handlers.input({});
+    assert.equal(input.value, expected);
+  }
+  await h.node("#result-edit-form").handlers.submit({ preventDefault() {}, submitter: {} });
+  const saved = h.requests.find((request) => request.options?.method === "PATCH");
+  const payload = JSON.parse(saved.options.body);
+  assert.deepEqual(payload.segments, [8345]);
+  assert.equal(payload.officialTime, 75456);
+  assert.equal(h.node("#result-edit-dialog").closed, true);
 });
 
 test("leaving while the event loads cannot start a stale view or background subscription", async () => {

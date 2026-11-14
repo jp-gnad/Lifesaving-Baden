@@ -1,6 +1,7 @@
 const {
-  escapeHtml, disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, parseReviewTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups, formatCumulativeReviewTime
+  escapeHtml, disciplines, disciplineGroups, enabledDisciplinesForEvent, eventCan, accessLabel, dateText, isPastEvent, formatTime, formatReviewTime, parseTime, disciplineLapLabel, disciplineLapGroupLabel, resultLapGroups
 } = window.TimerCore;
+const timeInput = window.TimerTimeInput.create({ parseTime });
 const { createResultsPdf, loadEventPdfImage, openPdf } = window.TimerResultsPdf.create({ eventIconUrls });
 
 const app = document.querySelector("#app");
@@ -356,15 +357,16 @@ async function updateOfflineSyncStatus() {
   if (!offlineSyncStatus || !offlineSyncText) return;
   try {
     const pending = await saveQueue.list();
-    offlineSyncStatus.hidden = pending.length === 0;
-    offlineSyncStatus.classList.toggle("has-error", pending.some((record) => record.blocked));
-    if (!pending.length) return;
-    if (saveQueue.isSyncing()) {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wird" : "Vorgänge werden"} synchronisiert …`;
-    } else if (pending.some((record) => record.blocked)) {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wartet" : "Vorgänge warten"} · Erneut versuchen`;
+    const hasError = pending.some((record) => record.blocked || record.lastError);
+    offlineSyncStatus.hidden = !pending.length || (navigator.onLine && !hasError);
+    offlineSyncStatus.classList.toggle("has-error", hasError);
+    if (offlineSyncStatus.hidden) return;
+    if (!navigator.onLine) {
+      offlineSyncText.textContent = `Offline · ${pending.length} ${pending.length === 1 ? "Änderung wartet" : "Änderungen warten"}`;
+    } else if (saveQueue.isSyncing()) {
+      offlineSyncText.textContent = "Übertragung wird erneut versucht …";
     } else {
-      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Vorgang wartet" : "Vorgänge warten"}`;
+      offlineSyncText.textContent = `${pending.length} ${pending.length === 1 ? "Änderung nicht übertragen" : "Änderungen nicht übertragen"} · Erneut versuchen`;
     }
   } catch {
     offlineSyncStatus.hidden = true;
@@ -683,7 +685,6 @@ async function renderHome() {
       created.id = created.clientSubmissionId;
       eventCache.remember(window.timerFirestoreApi.previewEvent(created.id, values));
       dialog.close();
-      showToast("Event lokal vorgemerkt. Übertragung läuft im Hintergrund.");
       history.pushState(null, "", `#/event/${created.id}`);
       location.hash = `#/settings/${created.id}`;
     } catch (err) {
@@ -831,7 +832,6 @@ async function renderEventSettings(id, section = null) {
       await saveInBackground(id, `/events/${encodeURIComponent(id)}`, "PATCH", payload);
       if (version !== routeVersion) return;
       eventCache.remember(preview);
-      showToast("Änderungen lokal gesichert. Übertragung läuft im Hintergrund.");
       if (activeSection && history.length > 2) history.go(-2);
       else if (activeSection) location.hash = `#/event/${id}`;
       else if (history.length > 1) history.back();
@@ -850,7 +850,6 @@ async function renderEventSettings(id, section = null) {
       await saveInBackground(id, `/events/${encodeURIComponent(id)}`, "DELETE");
       if (version !== routeVersion) return;
       eventCache.forget(id);
-      showToast("Event-Löschung vorgemerkt. Übertragung läuft im Hintergrund.");
       location.hash = "#/";
     } catch (err) {
       if (version !== routeVersion) return;
@@ -1210,14 +1209,14 @@ async function renderTimer(id) {
       <section class="review-summary" id="review-summary">
       <button class="button secondary edit-mode-toggle" id="edit-mode" type="button">${icon("pencil")} Runden bearbeiten</button>
       <div class="review-time-summary"><div class="field stopped-time-field"><label>Gestoppte Zeit</label><div class="total-summary"><strong id="save-total" aria-live="polite">${formatTime(capturedTotal())}</strong></div></div>
-      <div class="field official-time-field"><label for="official-time">Offizielle Zeit</label><input id="official-time" inputmode="decimal" enterkeyhint="done" placeholder="z. B. 123,45" value="${timer.officialTime === null ? "" : formatTime(timer.officialTime)}" aria-describedby="save-error"></div></div>
+      <div class="field official-time-field"><label for="official-time">Offizielle Zeit</label><input id="official-time" inputmode="numeric" enterkeyhint="done" placeholder="z. B. 1:23,45" value="${timer.officialTime === null ? "" : formatTime(timer.officialTime)}" aria-describedby="save-error"></div></div>
       ${item.team ? `${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neue Person</button>` : `<div class="review-assignment-row">${assignmentMarkup}<button class="button secondary add-review-person" id="new-review-person" type="button">${icon("user-plus")} Neu</button></div>`}
       <label class="field review-note-field" for="result-note"><span>Notiz <small>optional</small></span><textarea id="result-note" maxlength="300" rows="2" placeholder="Kurzes Feedback">${escapeHtml(timer.note)}</textarea></label>
       <p class="form-error" id="save-error" role="alert"></p>
       <p class="muted small" id="review-participant-status" role="status"></p><button class="button secondary small" id="retry-review-participants" type="button" hidden>Personen erneut laden</button>
       <div class="form-actions save-actions"><button class="button" id="save-result" ${participants.length >= (item.team ? 4 : 1) ? "" : "disabled"}>${icon("save")} Ergebnis speichern</button></div></section>
       <section class="review-editor" id="review-editor" hidden>
-        <div class="review-tools"><div class="time-mode-toggle" role="group" aria-label="Zeitdarstellung"><button type="button" class="active" data-time-mode="segment" aria-pressed="true">Sekunden</button><button type="button" data-time-mode="cumulative" aria-pressed="false">Kumuliert</button></div><div class="review-mode-actions"><button class="button secondary small glue-mode-toggle" id="glue-mode" type="button" aria-pressed="false">${icon("link")} Link</button><button class="button secondary small" id="finish-edit" type="button">${icon("check")} Fertig</button></div></div>
+        <div class="review-tools"><div class="time-mode-toggle" role="group" aria-label="Zeitdarstellung"><button type="button" class="active" data-time-mode="segment" aria-pressed="true">Abschnitte</button><button type="button" data-time-mode="cumulative" aria-pressed="false">Kumuliert</button></div><div class="review-mode-actions"><button class="button secondary small glue-mode-toggle" id="glue-mode" type="button" aria-pressed="false">${icon("link")} Link</button><button class="button secondary small" id="finish-edit" type="button">${icon("check")} Fertig</button></div></div>
         <div class="glue-hint" id="glue-hint" hidden><span>Benachbarte Runden über das Kettensymbol verbinden.</span><button class="button secondary small" id="undo-glue" type="button" hidden>${icon("undo")} Rückgängig</button></div>
         <div class="edit-times" id="edit-times"></div>
       </section></div>
@@ -1362,9 +1361,9 @@ async function renderTimer(id) {
         if (!timeText) {
           group.value = null;
         } else if (timeMode === "segment") {
-          group.value = parseReviewTime(timeText) ?? Number.NaN;
+          group.value = timeInput.parse(timeText) ?? Number.NaN;
         } else {
-          const cumulative = parseTime(timeText);
+          const cumulative = timeInput.parse(timeText);
           group.value = cumulative !== null && cumulative > previousCumulative
             ? cumulative - previousCumulative
             : Number.NaN;
@@ -1384,23 +1383,18 @@ async function renderTimer(id) {
         if (validValue) cumulative += group.value;
         const displayedTime = !validValue
           ? ""
-          : (timeMode === "segment" ? formatReviewTime(group.value) : formatCumulativeReviewTime(cumulative));
+          : (timeMode === "segment" ? formatTime(group.value) : formatTime(cumulative));
         const range = disciplineLapGroupLabel(timer.discipline, group.laps);
         const glueButton = glueMode && index < lapGroups.length - 1
           ? `<button class="glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(range)} mit ${escapeHtml(disciplineLapGroupLabel(timer.discipline, lapGroups[index + 1].laps))} verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>`
           : "";
         const values = editMode
-          ? `<div class="review-lap-inputs"><label><span>${timeMode === "segment" ? "Zeit (s)" : "Kumuliert"}</span><input class="segment-input" id="segment-${index}" inputmode="decimal" enterkeyhint="next" value="${displayedTime}" aria-label="Zeit ${range}" aria-describedby="save-error"></label><label><span>Freq.</span><input class="frequency-input" id="frequency-${index}" inputmode="numeric" value="${Number.isInteger(group.frequency) ? group.frequency : ""}" aria-label="Frequenz ${range}" aria-describedby="save-error"></label></div>`
+          ? `<div class="review-lap-inputs"><label><span>${timeMode === "segment" ? "Zeit" : "Kumuliert"}</span><input class="segment-input" id="segment-${index}" inputmode="numeric" enterkeyhint="next" value="${displayedTime}" aria-label="Zeit ${range}" aria-describedby="save-error"></label><label><span>Freq.</span><input class="frequency-input" id="frequency-${index}" inputmode="numeric" value="${Number.isInteger(group.frequency) ? group.frequency : ""}" aria-label="Frequenz ${range}" aria-describedby="save-error"></label></div>`
           : `<div class="review-lap-values"><strong>${displayedTime || "–"}</strong>${Number.isInteger(group.frequency) ? `<small>${group.frequency}/min</small>` : ""}<input class="segment-input" id="segment-${index}" type="hidden" value="${displayedTime}"><input class="frequency-input" id="frequency-${index}" type="hidden" value="${Number.isInteger(group.frequency) ? group.frequency : ""}"></div>`;
         return `<div class="field review-lap-field ${group.laps.length > 1 ? "glued" : ""} ${editMode ? "editable" : ""}"><div class="review-lap-title"><strong>${escapeHtml(range)}</strong>${glueButton}</div>${values}</div>`;
       }).join("");
-      editTimes.querySelectorAll("input").forEach((input) => input.addEventListener("input", () => readCorrections(false)));
-      editTimes.querySelectorAll(".segment-input").forEach((input) => input.addEventListener("blur", () => {
-        if (timeMode !== "cumulative" || !input.value.trim()) return;
-        const parsed = parseTime(input.value);
-        if (parsed !== null) input.value = formatCumulativeReviewTime(parsed);
-        readCorrections(false);
-      }));
+      editTimes.querySelectorAll(".frequency-input").forEach((input) => input.addEventListener("input", () => readCorrections(false)));
+      editTimes.querySelectorAll(".segment-input").forEach((input) => timeInput.bind(input, () => readCorrections(false)));
       editTimes.querySelectorAll(".glue-next").forEach((button) => button.addEventListener("click", () => {
         syncLapGroupsFromInputs();
         const index = Number(button.dataset.glueIndex);
@@ -1429,7 +1423,7 @@ async function renderTimer(id) {
       const segments = lapGroups.map((group) => group.value);
       const frequencies = lapGroups.map((group) => group.frequency);
       const officialText = officialInput.value.trim();
-      const officialTime = officialText ? parseTime(officialText) : null;
+      const officialTime = officialText ? timeInput.parse(officialText) : null;
       const invalidSegments = segments.some((value) => value !== null && (!Number.isInteger(value) || value <= 0));
       const missingSegments = !segments.some((value) => Number.isInteger(value) && value > 0);
       const invalidFrequencies = frequencies.some((value) => Number.isNaN(value));
@@ -1439,10 +1433,10 @@ async function renderTimer(id) {
       review.querySelector("#save-error").textContent = showError
         ? (invalidSegments || missingSegments
           ? (timeMode === "segment"
-            ? "Abschnittszeiten bitte als Sekunden, z. B. 61,00, eingeben. Leere Runden sind erlaubt."
-            : "Kumulierte Zeiten als m:ss,00 oder ohne Doppelpunkt als mss,00 eingeben. Leere Runden sind erlaubt.")
+            ? "Abschnittszeiten bitte als m:ss,00 eingeben. Trennzeichen werden beim Tippen ergänzt. Leere Runden sind erlaubt."
+            : "Kumulierte Zeiten als m:ss,00 eingeben. Trennzeichen werden beim Tippen ergänzt. Leere Runden sind erlaubt.")
           : (invalidOfficialTime
-            ? "Bitte m:ss,00 oder ohne Doppelpunkt mss,00 eingeben."
+            ? "Bitte eine gültige Zeit im Format m:ss,00 eingeben."
             : (invalidFrequencies ? "Frequenzen bitte als ganze Zahl von 1 bis 999 eingeben." : "")))
         : "";
       return invalidSegments || missingSegments || invalidOfficialTime || invalidFrequencies ? null : {
@@ -1500,13 +1494,7 @@ async function renderTimer(id) {
       renderLapFields();
       readCorrections(false);
     });
-    officialInput.addEventListener("input", () => readCorrections(false));
-    officialInput.addEventListener("blur", () => {
-      if (!officialInput.value.trim()) return;
-      const parsed = parseTime(officialInput.value);
-      if (parsed !== null) officialInput.value = formatTime(parsed);
-      readCorrections(false);
-    });
+    timeInput.bind(officialInput, () => readCorrections(false));
     bindDialogClose(personDialog);
     bindDialogClose(participantPickerDialog);
     participantPickerTriggers.forEach((trigger) => trigger.addEventListener("click", () => {
@@ -1585,7 +1573,6 @@ async function renderTimer(id) {
         updateParticipantTrigger(emptySelect);
         saveResult.disabled = participants.length < (item.team ? 4 : 1);
         personDialog.close();
-        showToast("Person lokal vorgemerkt und ausgewählt. Übertragung läuft im Hintergrund.");
       } catch (err) {
         if (version !== routeVersion) return;
         review.querySelector("#review-person-error").textContent = err.message;
@@ -1639,7 +1626,6 @@ async function renderTimer(id) {
         await saveResultOfflineFirst(id, { ...assignment, discipline: timer.discipline, segments: corrections.segments, frequencies: corrections.frequencies, lapGroups: corrections.lapGroups, officialTime: corrections.officialTime, note: noteInput.value.trim() });
         if (version !== routeVersion || authContext.user?.uid !== currentTimerAuth.user?.uid) return;
         resetTimer();
-        showToast("Ergebnis lokal gespeichert. Synchronisierung läuft im Hintergrund.");
       } catch (err) {
         if (version !== routeVersion) return;
         savingResult = false;
@@ -2023,7 +2009,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       <div class="result-edit-assignment">${assignmentMarkup}</div>
       <div class="review-time-summary result-edit-times-summary">
         <div class="field"><span class="label">Gestoppt</span><div class="total-summary"><strong id="result-edit-stopped">${formatTime(stoppedTime)}</strong></div></div>
-        <label class="field"><span>Offiziell</span><input id="result-edit-official" inputmode="decimal" placeholder="m:ss,00" value="${result.official_centiseconds == null ? "" : formatTime(result.official_centiseconds)}"></label>
+        <label class="field"><span>Offiziell</span><input id="result-edit-official" inputmode="numeric" placeholder="m:ss,00" value="${result.official_centiseconds == null ? "" : formatTime(result.official_centiseconds)}"></label>
       </div>
       <div class="result-edit-lap-toolbar"><span class="label">Runden</span><div><button class="button secondary small" id="result-edit-glue-mode" type="button" aria-pressed="false">${icon("link")} Link</button><button class="button secondary small" id="result-edit-undo-glue" type="button" hidden>${icon("undo")} Rückgängig</button></div></div>
       <div class="result-edit-laps"></div>
@@ -2033,19 +2019,20 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     resultEditFields.querySelectorAll(".result-participant-picker-trigger").forEach((trigger) => trigger.addEventListener("click", () => {
       openResultParticipantPicker(resultEditFields.querySelector(`#${trigger.dataset.selectId}`));
     }));
+    timeInput.bind(resultEditFields.querySelector("#result-edit-official"));
     const updateStoppedTime = () => {
       const values = [...resultEditFields.querySelectorAll(".result-edit-segment")]
-        .map((input) => input.value.trim() ? parseReviewTime(input.value) : null);
+        .map((input) => input.value.trim() ? timeInput.parse(input.value) : null);
       const validTotal = values.reduce((sum, value) => sum + (Number.isInteger(value) ? value : 0), 0);
       resultEditFields.querySelector("#result-edit-stopped").textContent = formatTime(validTotal);
     };
     const syncResultEditLapValues = () => {
       const segmentInputs = [...resultEditFields.querySelectorAll(".result-edit-segment")];
       const frequencyInputs = [...resultEditFields.querySelectorAll(".result-edit-frequency")];
-      const segments = segmentInputs.map((input) => input.value.trim() ? parseReviewTime(input.value) : null);
+      const segments = segmentInputs.map((input) => input.value.trim() ? timeInput.parse(input.value) : null);
       const frequencies = frequencyInputs.map((input) => input.value.trim() ? Number(input.value) : null);
       if (segments.some((value, index) => segmentInputs[index].value.trim() && !Number.isInteger(value))) {
-        resultEditError.textContent = "Lap-Zeiten bitte als Sekunden eingeben, zum Beispiel 32,45.";
+        resultEditError.textContent = "Lap-Zeiten bitte als m:ss,00 eingeben, zum Beispiel 1:23,45.";
         return false;
       }
       if (frequencies.some((value) => value !== null && (!Number.isInteger(value) || value < 1 || value > 999))) {
@@ -2064,12 +2051,12 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       lapsRoot.innerHTML = resultEditLapGroups.map((group, index) => `<div class="result-edit-lap-block">
         <div class="result-edit-lap">
           <strong>${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps))}</strong>
-          <label><span>Zeit (s)</span><input class="result-edit-segment" inputmode="decimal" value="${group.value == null ? "" : formatReviewTime(group.value)}"></label>
+          <label><span>Zeit</span><input class="result-edit-segment" inputmode="numeric" value="${group.value == null ? "" : formatTime(group.value)}"></label>
           <label><span>Freq.</span><input class="result-edit-frequency" inputmode="numeric" value="${Number.isInteger(group.frequency) ? group.frequency : ""}"></label>
         </div>
         ${resultEditGlueMode && index < resultEditLapGroups.length - 1 ? `<button class="result-edit-glue-next" type="button" data-glue-index="${index}" aria-label="${escapeHtml(disciplineLapGroupLabel(result.discipline, group.laps))} mit der nächsten Runde verbinden" title="Mit nächster Runde verbinden">${icon("link")}</button>` : ""}
       </div>`).join("");
-      lapsRoot.querySelectorAll(".result-edit-segment").forEach((input) => input.addEventListener("input", updateStoppedTime));
+      lapsRoot.querySelectorAll(".result-edit-segment").forEach((input) => timeInput.bind(input, updateStoppedTime));
       lapsRoot.querySelectorAll(".result-edit-glue-next").forEach((button) => button.addEventListener("click", () => {
         if (!syncResultEditLapValues()) return;
         const index = Number(button.dataset.glueIndex);
@@ -2160,11 +2147,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     const submitButton = submitEvent.submitter;
     const segmentInputs = [...resultEditFields.querySelectorAll(".result-edit-segment")];
     const frequencyInputs = [...resultEditFields.querySelectorAll(".result-edit-frequency")];
-    const segments = segmentInputs.map((input) => input.value.trim() ? parseReviewTime(input.value) : null);
+    const segments = segmentInputs.map((input) => input.value.trim() ? timeInput.parse(input.value) : null);
     const frequencies = frequencyInputs.map((input) => input.value.trim() ? Number(input.value) : null);
     const lapGroups = resultEditLapGroups.map((group) => [...group.laps]);
     const officialText = resultEditFields.querySelector("#result-edit-official").value.trim();
-    const officialTime = officialText ? parseTime(officialText) : null;
+    const officialTime = officialText ? timeInput.parse(officialText) : null;
     const note = resultEditFields.querySelector("#result-edit-note").value.trim();
     const assignmentSelects = [...resultEditFields.querySelectorAll(".result-participant-select")];
     const participantIds = assignmentSelects.map((select) => select.value);
@@ -2182,7 +2169,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       return;
     }
     if (segments.some((value, index) => segmentInputs[index].value.trim() && !Number.isInteger(value))) {
-      resultEditError.textContent = "Lap-Zeiten bitte als Sekunden eingeben, zum Beispiel 32,45.";
+      resultEditError.textContent = "Lap-Zeiten bitte als m:ss,00 eingeben, zum Beispiel 1:23,45.";
       return;
     }
     if (!segments.some((value) => Number.isInteger(value) && value > 0)) {
@@ -2206,7 +2193,6 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       if (!isCurrent()) return;
       resultEditDialog.close();
       editingResult = null;
-      showToast("Änderung lokal gesichert. Übertragung läuft im Hintergrund.");
       // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
@@ -2222,7 +2208,6 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       if (!isCurrent()) return;
       resultEditDialog.close();
       editingResult = null;
-      showToast("Löschen vorgemerkt. Übertragung läuft im Hintergrund.");
       // The live page receives the committed change without a second query.
     } catch (error) {
       resultEditError.textContent = error.message;
@@ -2511,6 +2496,7 @@ window.addEventListener("timer-auth-change", (event) => {
 });
 window.addEventListener("hashchange", renderRoute);
 window.addEventListener("online", () => syncPendingResults({ includeBlocked: true }).catch(() => {}));
+window.addEventListener("offline", () => updateOfflineSyncStatus());
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncPendingResults({ includeBlocked: true }).catch(() => {});
 });

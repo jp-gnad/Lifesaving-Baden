@@ -61,6 +61,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/core.js` | `TimerCore`: Disziplinen, Zugriffslabels, Datums-/Zeitformatierung, Zeitparser, Lap-Gruppen, HTML-Escaping. Keine DOM-/Firestore-Zugriffe. |
 | `timer/app.js` | DOM-Einstieg, Hash-Routing, Uhr, Ergebnisansichten, Synchronisation vorgemerkter Ergebnisse. Verbindet die übrigen Module. |
 | `timer/control-input.js` | `TimerControlInput.bindRelease(button, activate)`: Aktivierung der Stoppuhrknöpfe beim Loslassen, auch nach langem Halten; verhindert doppelte Klicks und erhält Tastaturbedienung. Keine Initialisierung beim Laden. |
+| `timer/time-input.js` | `TimerTimeInput`: Live-Eingabemaske für bis zu sechs Ziffern, Cursor-/Löschverhalten und gemeinsames Einlesen der Zeitfelder in beiden Ergebnis-Editoren. `create({ parseTime })` erhält den bestehenden Zeitparser; die gespeicherten Werte bleiben Hundertstelsekunden. |
 | `timer/event-cache.js` | `TimerEventCache.create(...)`: höchstens 50 Event-Metadatensätze für sofortige Navigation zwischen Event, Einstellungen und Timer. Nach 30 Sekunden im Hintergrund erneuern; bei Konto-/Rollenwechsel leeren. Keine Teilnehmerdaten. |
 | `timer/save-queue.js` | `TimerSaveQueue.create(...)`: lokale Schreibwarteschlange mit sequenzieller Hintergrundübertragung, Wiederholung und Kontobindung. Die Oberfläche wartet auf den lokalen Transaktionsabschluss, nicht auf Firebase. |
 | `timer/views/people.js` | `TimerPeopleView.create(dependencies).render(...)`: Teilnehmerliste, Suche und Bearbeitungsdialoge. |
@@ -87,6 +88,11 @@ Konto-ID gebunden; Event-/Personenneuanlagen verwenden bei Wiederholungen diesel
 `clientMutationId`. Hintergrundschreibvorgänge überleben Ansichtswechsel,
 prüfen Konto-/Rollenwechsel aber weiterhin vor Mutationen. Die atomaren
 Teilnehmer-/Identitätstransaktionen und die Firestore-Regeln bleiben maßgeblich.
+
+Normales Speichern und erfolgreiche Hintergrundübertragungen zeigen keine
+automatischen Erfolgsmeldungen. Der Status unten erscheint nur bei noch nicht
+übertragenen Offline-Änderungen oder Übertragungsfehlern. Fehler und ausdrücklich
+angeforderte Rückmeldungen bleiben sichtbar.
 
 ## Daten und verantwortliche Schreibpfade
 
