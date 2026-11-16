@@ -949,7 +949,8 @@ service cloud.firestore {
       let role = accountRoleRank(account, false);
       let birthDate = account.get("birthDate", "");
       let birthYear = birthDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') ? int(birthDate.split('-')[0]) : null;
-      return data.keys().hasOnly(["role", "personId", "name", "birthYear", "organization"])
+      return data.keys().hasOnly(["role", "personId", "name", "birthYear", "organization", "gender"])
+        && (!data.keys().hasAny(["gender"]) || data.gender == person.get("gender", account.get("gender", "") == "maennlich" ? "m" : account.get("gender", "") == "weiblich" ? "w" : ""))
         && data.role == (role == 5 ? "admin" : role == 4 ? "organizer" : role == 3 ? "trainer" : role == 2 ? "athlete" : "standard")
         && data.personId == person.get("id", "")
         && data.name == person.get("name", account.get("displayName", "").size() > 0 ? account.displayName : account.get("email", "Mitglied"))
@@ -1045,6 +1046,14 @@ service cloud.firestore {
             || validManagerChange(id, request.resource.data, resource.data.managerIds))));
       allow delete: if verifiedUser() && isAdmin() && resource.data.status == "deleting" && resource.data.managerIds.size() == 0;
 
+      match /teamSeasons/{year} {
+        allow read: if managesClub(id) || (verifiedUser() && isAdmin());
+        allow create: if managesClub(id) && validTeamSeason(id, year, request.resource.data, { "teams": {}, "assignments": {} });
+        allow update: if managesClub(id) && validTeamSeason(id, year, request.resource.data, resource.data);
+        allow delete: if verifiedUser() && isAdmin()
+          && get(/databases/$(database)/documents/clubs/$(id)).data.status == "deleting";
+      }
+
       match /people/{personId} {
         allow get: if releasesOwnClub(id) && (personId == "account_" + request.auth.uid
           || personId == adminData().get("personLink", {}).get("id", ""));
@@ -1085,7 +1094,10 @@ service cloud.firestore {
           ? get(/databases/$(database)/documents/timerParticipantDirectory/$(personId)).data : resource.data)
         : existsAfter(/databases/$(database)/documents/clubProfiles/$(data.accountUid))
           ? getAfter(/databases/$(database)/documents/clubProfiles/$(data.accountUid)).data : resource.data;
-      return data.keys().hasOnly(["personId", "accountUid", "name", "birthYear", "organization", "activeYears", "createdAt", "updatedAt"].concat(startEligibilityDates()))
+      return data.keys().hasOnly(["personId", "accountUid", "name", "birthYear", "organization", "gender", "activeYears", "createdAt", "updatedAt"].concat(startEligibilityDates()))
+        && (!data.keys().hasAny(["gender"]) || data.gender == (source.keys().hasAny(["gender"]) ? source.gender
+          : data.personId != "" && exists(/databases/$(database)/documents/timerParticipantDirectory/$(data.personId))
+            ? get(/databases/$(database)/documents/timerParticipantDirectory/$(data.personId)).data.gender : ""))
         && validClubDates(data)
         && data.name == source.name && data.birthYear == source.birthYear && data.organization == source.organization
         && (data.accountUid == "" ? data.personId == personId
@@ -1097,6 +1109,60 @@ service cloud.firestore {
     function validClubActivity(next, previous) {
       let year = (request.time + duration.value(2, "h")).year();
       return next.removeAll([year, year + 1]) == previous.removeAll([year, year + 1]);
+    }
+
+    function teamIds(members) {
+      return members.size() == 0 ? [] : [members[0].id, members[1].id, members[2].id, members[3].id]
+        .concat(members.size() == 5 ? [members[4].id] : []);
+    }
+
+    function validTeamMember(club, member, year, assignments, team) {
+      let person = get(/databases/$(database)/documents/clubs/$(club)/people/$(member.rosterId)).data;
+      return member.keys().hasAll(["id", "rosterId", "name", "birthYear", "gender", "createdAtMillis"])
+        && member.keys().hasOnly(["id", "rosterId", "name", "birthYear", "gender", "createdAtMillis"])
+        && member.createdAtMillis == person.createdAt.toMillis()
+        && member.id in [member.rosterId, person.personId]
+        && member.name == person.name && member.birthYear == person.birthYear
+        && member.birthYear is int && member.gender in ["m", "w"] && member.gender == person.gender
+        && year in person.activeYears && assignments.get(member.id, "") == team
+        && assignments.get(member.rosterId, team) == team
+        && (person.personId == "" || assignments.get(person.personId, team) == team);
+    }
+
+    function teamReleased(members, index, nextIds, assignments) {
+      return members.size() <= index || members[index].id in nextIds || !assignments.keys().hasAny([members[index].id]);
+    }
+
+    function validTeamSeason(club, yearId, data, previous) {
+      let id = data.changedTeamId;
+      let before = previous.teams.get(id, { "members": [] });
+      let next = data.teams.get(id, { "members": [] });
+      let oldIds = teamIds(before.members);
+      let newIds = teamIds(next.members);
+      let year = (request.time + duration.value(2, "h")).year();
+      return data.keys().hasAll(["year", "teams", "assignments", "changedTeamId", "updatedAt"])
+        && data.keys().hasOnly(["year", "teams", "assignments", "changedTeamId", "updatedAt"])
+        && data.year in [year, year + 1] && yearId == string(data.year) && data.updatedAt == request.time
+        && id is string && id.size() > 0 && id.size() <= 80 && id.matches('^[a-zA-Z0-9_-]+$')
+        && data.teams is map && data.assignments is map
+        && data.teams.diff(previous.teams).affectedKeys().hasOnly([id])
+        && data.assignments.diff(previous.assignments).affectedKeys().hasOnly(oldIds.concat(newIds))
+        && teamReleased(before.members, 0, newIds, data.assignments)
+        && teamReleased(before.members, 1, newIds, data.assignments)
+        && teamReleased(before.members, 2, newIds, data.assignments)
+        && teamReleased(before.members, 3, newIds, data.assignments)
+        && teamReleased(before.members, 4, newIds, data.assignments)
+        && (next.members.size() == 0 ? previous.teams.keys().hasAny([id]) && !data.teams.keys().hasAny([id])
+          : next.keys().hasOnly(["members", "order"]) && next.order is int && next.order > 0
+            && (!previous.teams.keys().hasAny([id]) || next.order == before.order)
+            && next.members is list && next.members.size() >= 4 && next.members.size() <= 5
+            && newIds.toSet().size() == next.members.size()
+            && newIds.removeAll(oldIds).toSet().intersection(previous.assignments.keys().toSet()).size() == 0
+            && validTeamMember(club, next.members[0], data.year, data.assignments, id)
+            && validTeamMember(club, next.members[1], data.year, data.assignments, id)
+            && validTeamMember(club, next.members[2], data.year, data.assignments, id)
+            && validTeamMember(club, next.members[3], data.year, data.assignments, id)
+            && (next.members.size() == 4 || validTeamMember(club, next.members[4], data.year, data.assignments, id)));
     }
 
     function validClubDates(data) {

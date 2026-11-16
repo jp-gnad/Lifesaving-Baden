@@ -18,19 +18,22 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261112-orphan-clubs-v2">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261116-teams-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/clubs-core.js?v=20261112-clubs-v1"></script>
+    <script defer src="assets/js/clubs-core.js?v=20261116-teams-v1"></script>
     <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261112-orphan-clubs-v2"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/club-teams-core.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/club-teams-store.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/club-teams.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261116-teams-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
@@ -82,6 +85,7 @@
               <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
             </label>
           </fieldset>
+          <button class="button se-primary club-team-add" id="club-team-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Mannschaft hinzufügen</span></button>
           <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
             <div class="se-stage" data-stage="3">
               <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
@@ -124,6 +128,17 @@
         <div class="wt-dialog-actions se-editor-actions" id="se-editor-actions">
           <button class="button se-primary" id="se-save" type="submit">Speichern</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog club-team-dialog" id="club-team-dialog" aria-labelledby="club-team-title">
+      <form id="club-team-form">
+        <div class="wt-dialog-heading"><div><h2 id="club-team-title" tabindex="-1" autofocus>Mannschaft hinzufügen</h2><p class="se-meta" id="club-team-meta"></p></div><button class="wt-icon-button" id="club-team-close" type="button" aria-label="Schließen">×</button></div>
+        <div class="club-team-selected" id="club-team-selected" aria-label="Ausgewählte Personen"></div>
+        <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-team-search" type="search" autocomplete="off" maxlength="80" placeholder="Person suchen …"></label>
+        <div class="club-team-candidates" id="club-team-candidates" aria-label="Verfügbare Personen"></div>
+        <p class="wt-form-error" id="club-team-error" role="alert" hidden></p>
+        <div class="wt-dialog-actions club-team-actions"><button class="button wt-danger" id="club-team-delete" type="button" hidden>Löschen</button><button class="button se-primary" id="club-team-save" type="submit" disabled>Speichern</button></div>
       </form>
     </dialog>
 

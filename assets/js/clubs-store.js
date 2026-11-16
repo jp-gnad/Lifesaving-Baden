@@ -20,7 +20,7 @@
   function personRecord(person, sdk, years = []) {
     return {
       personId: person.personId || "", accountUid: person.accountUid || "", name: person.name,
-      birthYear: person.birthYear || null, organization: person.organization || "", activeYears: years,
+      birthYear: person.birthYear || null, gender: person.gender || "", organization: person.organization || "", activeYears: years,
       ...core.proofDates(person),
       createdAt: stamp(sdk), updatedAt: stamp(sdk),
     };
@@ -112,10 +112,13 @@
       }
       const source = await transaction.get(data.accountUid ? db.collection("clubProfiles").doc(data.accountUid)
         : db.collection("timerParticipantDirectory").doc(data.personId));
+      const directory = data.accountUid && data.personId && !source.data()?.gender
+        ? await transaction.get(db.collection("timerParticipantDirectory").doc(data.personId)) : null;
       checkSession();
       const identity = source.exists ? source.data() : data;
       transaction.update(ref, {
         name: identity.name, birthYear: identity.birthYear, organization: identity.organization,
+        gender: identity.gender ?? directory?.data()?.gender ?? data.gender ?? "",
         personId: data.accountUid ? identity.personId ?? data.personId : data.personId,
         ...changes(data), updatedAt: stamp(sdk),
       });
@@ -124,6 +127,10 @@
 
   async function setActive(db, clubId, personId, year, enabled, sdk, checkSession = () => {}, expectedCreatedAt) {
     return editMember(db, clubId, personId, (person) => ({ activeYears: core.activeYears(person.activeYears, year, enabled) }), sdk, checkSession, expectedCreatedAt);
+  }
+
+  async function refreshIdentity(db, clubId, personId, sdk, checkSession = () => {}, expectedCreatedAt) {
+    return editMember(db, clubId, personId, () => ({}), sdk, checkSession, expectedCreatedAt);
   }
 
   async function removePerson(db, clubId, personId, sdk, checkSession = () => {}, keepPerson = false, accountDeletion = false) {
@@ -183,6 +190,11 @@
     for (const person of roster.docs) {
       checkSession();
       await removePerson(db, clubId, person.id, sdk, checkSession);
+    }
+    const seasons = await club.collection("teamSeasons").get({ source: "server" });
+    for (const season of seasons.docs) {
+      checkSession();
+      await club.collection("teamSeasons").doc(season.id).delete();
     }
     checkSession();
     await club.delete();
@@ -260,7 +272,7 @@
     return true;
   }
 
-  const api = Object.freeze({ createClub, importPerson, assignResponsible, setActive, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
+  const api = Object.freeze({ createClub, importPerson, assignResponsible, setActive, refreshIdentity, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsStore = api;
 })(typeof window === "object" ? window : globalThis);

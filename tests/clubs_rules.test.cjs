@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const core = require("../assets/js/clubs-core.js");
 const store = require("../assets/js/clubs-store.js");
+const teams = require("../assets/js/club-teams-store.js");
+const teamCore = require("../assets/js/club-teams-core.js");
 const links = require("../assets/js/person-link-store.js");
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host)) throw new Error("A local emulator is required.");
@@ -73,6 +75,114 @@ beforeEach(async () => {
   records[`timerParticipantDirectory/${p2}`] = person("b");
   records[`timerParticipantDirectory/${p3}`] = person("o");
   await seed(records);
+});
+
+async function teamFixture(legacy = false) {
+  const id = await create("Mannschaften", "a");
+  const db = compat(dbFor("a"));
+  const year = new Date().getUTCFullYear();
+  const ids = Array.from({ length: 10 }, (_, index) => `team${index}`);
+  await seed(Object.fromEntries(ids.map((key, index) => [`timerParticipantDirectory/${key}`, { ...person(`Person ${index}`), birthYear: year - (index === 0 ? 18 : 14), gender: index === 1 ? "m" : "w" }])));
+  for (const key of ids) {
+    await store.importPerson(db, id, key, api());
+    await store.setActive(db, id, key, year, true, api());
+    await store.setActive(db, id, key, year + 1, true, api());
+  }
+  if (legacy) for (const key of ids) {
+    const data = (await sdk.getDoc(rosterRef(dbFor("a"), id, key))).data();
+    delete data.gender;
+    await seed({ [`clubs/${id}/people/${key}`]: data });
+  }
+  const selected = await Promise.all(ids.map(async (key) => {
+    const data = (await sdk.getDoc(rosterRef(dbFor("a"), id, key))).data();
+    return { ...data, id: key, rosterGender: data.gender };
+  }));
+  const ref = (season = year, uid = "a") => sdk.doc(dbFor(uid), `clubs/${id}/teamSeasons/${season}`);
+  return { id, db, year, selected, ref };
+}
+
+test("teams reserve four to five members per year, support swapping, and release people on delete", { skip: !enabled }, async () => {
+  const f = await teamFixture();
+  let first = await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
+  assert.equal(teamCore.namedTeams(first, f.year)[0].name, "AK 17/18 männlich · 1");
+  await teams.save(f.db, f.id, f.year + 1, "one", f.selected.slice(0, 4), null, api());
+  await assert.rejects(teams.save(f.db, f.id, f.year, "two", f.selected.slice(0, 4), null, api()), /bereits/);
+  const expected = first.teams.one;
+  first = await teams.save(f.db, f.id, f.year, "one", f.selected.slice(2, 7), expected, api());
+  assert.equal(teamCore.namedTeams(first, f.year)[0].name, "AK 13/14 weiblich · 1");
+  assert.equal(first.assignments.team0, undefined);
+  await assert.rejects(teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), expected, api()), /geändert/);
+  await teams.save(f.db, f.id, f.year, "one", null, first.teams.one, api());
+  assert.deepEqual((await sdk.getDoc(f.ref())).data().assignments, {});
+  assert.equal((await sdk.getDoc(f.ref(f.year + 1))).data().assignments.team0, "one");
+});
+
+test("parallel team creation cannot assign a person twice and unrelated concurrent changes are retained", { skip: !enabled }, async () => {
+  const f = await teamFixture();
+  const raced = await Promise.allSettled(["one", "two"].map((id) => teams.save(f.db, f.id, f.year, id, f.selected.slice(0, 4), null, api())));
+  assert.equal(raced.filter((result) => result.status === "fulfilled").length, 1);
+  const first = (await sdk.getDoc(f.ref())).data();
+  const [id, team] = Object.entries(first.teams)[0];
+  await Promise.all([
+    teams.save(f.db, f.id, f.year, id, f.selected.slice(0, 5), team, api()),
+    teams.save(f.db, f.id, f.year, "other", f.selected.slice(5, 9), null, api()),
+  ]);
+  assert.equal(Object.keys((await sdk.getDoc(f.ref())).data().teams).length, 2);
+});
+
+test("team rules enforce authorization, cardinality, source identity and exact reservation updates", { skip: !enabled }, async () => {
+  const f = await teamFixture();
+  const valid = teamCore.change({}, "one", f.selected.slice(0, 4), f.year, null);
+  const write = (data, uid = "a") => sdk.setDoc(f.ref(f.year, uid), { ...data, updatedAt: sdk.serverTimestamp() });
+  for (const uid of ["outsider", "athlete", null]) {
+    await fails(write(valid, uid));
+    await fails(sdk.getDoc(f.ref(f.year, uid)));
+  }
+  for (const count of [0, 3, 6]) {
+    const invalid = structuredClone(valid);
+    invalid.teams.one.members = f.selected.slice(0, count).map((p) => ({ id: p.id, rosterId: p.id, name: p.name, birthYear: p.birthYear, gender: p.gender }));
+    invalid.assignments = Object.fromEntries(invalid.teams.one.members.map((p) => [p.id, "one"]));
+    await fails(write(invalid));
+  }
+  for (const field of ["name", "birthYear", "gender", "id"]) {
+    const invalid = structuredClone(valid);
+    invalid.teams.one.members[0][field] = field === "birthYear" ? 1900 : "forged";
+    await fails(write(invalid));
+  }
+  await fails(write({ ...valid, assignments: { ...valid.assignments, extra: "one" } }));
+  await fails(write({ ...valid, assignments: {} }));
+  await succeeds(write(valid));
+  const hijack = teamCore.change({}, "two", f.selected.slice(0, 4), f.year, null);
+  await fails(write({ ...hijack, teams: { ...valid.teams, ...hijack.teams } }));
+  await fails(write({ ...valid, teams: {}, assignments: { team0: "one" } }));
+  await fails(sdk.deleteDoc(f.ref()));
+  await succeeds(sdk.getDoc(f.ref(f.year, "admin")));
+  await store.setActive(f.db, f.id, "team0", f.year, false, api());
+  await fails(write(valid));
+  await teams.save(f.db, f.id, f.year, "one", null, valid.teams.one, api());
+});
+
+test("legacy roster genders are refreshed from the directory without losing evidence or activity", { skip: !enabled }, async () => {
+  const f = await teamFixture(true);
+  const date = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+  await store.saveDates(f.db, f.id, "team0", { rescueSilver: date }, api());
+  await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
+  const after = (await sdk.getDoc(rosterRef(dbFor("a"), f.id, "team0"))).data();
+  assert.equal(after.gender, "w");
+  assert.equal(after.rescueSilver.toMillis(), date.toMillis());
+  assert.deepEqual(after.activeYears, [f.year, f.year + 1]);
+  assert.equal(after.createdAt.toMillis(), f.selected[0].createdAt.toMillis());
+  await fails(sdk.updateDoc(rosterRef(dbFor("a"), f.id, "team0"), { gender: "m", updatedAt: sdk.serverTimestamp() }));
+});
+
+test("removing a team member preserves its snapshot and club deletion cleans up season documents", { skip: !enabled }, async () => {
+  const f = await teamFixture();
+  await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
+  await store.removePerson(f.db, f.id, "team0", api());
+  assert.equal((await sdk.getDoc(f.ref())).data().teams.one.members[0].name, "Person 0");
+  await assert.rejects(teams.save(f.db, f.id, f.year, "new", f.selected.slice(0, 4), null, api()), /entfernt/);
+  await store.deleteClub(compat(dbFor("admin")), f.id, api());
+  assert.equal((await sdk.getDoc(f.ref(f.year, "admin"))).exists(), false);
 });
 
 test("only admins create unique clubs with an initial responsible account and inactive roster entry", { skip: !enabled }, async () => {

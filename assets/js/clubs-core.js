@@ -29,6 +29,7 @@
     return {
       role: rank, personId: person?.id || "", name: person?.name ?? (data.displayName || data.email || "Mitglied"),
       birthYear, organization: person?.organization ?? (data.dlrgBranch || ""),
+      gender: person?.gender || ({ maennlich: "m", weiblich: "w" }[data.gender] || ""),
     };
   }
 

@@ -14,7 +14,7 @@
   const statusNames = { 1: "Bis Jahresende", 2: "Läuft ab", 3: "Offen" };
   const paths = {
     people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m14-10a4 4 0 0 1 4 4v4M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 0a4 4 0 0 1 0 8",
-    add: "M12 5v14M5 12h14", next: "m9 6 6 6-6 6", remove: "M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5",
+    add: "M12 5v14M5 12h14", minus: "M5 12h14", next: "m9 6 6 6-6 6", remove: "M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5",
     1: "M5 12l4 4L19 6", 2: "M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z", 3: "M12 6v7m0 4h.01",
     health: "M20 5a5 5 0 0 0-8 1 5 5 0 1 0-8 6l8 8 8-8a5 5 0 0 0 0-7Z", exam: "M6 3h12v18H6zM9 8h6m-6 4h6m-6 4h4",
   };
@@ -26,6 +26,7 @@
   let selectedManager = "";
   let selectedName = "";
   let responsibleClub = "";
+  const teamView = adminPage ? null : window.ClubTeams.create({ byId, node, icon, isCurrent: active, getPeople: peopleFor, onChange: render, errorText });
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -64,6 +65,7 @@
   }
 
   function clearView(owner) {
+    teamView?.stop();
     owner.view += 1;
     owner.rosterStop?.();
     owner.profileStops.forEach((stop) => stop());
@@ -215,9 +217,12 @@
     });
     byId("se-import-open").hidden = tab !== "people";
     byId("se-summary").hidden = tab !== "eligibility";
+    byId("club-team-add").hidden = tab !== "team";
+    if (tab !== "team") teamView.stop();
     if (!owner.loaded) return;
     const nextSeason = byId("se-season-next").checked;
     const year = eligibility.seasonYear(day, nextSeason);
+    if (tab === "team") { teamView.render(owner, year); return; }
     const everyone = peopleFor(owner);
     const people = tab === "people" ? everyone : everyone.filter((person) => person.activeYears.includes(year));
     const groups = new Map([...eligibility.groups, "Ohne Jahrgang"].map((group) => [group, []]));
