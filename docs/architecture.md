@@ -182,16 +182,22 @@ Wiederholung erhalten. Ein kleiner Status kennzeichnet ausstehende Übertragunge
 Ein gefülltes Event kann innerhalb seines Jahres umdatiert werden; ein Jahreswechsel
 erfordert ein leeres Event, damit keine ungeprüfte Auswahl aus dem anderen Jahr entsteht.
 
-Die Jahresliste hört auf eine begrenzte Seite mit höchstens 50 Events; weitere
-Seiten werden ausdrücklich geladen. Beim Öffnen eines Events ersetzt dessen
+Die Eventübersicht startet mit „Geplante“ (heute und später); „Vergangene“ enthält
+frühere Termine unabhängig vom Jahr. Die Abfragen filtern und sortieren nach Datum,
+geplante aufsteigend und vergangene absteigend, mit höchstens 50 Events je Seite.
+Weitere Seiten werden ausdrücklich geladen. Ein Tageswechsel erneuert den Datumsfilter.
+Innerhalb eines Events ist kein Switch sichtbar; Personen und Startberechtigungen
+behalten ihre Jahresauswahl. Beim Öffnen eines Events ersetzt dessen
 Dokumentlistener den Listenlistener. Ausgeblendete Seiten pausieren den Listener;
-Club-, Konto-, Rollen- und Jahreswechsel schließen Editoren und verwerfen alte Antworten.
+Club-, Konto- und Rollenwechsel schließen Editoren und verwerfen alte Antworten.
 Hintergrundaufträge prüfen die Kontositzung getrennt vom Ansichtslebenszyklus;
 ein Kontowechsel verhindert weitere Schreibvorgänge des bisherigen Arbeiters.
 Bei konkurrierenden Änderungen wird nur nach nachgewiesener Revisionsänderung
 begrenzt neu versucht. Das erneute Planen prüft alle Reservierungen erneut.
 Die älteren `teamSeasons`-Datensätze bleiben unabhängig erhalten; ohne Eventdatum
-werden daraus keine Events konstruiert. Die alte Mannschaftsoberfläche wird nicht geladen.
+werden daraus keine Events konstruiert. Die ungenutzte alte Mannschaftsoberfläche
+(`club-teams.js`), ihr Store und die reine Jahresmannschaftslogik wurden entfernt.
+`club-teams-core.js` enthält nur noch die gemeinsam verwendete AK-/Geschlechtsberechnung.
 
 ### Firestore-Pfade
 

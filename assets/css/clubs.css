@@ -86,14 +86,8 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-team-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .club-team-card:hover { background: var(--surface-muted); }
 .club-team-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: .9rem; }
-.club-team-card-heading strong, .club-team-member { overflow-wrap: anywhere; }
+.club-team-card-heading strong { overflow-wrap: anywhere; }
 .club-team-card-heading svg { width: 14px; height: 14px; color: var(--muted); }
-.club-team-member { font-size: .83rem; color: var(--muted); }
-.club-team-free { margin-top: 8px; }
-.club-team-free > h3 { padding: 10px 14px 3px; color: var(--muted); font-size: .7rem; }
-.club-team-free-person { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px; }
-.club-team-free-person + .club-team-free-person { border-top: 1px solid var(--line); }
-.club-team-free-person .se-person-name { font-size: .85rem; }
 .club-team-dialog { max-width: 540px; max-height: calc(100dvh - 24px); }
 .club-team-dialog form { min-height: 0; }
 .club-team-selected:not(:empty) { margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -102,8 +96,6 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-team-person .se-meta { flex-basis: auto; font-size: .7rem; }
 .club-team-person .se-person-name { font-size: .84rem; }
 .club-team-candidates { max-height: min(30dvh, 280px); overflow-y: auto; overscroll-behavior: contain; }
-.club-team-picker-group h3 { margin: 12px 10px 4px; color: var(--muted); font-size: .7rem; }
-.club-team-unavailable, .club-team-unavailable .se-person-name { color: #ff9297; }
 .club-team-actions { justify-content: space-between; }
 #club-team-save { margin-left: auto; }
 @media (max-width: 600px) {

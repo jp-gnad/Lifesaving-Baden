@@ -30,7 +30,7 @@
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
-    <script defer src="assets/js/club-teams-core.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/club-teams-core.js?v=20261119-event-periods-v1"></script>
     <script defer src="assets/js/club-events-core.js?v=20261119-event-periods-v1"></script>
     <script defer src="assets/js/club-events-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/club-events-queue.js?v=20261119-instant-events-v1"></script>
@@ -88,8 +88,8 @@
             </label>
           </fieldset>
           <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Eventansicht wählen" hidden>
-            <label><input class="wt-sr-only" type="radio" id="club-event-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
-            <label><input class="wt-sr-only" type="radio" id="club-event-past" name="club-event-period" value="past"><span>Vergangene</span></label>
+            <label><input class="wt-sr-only" type="radio" id="club-event-period-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
+            <label><input class="wt-sr-only" type="radio" id="club-event-period-past" name="club-event-period" value="past"><span>Vergangene</span></label>
           </fieldset>
           <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
           <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>

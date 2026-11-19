@@ -316,7 +316,7 @@
       return row;
     }
     row.append(details);
-    if (tab !== "team") row.append(icon("next"));
+    row.append(icon("next"));
     return row;
   }
 

@@ -177,8 +177,8 @@
       byId("club-event-add").hidden = Boolean(value.selected);
       byId("club-event-add").disabled = !value.loaded || Boolean(value.error);
       byId("club-event-period-switch").hidden = Boolean(value.selected);
-      byId("club-event-planned").checked = value.period === "planned";
-      byId("club-event-past").checked = value.period === "past";
+      byId("club-event-period-planned").checked = value.period === "planned";
+      byId("club-event-period-past").checked = value.period === "past";
       byId("club-overview").hidden = Boolean(value.selected);
       list.setAttribute("aria-busy", String(!value.loaded));
       list.replaceChildren();
@@ -444,7 +444,7 @@
     byId("club-event-add").addEventListener("click", () => openEditor());
     byId("club-event-period-switch").addEventListener("change", () => {
       if (!current() || context.selected) return;
-      context.period = byId("club-event-past").checked ? "past" : "planned";
+      context.period = byId("club-event-period-past").checked ? "past" : "planned";
       context.loaded = context.loadedPeriods.has(context.period);
       context.more = false;
       listen(context);
