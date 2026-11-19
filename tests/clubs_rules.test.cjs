@@ -245,6 +245,31 @@ test("a bulk selection rejects stale inactive people atomically", { skip: !enabl
   assert.deepEqual((await sdk.getDoc(f.ref("bulk"))).data().participants, {});
 });
 
+test("club event period queries include all years and page by event date", { skip: !enabled }, async () => {
+  const id = await create("Eventzeiträume", "a");
+  const year = new Date().getUTCFullYear();
+  const today = `${year}-07-01`;
+  const timestamp = sdk.Timestamp.now();
+  const record = (date) => ({ name: date, date, year: Number(date.slice(0, 4)), participants: {}, teams: {}, assignments: {}, revision: 0,
+    operation: "create", changedId: "", createdAt: timestamp, updatedAt: timestamp });
+  const records = { [`clubs/${id}/events/today`]: record(today), [`clubs/${id}/events/past`]: record(`${year - 1}-12-20`) };
+  for (let index = 0; index < 59; index++) {
+    const date = new Date(Date.UTC(year + 1, 0, index + 1)).toISOString().slice(0, 10);
+    records[`clubs/${id}/events/future${index}`] = record(date);
+  }
+  await seed(records);
+  const ref = sdk.collection(dbFor("a"), `clubs/${id}/events`);
+  const planned = sdk.query(ref, sdk.where("date", ">=", today), sdk.orderBy("date", "asc"), sdk.limit(50));
+  const first = await sdk.getDocs(planned);
+  const next = await sdk.getDocs(sdk.query(planned, sdk.startAfter(first.docs.at(-1))));
+  assert.equal(first.size, 50);
+  assert.equal(next.size, 10);
+  assert.equal(first.docs[0].id, "today");
+  assert.equal(new Set([...first.docs, ...next.docs].map((entry) => entry.id)).size, 60);
+  const past = await sdk.getDocs(sdk.query(ref, sdk.where("date", "<", today), sdk.orderBy("date", "desc"), sdk.limit(50)));
+  assert.deepEqual(past.docs.map((entry) => entry.id), ["past"]);
+});
+
 test("only admins create unique clubs with an initial responsible account and inactive roster entry", { skip: !enabled }, async () => {
   await fails(store.createClub(compat(dbFor("a")), "Ettlingen", "a", api()));
   const id = await create("Ettlingen", "a");
