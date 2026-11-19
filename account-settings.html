@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-account-layout-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-settings-cleanup-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261119-account-layout-v1"></script>
@@ -30,7 +30,7 @@
     <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261119-account-layout-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261119-settings-cleanup-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="settings">
     <header class="site-header">
@@ -117,28 +117,6 @@
               </span>
               <span>Konto</span>
             </a>
-            <span class="settings-menu-divider is-hidden" data-privileged-menu-divider aria-hidden="true"></span>
-            <a class="settings-menu-item is-hidden" href="#organisator" data-organizer-only>
-              <span class="settings-menu-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M7 7.5h10"></path>
-                  <path d="M7 12h10"></path>
-                  <path d="M7 16.5h6"></path>
-                  <rect x="4" y="4" width="16" height="16" rx="3"></rect>
-                  <path d="M9 4V2.8h6V4"></path>
-                </svg>
-              </span>
-              <span>Organisator</span>
-            </a>
-            <a class="settings-menu-item is-hidden" href="#admin" data-admin-only>
-              <span class="settings-menu-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M12 3.5 19 6v5.1c0 4.2-2.7 7.3-7 9.4-4.3-2.1-7-5.2-7-9.4V6l7-2.5Z"></path>
-                  <path d="M9 12.1 11 14l4-4.4"></path>
-                </svg>
-              </span>
-              <span>Admin</span>
-            </a>
           </nav>
         </aside>
 
@@ -214,7 +192,7 @@
                     </svg>
                   </span>
                   <span class="profile-field-copy">
-                    <strong>DLRG-Gliederung</strong>
+                    <strong>Gliederung</strong>
                     <span data-profile-value="dlrgBranch">Nicht angegeben</span>
                   </span>
                   <span class="profile-field-chevron" aria-hidden="true"></span>
@@ -494,7 +472,6 @@
                     <p class="setting-help no-indent">
                       <strong data-linked-account-email></strong><br><span data-linked-person-details></span>
                     </p>
-                    <p class="setting-help no-indent">Du kannst die Verknüpfung aufheben oder einen Fehler melden. Deine Profilangaben kannst du unabhängig davon ändern.</p>
                     <span class="security-button-row">
                       <button class="button button-secondary" type="button" data-link-issue-open>Fehler melden</button>
                       <button class="button button-secondary is-hidden" type="button" data-link-issue-withdraw hidden>Fehlermeldung zurückziehen</button>
@@ -562,37 +539,6 @@
             </article>
           </section>
 
-          <section class="settings-category is-hidden" id="organisator" aria-labelledby="settings-organizer-title" data-organizer-only hidden aria-hidden="true">
-            <div class="settings-category-header">
-              <button class="settings-mobile-back" type="button" data-settings-mobile-back aria-label="Zurück zum Einstellungsmenü">
-                <span aria-hidden="true">←</span>
-              </button>
-              <h2 id="settings-organizer-title">Organisator</h2>
-            </div>
-            <article class="card setting-card">
-              <h3>Organisatorstatus</h3>
-              <p>
-                Dieses Konto ist als Organisator markiert. Admin-Konten sehen
-                diesen Bereich automatisch ebenfalls.
-              </p>
-            </article>
-          </section>
-
-          <section class="settings-category is-hidden" id="admin" aria-labelledby="settings-admin-title" data-admin-only hidden aria-hidden="true">
-            <div class="settings-category-header">
-              <button class="settings-mobile-back" type="button" data-settings-mobile-back aria-label="Zurück zum Einstellungsmenü">
-                <span aria-hidden="true">←</span>
-              </button>
-              <h2 id="settings-admin-title">Admin</h2>
-            </div>
-            <article class="card setting-card">
-              <h3>Adminstatus</h3>
-              <p>
-                Dieses Konto ist als Admin markiert. Die Verwaltung anderer Konten findest du in der <a href="admin-accounts.html">Kontenübersicht</a>.
-                Adminrollen können ausschließlich manuell in Firebase vergeben oder geändert werden.
-              </p>
-            </article>
-          </section>
         </div>
       </section>
     </main>

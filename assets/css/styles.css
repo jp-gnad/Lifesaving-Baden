@@ -2373,13 +2373,6 @@ body.auth-context-loading .member-apps::after {
   stroke-width: 1.9;
 }
 
-.settings-menu-divider {
-  width: calc(100% - 16px);
-  height: 1px;
-  margin: 2px 8px;
-  background: rgba(255, 255, 255, 0.16);
-}
-
 .settings-menu-item[href="#sicherheit"] .settings-menu-icon {
   background: rgb(120, 207, 255);
 }
@@ -2394,16 +2387,6 @@ body.auth-context-loading .member-apps::after {
 }
 
 .settings-menu-item[href="#konto"] .settings-menu-icon {
-  background: var(--accent);
-  color: var(--text);
-}
-
-.settings-menu-item[href="#organisator"] .settings-menu-icon {
-  background: var(--organizer-accent);
-  color: var(--bg);
-}
-
-.settings-menu-item[href="#admin"] .settings-menu-icon {
   background: var(--accent);
   color: var(--text);
 }

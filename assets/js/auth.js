@@ -1065,7 +1065,6 @@
       "data-organizer-only": role.isOrganizer,
       "data-trainer-only": role.isTrainer,
       "data-athlete-only": role.isAthlete,
-      "data-privileged-menu-divider": role.isOrganizer,
     };
     Object.entries(visibility).forEach(([attribute, visible]) => {
       document.querySelectorAll(`[${attribute}]`).forEach((element) => {
@@ -1245,7 +1244,7 @@
       emptyLabel: "Nicht angegeben"
     },
     dlrgBranch: {
-      label: "DLRG-Gliederung",
+      label: "Gliederung",
       type: "text",
       autocomplete: "organization",
       emptyLabel: "Nicht angegeben"
