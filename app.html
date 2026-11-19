@@ -24,9 +24,10 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-profile-progress-v3">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-dashboard-header-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="assets/js/dashboard-header.js?v=20261119-dashboard-header-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
@@ -66,14 +67,6 @@
       <section class="dashboard-header">
         <p class="eyebrow">Mitgliederbereich</p>
         <h1>Willkommen<span data-user-name-separator></span><span class="dashboard-user-name" data-user-name></span></h1>
-        <p>
-          Dieser Bereich wird erst nach einem bestätigten Firebase-Login
-          angezeigt. Wirklich vertrauliche Inhalte sollten weiterhin aus einer
-          geschützten Datenquelle geladen werden.
-        </p>
-      </section>
-
-      <div class="member-dashboard-content">
         <section class="account-checklist is-hidden" data-account-checklist hidden aria-hidden="true" aria-label="Profil ergänzen">
           <div class="checklist-progress-row">
             <div class="checklist-progress" role="progressbar" aria-label="Profilfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="20">
@@ -100,7 +93,9 @@
             </li>
           </ul>
         </section>
+      </section>
 
+      <div class="member-dashboard-content">
         <div class="member-app-groups">
           <section class="member-apps" aria-label="Standard">
             <h2 class="eyebrow">Standard</h2>

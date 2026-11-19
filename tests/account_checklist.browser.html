@@ -20,6 +20,8 @@
       <button data-state="partial">Teilweise ergänzt</button>
       <button data-state="requested">Angefragt</button>
       <button data-state="linked">Vollständig verknüpft</button>
+      <button data-name="long">Langer Name</button>
+      <button data-name="short">Kurzer Name</button>
       <button data-width="100%">Desktop</button>
       <button data-width="390px">390 px</button>
       <button data-width="320px">320 px</button>
@@ -28,13 +30,14 @@
     <script>
       let selectedState = "new";
       let selectedView = "app";
+      let selectedName = "Anna Baden";
       async function loadFixture(state = selectedState, view = selectedView) {
         selectedState = state;
         selectedView = view;
         const response = await fetch(view === "settings" ? "../account-settings.html" : "../app.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(header|dashboard-header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;
@@ -56,7 +59,7 @@
         fixture.textContent = `document.addEventListener("DOMContentLoaded", () => {
           ${source.replace(/\}\)\(\);\s*$/, `
             updateLinkStatusUi(${JSON.stringify(profiles[state])});
-            const user = { displayName: "Anna Baden", email: "anna@example.test", providerData: [] };
+            const user = { displayName: ${JSON.stringify(selectedName)}, email: "anna@example.test", providerData: [] };
             updateAccountProfile(user);
             const greeting = document.querySelector("[data-account-greeting-name]");
             if (greeting) greeting.textContent = "Anna";
@@ -90,6 +93,12 @@
       });
       document.querySelectorAll("[data-view]").forEach((button) => {
         button.onclick = () => loadFixture(selectedState, button.dataset.view);
+      });
+      document.querySelectorAll("[data-name]").forEach((button) => {
+        button.onclick = () => {
+          selectedName = button.dataset.name === "long" ? "Anna-Lena Maximiliane von Baden-Württemberg" : "Anna Baden";
+          loadFixture();
+        };
       });
       document.querySelectorAll("[data-width]").forEach((button) => {
         button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; };

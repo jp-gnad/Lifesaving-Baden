@@ -11,7 +11,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 |---|---|---|
 | `index.html` | Öffentliche Startseite und Weiterleitung bestehender Sitzungen | `auth-core.js`, `auth.js`, `nav.js`, `header.js` |
 | `login.html` | Anmeldung, Registrierung, Verifikation und Passwort-Reset | `auth-core.js`, `login.js`, `google-handoff.js`, `login-background.js` |
-| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js`, `clubs-notifications.js` |
+| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js`, `clubs-notifications.js`, `dashboard-header.js` |
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
@@ -23,6 +23,9 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
+`dashboard-header.js` passt ausschließlich die Namensschrift an die verfügbare
+Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
+Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.
 
