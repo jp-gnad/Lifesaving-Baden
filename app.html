@@ -24,7 +24,7 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-profile-progress-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-profile-progress-v2">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -37,7 +37,7 @@
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261119-profile-progress-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261119-profile-progress-v2"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -79,12 +79,12 @@
             <div class="checklist-progress" role="progressbar" aria-label="Profilfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="20">
               <span data-checklist-progress></span>
             </div>
-            <span class="checklist-count" data-checklist-count>(20 %)</span>
+            <span class="checklist-count" data-checklist-count>20 %</span>
           </div>
           <ul class="checklist-list" aria-label="Profilergänzung">
             <li class="checklist-item" data-check-item="linkRequest">
               <span class="checklist-dot" aria-hidden="true"></span>
-              <span><span class="checklist-status" data-check-status>Offen: </span>Verknüpfung angefragt <a href="account-settings.html#verknuepfungen" aria-label="Verknüpfung anfragen">Anfragen →</a></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Verknüpfung angefragt <a class="checklist-request-link" href="account-settings.html#verknuepfungen" aria-label="Verknüpfung anfragen" title="Verknüpfung anfragen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.4 14.6 8 16a3.5 3.5 0 0 1-5-5l2-2a3.5 3.5 0 0 1 5 0M14.6 9.4 16 8a3.5 3.5 0 0 1 5 5l-2 2a3.5 3.5 0 0 1-5 0M8.8 15.2 15.2 8.8"></path></svg></a></span>
             </li>
             <li class="checklist-item" data-check-item="dlrgBranch">
               <span class="checklist-dot" aria-hidden="true"></span>

@@ -14,6 +14,8 @@
   <body>
     <nav>
       <span>Lokale Testdaten</span>
+      <button data-view="app">Übersicht</button>
+      <button data-view="settings">Einstellungsmenü</button>
       <button data-state="new">Neues Konto</button>
       <button data-state="partial">Teilweise ergänzt</button>
       <button data-state="requested">Angefragt</button>
@@ -24,8 +26,12 @@
     </nav>
     <iframe id="preview" title="Mitgliederübersicht mit Testdaten"></iframe>
     <script>
-      async function loadFixture(state = "new") {
-        const response = await fetch("../app.html");
+      let selectedState = "new";
+      let selectedView = "app";
+      async function loadFixture(state = selectedState, view = selectedView) {
+        selectedState = state;
+        selectedView = view;
+        const response = await fetch(view === "settings" ? "../account-settings.html" : "../app.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
           if (!/assets\/js\/(header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
@@ -52,7 +58,8 @@
             updateLinkStatusUi(${JSON.stringify(profiles[state])});
             const user = { displayName: "Anna Baden", email: "anna@example.test", providerData: [] };
             updateAccountProfile(user);
-            document.querySelector("[data-account-greeting-name]").textContent = "Anna";
+            const greeting = document.querySelector("[data-account-greeting-name]");
+            if (greeting) greeting.textContent = "Anna";
             document.querySelector("[data-account-open]").onclick = () => {
               document.querySelector("[data-account-overlay]").classList.remove("is-hidden");
               document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "false");
@@ -62,7 +69,16 @@
               document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "true");
             };
             document.body.classList.remove("auth-context-loading");
-            document.body.dataset.page = "app";
+            document.body.dataset.page = ${JSON.stringify(view)};
+            if (${JSON.stringify(view)} === "settings") {
+              const form = document.querySelector("[data-profile-form]");
+              Object.entries(${JSON.stringify(profiles[state])}).forEach(([key, value]) => {
+                if (form.elements[key]) form.elements[key].value = value;
+              });
+              form.dataset.profileDetailsLoaded = "true";
+              updateProfileFieldList(form);
+              initSettingsMenu();
+            }
           })();`)}
         });`;
         page.head.append(fixture);
@@ -71,6 +87,9 @@
       loadFixture();
       document.querySelectorAll("[data-state]").forEach((button) => {
         button.onclick = () => loadFixture(button.dataset.state);
+      });
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        button.onclick = () => loadFixture(selectedState, button.dataset.view);
       });
       document.querySelectorAll("[data-width]").forEach((button) => {
         button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; };

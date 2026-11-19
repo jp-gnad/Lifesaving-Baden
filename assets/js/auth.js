@@ -922,9 +922,16 @@
     return items.length > 0 && items.every((item) => item.complete);
   }
 
+  function getMissingAccountCounts(data) {
+    return {
+      personal: [data?.dlrgBranch, data?.birthDate, data?.gender].filter((value) => !hasChecklistValue(value)).length,
+      links: isPersonLinked(data) ? 0 : 1
+    };
+  }
+
   function getMissingAccountCount(data) {
-    return [data?.dlrgBranch, data?.birthDate, data?.gender].filter((value) => !hasChecklistValue(value)).length
-      + (isPersonLinked(data) ? 0 : 1);
+    const counts = getMissingAccountCounts(data);
+    return counts.personal + counts.links;
   }
 
   function updateAccountChecklist(data) {
@@ -946,6 +953,18 @@
       element.setAttribute("aria-hidden", "true");
     });
 
+    const categoryCounts = getMissingAccountCounts(data);
+    const categoryLabels = { personal: "Persönliche Daten", links: "Verknüpfungen" };
+    document.querySelectorAll("[data-settings-attention]").forEach((badge) => {
+      const category = badge.dataset.settingsAttention;
+      const count = categoryCounts[category] || 0;
+      const shouldHide = !hasLoadedData || count === 0;
+      badge.textContent = shouldHide ? "" : String(count);
+      badge.hidden = shouldHide;
+      badge.closest("a")?.setAttribute("aria-label", shouldHide ? categoryLabels[category]
+        : `${categoryLabels[category]} – ${count} offene ${count === 1 ? "Angabe" : "Angaben"}`);
+    });
+
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
       if (!hasLoadedData) {
         checklist.classList.add("is-hidden");
@@ -958,7 +977,7 @@
       const progress = checklist.querySelector("[data-checklist-progress]");
 
       if (count) {
-        count.textContent = `(${percentage} %)`;
+        count.textContent = `${percentage} %`;
       }
 
       if (progress) {
@@ -975,11 +994,8 @@
         const element = checklist.querySelector(`[data-check-item="${item.key}"]`);
 
         if (element) {
-          element.classList.toggle("is-complete", item.complete);
-          const action = element.querySelector("a");
-          if (action) action.hidden = item.complete;
-          const status = element.querySelector("[data-check-status]");
-          if (status) status.textContent = item.complete ? "Erledigt: " : "Offen: ";
+          element.hidden = item.complete;
+          element.setAttribute("aria-hidden", String(item.complete));
         }
       });
     });

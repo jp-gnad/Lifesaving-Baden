@@ -85,7 +85,7 @@ Nach Start des lokalen HTTP-Servers:
 
 - `tests/admin_accounts.browser.html`: Kontenverwaltung, verschiedene Bildschirmbreiten.
 - `tests/account_links.browser.html`: eigene Personenverknüpfung.
-- `tests/account_checklist.browser.html`: Profilfortschritt und Kontozähler mit lokalen Profilständen bei Desktop, 390 und 320 px.
+- `tests/account_checklist.browser.html`: Profilfortschritt, Kontozähler und Hinweise im Einstellungsmenü mit lokalen Profilständen bei Desktop, 390 und 320 px.
 - `tests/worktime.browser.html`: Arbeitszeiten.
 - `tests/club_teams.browser.html`: Club-Events, Erstellung und Mannschaftsbearbeitung mit lokalen Daten; Desktop, 390 und 320 px. Der bestehende Fixture-Pfad bleibt erhalten.
   Mit `?delay=15000` verzögert die Fixture jeden simulierten Servervorgang um 15 Sekunden.

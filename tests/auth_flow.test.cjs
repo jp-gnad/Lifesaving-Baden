@@ -1687,7 +1687,7 @@ test("profile progress starts with the name, counts a pending request, and disap
   ];
   for (const [data, percentage, missing, hidden] of scenarios) {
     functions.updateLinkStatusUi(data);
-    assert.equal(count.textContent, `(${percentage} %)`);
+    assert.equal(count.textContent, `${percentage} %`);
     assert.equal(progress.style.width, `${percentage}%`);
     assert.equal(progress.parentElement.attributes["aria-valuenow"], String(percentage));
     assert.equal(checklist.hidden, hidden);
@@ -1695,13 +1695,46 @@ test("profile progress starts with the name, counts a pending request, and disap
       assert.equal(badge.hidden, missing === 0);
       assert.equal(badge.textContent, missing ? String(missing) : "");
     }
-    assert.equal(rows.gender.action.hidden, Boolean(data.gender?.trim()));
-    assert.equal(rows.gender.status.textContent, data.gender?.trim() ? "Erledigt: " : "Offen: ");
+    for (const key of ["dlrgBranch", "birthDate", "gender"]) {
+      assert.equal(rows[key].hidden, Boolean(data[key]?.trim()));
+      assert.equal(rows[key].attributes["aria-hidden"], String(Boolean(data[key]?.trim())));
+    }
+    assert.equal(rows.linkRequest.hidden, Boolean(data.personLink || data.personLinkStatus === "requested"
+      || data.personLinkRequest?.status === "requested"));
   }
   functions.updateLinkStatusUi(null);
   assert.equal(checklist.hidden, true);
   assert.equal(avatar.hidden, true);
   assert.equal(manage.hidden, true);
+});
+
+test("settings menu badges locate missing personal details and unconfirmed links, and clear on completion or logout", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  const badge = (category) => ({
+    dataset: { settingsAttention: category }, textContent: "", hidden: true, label: "",
+    closest() { return { setAttribute: (key, value) => { this.label = value; } }; },
+  });
+  const personal = badge("personal"), links = badge("links");
+  h.document.querySelectorAll = (selector) => selector === "[data-settings-attention]" ? [personal, links] : [];
+  const full = { firstName: "Anna", lastName: "Baden", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+  const personLink = { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" };
+  for (const [data, personalCount, linkCount] of [
+    [{}, 3, 1],
+    [{ ...full, birthDate: "", gender: " " }, 2, 1],
+    [{ ...full, gender: "" }, 1, 1],
+    [{ ...full, personLinkRequest: { status: "requested" } }, 0, 1],
+    [{ ...full, personLink }, 0, 0],
+    [{ ...full, dlrgBranch: "", personLink }, 1, 0],
+    [null, 0, 0],
+  ]) {
+    functions.updateLinkStatusUi(data);
+    for (const [item, count, label] of [[personal, personalCount, "Persönliche Daten"], [links, linkCount, "Verknüpfungen"]]) {
+      assert.equal(item.textContent, count ? String(count) : "");
+      assert.equal(item.hidden, count === 0);
+      assert.equal(item.label, count ? `${label} – ${count} offene ${count === 1 ? "Angabe" : "Angaben"}` : label);
+    }
+  }
 });
 
 test("profile deep links open the requested editor only after loading, with saved values and without reopening", () => {

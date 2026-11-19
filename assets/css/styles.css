@@ -1767,6 +1767,7 @@ body.auth-context-loading .member-apps::after {
 
 .checklist-count {
   flex: 0 0 auto;
+  color: var(--accent-light);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1816,25 +1817,34 @@ body.auth-context-loading .member-apps::after {
   color: var(--primary);
 }
 
+.checklist-item .checklist-request-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-block: -4px;
+  vertical-align: middle;
+  border-radius: 50%;
+}
+
+.checklist-request-link svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .checklist-dot {
   width: 10px;
   height: 10px;
   align-self: start;
   margin-top: 5px;
-  border: 1px solid currentColor;
+  border: 1px solid var(--accent);
   border-radius: 50%;
-}
-
-.checklist-item.is-complete .checklist-dot {
-  border: 0;
-}
-
-.checklist-item.is-complete .checklist-dot::after {
-  content: "✓";
-  display: block;
-  color: var(--success);
-  font-size: 0.75rem;
-  line-height: 1;
 }
 
 .checklist-status {
@@ -2273,7 +2283,7 @@ body.auth-context-loading .member-apps::after {
 
 .settings-menu-item {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   min-height: 52px;
@@ -2282,6 +2292,19 @@ body.auth-context-loading .member-apps::after {
   border-radius: 8px;
   color: var(--muted);
   font-weight: 700;
+}
+
+.settings-menu-badge {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .settings-menu-item:hover,
