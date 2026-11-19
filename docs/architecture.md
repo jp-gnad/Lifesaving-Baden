@@ -134,15 +134,22 @@ Club-Events sind eine eigenständige Planung ohne Verbindung zu `timerEvents`.
 Mannschaftszuordnungen. `club-teams-core.js` liefert die gemeinsame AK-/Geschlechtslogik.
 `club-events-store.js` schreibt jeweils genau ein Event in einer Transaktion;
 `club-events.js` verbindet Jahresliste, Erstellungsdialog und Eventansicht als Factory.
+`club-events-queue.js` speichert Änderungen kontogebunden lokal, projiziert sie sofort
+auf die Ansicht und überträgt sie unabhängig von Club-/Ansichtswechseln im Hintergrund.
 `clubs.js` übergibt den aktuellen Club, Sitzungsprüfung und Kader explizit.
 
 Ein Event unter `clubs/{clubId}/events/{eventId}` hält Name, Kalendertag, Jahr,
 Teilnehmersnapshots, Mannschaften und einen Zuordnungsindex. Die Regeln erlauben
-pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion.
+pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion;
+Teilnehmerauswahlen dürfen bis zu drei geprüfte Zu- oder Abgänge gemeinsam ändern.
 Der Index reserviert eine Person innerhalb dieses Events für höchstens eine
 Mannschaft mit 4–5 Personen. Mannschaftswechsel und Löschungen ändern Einzelstarts
 nicht; Personen ohne Einzelstart und Mannschaft stehen unter „Ohne Start“.
 AK und Geschlecht entstehen aus den Eventteilnehmern und dem Eventjahr.
+Die Anzeige gruppiert Mannschaften, Einzelstarts und Auswahllisten nach AK,
+darin weiblich vor männlich und danach alphabetisch. Kleine Farbpunkte und
+Geschlechtsüberschriften ergänzen die Gruppierung; unbekannte Angaben bleiben
+gesondert sichtbar. Die Darstellung verändert keine gespeicherte Mannschaftsnummer.
 
 Neue Teilnehmer benötigen den Aktivstatus des Eventjahrs. Bereits übernommene
 Personen bleiben bei späterer Deaktivierung oder Clubentfernung als Snapshot
@@ -150,10 +157,28 @@ erhalten; die Oberfläche kennzeichnet sie dezent als inaktiv. Fehlendes Geschle
 alter Kaderdatensätze wird nur für ausdrücklich ausgewählte Personen aus der
 maßgeblichen Quelle ergänzt. Aktivjahre, Nachweise und Erstellungszeit bleiben erhalten.
 
-Beim Erstellen wird zuerst das Event angelegt und anschließend jede ausgewählte
-Person einzeln validiert übernommen. Bei einem Verbindungsfehler bleiben bereits
-gespeicherte Teilnehmer erhalten; ein erneuter Versuch desselben Dialogs verwendet
-dieselbe Event-ID. Teilweise erstellte Events sind in der Liste sichtbar und editierbar.
+Ein Event wird nach Name und Datum ohne Teilnehmer erstellt. Erst in der Eventansicht
+werden Einzelschwimmer oder Mannschaften aus dem im Eventjahr aktiven Clubkader
+hinzugefügt. Direkt für eine Mannschaft übernommene Personen erhalten keinen
+automatischen Einzelstart; schon vorhandene Einzelstarts bleiben erhalten.
+
+Speichern bestätigt zuerst den Abschluss eines synchronen lokalen Schreibvorgangs.
+Die Warteschlange nutzt je Auftrag einen eigenen Schlüssel unter
+`lifesaving-club-event-queue-v1/{uid}/`; sie enthält feste Event-IDs und kleine,
+serialisierbare Kadersnapshots. Fehler beim lokalen Schreiben schließen den Dialog
+nicht. Nach Neuladen werden ausstehende Aufträge ausschließlich für ihr Ursprungskonto
+fortgesetzt. Web Locks koordinieren Hintergrundarbeiter mehrerer Tabs; nachgewiesene
+Bestätigungen bleiben als Sitzungsjournal sichtbar, bis ältere Listenerantworten
+aufgeholt haben. Fehlgeschlagene Änderungen bleiben für Wiederholung oder ausdrückliches
+Verwerfen erhalten und blockieren keine anderen Events. Der Timer-Speicher bleibt getrennt.
+
+Der Store übernimmt gecachte Kaderidentitäten ohne erneuten Personenabruf in Gruppen
+von höchstens drei Personen. Die Firestore-Regeln prüfen in jeder Gruppe den aktuellen
+Kader, Aktivstatus und die ursprüngliche Erstellungszeit unabhängig von diesen Cachewerten.
+Nur alte Datensätze ohne Geschlecht benötigen eine zusätzliche Quellenaktualisierung.
+Direkte Mannschaftsaufnahme, Einzelstartwechsel und spätere Bearbeitungen werden
+geordnet übertragen; bereits gespeicherte Personen und Startflags bleiben bei
+Wiederholung erhalten. Ein kleiner Status kennzeichnet ausstehende Übertragungen.
 Ein gefülltes Event kann innerhalb seines Jahres umdatiert werden; ein Jahreswechsel
 erfordert ein leeres Event, damit keine ungeprüfte Auswahl aus dem anderen Jahr entsteht.
 
@@ -161,6 +186,8 @@ Die Jahresliste hört auf eine begrenzte Seite mit höchstens 50 Events; weitere
 Seiten werden ausdrücklich geladen. Beim Öffnen eines Events ersetzt dessen
 Dokumentlistener den Listenlistener. Ausgeblendete Seiten pausieren den Listener;
 Club-, Konto-, Rollen- und Jahreswechsel schließen Editoren und verwerfen alte Antworten.
+Hintergrundaufträge prüfen die Kontositzung getrennt vom Ansichtslebenszyklus;
+ein Kontowechsel verhindert weitere Schreibvorgänge des bisherigen Arbeiters.
 Bei konkurrierenden Änderungen wird nur nach nachgewiesener Revisionsänderung
 begrenzt neu versucht. Das erneute Planen prüft alle Reservierungen erneut.
 Die älteren `teamSeasons`-Datensätze bleiben unabhängig erhalten; ohne Eventdatum

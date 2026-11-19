@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-events-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-event-periods-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -29,12 +29,13 @@
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261119-events-v1"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/club-teams-core.js?v=20261116-teams-v1"></script>
-    <script defer src="assets/js/club-events-core.js?v=20261119-events-v1"></script>
-    <script defer src="assets/js/club-events-store.js?v=20261119-events-v1"></script>
-    <script defer src="assets/js/club-events.js?v=20261119-events-v1"></script>
-    <script defer src="assets/js/clubs.js?v=20261119-events-v1"></script>
+    <script defer src="assets/js/club-events-core.js?v=20261119-event-periods-v1"></script>
+    <script defer src="assets/js/club-events-store.js?v=20261119-instant-events-v1"></script>
+    <script defer src="assets/js/club-events-queue.js?v=20261119-instant-events-v1"></script>
+    <script defer src="assets/js/club-events.js?v=20261119-event-periods-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261119-event-periods-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
@@ -75,7 +76,7 @@
           <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
           <button type="button" data-club-tab="events">Events</button>
         </nav>
-        <div class="se-overview">
+        <div class="se-overview" id="club-overview">
           <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
             <label>
               <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
@@ -85,6 +86,10 @@
               <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
               <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
             </label>
+          </fieldset>
+          <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Eventansicht wählen" hidden>
+            <label><input class="wt-sr-only" type="radio" id="club-event-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
+            <label><input class="wt-sr-only" type="radio" id="club-event-past" name="club-event-period" value="past"><span>Vergangene</span></label>
           </fieldset>
           <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
           <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>

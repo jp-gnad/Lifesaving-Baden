@@ -218,11 +218,13 @@
     byId("se-import-open").hidden = tab !== "people";
     byId("se-summary").hidden = tab !== "eligibility";
     byId("club-event-add").hidden = tab !== "events";
+    byId("club-overview").hidden = false;
+    byId("se-season-switch").hidden = tab === "events";
     if (tab !== "events") eventView.stop();
     if (!owner.loaded) return;
+    if (tab === "events") { eventView.render(owner); return; }
     const nextSeason = byId("se-season-next").checked;
     const year = eligibility.seasonYear(day, nextSeason);
-    if (tab === "events") { eventView.render(owner, year); return; }
     const everyone = peopleFor(owner);
     const people = tab === "people" ? everyone : everyone.filter((person) => person.activeYears.includes(year));
     const groups = new Map([...eligibility.groups, "Ohne Jahrgang"].map((group) => [group, []]));

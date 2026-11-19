@@ -71,3 +71,68 @@ test("event mutations check the account after reads and never write under a stal
   await assert.rejects(store.mutate(db, "club", "event", { type: "team", id: "one", memberIds: ["p0", "p1", "p2", "p3"], expected: null }, {}, () => { throw new Error("session changed"); }), /session changed/);
   assert.equal(writes, 0);
 });
+
+test("an event is created without participants and a team can draw directly from active club people", () => {
+  let event = core.replay(null, { type: "create", name: "Test", date: "2026-05-01", additions: [] });
+  assert.deepEqual(event.participants, {});
+  const additions = Array.from({ length: 5 }, (_, i) => core.snapshotPerson({ ...person(`new${i}`), individual: false }));
+  event = core.replay(event, { type: "team", additions, command: { type: "team", id: "one", memberIds: additions.map((p) => p.id), expected: null } });
+  assert.equal(Object.keys(event.participants).length, 5);
+  assert.equal(Object.values(event.participants).every((p) => p.individual === false), true);
+  assert.equal(Object.values(event.assignments).every((team) => team === "one"), true);
+  event = core.replay(event, { type: "singles", additions: [], removals: [], toggles: [{ type: "individual", id: "new0", enabled: true, expected: false }] });
+  assert.equal(event.participants.new0.individual, true);
+  assert.equal(event.assignments.new0, "one");
+});
+
+test("a large selection uses bounded groups and no redundant person reads for cached identities", async () => {
+  let data = null;
+  let transactions = 0;
+  let personReads = 0;
+  const reference = (path) => ({ id: path.split("/").at(-1), path, collection: (name) => collection(`${path}/${name}`),
+    async get() { personReads++; throw new Error("Unexpected person read"); } });
+  const collection = (path) => ({ doc: (id) => reference(`${path}/${id}`) });
+  const db = { collection, async runTransaction(action) {
+    transactions++;
+    return action({ get: async () => ({ exists: Boolean(data), data: () => data }), set: (_ref, value) => { data = value; } });
+  } };
+  const selected = Array.from({ length: 20 }, (_, index) => ({ ...person(`p${index}`), rosterGender: "w" }));
+  const result = await store.create(db, "club", "event", "Test", "2026-05-01", selected, { FieldValue: { serverTimestamp: () => 0 } });
+  assert.equal(Object.keys(result.participants).length, 20);
+  assert.equal(transactions, 1 + Math.ceil(20 / core.participantBatchSize));
+  assert.equal(personReads, 0);
+});
+
+test("event lists group by event-year age, female before male, then German alphabetical order", () => {
+  const entries = [person("Zoe", 14), person("Adam", 14, "m"), person("anna", 14), person("Jung", 12),
+    person("Änne", 14), person("Offen", 22), person("Unbekannt", 14, ""), { ...person("Kein Jahrgang"), birthYear: null }];
+  const groups = core.displayGroups(entries, year);
+  assert.deepEqual(groups.map((entry) => entry.group), ["AK 12", "AK 13/14", "Offen", "Ohne Jahrgang"]);
+  const middle = groups.find((entry) => entry.group === "AK 13/14");
+  assert.deepEqual(middle.genders.map((entry) => entry.gender), ["w", "m", ""]);
+  assert.deepEqual(middle.genders[0].entries.map((entry) => entry.name), ["anna", "Änne", "Zoe"]);
+  assert.equal(core.displayGroups([entries[0]], year + 1)[0].group, "AK 15/16");
+  assert.equal(entries[0].name, "Zoe");
+});
+
+test("team presentation uses the oldest member and any male and preserves natural team numbering", () => {
+  const entries = [
+    { id: "mixed", name: "Mannschaft", members: [person("Frau", 18), person("Mann", 12, "m")] },
+    { id: "ten", name: "AK 17/18 weiblich · 10", members: [person("A", 18)] },
+    { id: "two", name: "AK 17/18 weiblich · 2", members: [person("B", 17)] },
+  ];
+  const [group] = core.displayGroups(entries, year);
+  assert.equal(group.group, "AK 17/18");
+  assert.deepEqual(group.genders.map((entry) => entry.gender), ["w", "m"]);
+  assert.deepEqual(group.genders[0].entries.map((entry) => entry.id), ["two", "ten"]);
+  assert.equal(group.genders[1].entries[0].id, "mixed");
+});
+
+test("club event periods include today in planned events and classify previous years by date", () => {
+  assert.equal(core.eventPeriod("2026-11-19", "2026-11-19"), "planned");
+  assert.equal(core.eventPeriod("2026-11-18", "2026-11-19"), "past");
+  assert.equal(core.eventPeriod("2025-12-31", "2026-11-19"), "past");
+  assert.equal(core.eventPeriod("2027-01-01", "2026-11-19"), "planned");
+  assert.equal(core.eventPeriod("2026-12-31", "2027-01-01"), "past");
+  assert.equal(core.eventPeriod("2026-11-19", "2026-11-20"), "past");
+});

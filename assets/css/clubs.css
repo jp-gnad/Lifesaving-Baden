@@ -34,6 +34,7 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-manager-name { font-size: .8rem; overflow-wrap: anywhere; }
 #club-name-results:not(:empty), #club-manager-results:not(:empty) { margin: -8px 0 18px; max-height: 220px; overflow-y: auto; }
 #club-leave[hidden], #se-import-open[hidden] { display: none; }
+#club-overview[hidden], #se-season-switch[hidden], #club-event-period-switch[hidden] { display: none; }
 .se-overview:has(.club-team-add:not([hidden])) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 20px; }
 .se-overview:has(.club-team-add:not([hidden])) .se-season-switch { margin: 0; }
 .club-team-add { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding: 9px 13px; font-size: .8rem; }
@@ -63,6 +64,22 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-single-toggle { flex-shrink: 0; min-width: 44px; min-height: 40px; padding: 4px 8px; border: 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
 .club-event-single-toggle:disabled { opacity: .25; cursor: default; }
 .club-event-more { margin-top: 16px; }
+.club-event-sync { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 18px; }
+.club-event-ak-group { margin-top: 16px; }
+.club-event-ak-header { margin-bottom: 7px; }
+.club-event-ak-header .wt-day-heading { color: var(--muted); font-size: .78rem; }
+.club-event-gender-group[data-gender="w"], .club-event-gender-mark[data-gender="w"] { --club-event-gender-color: #cf93ac; }
+.club-event-gender-group[data-gender="m"], .club-event-gender-mark[data-gender="m"] { --club-event-gender-color: #82a8ce; }
+.club-event-gender-group + .club-event-gender-group { border-top: 1px solid var(--line); }
+.club-event-gender-heading { display: flex; align-items: center; gap: 7px; padding: 10px 14px 6px; color: var(--muted); font-size: .67rem; }
+.club-event-gender-heading::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--club-event-gender-color, var(--muted)); opacity: .8; }
+.club-event-gender-mark { display: inline-block; align-self: center; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--club-event-gender-color); opacity: .8; }
+.club-event-gender-group .club-team-card { border-inline-start: 2px solid var(--club-event-gender-color, var(--line)); }
+.club-event-ak-group:has(.club-team-cards) .club-event-gender-heading { padding-inline: 1px; }
+.club-event-ak-group:has(.club-team-cards) .club-event-gender-group + .club-event-gender-group { margin-top: 12px; border: 0; }
+.club-event-picker-group + .club-event-picker-group { margin-top: 14px; }
+.club-event-picker-group .club-event-ak-header { padding-inline: 4px; }
+.club-event-picker-group .club-event-gender-heading { padding: 6px 4px; }
 #club-event-next { margin-left: auto; }
 .club-team-add svg { width: 16px; height: 16px; }
 .club-team-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

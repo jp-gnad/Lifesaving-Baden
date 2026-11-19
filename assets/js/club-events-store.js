@@ -14,8 +14,10 @@
           const snapshot = await transaction.get(ref);
           checkSession();
           if (!snapshot.exists) fail("Das Event wurde gelöscht.");
-          revision = snapshot.data().revision;
-          const next = core.change(snapshot.data(), command);
+          const previous = snapshot.data();
+          revision = previous.revision;
+          const next = command.type === "replay" ? core.replay(previous, command.action) : core.change(previous, command);
+          if (next === previous) return { ...previous, id };
           transaction.set(ref, { ...next, updatedAt: sdk.FieldValue.serverTimestamp() });
           return { ...next, id };
         });
@@ -34,17 +36,34 @@
   }
 
   async function addPerson(db, clubId, id, selected, sdk, checkSession = () => {}) {
+    return updateParticipants(db, clubId, id, [selected], [], sdk, checkSession);
+  }
+
+  async function preparePerson(db, clubId, selected, sdk, checkSession) {
     checkSession();
-    if (!selected.rosterGender) await clubs.refreshIdentity(db, clubId, selected.id, sdk, checkSession, selected.createdAt);
-    const snapshot = await db.collection("clubs").doc(clubId).collection("people").doc(selected.id).get({ source: "server" });
+    const cached = core.snapshotPerson(selected);
+    if (cached.rosterGender) return cached;
+    await clubs.refreshIdentity(db, clubId, cached.id, sdk, checkSession, { toMillis: () => cached.createdAtMillis });
+    const snapshot = await db.collection("clubs").doc(clubId).collection("people").doc(cached.id).get({ source: "server" });
     checkSession();
-    if (!snapshot.exists || snapshot.data().createdAt.toMillis() !== selected.createdAt.toMillis()) fail("Eine Person wurde entfernt. Bitte erneut auswählen.");
-    const person = { ...snapshot.data(), id: snapshot.id };
-    return mutate(db, clubId, id, { type: "add", id: core.key(person), person }, sdk, checkSession);
+    if (!snapshot.exists || snapshot.data().createdAt.toMillis() !== cached.createdAtMillis) fail("Eine Person wurde entfernt. Bitte erneut auswählen.");
+    return core.snapshotPerson({ ...snapshot.data(), id: snapshot.id, individual: cached.individual });
+  }
+
+  async function updateParticipants(db, clubId, id, additions, removals, sdk, checkSession = () => {}) {
+    const entries = [...removals.map((remove) => ({ remove })), ...additions.map((person) => ({ person }))];
+    let result;
+    for (let index = 0; index < entries.length; index += core.participantBatchSize) {
+      checkSession();
+      const group = await Promise.all(entries.slice(index, index + core.participantBatchSize).map(async (entry) => entry.person
+        ? { person: await preparePerson(db, clubId, entry.person, sdk, checkSession) } : entry));
+      result = await mutate(db, clubId, id, { type: "replay", action: { type: "participants",
+        additions: group.filter((entry) => entry.person).map((entry) => entry.person), removals: group.filter((entry) => entry.remove).map((entry) => entry.remove) } }, sdk, checkSession);
+    }
+    return result;
   }
 
   async function create(db, clubId, id, name, date, selected, sdk, checkSession = () => {}) {
-    if (!selected.length) fail("Bitte Personen auswählen.");
     const values = core.metadata(name, date);
     const ref = reference(db, clubId, id);
     let event = await db.runTransaction(async (transaction) => {
@@ -60,17 +79,8 @@
       transaction.set(ref, data);
       return { ...data, id };
     });
-    // Each addition validates one current roster identity. A failed creation can
-    // resume with the same ID; already saved participants keep their start flags.
-    for (const person of selected) {
-      checkSession();
-      if (event.participants[core.key(person)]) continue;
-      try { event = await addPerson(db, clubId, id, person, sdk, checkSession); }
-      catch (error) {
-        if (error.code === "clubs/event" && error.message === "Die Person nimmt bereits teil.") continue;
-        throw error;
-      }
-    }
+    const additions = selected.filter((person) => !event.participants[core.key(person)]);
+    event = await updateParticipants(db, clubId, id, additions, [], sdk, checkSession) || event;
     return event;
   }
 
@@ -85,7 +95,19 @@
     });
   }
 
-  const api = Object.freeze({ create, mutate, addPerson, remove });
+  async function send(db, clubId, id, action, sdk, checkSession = () => {}) {
+    if (action.type === "create") return create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession);
+    if (["participants", "singles", "team"].includes(action.type)) {
+      let result = await updateParticipants(db, clubId, id, action.additions, action.removals || [], sdk, checkSession);
+      if (action.type === "team") return mutate(db, clubId, id, { type: "replay", action: { type: "mutate", command: action.command } }, sdk, checkSession);
+      for (const command of action.toggles || []) result = await mutate(db, clubId, id, { type: "replay", action: { type: "mutate", command } }, sdk, checkSession);
+      return result;
+    }
+    if (action.type === "delete") { await remove(db, clubId, id, action.expectedRevision, checkSession); return null; }
+    return mutate(db, clubId, id, { type: "replay", action }, sdk, checkSession);
+  }
+
+  const api = Object.freeze({ create, mutate, addPerson, updateParticipants, send, remove });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsStore = api;
 })(typeof window === "object" ? window : globalThis);

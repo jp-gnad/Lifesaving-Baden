@@ -3,6 +3,8 @@
   const teamsCore = typeof module === "object" && module.exports ? require("./club-teams-core.js") : root.ClubTeamsCore;
   const fail = (message) => { throw Object.assign(new Error(message), { code: "clubs/event" }); };
   const key = (person) => person.personId || person.id;
+  const participantBatchSize = 3;
+  const eventPeriod = (date, today) => date < today ? "past" : "planned";
 
   function metadata(name, date) {
     const value = String(name || "").trim();
@@ -16,7 +18,7 @@
   function participant(person, year) {
     if (!person.activeYears?.includes(year)) fail("Die Person ist im Eventjahr nicht aktiv.");
     return { rosterId: person.id, name: person.name, birthYear: person.birthYear || null, gender: teamsCore.gender(person.gender),
-      createdAtMillis: person.createdAt.toMillis(), individual: true };
+      createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: person.individual !== false };
   }
 
   function sameTeam(a, b) {
@@ -32,6 +34,13 @@
       const values = metadata(command.name, command.date);
       if (values.year !== event.year && Object.keys(event.participants).length) fail("Das Jahr kann nur bei einem leeren Event geändert werden.");
       Object.assign(next, values);
+    } else if (command.type === "participants") {
+      const changes = command.changes;
+      if (!changes.length || changes.length > participantBatchSize || new Set(changes.map((entry) => entry.id)).size !== changes.length) fail("Ungültige Personenauswahl.");
+      let state = event;
+      for (const entry of changes) state = change(state, { type: entry.person ? "add" : "remove", ...entry });
+      next.participants = state.participants;
+      next.changedIds = changes.map((entry) => entry.id);
     } else if (command.type === "add") {
       if (person || Object.values(event.participants).some((entry) => entry.rosterId === command.person.id)) fail("Die Person nimmt bereits teil.");
       next.participants[command.id] = participant(command.person, event.year);
@@ -76,7 +85,65 @@
     });
   }
 
-  const api = Object.freeze({ key, metadata, participant, sameTeam, change, namedTeams });
+  function displayGroups(entries, year) {
+    const groups = [...teamsCore.groups, "Ohne Jahrgang"];
+    const genderOrder = ["w", "m", ""];
+    const collator = new Intl.Collator("de", { sensitivity: "base", numeric: true });
+    const buckets = new Map(groups.map((group) => [group, new Map(genderOrder.map((gender) => [gender, []]))]));
+    for (const entry of entries) {
+      const members = entry.members || [entry];
+      // Gender may be missing on old snapshots without hiding a known age group.
+      const label = teamsCore.classification(members.map((person) => ({ ...person, gender: teamsCore.gender(person.gender) || "w" })), year);
+      const group = label?.replace(/ (weiblich|männlich)$/, "") || "Ohne Jahrgang";
+      const gender = members.some((person) => teamsCore.gender(person.gender) === "m") ? "m"
+        : members.length && members.every((person) => teamsCore.gender(person.gender) === "w") ? "w" : "";
+      buckets.get(group).get(gender).push(entry);
+    }
+    return [...buckets].map(([group, genders]) => ({ group, genders: [...genders].filter(([, values]) => values.length)
+      .map(([gender, values]) => ({ gender, entries: [...values].sort((a, b) => collator.compare(a.name || "", b.name || "") || String(a.id || "").localeCompare(String(b.id || ""))) })) }))
+      .filter((group) => group.genders.length);
+  }
+
+  function snapshotPerson(person) {
+    return { id: person.id, personId: person.personId || "", name: person.name, birthYear: person.birthYear || null,
+      gender: person.gender || "", rosterGender: person.rosterGender ?? person.gender ?? "", activeYears: [...(person.activeYears || [])],
+      createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: person.individual !== false };
+  }
+
+  function selectionChanges(event, additions, removals) {
+    return [...removals.filter((id) => event.participants[id]).map((id) => ({ id })),
+      ...additions.filter((person) => !event.participants[key(person)] && !Object.values(event.participants).some((entry) => entry.rosterId === person.id))
+        .map((person) => ({ id: key(person), person }))];
+  }
+
+  function replay(event, action) {
+    if (action.type === "delete") return null;
+    let state = event;
+    if (action.type === "create" && !state) {
+      state = { ...metadata(action.name, action.date), participants: {}, teams: {}, assignments: {}, revision: 0 };
+    }
+    if (!state) fail("Das Event wurde gelöscht.");
+    if (["create", "participants", "singles", "team"].includes(action.type)) {
+      const changes = selectionChanges(state, action.additions, action.removals || []);
+      for (let index = 0; index < changes.length; index += participantBatchSize) state = change(state, { type: "participants", changes: changes.slice(index, index + participantBatchSize) });
+      if (action.type === "team") return replay(state, { type: "mutate", command: action.command });
+      for (const command of action.toggles || []) state = replay(state, { type: "mutate", command });
+      return state;
+    }
+    const command = { ...action.command };
+    // Replays after a lost acknowledgement must preserve later start flags.
+    if (command.type === "individual" && state.participants[command.id]?.individual === command.enabled) return state;
+    if (command.type === "team" && (command.memberIds === null ? !state.teams[command.id]
+      : JSON.stringify(state.teams[command.id]?.memberIds) === JSON.stringify(command.memberIds))) return state;
+    if (command.type === "metadata") {
+      if (state.name === command.name.trim() && state.date === command.date) return state;
+      if (action.expectedMetadata && (state.name !== action.expectedMetadata.name || state.date !== action.expectedMetadata.date)) fail("Das Event wurde geändert. Bitte erneut öffnen.");
+      command.expectedRevision = state.revision;
+    }
+    return change(state, command);
+  }
+
+  const api = Object.freeze({ key, metadata, participant, sameTeam, change, namedTeams, displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsCore = api;
 })(typeof window === "object" ? window : globalThis);

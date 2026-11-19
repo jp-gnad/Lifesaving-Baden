@@ -187,7 +187,7 @@ test("event rules enforce club access, source identities, bounded queries and im
 test("only active event-year people may be added; later inactivity and team-only flags survive edits and deletion", { skip: !enabled }, async () => {
   const f = await eventFixture();
   await store.setActive(f.db, f.id, "team0", f.year, false, api());
-  await assert.rejects(createEvent(f, "wrong", [f.selected[0]]), /nicht aktiv/);
+  await assert.rejects(createEvent(f, "wrong", [f.selected[0]]), { code: "permission-denied" });
   await createEvent(f, "next", f.selected.slice(0, 4), f.year + 1);
   const source = f.selected[0];
   let next = (await sdk.getDoc(f.ref("next"))).data();
@@ -220,6 +220,29 @@ test("legacy source refresh retains evidence, and an interrupted event creation 
   await assert.rejects(events.remove(f.db, f.id, "event", -1), /geändert/);
   await events.remove(f.db, f.id, "event", event.revision);
   assert.equal((await sdk.getDoc(f.ref())).exists(), false);
+});
+
+test("empty club events accept direct team-only entries and later additional individual starts", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const empty = await createEvent(f, "direct", []);
+  assert.deepEqual(empty.participants, {});
+  const additions = f.selected.slice(0, 5).map((person) => eventCore.snapshotPerson({ ...person, individual: false }));
+  let event = await events.send(f.db, f.id, "direct", { type: "team", additions,
+    command: { type: "team", id: "one", memberIds: additions.map((person) => person.id), expected: null } }, api());
+  assert.equal(Object.values(event.participants).every((person) => !person.individual), true);
+  assert.equal(Object.values(event.assignments).every((id) => id === "one"), true);
+  event = await events.send(f.db, f.id, "direct", { type: "singles", additions: [], removals: [],
+    toggles: [{ type: "individual", id: additions[0].id, enabled: true, expected: false }] }, api());
+  assert.equal(event.participants[additions[0].id].individual, true);
+  assert.equal(event.assignments[additions[0].id], "one");
+});
+
+test("a bulk selection rejects stale inactive people atomically", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  await createEvent(f, "bulk", []);
+  await store.setActive(f.db, f.id, f.selected[1].id, f.year, false, api());
+  await assert.rejects(events.updateParticipants(f.db, f.id, "bulk", f.selected.slice(0, 3), [], api()), { code: "permission-denied" });
+  assert.deepEqual((await sdk.getDoc(f.ref("bulk"))).data().participants, {});
 });
 
 test("only admins create unique clubs with an initial responsible account and inactive roster entry", { skip: !enabled }, async () => {

@@ -95,7 +95,17 @@ nur mit bestehender Mannschaft aus Einzel entfernt werden; das spätere Entferne
 der Mannschaft stellt den Einzelstart ausdrücklich nicht automatisch wieder her.
 Nachträglich inaktive oder entfernte Personen bleiben als Event-Snapshot erhalten.
 
-Vor der Website-Version für Club-Events zuerst die kompatiblen neuen Firestore-Regeln
+Die sofortige Bedienung nutzt eine eigene kontogebundene lokale Warteschlange.
+Ihre Darstellung autorisiert keinen Schreibvorgang. Vor jeder Übertragung und nach
+asynchronen Lesezugriffen wird das Ursprungskonto geprüft. Teilnehmergruppen mit
+höchstens drei Zu- oder Abgängen werden atomar gegen die aktuellen Kaderdokumente
+validiert; veraltete Aktivmarkierungen oder Personen-Neuanlagen werden abgewiesen.
+Alte Einzelaktionen bleiben zulässig. Direkte Mannschaftsaufnahmen können neue
+Eventteilnehmer ohne Einzelstart übernehmen; bestehende Einzelstarts lassen sich
+weiterhin nur mit Mannschaftszuordnung deaktivieren. Fehlerhafte oder offline
+wartende lokale Aufträge werden nicht automatisch gelöscht.
+
+Vor der Website-Version für sofortige Club-Events zuerst die kompatiblen neuen Firestore-Regeln
 veröffentlichen. Ohne sie lassen sich Club-Events nicht lesen oder speichern.
 Es sind keine neuen Dienste, kostenpflichtigen Tarife oder Datenmigrationen nötig.
 Die Eventliste verlangt ein Abfragelimit von höchstens 50; normale Änderungen lesen

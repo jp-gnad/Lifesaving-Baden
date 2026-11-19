@@ -7,8 +7,11 @@
   const clubId = "fixture-club";
   const year = window.StartEligibilityCore.seasonYear(window.StartEligibilityCore.today());
   let sequence = 0;
+  const options = new URLSearchParams(window.parent.location.search);
+  const networkDelay = Number(options.get("delay")) || 0;
+  const network = window.clubEventFixtureNetwork = { started: 0, completed: 0 };
   const timestamp = (date = new Date()) => ({ toDate: () => new Date(date), toMillis: () => +date, isEqual: (other) => +date === other.toMillis() });
-  const now = timestamp();
+  const now = timestamp(new Date(`${year}-01-01T00:00:00Z`));
   const publish = () => queueMicrotask(() => listeners.forEach((listener) => listener()));
   records.set(`clubs/${clubId}`, { name: "DLRG Musterstadt", managerIds: [uid], responsibilityVersion: 2, status: "active", createdAt: now, updatedAt: now });
   const names = ["Anna Keller", "Clara Wagner", "Emma Fischer", "Lena Schulz", "Ben Schneider", "Emil Weber", "Jonas Becker", "Paul Hoffmann", "Mia Schäfer", "Sophie Koch", "Lea Zimmermann", "Finn Braun", "Alexandra Müller-Lüdenscheidt"];
@@ -21,7 +24,7 @@
     records.set(`clubs/${clubId}/people/${person.id}`, person);
     records.set(`timerParticipantDirectory/${person.id}`, person);
   }
-  let event = { name: "Landesmeisterschaften", date: `${year}-06-20`, year, participants: {}, teams: {}, assignments: {}, revision: 0, createdAt: now, updatedAt: now };
+  let event = { name: "Landesmeisterschaften", date: window.StartEligibilityCore.today(), year, participants: {}, teams: {}, assignments: {}, revision: 0, createdAt: now, updatedAt: now };
   for (const person of people.slice(0, 11)) event = window.ClubEventsCore.change(event, { type: "add", id: person.id, person });
   event = window.ClubEventsCore.change(event, { type: "team", id: "girls", memberIds: people.slice(0, 4).map(p => p.id), expected: null });
   event = window.ClubEventsCore.change(event, { type: "team", id: "boys", memberIds: people.slice(4, 8).map(p => p.id), expected: null });
@@ -30,6 +33,12 @@
   people[11].activeYears = [year];
   people[12].activeYears = [year + 1];
   records.set(`clubs/${clubId}/events/sample`, event);
+  records.set(`clubs/${clubId}/events/past`, { ...event, name: "Herbstwettkampf", date: `${year - 1}-10-20`, year: year - 1, participants: {}, teams: {}, assignments: {}, revision: 0 });
+  records.set(`clubs/${clubId}/events/future`, { ...event, name: "Frühjahrswettkampf", date: `${year + 1}-03-20`, year: year + 1, participants: {}, teams: {}, assignments: {}, revision: 0 });
+  if (options.has("persist")) {
+    const saved = JSON.parse(window.parent.sessionStorage.getItem("club-event-fixture-server-v1") || "[]");
+    for (const [path, value] of saved) records.set(path, value);
+  }
 
   function snapshot(path) { return { id: path.split("/").pop(), exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } }; }
   function listen(read, options, receive) {
@@ -45,18 +54,27 @@
       onSnapshot: (options, receive) => listen(() => snapshot(path), options, receive),
     };
   }
-  function collection(path, filters = [], max = Infinity, after = "") {
+  function collection(path, filters = [], max = Infinity, after = null, field = "", direction = "asc") {
+    const compare = (a, b) => {
+      const first = field ? String(a.data()[field]) : a.id;
+      const second = field ? String(b.data()[field]) : b.id;
+      return (first.localeCompare(second) || a.id.localeCompare(b.id)) * (direction === "desc" ? -1 : 1);
+    };
     const read = () => ({ docs: [...records.keys()].filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
-      .filter((key) => filters.every(([field, op, value]) => op === "array-contains" ? records.get(key)[field].includes(value) : records.get(key)[field] === value)).sort().filter(key => !after || key.split("/").pop() > after).slice(0, max).map(snapshot), metadata: { fromCache: false } });
+      .filter((key) => filters.every(([name, op, value]) => op === "array-contains" ? records.get(key)[name].includes(value)
+        : op === ">=" ? records.get(key)[name] >= value : op === "<" ? records.get(key)[name] < value : records.get(key)[name] === value))
+      .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });
     return {
       doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), get: async () => read(),
-      where: (field, op, value) => collection(path, [...filters, [field, op, value]]),
-      orderBy: () => collection(path, filters, max, after), limit: (size) => collection(path, filters, size, after),
-      startAfter: (cursor) => collection(path, filters, max, cursor.id),
+      where: (name, op, value) => collection(path, [...filters, [name, op, value]], max, after, field, direction),
+      orderBy: (name, order = "asc") => collection(path, filters, max, after, name, order), limit: (size) => collection(path, filters, size, after, field, direction),
+      startAfter: (cursor) => collection(path, filters, max, cursor, field, direction),
       onSnapshot: (options, receive) => listen(read, options, receive),
     };
   }
   const db = { collection, async runTransaction(action) {
+    network.started += 1;
+    if (networkDelay) await new Promise((resolve) => setTimeout(resolve, networkDelay));
     const writes = [];
     const result = await action({ get: async (ref) => snapshot(ref.path),
       set: (ref, data) => writes.push(() => records.set(ref.path, data)),
@@ -64,6 +82,8 @@
       delete: (ref) => writes.push(() => records.delete(ref.path)),
     });
     writes.forEach((write) => write());
+    if (options.has("persist")) window.parent.sessionStorage.setItem("club-event-fixture-server-v1", JSON.stringify([...records].filter(([path]) => path.startsWith(`clubs/${clubId}/events/`))));
+    network.completed += 1;
     publish();
     return result;
   } };

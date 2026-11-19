@@ -708,11 +708,17 @@ sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespe
 ## Firestore-Regeln veröffentlichen
 
 Die Club-Verwaltung enthält unter **Events** eine eigene Wettkampfplanung mit
-freiem Namen, Datum und aktiven Personen des jeweiligen Jahres. Neue Teilnehmer
-sind zunächst Einzelstarter und können zusätzlich einer Mannschaft mit 4–5 Personen
-angehören. „Nur Mannschaft“ wird je Person gewählt; nach dem Entfernen aus einer
-Mannschaft erscheint eine solche Person unter „Ohne Start“. Später inaktive
+freiem Namen und Datum. Danach lassen sich im Event Einzelschwimmer und Mannschaften
+mit 4–5 Personen direkt aus dem aktiven Kader des Eventjahrs hinzufügen. Eine direkte
+Mannschaftsaufnahme aktiviert keinen Einzelstart; vorhandene Einzelstarts bleiben
+erhalten. Personen ohne Einzelstart erscheinen nach dem Entfernen aus einer
+Mannschaft unter „Ohne Start“. Später inaktive
 Teilnehmer bleiben erhalten. Diese Planung ist unabhängig vom Timer.
+
+Änderungen erscheinen sofort nach lokaler Speicherung und werden im Hintergrund
+übertragen. Ein kleiner Status zeigt noch ausstehende Übertragungen oder Fehler;
+Aufträge bleiben auch nach Neuladen für dasselbe Konto erhalten. Die neue Version
+übernimmt mehrere Personen je Transaktion und benötigt dafür die aktualisierten Regeln.
 
 Für diese Version zuerst die aktualisierten Firestore-Regeln veröffentlichen,
 anschließend die Website. Ohne die neuen Regeln kann die Eventplanung nicht

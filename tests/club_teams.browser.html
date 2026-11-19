@@ -9,7 +9,7 @@
         const response = await fetch("../club-verwaltung.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(header|clubs|clubs-core|clubs-store|club-teams-core|club-events|club-events-core|club-events-store|start-eligibility|start-eligibility-core)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(header|clubs|clubs-core|clubs-store|club-teams-core|club-events|club-events-core|club-events-store|club-events-queue|start-eligibility|start-eligibility-core)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;
