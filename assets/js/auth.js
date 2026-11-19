@@ -904,8 +904,8 @@
     const genderAdded = hasChecklistValue(data?.gender);
 
     return [
+      { key: "name", complete: hasChecklistValue(getNameDetailsFromData(data).displayName) },
       { key: "linkRequest", complete: requestSubmitted },
-      { key: "linked", complete: linked },
       { key: "dlrgBranch", complete: dlrgBranchAdded },
       { key: "birthDate", complete: birthDateAdded },
       { key: "gender", complete: genderAdded }
@@ -922,6 +922,11 @@
     return items.length > 0 && items.every((item) => item.complete);
   }
 
+  function getMissingAccountCount(data) {
+    return [data?.dlrgBranch, data?.birthDate, data?.gender].filter((value) => !hasChecklistValue(value)).length
+      + (isPersonLinked(data) ? 0 : 1);
+  }
+
   function updateAccountChecklist(data) {
     const hasLoadedData = Boolean(data);
     const items = getAccountChecklistItems(data || {});
@@ -930,9 +935,12 @@
     const percentage = total ? Math.round((completed / total) * 100) : 0;
     const isComplete = hasLoadedData && isAccountChecklistComplete(data);
 
-    document.querySelectorAll("[data-account-attention], [data-account-manage-attention]").forEach((element) => {
-      const shouldHide = !hasLoadedData || (element.hasAttribute("data-account-attention") ? isPersonLinked(data) : isComplete);
+    const missingCount = getMissingAccountCount(data);
 
+    document.querySelectorAll("[data-account-attention], [data-account-manage-attention]").forEach((element) => {
+      const shouldHide = !hasLoadedData || missingCount === 0;
+
+      element.textContent = shouldHide ? "" : String(missingCount);
       element.classList.toggle("is-hidden", shouldHide);
       element.hidden = shouldHide;
       element.setAttribute("aria-hidden", "true");
@@ -950,11 +958,12 @@
       const progress = checklist.querySelector("[data-checklist-progress]");
 
       if (count) {
-        count.textContent = `${percentage}% abgeschlossen`;
+        count.textContent = `(${percentage} %)`;
       }
 
       if (progress) {
         progress.style.width = `${percentage}%`;
+        progress.parentElement.setAttribute("aria-valuenow", String(percentage));
       }
 
       const shouldHide = isComplete;
@@ -967,47 +976,13 @@
 
         if (element) {
           element.classList.toggle("is-complete", item.complete);
-          element.hidden = item.complete;
-          element.setAttribute("aria-hidden", String(item.complete));
+          const action = element.querySelector("a");
+          if (action) action.hidden = item.complete;
+          const status = element.querySelector("[data-check-status]");
+          if (status) status.textContent = item.complete ? "Erledigt: " : "Offen: ";
         }
       });
     });
-  }
-
-  function getLinkStatusCopy(data) {
-    if (isPersonLinked(data)) {
-      return {
-        state: "linked",
-        title: "Konto verknüpft",
-        text: "Dein Konto ist deiner Person in der Datenbank zugeordnet.",
-        action: ""
-      };
-    }
-
-    if (hasPendingLinkRequest(data)) {
-      return {
-        state: "requested",
-        title: "Verknüpfung wird geprüft",
-        text: "Ein Admin prüft deine Anfrage zur Verknüpfung.",
-        action: "Anfrage ansehen"
-      };
-    }
-
-    if (hasRejectedLinkRequest(data)) {
-      return {
-        state: "rejected",
-        title: "Anfrage abgelehnt",
-        text: "Prüfe deine Angaben und sende die Anfrage erneut.",
-        action: "Erneut beantragen"
-      };
-    }
-
-    return {
-      state: "open",
-      title: "Noch nicht verknüpft",
-      text: "Du kannst die Zuordnung zu deiner Datenbankperson in den Einstellungen beantragen.",
-      action: "Zu den Verknüpfungen"
-    };
   }
 
   function updateText(selector, text) {
@@ -1017,16 +992,10 @@
   }
 
   function updateLinkStatusUi(data) {
-    const copy = getLinkStatusCopy(data);
     const hasLoadedData = Boolean(data);
-    const isLinked = copy.state === "linked";
-
-    document.querySelectorAll("[data-link-status-shell]").forEach((element) => {
-      const shouldHide = !hasLoadedData || isLinked;
-      element.classList.toggle("is-hidden", shouldHide);
-      element.hidden = shouldHide;
-      element.setAttribute("aria-hidden", String(shouldHide));
-    });
+    const isLinked = isPersonLinked(data);
+    const missingCount = getMissingAccountCount(data);
+    const missingLabel = `${missingCount} offene ${missingCount === 1 ? "Angabe" : "Angaben"}`;
 
     document.querySelectorAll("[data-link-indicator]").forEach((element) => {
       const shouldHide = !hasLoadedData || !isLinked;
@@ -1036,17 +1005,15 @@
 
     document.querySelectorAll("[data-account-open]").forEach((element) => {
       element.setAttribute("aria-label", hasLoadedData
-        ? `Kontoprofil öffnen – Konto ${isLinked ? "verknüpft" : "nicht verknüpft"}`
+        ? `Kontoprofil öffnen – Konto ${isLinked ? "verknüpft" : "nicht verknüpft"}${missingCount ? `, ${missingLabel}` : ""}`
         : "Kontoprofil öffnen");
     });
 
-    document.querySelectorAll("[data-link-status-action]").forEach((element) => {
-      element.textContent = copy.action;
-      element.classList.toggle("is-hidden", !hasLoadedData || isLinked);
+    document.querySelectorAll(".account-manage").forEach((element) => {
+      element.setAttribute("aria-label", hasLoadedData && missingCount
+        ? `Kontoeinstellungen – ${missingLabel}` : "Kontoeinstellungen");
     });
 
-    updateText("[data-link-status-title]", copy.title);
-    updateText("[data-link-status-text]", copy.text);
     updateAccountChecklist(data);
   }
 
@@ -2118,10 +2085,20 @@
 
       profileForm.dataset.profileDetailsLoaded = "true";
       updateEmptyProfileFieldHighlights(profileForm);
+      openRequestedProfileField(profileForm);
     } catch (error) {
       profileForm.dataset.profileDetailsLoaded = "false";
       setProfileMessage(translateFirestoreError(error), false);
     }
+  }
+
+  function openRequestedProfileField(profileForm) {
+    if (profileForm.dataset.profileDetailsLoaded !== "true" || profileForm.dataset.requestedFieldOpened
+      || window.location.hash !== "#persoenliche-daten") return;
+    const field = new URLSearchParams(window.location.search).get("field");
+    if (!["displayName", "dlrgBranch", "birthDate", "gender"].includes(field)) return;
+    profileForm.dataset.requestedFieldOpened = "true";
+    openProfileFieldEditor(field, profileForm);
   }
 
   function getProfileDetailsFromData(data) {

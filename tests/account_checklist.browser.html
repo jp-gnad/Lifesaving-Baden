@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Profilfortschritt · Lokale Prüfung</title>
+    <style>
+      body { margin: 0; background: #08080a; color: white; font: 14px system-ui; }
+      nav { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; padding: 12px; }
+      button { padding: 8px; }
+      iframe { display: block; margin: auto; width: 100%; max-width: 100%; height: calc(100vh - 120px); border: 0; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <span>Lokale Testdaten</span>
+      <button data-state="new">Neues Konto</button>
+      <button data-state="partial">Teilweise ergänzt</button>
+      <button data-state="requested">Angefragt</button>
+      <button data-state="linked">Vollständig verknüpft</button>
+      <button data-width="100%">Desktop</button>
+      <button data-width="390px">390 px</button>
+      <button data-width="320px">320 px</button>
+    </nav>
+    <iframe id="preview" title="Mitgliederübersicht mit Testdaten"></iframe>
+    <script>
+      async function loadFixture(state = "new") {
+        const response = await fetch("../app.html");
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        page.querySelectorAll("script").forEach((script) => {
+          if (!/assets\/js\/(header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
+        });
+        const base = page.createElement("base");
+        base.href = new URL("../", location.href).href;
+        page.head.prepend(base);
+        // Disable page initialization: the fixture renders local profile data only.
+        page.body.dataset.page = "account-preview";
+        const name = { firstName: "Anna", lastName: "Baden" };
+        const details = { ...name, dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+        const profiles = {
+          new: name,
+          partial: { ...name, dlrgBranch: "Baden" },
+          requested: { ...details, personLinkRequest: { status: "requested" } },
+          linked: { ...details, personLink: { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" } },
+        };
+        const source = await (await fetch("../assets/js/auth.js")).text();
+        const fixture = page.createElement("script");
+        fixture.defer = true;
+        // Inline scripts run before deferred dependencies; wait for DOMContentLoaded.
+        fixture.textContent = `document.addEventListener("DOMContentLoaded", () => {
+          ${source.replace(/\}\)\(\);\s*$/, `
+            updateLinkStatusUi(${JSON.stringify(profiles[state])});
+            const user = { displayName: "Anna Baden", email: "anna@example.test", providerData: [] };
+            updateAccountProfile(user);
+            document.querySelector("[data-account-greeting-name]").textContent = "Anna";
+            document.querySelector("[data-account-open]").onclick = () => {
+              document.querySelector("[data-account-overlay]").classList.remove("is-hidden");
+              document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "false");
+            };
+            document.querySelector("[data-account-close]").onclick = () => {
+              document.querySelector("[data-account-overlay]").classList.add("is-hidden");
+              document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "true");
+            };
+            document.body.classList.remove("auth-context-loading");
+            document.body.dataset.page = "app";
+          })();`)}
+        });`;
+        page.head.append(fixture);
+        document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;
+      }
+      loadFixture();
+      document.querySelectorAll("[data-state]").forEach((button) => {
+        button.onclick = () => loadFixture(button.dataset.state);
+      });
+      document.querySelectorAll("[data-width]").forEach((button) => {
+        button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; };
+      });
+    </script>
+  </body>
+</html>

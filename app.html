@@ -24,7 +24,7 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-profile-progress-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -37,7 +37,7 @@
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261119-profile-progress-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -53,7 +53,7 @@
             <img class="is-hidden" src="" alt="" data-account-photo-small>
             <span data-account-initials-small>?</span>
           </span>
-          <span class="account-attention is-hidden" data-account-attention aria-hidden="true">!</span>
+          <span class="account-attention is-hidden" data-account-attention aria-hidden="true"></span>
           <span class="account-linked is-hidden" data-link-indicator hidden aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
           </span>
@@ -74,14 +74,31 @@
       </section>
 
       <div class="member-dashboard-content">
-        <section class="completion-notice is-hidden" data-link-status-shell aria-live="polite" hidden aria-hidden="true">
-          <span class="completion-mark" aria-hidden="true">!</span>
-          <div>
-            <h2 data-link-status-title>Noch nicht verknüpft</h2>
-            <p data-link-status-text>Du kannst die Zuordnung zu deiner Datenbankperson in den Einstellungen beantragen.</p>
+        <section class="account-checklist is-hidden" data-account-checklist hidden aria-hidden="true" aria-label="Profil ergänzen">
+          <div class="checklist-progress-row">
+            <div class="checklist-progress" role="progressbar" aria-label="Profilfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="20">
+              <span data-checklist-progress></span>
+            </div>
+            <span class="checklist-count" data-checklist-count>(20 %)</span>
           </div>
-          <img class="moose-icon completion-moose" src="assets/img/elch-gelb.png" alt="" aria-hidden="true">
-          <a class="button button-primary" href="account-settings.html#verknuepfungen" data-link-status-action>Zu den Verknüpfungen</a>
+          <ul class="checklist-list" aria-label="Profilergänzung">
+            <li class="checklist-item" data-check-item="linkRequest">
+              <span class="checklist-dot" aria-hidden="true"></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Verknüpfung angefragt <a href="account-settings.html#verknuepfungen" aria-label="Verknüpfung anfragen">Anfragen →</a></span>
+            </li>
+            <li class="checklist-item" data-check-item="dlrgBranch">
+              <span class="checklist-dot" aria-hidden="true"></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Gliederung hinzugefügt <a href="account-settings.html?field=dlrgBranch#persoenliche-daten" aria-label="Gliederung ergänzen">Ergänzen →</a></span>
+            </li>
+            <li class="checklist-item" data-check-item="birthDate">
+              <span class="checklist-dot" aria-hidden="true"></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Geburtstag hinzugefügt <a href="account-settings.html?field=birthDate#persoenliche-daten" aria-label="Geburtstag ergänzen">Ergänzen →</a></span>
+            </li>
+            <li class="checklist-item" data-check-item="gender">
+              <span class="checklist-dot" aria-hidden="true"></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Geschlecht hinzugefügt <a href="account-settings.html?field=gender#persoenliche-daten" aria-label="Geschlecht ergänzen">Ergänzen →</a></span>
+            </li>
+          </ul>
         </section>
 
         <div class="member-app-groups">
@@ -140,39 +157,6 @@
           </section>
         </div>
 
-        <section class="dashboard-grid" aria-label="Mitgliederübersicht">
-          <article class="card setting-card account-checklist-card is-hidden" data-account-checklist hidden aria-hidden="true">
-            <div class="checklist-heading">
-              <h2>Profil und Verknüpfung (optional)</h2>
-              <span data-checklist-count>0% abgeschlossen</span>
-            </div>
-            <div class="checklist-progress" aria-hidden="true">
-              <span data-checklist-progress></span>
-            </div>
-            <ul class="checklist-list" aria-label="Optionale Profilergänzung">
-              <li class="checklist-item" data-check-item="linkRequest">
-                <span class="checklist-dot" aria-hidden="true"></span>
-                <span>Verknüpfung in den Einstellungen anfragen</span>
-              </li>
-              <li class="checklist-item" data-check-item="linked">
-                <span class="checklist-dot" aria-hidden="true"></span>
-                <span>Konto verknüpft</span>
-              </li>
-              <li class="checklist-item" data-check-item="dlrgBranch">
-                <span class="checklist-dot" aria-hidden="true"></span>
-                <span>DLRG-Gliederung hinzufügen</span>
-              </li>
-              <li class="checklist-item" data-check-item="birthDate">
-                <span class="checklist-dot" aria-hidden="true"></span>
-                <span>Geburtstag hinzufügen</span>
-              </li>
-              <li class="checklist-item" data-check-item="gender">
-                <span class="checklist-dot" aria-hidden="true"></span>
-                <span>Geschlecht hinzufügen</span>
-              </li>
-            </ul>
-          </article>
-        </section>
       </div>
     </main>
 
@@ -212,7 +196,7 @@
             <circle cx="8" cy="17" r="2"></circle>
           </svg>
           <span>Kontoeinstellungen</span>
-          <span class="account-manage-attention is-hidden" data-account-manage-attention aria-hidden="true" hidden>!</span>
+          <span class="account-manage-attention is-hidden" data-account-manage-attention aria-hidden="true" hidden></span>
         </a>
 
         <div class="account-actions">

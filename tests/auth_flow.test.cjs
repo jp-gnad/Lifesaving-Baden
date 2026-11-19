@@ -1436,7 +1436,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1609,7 +1609,7 @@ test("member home does not load the admin account list", async () => {
   assert.equal(source("admin-accounts.html").includes("data-admin-account-list"), true);
 });
 
-test("the profile link badge follows the person link while other profile notices keep their checklist state", () => {
+test("account badges count all four missing details and keep the confirmed-link indicator independent", () => {
   const h = harness();
   const functions = memberFunctions(h);
   const node = (attributes = []) => ({
@@ -1629,7 +1629,9 @@ test("the profile link badge follows the person link while other profile notices
   for (const data of [{ personLink: { id: "1234567890abcdef", name: "Anna", birthYear: 2001, gender: "w", organization: "Baden" } }]) {
     functions.updateLinkStatusUi(data);
     assert.equal(green.hidden, false);
-    assert.equal(red.hidden, true);
+    assert.equal(red.hidden, false);
+    assert.equal(red.textContent, "3");
+    assert.equal(manage.textContent, "3");
     assert.equal(manage.hidden, false);
     assert.match(profile.attributes["aria-label"], /Konto verknüpft/);
   }
@@ -1638,11 +1640,116 @@ test("the profile link badge follows the person link while other profile notices
   assert.equal(green.hidden, true);
   }
   assert.equal(red.hidden, false);
+  assert.equal(red.textContent, "4");
   assert.match(profile.attributes["aria-label"], /nicht verknüpft/);
   functions.updateLinkStatusUi(null);
   assert.equal(green.hidden, true);
   assert.equal(red.hidden, true);
   assert.equal(profile.attributes["aria-label"], "Kontoprofil öffnen");
+});
+
+test("profile progress starts with the name, counts a pending request, and disappears when all steps are done", () => {
+  const h = harness();
+  const functions = memberFunctions(h);
+  const node = () => ({ hidden: false, textContent: "", attributes: {}, style: {},
+    classList: { toggle() {}, add() {} },
+    setAttribute(name, value) { this.attributes[name] = value; },
+  });
+  const count = node(), progress = node(), checklist = node();
+  progress.parentElement = node();
+  const keys = ["linkRequest", "dlrgBranch", "birthDate", "gender"];
+  const rows = Object.fromEntries(keys.map((key) => {
+    const row = node(); row.action = node(); row.status = node();
+    row.querySelector = (selector) => selector === "a" ? row.action : row.status;
+    return [key, row];
+  }));
+  checklist.querySelector = (selector) => selector === "[data-checklist-count]" ? count
+    : selector === "[data-checklist-progress]" ? progress : rows[selector.match(/data-check-item="(.*?)"/)?.[1]];
+  const avatar = node(), manage = node();
+  h.document.querySelectorAll = (selector) => ({
+    "[data-account-checklist]": [checklist],
+    "[data-account-attention], [data-account-manage-attention]": [avatar, manage],
+  })[selector] || [];
+  const name = { firstName: "Anna", lastName: "Baden" };
+  const full = { ...name, dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+  const link = { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" };
+  const scenarios = [
+    [name, 20, 4, false],
+    [{ ...name, dlrgBranch: "  ", gender: " " }, 20, 4, false],
+    [{ ...name, dlrgBranch: "Baden" }, 40, 3, false],
+    [{ ...full, gender: "" }, 60, 2, false],
+    [full, 80, 1, false],
+    [{ ...full, personLinkRequest: { status: "rejected" } }, 80, 1, false],
+    [{ ...full, personLinkRequest: { status: "requested" } }, 100, 1, true],
+    [{ ...full, personLinkStatus: "requested" }, 100, 1, true],
+    [{ ...full, personLink: link }, 100, 0, true],
+    [{ ...full, gender: "", personLink: link }, 80, 1, false],
+  ];
+  for (const [data, percentage, missing, hidden] of scenarios) {
+    functions.updateLinkStatusUi(data);
+    assert.equal(count.textContent, `(${percentage} %)`);
+    assert.equal(progress.style.width, `${percentage}%`);
+    assert.equal(progress.parentElement.attributes["aria-valuenow"], String(percentage));
+    assert.equal(checklist.hidden, hidden);
+    for (const badge of [avatar, manage]) {
+      assert.equal(badge.hidden, missing === 0);
+      assert.equal(badge.textContent, missing ? String(missing) : "");
+    }
+    assert.equal(rows.gender.action.hidden, Boolean(data.gender?.trim()));
+    assert.equal(rows.gender.status.textContent, data.gender?.trim() ? "Erledigt: " : "Offen: ");
+  }
+  functions.updateLinkStatusUi(null);
+  assert.equal(checklist.hidden, true);
+  assert.equal(avatar.hidden, true);
+  assert.equal(manage.hidden, true);
+});
+
+test("profile deep links open the requested editor only after loading, with saved values and without reopening", () => {
+  for (const field of ["dlrgBranch", "birthDate", "gender"]) {
+    const h = harness({ url: `https://example.test/club/account-settings.html?field=${field}#persoenliche-daten` });
+    const functions = memberFunctions(h);
+    const node = () => ({ dataset: {}, attributes: {}, children: [], classList: { toggle() {}, remove() {} },
+      setAttribute(key, value) { this.attributes[key] = value; },
+      append(...children) { this.children.push(...children); },
+      replaceChildren(...children) { this.children = children; },
+      addEventListener() {}, querySelector() { return this.children[0]; }, focus() { this.focused = true; },
+      insertAdjacentElement(position, editor) { this.editor = editor; },
+    });
+    const editor = node(), label = node(), control = node(), remove = node(), row = node();
+    row.dataset.profileEdit = field;
+    const values = { dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+    const form = { dataset: {}, elements: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { value }])) };
+    h.document.createElement = node;
+    h.document.querySelector = (selector) => ({
+      "[data-profile-editor]": editor,
+      "[data-profile-editor-label]": label,
+      "[data-profile-editor-control]": control,
+      "[data-profile-edit-delete]": remove,
+      [`[data-profile-edit="${field}"]`]: row,
+    })[selector] || null;
+    h.document.querySelectorAll = (selector) => selector === "[data-profile-edit]" ? [row] : [];
+    functions.openRequestedProfileField(form);
+    assert.equal(editor.dataset.activeField, undefined);
+    form.dataset.profileDetailsLoaded = "true";
+    functions.openRequestedProfileField(form);
+    assert.equal(editor.dataset.activeField, field);
+    assert.equal(editor.hidden, false);
+    assert.equal(row.attributes["aria-expanded"], "true");
+    const input = control.children[0];
+    if (field === "gender") assert.equal(input.children[0].children[0].checked, true);
+    else assert.equal(input.value, values[field]);
+    editor.hidden = true;
+    functions.openRequestedProfileField(form);
+    assert.equal(editor.hidden, true);
+    delete form.dataset.requestedFieldOpened;
+    h.window.location.search = '?field=unknown%22%5D';
+    functions.openRequestedProfileField(form);
+    assert.equal(editor.hidden, true);
+    h.window.location.search = `?field=${field}`;
+    h.window.location.hash = "#sicherheit";
+    functions.openRequestedProfileField(form);
+    assert.equal(editor.hidden, true);
+  }
 });
 
 test("opening the accounts page with a non-admin account returns to member home", async () => {
