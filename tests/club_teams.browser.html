@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="de">
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mannschaften · Lokale Prüfung</title><style>body{margin:0;background:#08080a;color:#fff;font:14px system-ui}nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px}button{padding:8px 12px}iframe{display:block;border:0;margin:0 auto;background:#0f0f12;max-width:100%;width:100%;height:calc(100vh - 64px);min-height:500px}</style></head>
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Events · Lokale Prüfung</title><style>body{margin:0;background:#08080a;color:#fff;font:14px system-ui}nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:12px}button{padding:8px 12px}iframe{display:block;border:0;margin:0 auto;background:#0f0f12;max-width:100%;width:100%;height:calc(100vh - 64px);min-height:500px}</style></head>
   <body>
     <nav aria-label="Testansicht"><span>Lokale Testdaten · ohne Firebase</span><button id="desktop">Desktop</button><button id="mobile">390 px</button><button id="narrow">320 px</button></nav>
     <iframe title="Club-Verwaltung mit Testdaten" id="preview"></iframe>
@@ -9,7 +9,7 @@
         const response = await fetch("../club-verwaltung.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(header|clubs|clubs-core|clubs-store|club-teams|club-teams-core|club-teams-store|start-eligibility|start-eligibility-core)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(header|clubs|clubs-core|clubs-store|club-teams-core|club-events|club-events-core|club-events-store|start-eligibility|start-eligibility-core)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;

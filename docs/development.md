@@ -61,6 +61,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Teilnehmerimport und Cache | `timer_import.test.cjs`, `timer_people_view.test.cjs`, Firestore-Regeltests |
 | Sofortige Personenauswahl nach Neuanlage/Import und verspätete Listen | `timer_participant_updates.test.cjs`, `timer_controls.test.cjs`, `timer_save_queue.test.cjs`, `timer_people_view.test.cjs` |
 | Clubs und Startberechtigungen | `start_eligibility.test.cjs`, `clubs_rules.test.cjs`, `clubs_notifications.test.cjs`, Auth-Tests |
+| Club-Events, Einzelstarts und Mannschaftszuordnungen | `club_events.test.cjs`, `club_teams.test.cjs`, `clubs_rules.test.cjs`; zusätzlich `npm run test:rules` |
 | Arbeitszeiten | `worktime.test.cjs`, `firestore_rules.test.cjs` |
 | Wartungs-CLIs und Quelldaten | `maintenance_tools.test.cjs`, `test_participant_directory.py` |
 | HTML, Assets, Modul-/Dateiversionen | `npm run check`, Python-Integration; passende lokale Browser-Fixture für Layout |
@@ -85,6 +86,7 @@ Nach Start des lokalen HTTP-Servers:
 - `tests/admin_accounts.browser.html`: Kontenverwaltung, verschiedene Bildschirmbreiten.
 - `tests/account_links.browser.html`: eigene Personenverknüpfung.
 - `tests/worktime.browser.html`: Arbeitszeiten.
+- `tests/club_teams.browser.html`: Club-Events, Erstellung und Mannschaftsbearbeitung mit lokalen Daten; Desktop, 390 und 320 px. Der bestehende Fixture-Pfad bleibt erhalten.
 - `tests/mobile_nav.browser.html`: mobile Navigation.
 - `tests/login.browser.html`: Registrierung und wiederaufgenommene Namenseingabe,
   mit simuliertem Speichern und Mailversand auf Desktop sowie bei 390/320 px.

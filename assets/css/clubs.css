@@ -38,6 +38,32 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .se-overview:has(.club-team-add:not([hidden])) .se-season-switch { margin: 0; }
 .club-team-add { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding: 9px 13px; font-size: .8rem; }
 .club-team-add[hidden], #club-team-delete[hidden] { display: none; }
+.club-event-dialog [hidden] { display: none; }
+.club-event-dialog { max-width: 540px; }
+.club-event-choices { max-height: 45dvh; overflow-y: auto; overscroll-behavior: contain; }
+.club-event-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 9px 4px; cursor: pointer; }
+.club-event-choice + .club-event-choice { border-top: 1px solid var(--line); }
+.club-event-choice input { width: 18px; height: 18px; accent-color: #287c5b; flex-shrink: 0; }
+.club-event-choice .se-person-name { font-size: .88rem; }
+.club-event-choice:has(input:disabled) { cursor: default; }
+.club-event-inactive { color: var(--muted); opacity: .65; font-size: .65rem; font-weight: 400; }
+.club-event-row .se-meta { flex-basis: 100%; margin: 0; }
+.club-event-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 18px; }
+.club-event-back { padding: 6px 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .8rem; cursor: pointer; }
+.club-event-title { flex: 1; min-width: 130px; }
+.club-event-title h2 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
+.club-event-title p { margin: 4px 0 0; }
+.club-event-edit { width: auto; padding: 8px 10px; font-size: .75rem; }
+.club-event-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.club-event-toolbar .button { width: auto; min-height: 42px; padding: 9px 12px; font-size: .8rem; }
+.club-event-section { margin-top: 24px; margin-bottom: 10px; }
+.club-event-person { display: flex; align-items: center; gap: 12px; min-height: 49px; padding: 4px 14px; }
+.club-event-person + .club-event-person { border-top: 1px solid var(--line); }
+.club-event-person .se-person-name, .club-team-card .se-person-name { font-size: .85rem; font-weight: 400; }
+.club-event-single-toggle { flex-shrink: 0; min-width: 44px; min-height: 40px; padding: 4px 8px; border: 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.club-event-single-toggle:disabled { opacity: .25; cursor: default; }
+.club-event-more { margin-top: 16px; }
+#club-event-next { margin-left: auto; }
 .club-team-add svg { width: 16px; height: 16px; }
 .club-team-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .club-team-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -74,4 +100,8 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
   .club-team-add { padding: 8px 10px; font-size: .73rem; }
   .club-team-dialog { padding: 16px; }
   .club-team-dialog .wt-dialog-heading h2 { font-size: 1.05rem; }
+  .club-event-heading { gap: 8px 12px; }
+  .club-event-back { flex-basis: 100%; text-align: left; }
+  .club-event-title h2 { font-size: 1.1rem; }
+  .club-event-toolbar .button { font-size: .73rem; }
 }

@@ -707,6 +707,19 @@ sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespe
 
 ## Firestore-Regeln veröffentlichen
 
+Die Club-Verwaltung enthält unter **Events** eine eigene Wettkampfplanung mit
+freiem Namen, Datum und aktiven Personen des jeweiligen Jahres. Neue Teilnehmer
+sind zunächst Einzelstarter und können zusätzlich einer Mannschaft mit 4–5 Personen
+angehören. „Nur Mannschaft“ wird je Person gewählt; nach dem Entfernen aus einer
+Mannschaft erscheint eine solche Person unter „Ohne Start“. Später inaktive
+Teilnehmer bleiben erhalten. Diese Planung ist unabhängig vom Timer.
+
+Für diese Version zuerst die aktualisierten Firestore-Regeln veröffentlichen,
+anschließend die Website. Ohne die neuen Regeln kann die Eventplanung nicht
+speichern. Neue Firebase-Dienste, kostenpflichtige Tarife oder eine Migration
+vorhandener Mannschaftsdaten sind nicht erforderlich. Die lokale Vorschau
+`tests/club_teams.browser.html` verwendet ausschließlich Testdaten im Arbeitsspeicher.
+
 Nach Änderungen an `firestore.rules` müssen die Regeln einmal in das bereits
 verwendete Firebase-Projekt `lifesaving-baden` veröffentlicht werden. Das ist
 mit dem kostenlosen Firebase-Tarif möglich:

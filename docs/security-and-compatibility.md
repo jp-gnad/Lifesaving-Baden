@@ -86,6 +86,22 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
 
 ## Kontingent und Veröffentlichung
 
+Die Club-Eventplanung speichert unter `clubs/{clubId}/events/{eventId}` und nutzt
+keine Timer-Events. Zugriff erhalten ausschließlich die bisherigen berechtigten
+Clubverantwortlichen und Admins. Die Regeln prüfen aktive Personen des Eventjahrs
+bei der Übernahme und erzwingen die atomare Zuordnung zu höchstens einer
+Mannschaft mit 4–5 Personen. Einzelstarts sind davon unabhängig. Eine Person darf
+nur mit bestehender Mannschaft aus Einzel entfernt werden; das spätere Entfernen
+der Mannschaft stellt den Einzelstart ausdrücklich nicht automatisch wieder her.
+Nachträglich inaktive oder entfernte Personen bleiben als Event-Snapshot erhalten.
+
+Vor der Website-Version für Club-Events zuerst die kompatiblen neuen Firestore-Regeln
+veröffentlichen. Ohne sie lassen sich Club-Events nicht lesen oder speichern.
+Es sind keine neuen Dienste, kostenpflichtigen Tarife oder Datenmigrationen nötig.
+Die Eventliste verlangt ein Abfragelimit von höchstens 50; normale Änderungen lesen
+nur das betroffene Event und gegebenenfalls die ausdrücklich ausgewählte Kaderperson.
+Das ausdrückliche Löschen einer Gliederung bereinigt ihre Eventseiten vollständig.
+
 Die optionale Ergebnisquelle `timekeeper` enthält nur die Account-ID und das
 Namenskürzel zum Zeitpunkt des Stoppens. Bei Neuanlagen muss die ID zum aktuellen
 Account gehören; Gäste verwenden eine leere ID und „Unbekannt“. Bearbeitungen

@@ -940,7 +940,7 @@ service cloud.firestore {
     function managesClub(id) {
       let club = get(/databases/$(database)/documents/clubs/$(id)).data;
       return verifiedTrainer() && club.status == "active"
-        && (isAdmin() || (club.get("responsibilityVersion", 1) == 2 && request.auth.uid in club.managerIds));
+        && ((club.get("responsibilityVersion", 1) == 2 && request.auth.uid in club.managerIds) || isAdmin());
     }
 
     function validClubProfile(uid, data) {
@@ -1052,6 +1052,23 @@ service cloud.firestore {
         allow update: if managesClub(id) && validTeamSeason(id, year, request.resource.data, resource.data);
         allow delete: if verifiedUser() && isAdmin()
           && get(/databases/$(database)/documents/clubs/$(id)).data.status == "deleting";
+      }
+
+      match /events/{eventId} {
+        allow get: if managesClub(id) || (verifiedUser() && isAdmin());
+        allow list: if (managesClub(id) || (verifiedUser() && isAdmin()))
+          && request.query.limit is int && request.query.limit > 0 && request.query.limit <= 50;
+        allow create: if managesClub(id) && validClubEvent(request.resource.data)
+          && currentEventYear(request.resource.data.year) && request.resource.data.revision == 0
+          && request.resource.data.operation == "create" && request.resource.data.changedId == ""
+          && request.resource.data.participants == {} && request.resource.data.teams == {} && request.resource.data.assignments == {}
+          && request.resource.data.createdAt == request.time;
+        allow update: if managesClub(id) && validClubEvent(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.revision == resource.data.revision + 1
+          && validEventChange(id, request.resource.data, resource.data);
+        allow delete: if managesClub(id) || (verifiedUser() && isAdmin()
+          && get(/databases/$(database)/documents/clubs/$(id)).data.status == "deleting");
       }
 
       match /people/{personId} {
@@ -1170,6 +1187,84 @@ service cloud.firestore {
         && startEligibilityDate(data.get("rescueBronze", null)) && startEligibilityDate(data.get("rescueSilver", null))
         && startEligibilityDate(data.get("rescueGold", null)) && startEligibilityDate(data.get("combinedExercise", null))
         && startEligibilityDate(data.get("healthDeclaration", null));
+    }
+
+    function currentEventYear(year) {
+      let current = (request.time + duration.value(2, "h")).year();
+      return year in [current, current + 1];
+    }
+
+    function validClubEvent(data) {
+      return data.keys().hasOnly(["name", "date", "year", "participants", "teams", "assignments", "revision", "operation", "changedId", "createdAt", "updatedAt"])
+        && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.year is int && int(data.date.split('-')[0]) == data.year
+        && timestamp.date(data.year, int(data.date.split('-')[1]), int(data.date.split('-')[2])) is timestamp
+        && data.participants is map && data.teams is map && data.assignments is map && data.revision is int
+        && data.changedId is string && data.changedId.size() <= 128
+        && data.updatedAt == request.time;
+    }
+
+    function validEventParticipant(club, id, member, year, previous) {
+      let person = get(/databases/$(database)/documents/clubs/$(club)/people/$(member.rosterId)).data;
+      return member.keys().hasOnly(["rosterId", "name", "birthYear", "gender", "createdAtMillis", "individual"])
+        && id == (person.personId == "" ? member.rosterId : person.personId)
+        && !previous.keys().hasAny([id, member.rosterId])
+        && year in person.activeYears && member.createdAtMillis == person.createdAt.toMillis()
+        && member.name == person.name && member.birthYear == person.birthYear && member.gender == person.get("gender", "")
+        && member.individual == true;
+    }
+
+    function eventReserve(next, previous, ids, index, team) {
+      let id = ids[index];
+      return previous.assignments.get(id, team) == team && next.assignments.get(id, "") == team
+        && next.participants[id].birthYear is int && next.participants[id].gender in ["m", "w"];
+    }
+
+    function eventRelease(next, previous, oldIds, newIds, index) {
+      return oldIds.size() <= index || oldIds[index] in newIds
+        || !next.assignments.keys().hasAny([oldIds[index]]);
+    }
+
+    function validEventTeam(next, previous) {
+      let id = next.changedId;
+      let before = previous.teams.get(id, { "memberIds": [] });
+      let after = next.teams.get(id, { "memberIds": [] });
+      let oldIds = before.memberIds;
+      let ids = after.memberIds;
+      return id.matches('^[a-zA-Z0-9_-]+$')
+        && next.teams.diff(previous.teams).affectedKeys().hasOnly([id])
+        && next.participants == previous.participants
+        && next.assignments.diff(previous.assignments).affectedKeys().hasOnly(oldIds.concat(ids))
+        && eventRelease(next, previous, oldIds, ids, 0) && eventRelease(next, previous, oldIds, ids, 1)
+        && eventRelease(next, previous, oldIds, ids, 2) && eventRelease(next, previous, oldIds, ids, 3)
+        && eventRelease(next, previous, oldIds, ids, 4)
+        && (ids.size() == 0 ? previous.teams.keys().hasAny([id]) && !next.teams.keys().hasAny([id])
+          : after.keys().hasOnly(["memberIds", "order"]) && after.order is int && after.order > 0
+            && (!previous.teams.keys().hasAny([id]) || before.order == after.order)
+            && ids is list && ids.size() >= 4 && ids.size() <= 5 && ids.toSet().size() == ids.size()
+            && next.participants.keys().hasAll(ids)
+            && eventReserve(next, previous, ids, 0, id) && eventReserve(next, previous, ids, 1, id)
+            && eventReserve(next, previous, ids, 2, id) && eventReserve(next, previous, ids, 3, id)
+            && (ids.size() == 4 || eventReserve(next, previous, ids, 4, id)));
+    }
+
+    function validEventChange(club, next, previous) {
+      let id = next.changedId;
+      let operation = next.operation;
+      return operation == "metadata"
+        ? next.participants == previous.participants && next.teams == previous.teams && next.assignments == previous.assignments
+          && (next.year == previous.year || (previous.participants.size() == 0 && currentEventYear(next.year)))
+        : next.name == previous.name && next.date == previous.date && next.year == previous.year
+          && (operation == "team" ? validEventTeam(next, previous)
+            : id.matches('^[a-zA-Z0-9_-]+$') && next.teams == previous.teams && next.assignments == previous.assignments
+              && next.participants.diff(previous.participants).affectedKeys().hasOnly([id])
+              && (operation == "add" ? !previous.participants.keys().hasAny([id])
+                && validEventParticipant(club, id, next.participants[id], next.year, previous.participants)
+                : operation == "remove" ? previous.assignments.get(id, "") == "" && !next.participants.keys().hasAny([id])
+                : operation == "individual" && next.participants[id].individual is bool
+                  && (next.participants[id].individual || previous.assignments.get(id, "") != "")
+                  && next.participants[id].diff(previous.participants[id]).affectedKeys().hasOnly(["individual"])));
     }
 
     match /clubDirectory/{id} {

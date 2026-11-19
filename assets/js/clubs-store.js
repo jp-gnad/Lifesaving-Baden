@@ -196,6 +196,17 @@
       checkSession();
       await club.collection("teamSeasons").doc(season.id).delete();
     }
+    // Explicit club deletion traverses all event pages; normal saves read only
+    // the event being changed.
+    for (;;) {
+      checkSession();
+      const events = await club.collection("events").limit(50).get({ source: "server" });
+      if (!events.docs.length) break;
+      for (const event of events.docs) {
+        checkSession();
+        await club.collection("events").doc(event.id).delete();
+      }
+    }
     checkSession();
     await club.delete();
   }

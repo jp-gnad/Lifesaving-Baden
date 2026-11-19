@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const core = require("../assets/js/clubs-core.js");
 const store = require("../assets/js/clubs-store.js");
-const teams = require("../assets/js/club-teams-store.js");
+const events = require("../assets/js/club-events-store.js");
+const eventCore = require("../assets/js/club-events-core.js");
 const teamCore = require("../assets/js/club-teams-core.js");
 const links = require("../assets/js/person-link-store.js");
 const host = process.env.FIRESTORE_EMULATOR_HOST;
@@ -23,6 +24,7 @@ const dbFor = (uid, claims = {}) => uid ? env.authenticatedContext(uid, { email_
 
 function compat(db) {
   const collection = (name) => ({
+    limit: (size) => ({ async get() { const snapshot = await sdk.getDocs(sdk.query(sdk.collection(db, name), sdk.limit(size))); return { docs: snapshot.docs.map(wrap) }; } }),
     async get() { const snapshot = await sdk.getDocs(sdk.collection(db, name)); return { docs: snapshot.docs.map(wrap) }; },
     doc(id) {
       const native = sdk.doc(db, `${name}/${id}`);
@@ -77,7 +79,7 @@ beforeEach(async () => {
   await seed(records);
 });
 
-async function teamFixture(legacy = false) {
+async function eventFixture(legacy = false) {
   const id = await create("Mannschaften", "a");
   const db = compat(dbFor("a"));
   const year = new Date().getUTCFullYear();
@@ -97,92 +99,127 @@ async function teamFixture(legacy = false) {
     const data = (await sdk.getDoc(rosterRef(dbFor("a"), id, key))).data();
     return { ...data, id: key, rosterGender: data.gender };
   }));
-  const ref = (season = year, uid = "a") => sdk.doc(dbFor(uid), `clubs/${id}/teamSeasons/${season}`);
+  const ref = (event = "event", uid = "a") => sdk.doc(dbFor(uid), `clubs/${id}/events/${event}`);
   return { id, db, year, selected, ref };
 }
 
-test("teams reserve four to five members per year, support swapping, and release people on delete", { skip: !enabled }, async () => {
-  const f = await teamFixture();
-  let first = await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
-  assert.equal(teamCore.namedTeams(first, f.year)[0].name, "AK 17/18 männlich · 1");
-  await teams.save(f.db, f.id, f.year + 1, "one", f.selected.slice(0, 4), null, api());
-  await assert.rejects(teams.save(f.db, f.id, f.year, "two", f.selected.slice(0, 4), null, api()), /bereits/);
-  const expected = first.teams.one;
-  first = await teams.save(f.db, f.id, f.year, "one", f.selected.slice(2, 7), expected, api());
-  assert.equal(teamCore.namedTeams(first, f.year)[0].name, "AK 13/14 weiblich · 1");
-  assert.equal(first.assignments.team0, undefined);
-  await assert.rejects(teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), expected, api()), /geändert/);
-  await teams.save(f.db, f.id, f.year, "one", null, first.teams.one, api());
-  assert.deepEqual((await sdk.getDoc(f.ref())).data().assignments, {});
-  assert.equal((await sdk.getDoc(f.ref(f.year + 1))).data().assignments.team0, "one");
+async function createEvent(f, id = "event", people = f.selected, year = f.year) {
+  return events.create(f.db, f.id, id, "Wettkampf", `${year}-06-20`, people, api());
+}
+const command = (f, change, id = "event") => events.mutate(f.db, f.id, id, change, api());
+
+test("club events default to individual entries and reserve teams independently in each event", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  let event = await createEvent(f);
+  assert.equal(Object.values(event.participants).every((person) => person.individual), true);
+  const ids = Object.keys(event.participants).slice(0, 4);
+  event = await command(f, { type: "team", id: "one", memberIds: ids, expected: null });
+  assert.equal(eventCore.namedTeams(event)[0].name, "AK 17/18 männlich · 1");
+  assert.equal(event.participants[ids[0]].individual, true);
+  await command(f, { type: "individual", id: ids[0], enabled: false, expected: true });
+  event = await command(f, { type: "team", id: "one", memberIds: f.selected.slice(0, 5).map((p) => p.id), expected: event.teams.one });
+  event = await command(f, { type: "team", id: "one", memberIds: f.selected.slice(5, 10).map((p) => p.id), expected: event.teams.one });
+  event = await command(f, { type: "team", id: "one", memberIds: null, expected: event.teams.one });
+  assert.equal(event.participants[ids[0]].individual, false);
+  assert.equal(event.assignments[ids[0]], undefined);
+  await command(f, { type: "individual", id: ids[0], enabled: true, expected: false });
+  await createEvent(f, "other");
+  await command(f, { type: "team", id: "one", memberIds: ids, expected: null }, "other");
+  assert.equal((await sdk.getDoc(f.ref())).data().assignments[ids[0]], undefined);
 });
 
-test("parallel team creation cannot assign a person twice and unrelated concurrent changes are retained", { skip: !enabled }, async () => {
-  const f = await teamFixture();
-  const raced = await Promise.allSettled(["one", "two"].map((id) => teams.save(f.db, f.id, f.year, id, f.selected.slice(0, 4), null, api())));
-  assert.equal(raced.filter((result) => result.status === "fulfilled").length, 1);
-  const first = (await sdk.getDoc(f.ref())).data();
-  const [id, team] = Object.entries(first.teams)[0];
+test("concurrent team claims reject duplicates and preserve unrelated event changes", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  await createEvent(f);
+  const ids = f.selected.slice(0, 4).map((p) => p.id);
+  const results = await Promise.allSettled(["one", "two"].map((id) => command(f, { type: "team", id, memberIds: ids, expected: null })));
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  const event = (await sdk.getDoc(f.ref())).data();
+  const [id, team] = Object.entries(event.teams)[0];
   await Promise.all([
-    teams.save(f.db, f.id, f.year, id, f.selected.slice(0, 5), team, api()),
-    teams.save(f.db, f.id, f.year, "other", f.selected.slice(5, 9), null, api()),
+    command(f, { type: "team", id, memberIds: [...ids, f.selected[4].id], expected: team }),
+    command(f, { type: "team", id: "other", memberIds: f.selected.slice(5, 10).map((p) => p.id), expected: null }),
   ]);
   assert.equal(Object.keys((await sdk.getDoc(f.ref())).data().teams).length, 2);
+  await assert.rejects(command(f, { type: "team", id, memberIds: ids, expected: team }), /geändert/);
 });
 
-test("team rules enforce authorization, cardinality, source identity and exact reservation updates", { skip: !enabled }, async () => {
-  const f = await teamFixture();
-  const valid = teamCore.change({}, "one", f.selected.slice(0, 4), f.year, null);
-  const write = (data, uid = "a") => sdk.setDoc(f.ref(f.year, uid), { ...data, updatedAt: sdk.serverTimestamp() });
+test("event rules enforce club access, source identities, bounded queries and immutable snapshots", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  await createEvent(f, "event", f.selected.slice(0, 8));
+  const before = (await sdk.getDoc(f.ref())).data();
+  const write = (next, uid = "a") => sdk.setDoc(f.ref("event", uid), { ...next, revision: before.revision + 1, updatedAt: sdk.serverTimestamp() });
   for (const uid of ["outsider", "athlete", null]) {
-    await fails(write(valid, uid));
-    await fails(sdk.getDoc(f.ref(f.year, uid)));
+    await fails(sdk.getDoc(f.ref("event", uid)));
+    await fails(write(before, uid));
   }
-  for (const count of [0, 3, 6]) {
-    const invalid = structuredClone(valid);
-    invalid.teams.one.members = f.selected.slice(0, count).map((p) => ({ id: p.id, rosterId: p.id, name: p.name, birthYear: p.birthYear, gender: p.gender }));
-    invalid.assignments = Object.fromEntries(invalid.teams.one.members.map((p) => [p.id, "one"]));
-    await fails(write(invalid));
+  await fails(sdk.getDocs(sdk.collection(dbFor("a"), `clubs/${f.id}/events`)));
+  await succeeds(sdk.getDocs(sdk.query(sdk.collection(dbFor("a"), `clubs/${f.id}/events`), sdk.limit(50))));
+  await succeeds(sdk.getDoc(f.ref("event", "admin")));
+  const invalid = structuredClone(before);
+  invalid.operation = "individual"; invalid.changedId = "team0";
+  invalid.participants.team0.name = "Falscher Name";
+  await fails(write(invalid));
+  invalid.participants = structuredClone(before.participants);
+  invalid.participants.team0.individual = false;
+  await fails(write(invalid));
+  for (const count of [3, 6]) {
+    const next = structuredClone(before);
+    const ids = f.selected.slice(0, count).map((p) => p.id);
+    next.operation = "team"; next.changedId = "one"; next.teams.one = { order: 1, memberIds: ids };
+    for (const id of ids) next.assignments[id] = "one";
+    await fails(write(next));
   }
-  for (const field of ["name", "birthYear", "gender", "id"]) {
-    const invalid = structuredClone(valid);
-    invalid.teams.one.members[0][field] = field === "birthYear" ? 1900 : "forged";
-    await fails(write(invalid));
-  }
-  await fails(write({ ...valid, assignments: { ...valid.assignments, extra: "one" } }));
-  await fails(write({ ...valid, assignments: {} }));
-  await succeeds(write(valid));
-  const hijack = teamCore.change({}, "two", f.selected.slice(0, 4), f.year, null);
-  await fails(write({ ...hijack, teams: { ...valid.teams, ...hijack.teams } }));
-  await fails(write({ ...valid, teams: {}, assignments: { team0: "one" } }));
-  await fails(sdk.deleteDoc(f.ref()));
-  await succeeds(sdk.getDoc(f.ref(f.year, "admin")));
-  await store.setActive(f.db, f.id, "team0", f.year, false, api());
-  await fails(write(valid));
-  await teams.save(f.db, f.id, f.year, "one", null, valid.teams.one, api());
+  const forged = structuredClone(before);
+  forged.operation = "team"; forged.changedId = "one";
+  forged.teams.one = { order: 1, memberIds: ["team0", "team1", "team2", "team3"] };
+  await fails(write(forged));
+  const wrongIdentity = eventCore.change(before, { type: "add", id: f.selected[8].id, person: { ...f.selected[8], gender: "m" } });
+  await fails(write(wrongIdentity));
+  await store.setActive(f.db, f.id, f.selected[9].id, f.year, false, api());
+  const wrongActivity = eventCore.change(before, { type: "add", id: f.selected[9].id, person: f.selected[9] });
+  await fails(write(wrongActivity));
+  const nextYear = eventCore.change(before, { type: "metadata", name: "Event", date: `${f.year}-12-20`, expectedRevision: before.revision });
+  nextYear.year += 1; nextYear.date = `${nextYear.year}-12-20`;
+  await fails(write(nextYear));
 });
 
-test("legacy roster genders are refreshed from the directory without losing evidence or activity", { skip: !enabled }, async () => {
-  const f = await teamFixture(true);
+test("only active event-year people may be added; later inactivity and team-only flags survive edits and deletion", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  await store.setActive(f.db, f.id, "team0", f.year, false, api());
+  await assert.rejects(createEvent(f, "wrong", [f.selected[0]]), /nicht aktiv/);
+  await createEvent(f, "next", f.selected.slice(0, 4), f.year + 1);
+  const source = f.selected[0];
+  let next = (await sdk.getDoc(f.ref("next"))).data();
+  await store.setActive(f.db, f.id, source.id, f.year + 1, false, api());
+  next = await command(f, { type: "team", id: "one", memberIds: Object.keys(next.participants), expected: null }, "next");
+  await command(f, { type: "individual", id: source.id, expected: true, enabled: false }, "next");
+  await command(f, { type: "team", id: "one", memberIds: null, expected: next.teams.one }, "next");
+  next = (await sdk.getDoc(f.ref("next"))).data();
+  assert.equal(next.participants[source.id].individual, false);
+  assert.equal(Object.keys(next.participants).length, 4);
+  await store.removePerson(f.db, f.id, source.id, api());
+  assert.equal((await sdk.getDoc(f.ref("next"))).data().participants[source.id].name, source.name);
+  await store.deleteClub(compat(dbFor("admin")), f.id, api());
+  assert.equal((await sdk.getDoc(f.ref("next", "admin"))).exists(), false);
+});
+
+test("legacy source refresh retains evidence, and an interrupted event creation resumes without duplicates", { skip: !enabled }, async () => {
+  const f = await eventFixture(true);
   const date = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
   await store.saveDates(f.db, f.id, "team0", { rescueSilver: date }, api());
-  await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
-  const after = (await sdk.getDoc(rosterRef(dbFor("a"), f.id, "team0"))).data();
-  assert.equal(after.gender, "w");
-  assert.equal(after.rescueSilver.toMillis(), date.toMillis());
-  assert.deepEqual(after.activeYears, [f.year, f.year + 1]);
-  assert.equal(after.createdAt.toMillis(), f.selected[0].createdAt.toMillis());
+  await createEvent(f, "event", f.selected.slice(0, 4));
+  await createEvent(f, "event", f.selected.slice(0, 8));
+  const event = (await sdk.getDoc(f.ref())).data();
+  assert.equal(Object.keys(event.participants).length, 8);
+  assert.equal(event.participants.team0.gender, "w");
+  const roster = (await sdk.getDoc(rosterRef(dbFor("a"), f.id, "team0"))).data();
+  assert.equal(roster.rescueSilver.toMillis(), date.toMillis());
+  assert.deepEqual(roster.activeYears, [f.year, f.year + 1]);
   await fails(sdk.updateDoc(rosterRef(dbFor("a"), f.id, "team0"), { gender: "m", updatedAt: sdk.serverTimestamp() }));
-});
-
-test("removing a team member preserves its snapshot and club deletion cleans up season documents", { skip: !enabled }, async () => {
-  const f = await teamFixture();
-  await teams.save(f.db, f.id, f.year, "one", f.selected.slice(0, 4), null, api());
-  await store.removePerson(f.db, f.id, "team0", api());
-  assert.equal((await sdk.getDoc(f.ref())).data().teams.one.members[0].name, "Person 0");
-  await assert.rejects(teams.save(f.db, f.id, f.year, "new", f.selected.slice(0, 4), null, api()), /entfernt/);
-  await store.deleteClub(compat(dbFor("admin")), f.id, api());
-  assert.equal((await sdk.getDoc(f.ref(f.year, "admin"))).exists(), false);
+  await assert.rejects(events.remove(f.db, f.id, "event", -1), /geändert/);
+  await events.remove(f.db, f.id, "event", event.revision);
+  assert.equal((await sdk.getDoc(f.ref())).exists(), false);
 });
 
 test("only admins create unique clubs with an initial responsible account and inactive roster entry", { skip: !enabled }, async () => {

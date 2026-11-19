@@ -21,9 +21,15 @@
     records.set(`clubs/${clubId}/people/${person.id}`, person);
     records.set(`timerParticipantDirectory/${person.id}`, person);
   }
-  let season = window.ClubTeamsCore.change({}, "girls", people.slice(0, 4), year, null);
-  season = window.ClubTeamsCore.change(season, "boys", people.slice(4, 8), year, null);
-  records.set(`clubs/${clubId}/teamSeasons/${year}`, season);
+  let event = { name: "Landesmeisterschaften", date: `${year}-06-20`, year, participants: {}, teams: {}, assignments: {}, revision: 0, createdAt: now, updatedAt: now };
+  for (const person of people.slice(0, 11)) event = window.ClubEventsCore.change(event, { type: "add", id: person.id, person });
+  event = window.ClubEventsCore.change(event, { type: "team", id: "girls", memberIds: people.slice(0, 4).map(p => p.id), expected: null });
+  event = window.ClubEventsCore.change(event, { type: "team", id: "boys", memberIds: people.slice(4, 8).map(p => p.id), expected: null });
+  event = window.ClubEventsCore.change(event, { type: "individual", id: "person-0", expected: true, enabled: false });
+  people[1].activeYears = [year + 1];
+  people[11].activeYears = [year];
+  people[12].activeYears = [year + 1];
+  records.set(`clubs/${clubId}/events/sample`, event);
 
   function snapshot(path) { return { id: path.split("/").pop(), exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } }; }
   function listen(read, options, receive) {
@@ -39,12 +45,14 @@
       onSnapshot: (options, receive) => listen(() => snapshot(path), options, receive),
     };
   }
-  function collection(path, filters = []) {
+  function collection(path, filters = [], max = Infinity, after = "") {
     const read = () => ({ docs: [...records.keys()].filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
-      .filter((key) => filters.every(([field, op, value]) => op === "array-contains" ? records.get(key)[field].includes(value) : records.get(key)[field] === value)).map(snapshot), metadata: { fromCache: false } });
+      .filter((key) => filters.every(([field, op, value]) => op === "array-contains" ? records.get(key)[field].includes(value) : records.get(key)[field] === value)).sort().filter(key => !after || key.split("/").pop() > after).slice(0, max).map(snapshot), metadata: { fromCache: false } });
     return {
       doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), get: async () => read(),
       where: (field, op, value) => collection(path, [...filters, [field, op, value]]),
+      orderBy: () => collection(path, filters, max, after), limit: (size) => collection(path, filters, size, after),
+      startAfter: (cursor) => collection(path, filters, max, cursor.id),
       onSnapshot: (options, receive) => listen(read, options, receive),
     };
   }
@@ -61,8 +69,9 @@
   } };
   const firestore = () => db;
   firestore.FieldValue = { serverTimestamp: timestamp };
+  firestore.FieldPath = { documentId: () => "__name__" };
   window.firebase = { firestore };
   document.body.classList.remove("auth-context-loading");
   window.LifesavingClubs.start({ currentUser: { uid } }, { uid }, { isAdmin: false });
-  document.querySelector('[data-club-tab="team"]').click();
+  document.querySelector('[data-club-tab="events"]').click();
 })();

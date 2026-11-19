@@ -28,6 +28,9 @@ function checkLocal(owner, value) {
 const dependencies = {
   "assets/js/auth.js": ["assets/js/auth-core.js", "assets/js/admin-accounts.js"],
   "assets/js/clubs.js": ["assets/js/clubs-core.js", "assets/js/clubs-store.js", "assets/js/start-eligibility-core.js"],
+  "assets/js/club-events-core.js": ["assets/js/club-teams-core.js"],
+  "assets/js/club-events-store.js": ["assets/js/club-events-core.js", "assets/js/clubs-store.js"],
+  "assets/js/club-events.js": ["assets/js/club-events-core.js", "assets/js/club-events-store.js", "assets/js/start-eligibility-core.js"],
   "assets/js/worktime.js": ["assets/js/worktime-core.js", "assets/js/worktime-store.js"],
   "timer/firestore-api.js": ["assets/js/auth-core.js", "timer/core.js", "timer/participant-store.js", "timer/result-feed.js"],
   "timer/app.js": ["timer/core.js", "timer/custom-discipline-picker.js", "timer/participant-picker.js", "timer/participant-updates.js", "timer/time-input.js", "timer/control-input.js", "timer/event-cache.js", "timer/save-queue.js", "timer/offline-store.js", "timer/results-pdf.js", "timer/views/people.js", "timer/firestore-api.js"],

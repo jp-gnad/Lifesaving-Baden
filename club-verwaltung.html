@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261116-teams-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-events-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -29,11 +29,12 @@
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261112-clubs-v1"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261119-events-v1"></script>
     <script defer src="assets/js/club-teams-core.js?v=20261116-teams-v1"></script>
-    <script defer src="assets/js/club-teams-store.js?v=20261116-teams-v1"></script>
-    <script defer src="assets/js/club-teams.js?v=20261116-teams-v1"></script>
-    <script defer src="assets/js/clubs.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/club-events-core.js?v=20261119-events-v1"></script>
+    <script defer src="assets/js/club-events-store.js?v=20261119-events-v1"></script>
+    <script defer src="assets/js/club-events.js?v=20261119-events-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261119-events-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
@@ -72,7 +73,7 @@
         <nav class="wt-tabs club-tabs" aria-label="Clubbereiche">
           <button type="button" data-club-tab="people" aria-current="page">Personen</button>
           <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
-          <button type="button" data-club-tab="team">Mannschaft</button>
+          <button type="button" data-club-tab="events">Events</button>
         </nav>
         <div class="se-overview">
           <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
@@ -85,7 +86,7 @@
               <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
             </label>
           </fieldset>
-          <button class="button se-primary club-team-add" id="club-team-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Mannschaft hinzufügen</span></button>
+          <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
           <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
             <div class="se-stage" data-stage="3">
               <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
@@ -128,6 +129,21 @@
         <div class="wt-dialog-actions se-editor-actions" id="se-editor-actions">
           <button class="button se-primary" id="se-save" type="submit">Speichern</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog club-event-dialog" id="club-event-dialog" aria-labelledby="club-event-title">
+      <form id="club-event-form" novalidate>
+        <div class="wt-dialog-heading"><div><h2 id="club-event-title" tabindex="-1" autofocus>Eventname</h2><p class="se-meta" id="club-event-step"></p></div><button class="wt-icon-button" id="club-event-close" type="button" aria-label="Schließen">×</button></div>
+        <label class="wt-field" id="club-event-name-field"><span>Name</span><input id="club-event-name" type="text" maxlength="120" autocomplete="off" required></label>
+        <label class="wt-field" id="club-event-date-field" hidden><span>Datum</span><input id="club-event-date" type="date"></label>
+        <div id="club-event-picker" hidden>
+          <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-event-search" type="search" maxlength="80" autocomplete="off" placeholder="Person suchen …"></label>
+          <p class="se-meta" id="club-event-count" role="status"></p>
+          <div id="club-event-choices" class="club-event-choices"></div>
+        </div>
+        <p class="wt-form-error" id="club-event-error" role="alert" hidden></p>
+        <div class="wt-dialog-actions club-team-actions"><button class="button button-secondary" id="club-event-previous" type="button" hidden>Zurück</button><button class="button wt-danger" id="club-event-delete" type="button" hidden>Löschen</button><button class="button se-primary" id="club-event-next" type="submit">Weiter</button></div>
       </form>
     </dialog>
 

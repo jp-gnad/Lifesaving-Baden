@@ -26,7 +26,7 @@
   let selectedManager = "";
   let selectedName = "";
   let responsibleClub = "";
-  const teamView = adminPage ? null : window.ClubTeams.create({ byId, node, icon, isCurrent: active, getPeople: peopleFor, onChange: render, errorText });
+  const eventView = adminPage ? null : window.ClubEvents.create({ byId, node, icon, isCurrent: active, getPeople: peopleFor, onChange: render, errorText });
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -65,7 +65,7 @@
   }
 
   function clearView(owner) {
-    teamView?.stop();
+    eventView?.stop();
     owner.view += 1;
     owner.rosterStop?.();
     owner.profileStops.forEach((stop) => stop());
@@ -217,12 +217,12 @@
     });
     byId("se-import-open").hidden = tab !== "people";
     byId("se-summary").hidden = tab !== "eligibility";
-    byId("club-team-add").hidden = tab !== "team";
-    if (tab !== "team") teamView.stop();
+    byId("club-event-add").hidden = tab !== "events";
+    if (tab !== "events") eventView.stop();
     if (!owner.loaded) return;
     const nextSeason = byId("se-season-next").checked;
     const year = eligibility.seasonYear(day, nextSeason);
-    if (tab === "team") { teamView.render(owner, year); return; }
+    if (tab === "events") { eventView.render(owner, year); return; }
     const everyone = peopleFor(owner);
     const people = tab === "people" ? everyone : everyone.filter((person) => person.activeYears.includes(year));
     const groups = new Map([...eligibility.groups, "Ohne Jahrgang"].map((group) => [group, []]));

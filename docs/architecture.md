@@ -15,7 +15,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
-| `club-verwaltung.html` | Clubkader, Aktivstatus und Nachweise | `clubs.js`, `clubs-core.js`, `clubs-store.js`, `start-eligibility*.js` |
+| `club-verwaltung.html` | Clubkader, Aktivstatus, Nachweise und eigene Eventplanung | `clubs.js`, `clubs-core.js`, `clubs-store.js`, `start-eligibility*.js`, `club-events*.js`, `club-teams-core.js` |
 | `gliederungen.html` | Clubs und Verantwortliche verwalten | dieselben Clubmodule, Admin-Einstieg |
 | `arbeitszeiten.html` | Aufgaben, Arbeitszeiten und Statistik | `worktime.js`, `worktime-core.js`, `worktime-store.js` |
 | `mein-training.html` | Vorbereiteter geschützter Trainingsbereich | `auth.js`, `training.css`; bisher kein eigener Datenspeicher |
@@ -127,6 +127,47 @@ angeforderte Rückmeldungen bleiben sichtbar.
 
 ## Daten und verantwortliche Schreibpfade
 
+### Club-Events
+
+Club-Events sind eine eigenständige Planung ohne Verbindung zu `timerEvents`.
+`club-events-core.js` berechnet Änderungen und bewahrt Einzelstarts unabhängig von
+Mannschaftszuordnungen. `club-teams-core.js` liefert die gemeinsame AK-/Geschlechtslogik.
+`club-events-store.js` schreibt jeweils genau ein Event in einer Transaktion;
+`club-events.js` verbindet Jahresliste, Erstellungsdialog und Eventansicht als Factory.
+`clubs.js` übergibt den aktuellen Club, Sitzungsprüfung und Kader explizit.
+
+Ein Event unter `clubs/{clubId}/events/{eventId}` hält Name, Kalendertag, Jahr,
+Teilnehmersnapshots, Mannschaften und einen Zuordnungsindex. Die Regeln erlauben
+pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion.
+Der Index reserviert eine Person innerhalb dieses Events für höchstens eine
+Mannschaft mit 4–5 Personen. Mannschaftswechsel und Löschungen ändern Einzelstarts
+nicht; Personen ohne Einzelstart und Mannschaft stehen unter „Ohne Start“.
+AK und Geschlecht entstehen aus den Eventteilnehmern und dem Eventjahr.
+
+Neue Teilnehmer benötigen den Aktivstatus des Eventjahrs. Bereits übernommene
+Personen bleiben bei späterer Deaktivierung oder Clubentfernung als Snapshot
+erhalten; die Oberfläche kennzeichnet sie dezent als inaktiv. Fehlendes Geschlecht
+alter Kaderdatensätze wird nur für ausdrücklich ausgewählte Personen aus der
+maßgeblichen Quelle ergänzt. Aktivjahre, Nachweise und Erstellungszeit bleiben erhalten.
+
+Beim Erstellen wird zuerst das Event angelegt und anschließend jede ausgewählte
+Person einzeln validiert übernommen. Bei einem Verbindungsfehler bleiben bereits
+gespeicherte Teilnehmer erhalten; ein erneuter Versuch desselben Dialogs verwendet
+dieselbe Event-ID. Teilweise erstellte Events sind in der Liste sichtbar und editierbar.
+Ein gefülltes Event kann innerhalb seines Jahres umdatiert werden; ein Jahreswechsel
+erfordert ein leeres Event, damit keine ungeprüfte Auswahl aus dem anderen Jahr entsteht.
+
+Die Jahresliste hört auf eine begrenzte Seite mit höchstens 50 Events; weitere
+Seiten werden ausdrücklich geladen. Beim Öffnen eines Events ersetzt dessen
+Dokumentlistener den Listenlistener. Ausgeblendete Seiten pausieren den Listener;
+Club-, Konto-, Rollen- und Jahreswechsel schließen Editoren und verwerfen alte Antworten.
+Bei konkurrierenden Änderungen wird nur nach nachgewiesener Revisionsänderung
+begrenzt neu versucht. Das erneute Planen prüft alle Reservierungen erneut.
+Die älteren `teamSeasons`-Datensätze bleiben unabhängig erhalten; ohne Eventdatum
+werden daraus keine Events konstruiert. Die alte Mannschaftsoberfläche wird nicht geladen.
+
+### Firestore-Pfade
+
 | Firestore-Pfad | Zweck | Schreibpfad |
 |---|---|---|
 | `users/{uid}` | Profil, Rolle, Einstellungen, Linkanträge | Auth-/Kontenlogik; Rollen nur berechtigte Administration |
@@ -139,6 +180,7 @@ angeforderte Rückmeldungen bleiben sichtbar.
 | `timerEvents/{eventId}/results/{id}` | Einzelergebnis mit Personensnapshot | Timer-Adapter; idempotente Offline-Übertragung |
 | `timerEvents/{eventId}/customDisciplines/{id}` | Wiederverwendbarer Disziplinenname mit fester Rundenzahl, ausschließlich für Benutzerdefiniert | Timer-Adapter: atomar mit einem Ergebnis; Katalogeinträge sind unveränderlich. |
 | `clubs/{id}` und `clubs/{id}/people/{id}` | Verantwortliche, Kader, Aktivjahre und Nachweise | `clubs-store.js` |
+| `clubs/{id}/events/{eventId}` | Club-Eventplanung mit Einzelstarts, Mannschaften und atomaren Zuordnungen | `club-events-store.js`; vollständige Bereinigung beim ausdrücklichen Club-Löschen |
 | `clubProfiles/{uid}`, `clubAccounts/{uid}` | Profile und Clubzuordnungen | Club-/Personenlink-Transaktionen |
 | `users/{uid}/worktimeEntries/{id}` | Arbeitsaufgaben und Intervalle | `worktime-store.js` |
 | `users/{uid}/worktimeSchedule/intervals` | Atomare Prüfung auf Überschneidungen | dieselbe Arbeitszeittransaktion |
