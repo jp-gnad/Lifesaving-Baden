@@ -1746,6 +1746,7 @@ body.auth-context-loading .member-apps::after {
 }
 
 .account-checklist {
+  --checklist-accent: var(--accent-light);
   max-width: 480px;
   margin: 0 0 32px;
   color: var(--muted);
@@ -1767,7 +1768,7 @@ body.auth-context-loading .member-apps::after {
 
 .checklist-count {
   flex: 0 0 auto;
-  color: var(--accent-light);
+  color: var(--checklist-accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1784,7 +1785,7 @@ body.auth-context-loading .member-apps::after {
   width: 20%;
   height: 100%;
   border-radius: inherit;
-  background: var(--success);
+  background: var(--checklist-accent);
   transition: width 180ms ease;
 }
 
@@ -1804,31 +1805,31 @@ body.auth-context-loading .member-apps::after {
   line-height: 1.6;
 }
 
-.checklist-item a {
-  display: inline-block;
-  margin-left: 6px;
-  color: var(--text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.checklist-item a:hover,
-.checklist-item a:focus-visible {
-  color: var(--primary);
-}
-
-.checklist-item .checklist-request-link {
+.checklist-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  margin-left: 6px;
   margin-block: -4px;
   vertical-align: middle;
   border-radius: 50%;
+  color: var(--muted);
+  text-decoration: none;
 }
 
-.checklist-request-link svg {
+.checklist-action:hover,
+.checklist-action:focus-visible {
+  color: var(--checklist-accent);
+}
+
+.checklist-action:focus-visible {
+  outline: 2px solid var(--checklist-accent);
+  outline-offset: 2px;
+}
+
+.checklist-action svg {
   width: 17px;
   height: 17px;
   fill: none;
@@ -1843,7 +1844,7 @@ body.auth-context-loading .member-apps::after {
   height: 10px;
   align-self: start;
   margin-top: 5px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--checklist-accent);
   border-radius: 50%;
 }
 
