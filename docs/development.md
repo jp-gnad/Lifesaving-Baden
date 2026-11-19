@@ -90,6 +90,8 @@ Nach Start des lokalen HTTP-Servers:
   Mit `?delay=15000` verzögert die Fixture jeden simulierten Servervorgang um 15 Sekunden.
   `&persist=1` bewahrt zusätzlich die simulierten Server-Events für einen Neuladetest
   im Sitzungsspeicher auf. Damit lassen sich sofortige Anzeige und Wiederaufnahme prüfen.
+  `?many=1` ergänzt einen größeren Kader und Mannschaften beider Geschlechter in einer AK
+  für die Prüfung von Spalten, mobilen Ansichten und Dialog-Scrollleisten.
 - `tests/mobile_nav.browser.html`: mobile Navigation.
 - `tests/login.browser.html`: Registrierung und wiederaufgenommene Namenseingabe,
   mit simuliertem Speichern und Mailversand auf Desktop sowie bei 390/320 px.

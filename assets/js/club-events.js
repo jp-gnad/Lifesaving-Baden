@@ -6,18 +6,24 @@
     const teamCore = root.ClubTeamsCore;
     const dialog = byId("club-event-dialog");
     const teamDialog = byId("club-team-dialog");
+    const personDialog = byId("club-event-person-dialog");
     const collator = new Intl.Collator("de", { sensitivity: "base" });
     const dateFormat = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "UTC" });
     let context = null;
     let draft = null;
     let teamDraft = null;
+    let personDraft = null;
     const genders = new Map();
     const queue = root.ClubEventsQueue.create({
       storage: { get length() { return root.localStorage.length; }, key: (index) => root.localStorage.key(index),
         getItem: (key) => root.localStorage.getItem(key), setItem: (key, value) => root.localStorage.setItem(key, value), removeItem: (key) => root.localStorage.removeItem(key) },
       locks: root.navigator?.locks, isCurrent: (owner) => isCurrent(owner),
       send: (owner, record, check) => store.send(owner.db, record.clubId, record.eventId, record.action, owner.sdk, check),
-      onChange: (owner) => { if (context?.owner === owner && current()) onChange(owner); },
+      onChange: (owner) => {
+        if (context?.owner !== owner || !current()) return;
+        onChange(owner);
+        if (draft?.mode === "participants") renderEditor();
+      },
     });
 
     const current = (value = context) => Boolean(value && value === context && isCurrent(value.owner, value.view));
@@ -38,8 +44,8 @@
     function busy(dialogElement, enabled) { dialogElement.querySelectorAll("button, input").forEach((control) => { control.disabled = enabled; }); }
     function stop() {
       context?.unsubscribe?.();
-      context = null; draft = null; teamDraft = null;
-      dialog.close(); teamDialog.close();
+      context = null; draft = null; teamDraft = null; personDraft = null;
+      dialog.close(); teamDialog.close(); personDialog.close();
       byId("club-event-add").hidden = true;
       byId("club-event-period-switch").hidden = true;
       byId("club-overview").hidden = false;
@@ -63,6 +69,7 @@
             if (queue.project(value.owner.clubId, selected, null)) { value.selected = selected; onChange(value.owner); return; }
             if (draft?.mode !== "create") { draft = null; dialog.close(); }
             teamDraft = null; teamDialog.close();
+            personDraft = null; personDialog.close();
             listen(value);
           }
         } else {
@@ -79,6 +86,8 @@
         }
         onChange(value.owner);
         if (teamDraft && !teamDraft.busy) renderTeamEditor();
+        if (draft?.mode === "participants") renderEditor();
+        if (personDraft && !event()?.participants[personDraft.id]?.individual) personDialog.close();
       };
       const failed = () => {
         if (!current(value) || value.token !== token) return;
@@ -124,16 +133,15 @@
         const section = node("section", picker ? "club-event-picker-group" : "club-event-ak-group");
         section.dataset.ageGroup = group;
         const header = node("div", "wt-day-header club-event-ak-header");
-        header.append(node(picker ? "h3" : "h4", "wt-day-heading", group),
-          node("span", "wt-day-total", genders.reduce((count, entry) => count + entry.entries.length, 0)));
+        header.append(node(picker ? "h3" : "h4", "wt-day-heading", group));
+        if (!picker) header.append(node("span", "wt-day-total", genders.reduce((count, entry) => count + entry.entries.length, 0)));
         section.append(header);
-        const body = node("div", teams || picker ? "" : "wt-day-card");
+        const body = node("div", teams ? "club-event-team-columns" : picker ? "" : "wt-day-card");
         for (const { gender, entries: values } of genders) {
           const block = node("div", "club-event-gender-group");
           block.dataset.gender = gender;
           const label = gender === "w" ? "weiblich" : gender === "m" ? "männlich" : "ohne Geschlecht";
           block.setAttribute("aria-label", label);
-          block.append(node("div", "club-event-gender-heading", label));
           const content = node("div", teams ? "club-team-cards" : "");
           for (const entry of values) {
             const item = renderEntry(entry);
@@ -204,10 +212,14 @@
         const back = button("Zurück", () => openEvent(""), "club-event-back");
         const title = node("div", "club-event-title");
         title.append(node("h2", "", selected.name), node("p", "se-meta", dateLabel(selected.date)));
-        header.append(back, title, button("Bearbeiten", () => openEditor("metadata"), "button button-secondary club-event-edit"));
+        const edit = button("", () => openEditor("metadata"), "club-event-edit");
+        edit.setAttribute("aria-label", "Event bearbeiten");
+        edit.title = "Event bearbeiten";
+        edit.append(icon("edit"));
+        header.append(back, title, edit);
         list.append(header);
         const toolbar = node("div", "club-event-toolbar");
-        toolbar.append(button("Einzelschwimmer hinzufügen", () => openEditor("participants")), button("Mannschaft hinzufügen", () => openTeam(), "button se-primary"));
+        toolbar.append(button("+ Einzel", () => openEditor("participants")), button("+ Mannschaft", () => openTeam(), "button se-primary"));
         list.append(toolbar);
         const teams = core.namedTeams(selected).map((team) => ({ ...team, members: team.memberIds.map((id) => selected.participants[id]) }));
         if (teams.length) {
@@ -219,9 +231,7 @@
           section.append(...groupedEntries(teams, selected.year, (team) => {
             const card = button("", () => openTeam(team.id), "club-team-card");
             card.id = `club-team-${team.id}`;
-            const heading = node("span", "club-team-card-heading");
-            heading.append(node("strong", "", team.name), icon("next"));
-            card.append(heading);
+            card.setAttribute("aria-label", `${team.name} bearbeiten`);
             const members = team.memberIds.map((id) => ({ ...selected.participants[id], id }));
             const genderOrder = { w: 0, m: 1, "": 2 };
             members.sort((a, b) => genderOrder[teamCore.gender(a.gender)] - genderOrder[teamCore.gender(b.gender)] || collator.compare(a.name, b.name));
@@ -243,11 +253,13 @@
             const id = person.id;
             const row = node("div", "club-event-person");
             row.append(personName(person, id));
-            const toggle = button(individual ? "−" : "+ Einzel", () => perform({ type: "individual", id, expected: person.individual, enabled: !person.individual }), "club-event-single-toggle");
+            const toggle = button(individual ? "…" : "+ Einzel", individual ? () => openPerson(id)
+              : () => perform({ type: "individual", id, expected: person.individual, enabled: true }), "club-event-single-toggle");
             toggle.id = `club-event-single-${id}`;
-            toggle.setAttribute("aria-label", `${person.name} ${individual ? "aus Einzel entfernen" : "als Einzelstarter hinzufügen"}`);
-            toggle.title = individual && !person.teamId ? "Zuerst einer Mannschaft zuordnen" : toggle.getAttribute("aria-label");
-            toggle.disabled = value.busy || individual && !person.teamId;
+            toggle.setAttribute("aria-label", `${person.name} ${individual ? "Menü öffnen" : "als Einzelstarter hinzufügen"}`);
+            if (individual) toggle.setAttribute("aria-haspopup", "dialog");
+            toggle.title = toggle.getAttribute("aria-label");
+            toggle.disabled = value.busy;
             row.append(toggle);
             return row;
           }));
@@ -278,7 +290,8 @@
       if (!current()) return;
       const selected = mode === "create" ? null : event();
       draft = { context, mode, step: mode === "participants" ? 2 : 0, busy: false, id: selected?.id || ref().doc().id,
-        expectedRevision: selected?.revision, selected: new Map(Object.entries(selected?.participants || {}).filter(([, person]) => person.individual).map(([id, person]) => [id, person])) };
+        expectedRevision: selected?.revision };
+      dialog.dataset.mode = mode;
       byId("club-event-name").value = selected?.name || "";
       byId("club-event-date").value = selected?.date || "";
       const currentYear = root.StartEligibilityCore.seasonYear(root.StartEligibilityCore.today());
@@ -290,6 +303,7 @@
       busy(dialog, false);
       renderEditor();
       dialog.showModal();
+      byId("club-event-choices").scrollTop = 0;
     }
     function renderEditor() {
       if (!draft || !current(draft.context)) return;
@@ -303,36 +317,35 @@
       byId("club-event-picker").hidden = metadata || draft.step !== 2;
       byId("club-event-previous").hidden = draft.mode !== "create" || draft.step === 0;
       byId("club-event-delete").hidden = !metadata;
+      byId("club-event-actions").hidden = draft.mode === "participants";
       byId("club-event-next").textContent = draft.mode === "create" && draft.step === 0 ? "Weiter" : draft.mode === "create" ? "Erstellen" : "Speichern";
       if (draft.step === 2 && !metadata) {
-        const year = Number(byId("club-event-date").value.slice(0, 4));
-        const existing = draft.mode === "participants" ? event().participants : {};
-        const choices = new Map(Object.entries(existing).filter(([, person]) => person.individual));
+        const selected = event();
+        if (!selected || selected.id !== draft.id) { dialog.close(); return; }
+        const year = selected.year;
+        const existing = selected.participants;
+        const choices = new Map();
         for (const person of sourcePeople().filter((person) => person.activeYears.includes(year))) {
           const id = Object.entries(existing).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person);
-          if (!choices.has(id)) choices.set(id, existing[id] || person);
+          if (!existing[id]?.individual) choices.set(id, { person: existing[id] || person, source: person });
         }
         const query = root.StartEligibilityCore.normalizeSearch(byId("club-event-search").value);
-        const entries = [...choices].filter(([, person]) => root.StartEligibilityCore.normalizeSearch(person.name).includes(query))
-          .map(([id, person]) => ({ ...person, id }));
+        const entries = [...choices].filter(([, { person }]) => root.StartEligibilityCore.normalizeSearch(person.name).includes(query))
+          .map(([id, { person, source }]) => ({ ...person, id, source }));
         const rows = groupedEntries(entries, year, (person) => {
-            const id = person.id;
-            const row = node("label", "club-event-choice");
-            const input = node("input"); input.type = "checkbox"; input.checked = draft.selected.has(id);
-            input.disabled = draft.busy;
-            input.addEventListener("change", () => { if (input.checked) draft.selected.set(id, person); else draft.selected.delete(id); renderEditor(); });
-            row.append(input, personName(person, existing[id] ? id : ""));
+            const row = button("", () => addSingle(person.id, person.source), "se-candidate club-event-choice");
+            row.setAttribute("aria-label", `${person.name} hinzufügen`);
+            row.append(personName(person), icon("add"));
             return row;
           }, { picker: true });
         byId("club-event-choices").replaceChildren(...rows);
-        if (!rows.length) byId("club-event-choices").append(node("p", "wt-empty", `Keine aktiven Personen für ${year}.`));
-        byId("club-event-count").textContent = `${draft.selected.size} ausgewählt`;
+        if (!rows.length) byId("club-event-choices").append(node("p", "wt-empty", query ? "Keine Personen gefunden." : "Keine weiteren Personen."));
       }
       byId("club-event-next").disabled = draft.busy;
     }
     function submitEvent() {
       const editing = draft;
-      if (!editing || editing.busy || !current(editing.context)) return;
+      if (!editing || editing.mode === "participants" || editing.busy || !current(editing.context)) return;
       if (!byId("club-event-form").reportValidity()) return;
       if (editing.mode === "create" && editing.step === 0) {
         editing.step += 1; error("club-event-error"); renderEditor(); return;
@@ -341,21 +354,48 @@
       error("club-event-error");
       try {
         const original = editing.mode === "create" ? null : event();
-        const additions = [...editing.selected].filter(([id]) => !original?.participants[id]).map(([, person]) => core.snapshotPerson({
-          ...(value.owner.roster.get(person.id) || person), id: person.id,
-        }));
-        const action = editing.mode === "create" ? { type: "create", name: byId("club-event-name").value, date: byId("club-event-date").value, additions }
-          : editing.mode === "metadata" ? { type: "mutate", expectedMetadata: { name: original.name, date: original.date },
-            command: { type: "metadata", name: byId("club-event-name").value, date: byId("club-event-date").value, expectedRevision: editing.expectedRevision } }
-          : { type: "singles", additions, removals: Object.keys(original.participants).filter((id) => original.participants[id].individual && !editing.selected.has(id) && !original.assignments[id]),
-            toggles: Object.entries(original.participants).filter(([id, person]) => person.individual !== editing.selected.has(id) && (editing.selected.has(id) || original.assignments[id]))
-              .map(([id, person]) => ({ type: "individual", id, expected: person.individual, enabled: editing.selected.has(id) })) };
+        const action = editing.mode === "create" ? { type: "create", name: byId("club-event-name").value, date: byId("club-event-date").value, additions: [] }
+          : { type: "mutate", expectedMetadata: { name: original.name, date: original.date },
+            command: { type: "metadata", name: byId("club-event-name").value, date: byId("club-event-date").value, expectedRevision: editing.expectedRevision } };
         queue.enqueue(value.owner.clubId, editing.id, action, original);
         if (!current(value) || draft !== editing) return;
         draft = null; dialog.close();
         openEvent(editing.id);
       } catch (failure) { if (current(value) && draft === editing) error("club-event-error", errorText(failure)); }
       finally { if (current(value) && draft === editing) { editing.busy = false; busy(dialog, false); renderEditor(); } }
+    }
+    function addSingle(id, source) {
+      if (!draft || draft.mode !== "participants" || !current(draft.context)) return;
+      const selected = event();
+      if (!selected || selected.id !== draft.id || selected.participants[id]?.individual) return;
+      error("club-event-error");
+      try {
+        const person = selected.participants[id];
+        const additions = person ? [] : [core.snapshotPerson({ ...(context.owner.roster.get(source.id) || source), id: source.id,
+          gender: source.gender, rosterGender: source.rosterGender, individual: true })];
+        queue.enqueue(context.owner.clubId, selected.id, { type: "singles", additions, removals: [],
+          toggles: person ? [{ type: "individual", id, expected: false, enabled: true }] : [] }, selected);
+      } catch (failure) { error("club-event-error", errorText(failure)); }
+    }
+    function openPerson(id) {
+      const selected = event();
+      if (!current() || !selected?.participants[id]?.individual) return;
+      personDraft = { context, eventId: selected.id, id };
+      byId("club-event-person-title").textContent = selected.participants[id].name;
+      error("club-event-person-error");
+      personDialog.showModal();
+    }
+    function removeSingle() {
+      const editing = personDraft;
+      if (!editing || !current(editing.context)) return;
+      const selected = event();
+      if (selected?.id !== editing.eventId || !selected.participants[editing.id]?.individual) { personDialog.close(); return; }
+      try {
+        const assigned = Boolean(selected.assignments[editing.id]);
+        queue.enqueue(context.owner.clubId, selected.id, { type: "singles", additions: [], removals: assigned ? [] : [editing.id],
+          toggles: assigned ? [{ type: "individual", id: editing.id, expected: true, enabled: false }] : [] }, selected);
+        personDialog.close();
+      } catch (failure) { error("club-event-person-error", errorText(failure)); }
     }
     function deleteEvent() {
       const editing = draft;
@@ -375,6 +415,7 @@
         selected: new Set(team?.memberIds || []), busy: false };
       byId("club-team-search").value = ""; error("club-team-error"); busy(teamDialog, false);
       renderTeamEditor(); teamDialog.showModal();
+      byId("club-team-picker-body").scrollTop = 0;
       const editing = teamDraft;
       for (const person of sourcePeople().filter((person) => person.activeYears.includes(event().year) && !person.gender && person.personId && !genders.has(core.key(person)))) {
         genders.set(core.key(person), "");
@@ -397,8 +438,7 @@
       const activeIds = new Set(sourcePeople().filter((person) => person.activeYears.includes(selected.year)).map((person) =>
         Object.entries(selected.participants).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person)));
       const members = [...editing.selected].map((id) => choices.get(id)).filter(Boolean);
-      byId("club-team-title").textContent = teamCore.classification(members, selected.year) || "Mannschaft hinzufügen";
-      byId("club-team-meta").textContent = `${members.length}/5`;
+      byId("club-team-title").textContent = editing.expected ? "Mannschaft" : "Mannschaft hinzufügen";
       const row = (id, person, remove) => {
         const entry = button("", () => { if (remove) editing.selected.delete(id); else editing.selected.add(id); error("club-team-error"); renderTeamEditor(); }, "se-candidate club-team-person");
         entry.setAttribute("aria-label", `${person.name} ${remove ? "entfernen" : "hinzufügen"}`);
@@ -457,6 +497,9 @@
     byId("club-event-close").addEventListener("click", () => { if (!draft?.busy) dialog.close(); });
     dialog.addEventListener("cancel", (e) => { if (draft?.busy) e.preventDefault(); });
     dialog.addEventListener("close", () => { draft = null; });
+    byId("club-event-person-remove").addEventListener("click", removeSingle);
+    byId("club-event-person-close").addEventListener("click", () => personDialog.close());
+    personDialog.addEventListener("close", () => { personDraft = null; });
     byId("club-team-form").addEventListener("submit", (e) => { e.preventDefault(); if (!byId("club-team-save").disabled) submitTeam(); });
     byId("club-team-delete").addEventListener("click", () => submitTeam(true));
     byId("club-team-search").addEventListener("input", renderTeamEditor);

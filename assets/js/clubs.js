@@ -13,6 +13,7 @@
   const ranks = { standard: 1, athlete: 2, trainer: 3, organizer: 4, admin: 5 };
   const statusNames = { 1: "Bis Jahresende", 2: "Läuft ab", 3: "Offen" };
   const paths = {
+    edit: "m16 3 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14l-1 7Z",
     people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m14-10a4 4 0 0 1 4 4v4M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 0a4 4 0 0 1 0 8",
     add: "M12 5v14M5 12h14", minus: "M5 12h14", next: "m9 6 6 6-6 6", remove: "M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5",
     1: "M5 12l4 4L19 6", 2: "M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z", 3: "M12 6v7m0 4h.01",

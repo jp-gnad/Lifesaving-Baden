@@ -41,12 +41,10 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-team-add[hidden], #club-team-delete[hidden] { display: none; }
 .club-event-dialog [hidden] { display: none; }
 .club-event-dialog { max-width: 540px; }
-.club-event-choices { max-height: 45dvh; overflow-y: auto; overscroll-behavior: contain; }
+.club-event-choices { overflow-y: auto; overscroll-behavior: contain; }
 .club-event-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 9px 4px; cursor: pointer; }
 .club-event-choice + .club-event-choice { border-top: 1px solid var(--line); }
-.club-event-choice input { width: 18px; height: 18px; accent-color: #287c5b; flex-shrink: 0; }
 .club-event-choice .se-person-name { font-size: .88rem; }
-.club-event-choice:has(input:disabled) { cursor: default; }
 .club-event-inactive { color: var(--muted); opacity: .65; font-size: .65rem; font-weight: 400; }
 .club-event-row .se-meta { flex-basis: 100%; margin: 0; }
 .club-event-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -54,7 +52,9 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-title { flex: 1; min-width: 130px; }
 .club-event-title h2 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
 .club-event-title p { margin: 4px 0 0; }
-.club-event-edit { width: auto; padding: 8px 10px; font-size: .75rem; }
+.club-event-edit { display: grid; place-items: center; width: 44px; height: 44px; padding: 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.club-event-edit:hover { color: var(--text); background: var(--surface-muted); }
+.club-event-edit svg { width: 17px; height: 17px; }
 .club-event-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
 .club-event-toolbar .button { width: auto; min-height: 42px; padding: 9px 12px; font-size: .8rem; }
 .club-event-section { margin-top: 24px; margin-bottom: 10px; }
@@ -71,31 +71,35 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-gender-group[data-gender="w"], .club-event-gender-mark[data-gender="w"] { --club-event-gender-color: #cf93ac; }
 .club-event-gender-group[data-gender="m"], .club-event-gender-mark[data-gender="m"] { --club-event-gender-color: #82a8ce; }
 .club-event-gender-group + .club-event-gender-group { border-top: 1px solid var(--line); }
-.club-event-gender-heading { display: flex; align-items: center; gap: 7px; padding: 10px 14px 6px; color: var(--muted); font-size: .67rem; }
-.club-event-gender-heading::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--club-event-gender-color, var(--muted)); opacity: .8; }
 .club-event-gender-mark { display: inline-block; align-self: center; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--club-event-gender-color); opacity: .8; }
 .club-event-gender-group .club-team-card { border-inline-start: 2px solid var(--club-event-gender-color, var(--line)); }
-.club-event-ak-group:has(.club-team-cards) .club-event-gender-heading { padding-inline: 1px; }
-.club-event-ak-group:has(.club-team-cards) .club-event-gender-group + .club-event-gender-group { margin-top: 12px; border: 0; }
+.club-event-team-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.club-event-team-columns > .club-event-gender-group { min-width: 0; border: 0; }
+.club-event-team-columns > [data-gender="w"] { grid-column: 1; }
+.club-event-team-columns > [data-gender="m"] { grid-column: 2; }
+.club-event-team-columns > [data-gender=""] { grid-column: 1 / -1; }
 .club-event-picker-group + .club-event-picker-group { margin-top: 14px; }
 .club-event-picker-group .club-event-ak-header { padding-inline: 4px; }
-.club-event-picker-group .club-event-gender-heading { padding: 6px 4px; }
 #club-event-next { margin-left: auto; }
 .club-team-add svg { width: 16px; height: 16px; }
-.club-team-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.club-team-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .club-team-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .club-team-card:hover { background: var(--surface-muted); }
-.club-team-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: .9rem; }
-.club-team-card-heading strong { overflow-wrap: anywhere; }
-.club-team-card-heading svg { width: 14px; height: 14px; color: var(--muted); }
-.club-team-dialog { max-width: 540px; max-height: calc(100dvh - 24px); }
-.club-team-dialog form { min-height: 0; }
+.club-team-dialog, .club-event-dialog[data-mode="participants"] { height: min(860px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); overflow: hidden; }
+.club-team-dialog { max-width: 540px; }
+.club-team-dialog form, .club-event-dialog[data-mode="participants"] form { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.club-team-dialog .wt-dialog-heading, .club-team-dialog .wt-dialog-actions, .club-team-dialog .wt-form-error,
+.club-event-dialog[data-mode="participants"] .wt-dialog-heading, .club-event-dialog[data-mode="participants"] .wt-form-error { flex-shrink: 0; }
+.club-team-picker-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.club-event-dialog[data-mode="participants"] #club-event-picker { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.club-event-dialog[data-mode="participants"] .club-event-choices { flex: 1; min-height: 0; }
+.club-event-dialog[data-mode="participants"] .wt-field { flex-shrink: 0; }
+.club-event-person-dialog { max-width: 420px; }
 .club-team-selected:not(:empty) { margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .club-team-person { min-height: 46px; padding: 8px 10px; gap: 8px; }
 .club-team-person .se-person-details { align-items: center; }
 .club-team-person .se-meta { flex-basis: auto; font-size: .7rem; }
 .club-team-person .se-person-name { font-size: .84rem; }
-.club-team-candidates { max-height: min(30dvh, 280px); overflow-y: auto; overscroll-behavior: contain; }
 .club-team-actions { justify-content: space-between; }
 #club-team-save { margin-left: auto; }
 @media (max-width: 600px) {
@@ -105,6 +109,8 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
   .club-admin-card { padding: 14px; }
   .club-person > svg { width: 14px; }
   .club-team-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .club-event-team-columns { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .club-event-team-columns > .club-event-gender-group { grid-column: 1; }
   .club-team-card { padding: 14px; }
   .club-team-add { padding: 8px 10px; font-size: .73rem; }
   .club-team-dialog { padding: 16px; }

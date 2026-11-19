@@ -133,7 +133,7 @@ Club-Events sind eine eigenständige Planung ohne Verbindung zu `timerEvents`.
 `club-events-core.js` berechnet Änderungen und bewahrt Einzelstarts unabhängig von
 Mannschaftszuordnungen. `club-teams-core.js` liefert die gemeinsame AK-/Geschlechtslogik.
 `club-events-store.js` schreibt jeweils genau ein Event in einer Transaktion;
-`club-events.js` verbindet Jahresliste, Erstellungsdialog und Eventansicht als Factory.
+`club-events.js` verbindet Terminübersicht, Erstellungsdialog und Eventansicht als Factory.
 `club-events-queue.js` speichert Änderungen kontogebunden lokal, projiziert sie sofort
 auf die Ansicht und überträgt sie unabhängig von Club-/Ansichtswechseln im Hintergrund.
 `clubs.js` übergibt den aktuellen Club, Sitzungsprüfung und Kader explizit.
@@ -148,8 +148,10 @@ nicht; Personen ohne Einzelstart und Mannschaft stehen unter „Ohne Start“.
 AK und Geschlecht entstehen aus den Eventteilnehmern und dem Eventjahr.
 Die Anzeige gruppiert Mannschaften, Einzelstarts und Auswahllisten nach AK,
 darin weiblich vor männlich und danach alphabetisch. Kleine Farbpunkte und
-Geschlechtsüberschriften ergänzen die Gruppierung; unbekannte Angaben bleiben
-gesondert sichtbar. Die Darstellung verändert keine gespeicherte Mannschaftsnummer.
+farbige Mannschaftsränder kennzeichnen das Geschlecht ohne zusätzliche Überschriften.
+Weibliche und männliche Mannschaften derselben AK stehen auf Desktop nebeneinander,
+mobil untereinander. Die Karten enthalten nur Personen. Die Darstellung verändert
+keine gespeicherte Mannschaftsnummer.
 
 Neue Teilnehmer benötigen den Aktivstatus des Eventjahrs. Bereits übernommene
 Personen bleiben bei späterer Deaktivierung oder Clubentfernung als Snapshot
@@ -161,6 +163,9 @@ Ein Event wird nach Name und Datum ohne Teilnehmer erstellt. Erst in der Eventan
 werden Einzelschwimmer oder Mannschaften aus dem im Eventjahr aktiven Clubkader
 hinzugefügt. Direkt für eine Mannschaft übernommene Personen erhalten keinen
 automatischen Einzelstart; schon vorhandene Einzelstarts bleiben erhalten.
+Die Einzelauswahl übernimmt Personen sofort und blendet sie aus der Auswahl aus.
+Das Personenmenü eines Einzelstarts bietet „Entfernen“: Mit Mannschaft bleibt die
+Zuordnung erhalten, ohne Mannschaft wird die Person aus dem Event entfernt.
 
 Speichern bestätigt zuerst den Abschluss eines synchronen lokalen Schreibvorgangs.
 Die Warteschlange nutzt je Auftrag einen eigenen Schlüssel unter

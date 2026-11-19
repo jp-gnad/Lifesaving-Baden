@@ -20,6 +20,10 @@
     gender: index >= 4 && index < 8 || index === 11 ? "m" : "w", organization: "Musterstadt", activeYears: [year, year + 1],
     ...Object.fromEntries(window.ClubsCore.dateKeys.map((key) => [key, null])), createdAt: now, updatedAt: now,
   }));
+  if (options.has("many")) for (let index = 0; index < 36; index += 1) people.push({
+    ...people[0], id: `extra-${index}`, personId: `extra-${index}`, name: `Testperson ${String(index + 1).padStart(2, "0")}`,
+    gender: index < 4 || index % 2 ? "m" : "w",
+  });
   for (const person of people) {
     records.set(`clubs/${clubId}/people/${person.id}`, person);
     records.set(`timerParticipantDirectory/${person.id}`, person);
@@ -28,6 +32,10 @@
   for (const person of people.slice(0, 11)) event = window.ClubEventsCore.change(event, { type: "add", id: person.id, person });
   event = window.ClubEventsCore.change(event, { type: "team", id: "girls", memberIds: people.slice(0, 4).map(p => p.id), expected: null });
   event = window.ClubEventsCore.change(event, { type: "team", id: "boys", memberIds: people.slice(4, 8).map(p => p.id), expected: null });
+  if (options.has("many")) {
+    for (const person of people.slice(13, 17)) event = window.ClubEventsCore.change(event, { type: "add", id: person.id, person });
+    event = window.ClubEventsCore.change(event, { type: "team", id: "younger-boys", memberIds: people.slice(13, 17).map(p => p.id), expected: null });
+  }
   event = window.ClubEventsCore.change(event, { type: "individual", id: "person-0", expected: true, enabled: false });
   people[1].activeYears = [year + 1];
   people[11].activeYears = [year];

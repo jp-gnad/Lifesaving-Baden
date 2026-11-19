@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261112-login-name-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-event-periods-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-compact-events-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -34,8 +34,8 @@
     <script defer src="assets/js/club-events-core.js?v=20261119-event-periods-v1"></script>
     <script defer src="assets/js/club-events-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/club-events-queue.js?v=20261119-instant-events-v1"></script>
-    <script defer src="assets/js/club-events.js?v=20261119-event-periods-v1"></script>
-    <script defer src="assets/js/clubs.js?v=20261119-event-periods-v1"></script>
+    <script defer src="assets/js/club-events.js?v=20261119-compact-events-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261119-compact-events-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/auth.js?v=20261112-settings-links-v1"></script>
   </head>
@@ -144,23 +144,30 @@
         <label class="wt-field" id="club-event-date-field" hidden><span>Datum</span><input id="club-event-date" type="date"></label>
         <div id="club-event-picker" hidden>
           <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-event-search" type="search" maxlength="80" autocomplete="off" placeholder="Person suchen …"></label>
-          <p class="se-meta" id="club-event-count" role="status"></p>
           <div id="club-event-choices" class="club-event-choices"></div>
         </div>
         <p class="wt-form-error" id="club-event-error" role="alert" hidden></p>
-        <div class="wt-dialog-actions club-team-actions"><button class="button button-secondary" id="club-event-previous" type="button" hidden>Zurück</button><button class="button wt-danger" id="club-event-delete" type="button" hidden>Löschen</button><button class="button se-primary" id="club-event-next" type="submit">Weiter</button></div>
+        <div class="wt-dialog-actions club-team-actions" id="club-event-actions"><button class="button button-secondary" id="club-event-previous" type="button" hidden>Zurück</button><button class="button wt-danger" id="club-event-delete" type="button" hidden>Löschen</button><button class="button se-primary" id="club-event-next" type="submit">Weiter</button></div>
       </form>
     </dialog>
 
     <dialog class="wt-dialog se-dialog club-team-dialog" id="club-team-dialog" aria-labelledby="club-team-title">
       <form id="club-team-form">
-        <div class="wt-dialog-heading"><div><h2 id="club-team-title" tabindex="-1" autofocus>Mannschaft hinzufügen</h2><p class="se-meta" id="club-team-meta"></p></div><button class="wt-icon-button" id="club-team-close" type="button" aria-label="Schließen">×</button></div>
-        <div class="club-team-selected" id="club-team-selected" aria-label="Ausgewählte Personen"></div>
-        <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-team-search" type="search" autocomplete="off" maxlength="80" placeholder="Person suchen …"></label>
-        <div class="club-team-candidates" id="club-team-candidates" aria-label="Verfügbare Personen"></div>
+        <div class="wt-dialog-heading"><h2 id="club-team-title" tabindex="-1" autofocus>Mannschaft hinzufügen</h2><button class="wt-icon-button" id="club-team-close" type="button" aria-label="Schließen">×</button></div>
+        <div class="club-team-picker-body" id="club-team-picker-body">
+          <div class="club-team-selected" id="club-team-selected" aria-label="Ausgewählte Personen"></div>
+          <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-team-search" type="search" autocomplete="off" maxlength="80" placeholder="Person suchen …"></label>
+          <div class="club-team-candidates" id="club-team-candidates" aria-label="Verfügbare Personen"></div>
+        </div>
         <p class="wt-form-error" id="club-team-error" role="alert" hidden></p>
         <div class="wt-dialog-actions club-team-actions"><button class="button wt-danger" id="club-team-delete" type="button" hidden>Löschen</button><button class="button se-primary" id="club-team-save" type="submit" disabled>Speichern</button></div>
       </form>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog club-event-person-dialog" id="club-event-person-dialog" aria-labelledby="club-event-person-title">
+      <div class="wt-dialog-heading"><h2 id="club-event-person-title" tabindex="-1" autofocus></h2><button class="wt-icon-button" id="club-event-person-close" type="button" aria-label="Schließen">×</button></div>
+      <p class="wt-form-error" id="club-event-person-error" role="alert" hidden></p>
+      <div class="wt-dialog-actions"><button class="button wt-danger" id="club-event-person-remove" type="button">Entfernen</button></div>
     </dialog>
 
     <dialog class="wt-dialog se-dialog" id="club-person-dialog" aria-labelledby="club-person-title">
