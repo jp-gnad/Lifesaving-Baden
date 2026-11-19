@@ -2210,13 +2210,14 @@ test("role refreshes preserve profile photos, names and email in cards for every
   const photo = node({ accountPhotoLarge: "" });
   const initials = node({ accountInitialsLarge: "" });
   const name = node({ accountName: "" });
+  const greeting = node({ accountGreetingName: "" });
   const email = node({ accountEmail: "" });
   const label = node({ accountRole: "" });
   const card = node({ accountTypeCard: "" }, [node({}, [photo, initials]), node({}, [name, email, label])]);
   const adminCard = node({ adminAccountCard: "" }, [node({}, [node()])]);
   const all = (item) => [item, ...item.children.flatMap(all)];
   const attributeKey = (attribute) => attribute.replace(/^data-/, "").replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-  h.document.querySelectorAll = (selectors) => [...all(card), ...all(adminCard)].filter((item) => selectors.split(",").some((selector) => {
+  h.document.querySelectorAll = (selectors) => [...all(card), ...all(adminCard), greeting].filter((item) => selectors.split(",").some((selector) => {
     const attribute = selector.trim().match(/^\[([^\]]+)\]$/)?.[1];
     return attribute && attributeKey(attribute) in item.dataset;
   }));
@@ -2228,6 +2229,7 @@ test("role refreshes preserve profile photos, names and email in cards for every
     assert.equal(card.children.length, 2, role);
     assert.equal(adminCard.children.length, 1, role);
     assert.equal(name.textContent, user.displayName);
+    assert.equal(greeting.textContent, user.displayName);
     assert.equal(email.textContent, user.email);
     assert.equal(photo.src, user.photoURL);
     assert.equal(photo.classList.contains("is-hidden"), false);
@@ -2240,6 +2242,10 @@ test("role refreshes preserve profile photos, names and email in cards for every
   assert.equal(photo.classList.contains("is-hidden"), true);
   assert.equal(initials.classList.contains("is-hidden"), false);
   assert.equal(initials.textContent, "AB");
+  functions.writeUserDocCache(user.uid, { firstName: "Anna-Lena Maximiliane", lastName: "von Baden-Württemberg" });
+  functions.updateAccountProfile(user);
+  assert.equal(greeting.textContent, "Anna-Lena Maximiliane von Baden-Württemberg");
+  assert.equal(name.textContent, greeting.textContent);
 });
 
 

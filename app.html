@@ -24,10 +24,10 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-dashboard-header-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-account-layout-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
-    <script defer src="assets/js/dashboard-header.js?v=20261119-dashboard-header-v1"></script>
+    <script defer src="assets/js/dashboard-header.js?v=20261119-account-layout-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
@@ -38,7 +38,7 @@
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261112-orphan-clubs-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261119-profile-progress-v2"></script>
+    <script defer src="assets/js/auth.js?v=20261119-account-layout-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <header class="site-header">
@@ -75,10 +75,6 @@
             <span class="checklist-count" data-checklist-count>20 %</span>
           </div>
           <ul class="checklist-list" aria-label="Profilergänzung">
-            <li class="checklist-item" data-check-item="linkRequest">
-              <span class="checklist-dot" aria-hidden="true"></span>
-              <span><span class="checklist-status" data-check-status>Offen: </span>Verknüpfung angefragt <a class="checklist-action" href="account-settings.html#verknuepfungen" aria-label="Verknüpfung anfragen" title="Verknüpfung anfragen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></span>
-            </li>
             <li class="checklist-item" data-check-item="dlrgBranch">
               <span class="checklist-dot" aria-hidden="true"></span>
               <span><span class="checklist-status" data-check-status>Offen: </span>Gliederung hinzugefügt <a class="checklist-action" href="account-settings.html?field=dlrgBranch#persoenliche-daten" aria-label="Gliederung ergänzen" title="Gliederung ergänzen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></span>
@@ -90,6 +86,10 @@
             <li class="checklist-item" data-check-item="gender">
               <span class="checklist-dot" aria-hidden="true"></span>
               <span><span class="checklist-status" data-check-status>Offen: </span>Geschlecht hinzugefügt <a class="checklist-action" href="account-settings.html?field=gender#persoenliche-daten" aria-label="Geschlecht ergänzen" title="Geschlecht ergänzen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></span>
+            </li>
+            <li class="checklist-item" data-check-item="linkRequest">
+              <span class="checklist-dot" aria-hidden="true"></span>
+              <span><span class="checklist-status" data-check-status>Offen: </span>Verknüpfung angefragt <a class="checklist-action" href="account-settings.html#verknuepfungen" aria-label="Verknüpfung anfragen" title="Verknüpfung anfragen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></span>
             </li>
           </ul>
         </section>
@@ -178,7 +178,7 @@
           <span data-account-initials-large>?</span>
         </div>
 
-        <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
+        <h2 id="account-title"><span data-account-greeting-name></span></h2>
         <p class="account-name-line account-role-line">Status: <strong data-account-role>Standard</strong></p>
 
         <a class="button button-secondary account-manage" href="account-settings.html">

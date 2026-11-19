@@ -61,8 +61,6 @@
             updateLinkStatusUi(${JSON.stringify(profiles[state])});
             const user = { displayName: ${JSON.stringify(selectedName)}, email: "anna@example.test", providerData: [] };
             updateAccountProfile(user);
-            const greeting = document.querySelector("[data-account-greeting-name]");
-            if (greeting) greeting.textContent = "Anna";
             document.querySelector("[data-account-open]").onclick = () => {
               document.querySelector("[data-account-overlay]").classList.remove("is-hidden");
               document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "false");

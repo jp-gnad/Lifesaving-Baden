@@ -753,6 +753,7 @@
     updateSignInEmailRow("google", googleEmail, separateEmails);
     updateSignInEmailRow("password", googleEmail && !separateEmails ? "" : passwordEmail, separateEmails);
     setTextForAll("[data-account-name]", accountName);
+    setTextForAll("[data-account-greeting-name]", accountName);
     setTextForAll("[data-user-name-separator]", accountName ? "," : "");
     setTextForAll("[data-user-name]", accountName);
     setTextForAll("[data-link-account-email]", user.email || "Keine E-Mail geladen.");

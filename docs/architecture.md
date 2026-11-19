@@ -23,8 +23,8 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
-`dashboard-header.js` passt ausschließlich die Namensschrift an die verfügbare
-Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
+`dashboard-header.js` passt die Namensschrift im Dashboard und Kontofenster an die
+verfügbare Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.

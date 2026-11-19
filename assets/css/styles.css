@@ -571,7 +571,8 @@ body[data-page="app"] .dashboard > .dashboard-header {
   height: 390px;
   min-height: 0;
   margin-bottom: 0;
-  padding-block: 64px 28px;
+  /* The shared hero's negative top margin must leave a visible header gap. */
+  padding-block: calc(clamp(34px, 5vw, 68px) + 28px) 28px;
 }
 
 .member-dashboard-content {
@@ -1775,7 +1776,7 @@ body.auth-context-loading .member-apps::after {
 }
 
 .account-checklist {
-  --checklist-accent: #ff3545;
+  --checklist-accent: #ee5a65;
   max-width: 480px;
   margin: 0 0 32px;
   color: var(--muted);
@@ -2018,6 +2019,7 @@ body.auth-context-loading .member-apps::after {
 .account-modal {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: min(100%, 460px);
   max-height: calc(100vh - 112px);
   overflow: auto;
@@ -2080,11 +2082,17 @@ body.auth-context-loading .member-apps::after {
 }
 
 .account-modal h2 {
+  min-width: 0;
   margin: 0;
   color: var(--text);
   font-size: clamp(1.6rem, 4vw, 2.35rem);
   line-height: 1.12;
   text-align: center;
+}
+
+[data-account-greeting-name] {
+  display: block;
+  white-space: nowrap;
 }
 
 .account-manage {
@@ -4059,4 +4067,5 @@ body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight:
 
 @media (max-width: 360px) {
   body[data-page="app"] .dashboard > .dashboard-header { height: 280px; }
+  .account-manage { padding-inline: 12px 40px; gap: 8px; }
 }

@@ -15,11 +15,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-dashboard-header-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-account-layout-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
     <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-compact-events-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="assets/js/dashboard-header.js?v=20261119-account-layout-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
@@ -31,7 +32,7 @@
     <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/clubs.js?v=20261119-compact-events-v1"></script>
     <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261119-profile-progress-v2"></script>
+    <script defer src="assets/js/auth.js?v=20261119-account-layout-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="gliederungen">
     <header class="site-header">
@@ -97,7 +98,7 @@
       <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
         <div class="account-modal-header"><p class="account-email" data-account-email></p><button class="account-close" type="button" data-account-close aria-label="Kontofenster schließen">×</button></div>
         <div class="account-avatar account-avatar-large"><img class="is-hidden" src="" alt="" data-account-photo-large><span data-account-initials-large>?</span></div>
-        <h2 id="account-title"><span data-account-greeting-name>Mitglied</span></h2>
+        <h2 id="account-title"><span data-account-greeting-name></span></h2>
         <p class="account-name-line account-role-line">Status: <strong data-account-role></strong></p>
         <a class="button button-secondary account-manage" href="account-settings.html">
           <svg class="account-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h2"></path><path d="M10 17h10"></path><circle cx="8" cy="17" r="2"></circle></svg>
