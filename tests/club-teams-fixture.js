@@ -9,6 +9,7 @@
   let sequence = 0;
   const options = new URLSearchParams(window.parent.location.search);
   const networkDelay = Number(options.get("delay")) || 0;
+  const rosterDelay = Number(options.get("rosterDelay")) || 0;
   const admin = options.has("admin");
   const network = window.clubEventFixtureNetwork = { started: 0, completed: 0 };
   const timestamp = (date = new Date()) => ({ toDate: () => new Date(date), toMillis: () => +date, isEqual: (other) => +date === other.toMillis() });
@@ -33,6 +34,10 @@
   for (const person of people) {
     records.set(`clubs/${clubId}/people/${person.id}`, person);
     records.set(`timerParticipantDirectory/${person.id}`, person);
+  }
+  if (options.has("multi") && !admin) {
+    records.set(`clubs/${clubId}/people/account_${uid}`, { ...people[0], id: `account_${uid}`, personId: "", accountUid: uid, name: "Anna Trainer", birthYear: 1990 });
+    records.set("clubs/fixture-south/people/south-person", { ...people[0], id: "south-person", personId: "south-person", name: "Sofia Süd" });
   }
   records.set(`clubProfiles/${uid}`, { name: "Anna Trainer", role: "trainer", personId: "", birthYear: 1990, organization: "Musterstadt", gender: "w" });
   records.set(`users/${uid}`, { displayName: "Anna Trainer", email: "trainer@example.test", role: "trainer" });
@@ -66,11 +71,23 @@
   }
 
   function snapshot(path) { return { id: path.split("/").pop(), exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } }; }
-  function listen(read, options, receive) {
-    const listener = () => (receive || options)(read());
+  function listen(read, options, receive, onError, rosterClub) {
+    let ready = false;
+    const listener = () => { if (ready) (receive || options)(read()); };
     listeners.add(listener);
-    queueMicrotask(listener);
-    return () => listeners.delete(listener);
+    const start = () => {
+      if (!listeners.has(listener)) return;
+      if (rosterClub && rosterClub === new URLSearchParams(window.parent.location.search).get("rosterFail")) {
+        listeners.delete(listener);
+        onError(new Error("Simulierter Lesefehler"));
+        return;
+      }
+      ready = true;
+      listener();
+    };
+    const timer = rosterClub && rosterDelay ? setTimeout(start, rosterDelay) : undefined;
+    if (!timer) queueMicrotask(start);
+    return () => { clearTimeout(timer); listeners.delete(listener); };
   }
   function doc(path) {
     return {
@@ -95,7 +112,7 @@
       where: (name, op, value) => collection(path, [...filters, [name, op, value]], max, after, field, direction),
       orderBy: (name, order = "asc") => collection(path, filters, max, after, name, order), limit: (size) => collection(path, filters, size, after, field, direction),
       startAfter: (cursor) => collection(path, filters, max, cursor, field, direction),
-      onSnapshot: (options, receive) => listen(read, options, receive),
+      onSnapshot: (options, receive, onError) => listen(read, options, receive, onError, /^clubs\/([^/]+)\/people$/.exec(path)?.[1]),
     };
   }
   const db = { collection, async runTransaction(action) {
@@ -123,6 +140,14 @@
   if (admin) window.LifesavingClubsAdmin.start({ currentUser: { uid } }, { uid }, { isAdmin: true });
   else {
     window.LifesavingClubs.start({ currentUser: { uid } }, { uid }, { isAdmin: false });
-    if (!options.has("multi")) document.querySelector('[data-club-tab="events"]').click();
+    if (!options.has("multi")) {
+      const content = document.getElementById("se-content");
+      const observer = new MutationObserver(() => {
+        if (content.hidden) return;
+        observer.disconnect();
+        document.querySelector('[data-club-tab="events"]').click();
+      });
+      observer.observe(content, { attributes: true, attributeFilter: ["hidden"] });
+    }
   }
 })();

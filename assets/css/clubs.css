@@ -12,6 +12,7 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 }
 .club-choice-item:hover { color: var(--text); background: var(--surface-muted); }
 .club-choice-item[aria-current="true"] { color: var(--text); border-color: #75d4ac45; background: #75d4ac12; font-weight: 700; }
+.club-choice-item[aria-busy="true"] { color: var(--text); border-color: var(--line); cursor: progress; }
 .club-sidebar, .club-sidebar[hidden], .club-tabs[hidden], .club-import[hidden] { display: none; }
 .club-import { width: 44px; height: 44px; border-color: #75d4ac45; background: #75d4ac12; color: #a3e5c7; }
 .club-import:hover:not(:disabled) { background: #75d4ac28; color: #c4f1de; }
@@ -29,9 +30,14 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-workspace .wt-day-group + .wt-day-group { margin-top: 22px; }
 .club-workspace .wt-day-header { margin-bottom: 8px; }
 @media (min-width: 801px) {
-  .club-main:has(.club-sidebar:not([hidden])) { max-width: 1120px; }
-  .club-shell:has(.club-sidebar:not([hidden])) { display: grid; grid-template-columns: minmax(164px, 22%) minmax(0, 1fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
-  .club-sidebar:not([hidden]) { display: grid; padding-right: 14px; border-right: 1px solid var(--line); }
+  .club-main:has(.club-sidebar:not([hidden])) { width: min(1440px, 100%); max-width: none; }
+  .club-shell:has(.club-sidebar:not([hidden])) {
+    display: grid;
+    grid-template-columns: minmax(144px, 1fr) minmax(0, 856px) minmax(144px, 1fr);
+    column-gap: clamp(14px, 2vw, 32px);
+    align-items: start;
+  }
+  .club-sidebar:not([hidden]) { display: grid; width: 100%; max-width: 216px; padding-inline-end: 12px; border-inline-end: 1px solid var(--line); }
 }
 @media (max-width: 800px) {
   .club-heading h1:has(.club-switch:not([hidden])) #club-title { display: none; }
@@ -42,6 +48,7 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
   }
   .club-switch span { min-width: 0; }
   .club-switch svg { width: 16px; height: 16px; color: var(--muted); }
+  .club-switch[aria-busy="true"] { color: var(--muted); cursor: progress; }
 }
 .club-role { font-size: .68rem; color: var(--club-role-color, var(--muted)); }
 #club-person-meta { color: var(--club-role-color, var(--muted)); }

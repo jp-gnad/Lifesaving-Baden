@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261120-soft-dashboard-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261120-club-layout-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261120-club-layout-v2">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -40,7 +40,7 @@
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-profile-feed.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-roster-state.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261120-club-layout-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261120-club-layout-v2"></script>
     <script defer src="assets/js/auth.js?v=20261120-soft-dashboard-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="clubs">
@@ -66,6 +66,7 @@
     <main class="wt-main se-main club-main">
       <p class="form-message" data-auth-error role="alert" hidden></p>
       <p class="wt-message" id="club-message" role="status" hidden></p>
+      <p class="wt-empty" id="club-loading" role="status" hidden>Club wird geladen …</p>
       <div class="club-shell" id="se-content" hidden>
         <nav class="club-sidebar club-choice-list" id="club-sidebar" aria-label="Clubs" hidden></nav>
         <div class="club-workspace">
@@ -117,7 +118,7 @@
               </div>
             </div>
           </div>
-          <div id="se-list" aria-busy="true"><p class="wt-empty" role="status">Clubs werden geladen …</p></div>
+          <div id="se-list" aria-busy="true"></div>
         </div>
       </div>
     </main>

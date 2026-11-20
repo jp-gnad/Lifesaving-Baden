@@ -69,6 +69,7 @@
     eventView?.stop();
     owner.view += 1;
     owner.rosterStop?.();
+    owner.rosterStop = null;
     owner.profileFeed?.clear();
     owner.profileFeed = null;
     owner.searchCache?.clear();
@@ -90,13 +91,17 @@
     const owner = session;
     session = null;
     owner?.stops.forEach((stop) => stop());
-    if (owner) clearView(owner);
+    if (owner) {
+      cancelClubLoad(owner);
+      clearView(owner);
+    }
     window.clearInterval(owner?.clock);
     content.hidden = true;
-    list.replaceChildren(node("p", "wt-empty", "Clubs werden geladen …"));
+    list.replaceChildren();
     list.setAttribute("aria-busy", "true");
     if (!adminPage) {
       tab = "people";
+      byId("club-loading").hidden = true;
       updateClubNavigation();
       byId("club-tabs").hidden = true;
       byId("club-overview").hidden = true;
@@ -119,10 +124,14 @@
     };
     session = owner;
     owner.searchCache = window.CollectionPages.searchCache({ check: () => requireCurrent(owner) });
-    content.hidden = false;
     message();
-    if (adminPage) startAdmin(owner).catch((error) => { if (active(owner)) message(errorText(error)); });
-    else startClubs(owner);
+    if (adminPage) {
+      content.hidden = false;
+      startAdmin(owner).catch((error) => { if (active(owner)) message(errorText(error)); });
+    } else {
+      byId("club-loading").hidden = false;
+      startClubs(owner);
+    }
   }
 
   function startClubs(owner) {
@@ -134,18 +143,25 @@
       const clubs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((club) => club.status === "active").sort((a, b) => collator.compare(a.name, b.name));
       owner.clubs = new Map(clubs.map((club) => [club.id, club]));
-      const requested = new URLSearchParams(window.location.search).get("club");
-      const id = owner.clubs.has(owner.clubId) ? owner.clubId : owner.clubs.has(requested) ? requested : clubs[0]?.id || "";
-      if (id !== owner.clubId || !owner.loaded) selectClub(owner, id);
-      else {
+      if (owner.pendingClub && !owner.clubs.has(owner.pendingClub.id)) cancelClubLoad(owner);
+      if (owner.clubId && !owner.clubs.has(owner.clubId)) hideClubView(owner);
+      if (owner.clubId) {
         updateClubNavigation(owner);
         render(owner);
+      } else if (owner.pendingClub) {
+        byId("club-loading").hidden = false;
+      } else {
+        const requested = new URLSearchParams(window.location.search).get("club");
+        const id = owner.clubs.has(requested) ? requested : clubs[0]?.id;
+        if (id) selectClub(owner, id);
+        else showClubEmpty(owner, "Noch keiner Gliederung zugeordnet.");
       }
     }, () => {
       if (!active(owner)) return;
+      cancelClubLoad(owner);
       owner.clubs.clear();
-      selectClub(owner, "");
-      list.replaceChildren(node("p", "wt-empty", "Clubs sind für dieses Konto nicht verfügbar. Bitte aktualisiere die Seite."));
+      hideClubView(owner);
+      showClubEmpty(owner, "Clubs sind für dieses Konto nicht verfügbar. Bitte aktualisiere die Seite.");
     }));
     owner.clock = window.setInterval(refreshDay, 30_000);
   }
@@ -153,9 +169,11 @@
   function updateClubNavigation(owner) {
     const current = owner?.clubs.get(owner.clubId);
     const hasChoices = Boolean(current && owner.clubs.size > 1);
+    const pending = owner?.pendingClub?.id;
     byId("club-title").textContent = current?.name || "Club-Verwaltung";
     byId("club-switch-name").textContent = current?.name || "";
     byId("club-switch").hidden = !hasChoices;
+    byId("club-switch").setAttribute("aria-busy", String(Boolean(pending)));
     byId("club-sidebar").hidden = !hasChoices;
     const dialog = byId("club-switch-dialog");
     if (!hasChoices && dialog.open) dialog.close();
@@ -170,47 +188,95 @@
           button.addEventListener("click", () => {
             if (!active(owner) || !owner.clubs.has(club.id)) return;
             if (dialog.open) dialog.close();
-            if (club.id !== owner.clubId) selectClub(owner, club.id);
+            selectClub(owner, club.id);
           });
         }
         if (button.textContent !== club.name) button.textContent = club.name;
         if (club.id === current.id) button.setAttribute("aria-current", "true");
         else button.removeAttribute("aria-current");
+        if (club.id === pending) button.setAttribute("aria-busy", "true");
+        else button.removeAttribute("aria-busy");
         return button;
       }) : [];
       syncChildren(menu, buttons);
     }
   }
 
-  function selectClub(owner, id) {
+  function cancelClubLoad(owner) {
+    const pending = owner.pendingClub;
+    owner.pendingClub = null;
+    pending?.stop?.();
+  }
+
+  function hideClubView(owner) {
     clearView(owner);
-    owner.clubId = id;
+    owner.clubId = "";
+    content.hidden = true;
+    list.replaceChildren();
+    updateClubNavigation(owner);
+  }
+
+  function showClubEmpty(owner, text) {
     message();
     updateClubNavigation(owner);
-    byId("club-tabs").hidden = !id;
-    byId("se-import-open").hidden = !id || tab !== "people";
-    byId("se-import-open").disabled = true;
+    byId("club-tabs").hidden = true;
+    byId("se-import-open").hidden = true;
     byId("club-overview").hidden = true;
-    if (!id) {
-      list.replaceChildren(node("p", "wt-empty", "Noch keiner Gliederung zugeordnet."));
-      list.setAttribute("aria-busy", "false");
-      return;
-    }
-    list.replaceChildren(node("p", "wt-empty", "Personen werden geladen …"));
-    list.setAttribute("aria-busy", "true");
-    const view = owner.view;
-    owner.rosterStop = owner.db.collection("clubs").doc(id).collection("people").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
-      if (!active(owner, view) || snapshot.metadata.fromCache) return;
+    byId("club-loading").hidden = true;
+    list.replaceChildren(node("p", "wt-empty", text));
+    list.setAttribute("aria-busy", "false");
+    content.hidden = false;
+  }
+
+  function selectClub(owner, id) {
+    if (owner.pendingClub?.id === id) return;
+    cancelClubLoad(owner);
+    message();
+    if (id === owner.clubId) { updateClubNavigation(owner); return; }
+    const request = { id, stop: null };
+    owner.pendingClub = request;
+    updateClubNavigation(owner);
+    byId("club-loading").hidden = Boolean(owner.clubId);
+    if (!owner.clubId) content.hidden = true;
+    let view;
+    request.stop = owner.db.collection("clubs").doc(id).collection("people").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+      if (!active(owner) || snapshot.metadata.fromCache || !owner.clubs.has(id)) return;
+      const entering = owner.pendingClub === request;
+      if (entering) {
+        // Keep this listener as the live roster once its first server snapshot arrives.
+        owner.pendingClub = null;
+        clearView(owner);
+        owner.clubId = id;
+        owner.rosterStop = request.stop;
+        view = owner.view;
+        tab = "people";
+        updateClubNavigation(owner);
+        byId("club-tabs").hidden = false;
+      } else if (view === undefined || !active(owner, view)) return;
       owner.roster = new Map(snapshot.docs.map((doc) => [doc.id, { id: doc.id, ...doc.data() }]));
       owner.rosterState.receive(owner.roster);
       owner.loaded = true;
-      reconcile(owner, view);
+      profilesFor(owner, [...owner.roster.values()].map((person) => person.accountUid).filter(Boolean));
+      if (entering) {
+        render(owner);
+        byId("club-loading").hidden = true;
+        content.hidden = false;
+      } else scheduleRender(owner);
     }, () => {
-      if (!active(owner, view)) return;
-      clearView(owner);
-      render(owner);
-      list.replaceChildren(node("p", "wt-empty", "Personen konnten nicht geladen werden. Bitte aktualisiere die Seite."));
-      list.setAttribute("aria-busy", "false");
+      if (!active(owner)) return;
+      if (owner.pendingClub === request) {
+        cancelClubLoad(owner);
+        if (owner.clubId) {
+          updateClubNavigation(owner);
+          message("Der Club konnte nicht geladen werden. Bitte versuche es erneut.");
+          return;
+        }
+      } else {
+        if (view === undefined || !active(owner, view)) return;
+        hideClubView(owner);
+        if (owner.pendingClub) { byId("club-loading").hidden = false; return; }
+      }
+      showClubEmpty(owner, "Der Club konnte nicht geladen werden. Bitte aktualisiere die Seite.");
     });
   }
 
@@ -246,12 +312,6 @@
       if (!active(owner, view)) return;
       if (adminPage) renderAdmin(owner); else render(owner);
     });
-  }
-
-  function reconcile(owner, view) {
-    if (!active(owner, view)) return;
-    profilesFor(owner, [...owner.roster.values()].map((person) => person.accountUid).filter(Boolean));
-    scheduleRender(owner);
   }
 
   function syncChildren(parent, children) {
