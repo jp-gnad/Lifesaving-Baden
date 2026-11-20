@@ -2,10 +2,19 @@
 // auth, roles, profile forms and each feature. No real Firebase SDK is loaded.
 (function () {
   "use strict";
+  const launchOptions = new URLSearchParams(window.parent.location.search);
+  if (launchOptions.get("launch") === "1") document.documentElement.classList.add("app-launching");
   const uid = "bootstrap-admin", records = new Map(), listeners = new Set();
   const stamp = (value = new Date()) => ({ toDate: () => new Date(value), toMillis: () => +new Date(value) });
   const now = stamp(), year = new Date().getFullYear();
   const profile = { firstName: "Anna", lastName: "Baden", displayName: "Anna Baden", email: "anna@example.test", role: "admin", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+  if (launchOptions.get("cached") === "1") {
+    // Seed only this fixture's account, to exercise pre-network menu counts.
+    window.sessionStorage.setItem(`lifesaving-baden:user-doc:${uid}`, JSON.stringify({ uid, cachedAt: Date.now(),
+      data: { ...profile, birthDate: "", gender: "" } }));
+  } else {
+    window.sessionStorage.removeItem(`lifesaving-baden:user-doc:${uid}`);
+  }
   records.set(`users/${uid}`, profile);
   records.set(`clubProfiles/${uid}`, { role: "admin", name: "Anna Baden", personId: "", birthYear: 2001, gender: "w", organization: "Baden" });
   records.set("clubs/testclub", { name: "DLRG Testclub", status: "active", responsibilityVersion: 2, needsResponsible: false, managerIds: [uid], createdAt: now, updatedAt: now });
@@ -32,7 +41,13 @@
   }
   function doc(path) { return {
     path, id: path.split("/").pop(), collection: (name) => collection(`${path}/${name}`),
-    get: async () => snapshot(path),
+    get: async () => {
+      if (path === `users/${uid}`) {
+        await new Promise((resolve) => setTimeout(resolve, Number(launchOptions.get("delay")) || 0));
+        if (launchOptions.get("fail") === "1") throw Object.assign(new Error("Lokaler Testfehler"), { code: "permission-denied" });
+      }
+      return snapshot(path);
+    },
     set: async (data, options) => { save(path, data, options?.merge); publish(); },
     onSnapshot: (options, receive) => listen(() => snapshot(path), options, receive),
   }; }

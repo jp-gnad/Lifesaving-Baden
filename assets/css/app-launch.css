@@ -1,0 +1,54 @@
+/* The overlay covers the real layout; resources and layout continue loading. */
+.app-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background: #0f0f12;
+  color: #fff;
+  font: 700 22.5px/28px system-ui, sans-serif;
+  text-align: center;
+  transition: opacity 140ms ease-out, visibility 0s 140ms;
+}
+:is(.app-launching, .app-launch-minimum),
+:is(.app-launching, .app-launch-minimum) body { background: #0f0f12; }
+html:is(.app-launching, .app-launch-minimum) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+:is(.app-launching, .app-launch-minimum) .app-launch {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+.app-launch-content:not([hidden]) {
+  position: absolute;
+  top: calc(50% - min(36px, 5vh));
+  inset-inline: 0;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  transform: translateY(-50%);
+}
+.app-launch img { display: block; width: 96px; height: 96px; object-fit: contain; }
+.app-launch-status {
+  max-width: 30ch;
+  padding-inline: 20px;
+  margin: 0;
+  font: 400 14px/1.5 system-ui, sans-serif;
+  color: #c6c6cc;
+}
+.app-launch-retry {
+  padding: 10px 16px;
+  border: 1px solid #ffffff35;
+  border-radius: 10px;
+  background: #ffffff0c;
+  color: inherit;
+  font: 600 14px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.app-launch [hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .app-launch { transition: none; } }

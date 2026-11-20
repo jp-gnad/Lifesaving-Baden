@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261120-performance-v2">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261120-settings-menu-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261119-account-layout-v1"></script>
@@ -29,7 +29,7 @@
     <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261120-role-ui-fix-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261120-settings-menu-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="settings">
     <header class="site-header">
@@ -53,7 +53,7 @@
       </div>
     </header>
 
-    <main inert aria-busy="true" class="dashboard settings-page">
+    <main aria-busy="true" class="dashboard settings-page">
       <p class="form-message" data-auth-error role="alert" hidden></p>
       <section class="settings-shell" aria-label="Kontoeinstellungen">
         <aside class="settings-sidebar" aria-label="Einstellungskategorien">
@@ -119,7 +119,7 @@
           </nav>
         </aside>
 
-        <div class="settings-content">
+        <div class="settings-content" aria-busy="true">
           <section class="settings-category" id="persoenliche-daten" aria-labelledby="settings-personal-title">
             <div class="settings-category-header">
               <button class="settings-mobile-back" type="button" data-settings-mobile-back aria-label="Zurück zum Einstellungsmenü">
@@ -127,7 +127,7 @@
               </button>
               <h2 id="settings-personal-title">Persönliche Daten</h2>
             </div>
-            <article class="card settings-profile" data-account-type-card>
+            <article class="card settings-profile" data-account-type-card data-settings-loading inert>
               <div class="account-avatar account-avatar-large">
                 <img class="is-hidden" src="" alt="" data-account-photo-large>
                 <span data-account-initials-large>?</span>
@@ -138,7 +138,7 @@
                 <p>Konto-Typ: <strong data-account-role>Standard</strong></p>
               </div>
             </article>
-            <article class="account-form-card profile-field-card">
+            <article class="account-form-card profile-field-card" data-settings-loading inert>
               <div class="profile-field-list" data-profile-field-list>
                 <button class="profile-field-row" type="button" data-profile-edit="displayName" data-highlight-field-when-empty aria-expanded="false">
                   <span class="profile-field-icon" aria-hidden="true">
@@ -260,7 +260,7 @@
               </button>
               <h2 id="settings-security-title" tabindex="-1">Sicherheit und Anmeldung</h2>
             </div>
-            <article class="account-form-card profile-field-card security-field-card">
+            <article class="account-form-card profile-field-card security-field-card" data-settings-loading inert>
               <div class="profile-field-list">
                 <details class="security-field-item" data-google-provider-item>
                   <summary class="profile-field-row security-field-row">
@@ -400,7 +400,7 @@
               </button>
               <h2 id="settings-links-title">Verknüpfungen</h2>
             </div>
-            <article class="account-form-card profile-field-card link-management-card" data-link-management>
+            <article class="account-form-card profile-field-card link-management-card" data-link-management data-settings-loading inert>
               <div class="profile-field-list">
                 <details class="security-field-item link-management-item" data-link-management-details>
                   <summary class="profile-field-row link-management-status-row" data-link-management-status-row>
@@ -501,7 +501,7 @@
               </button>
               <h2 id="settings-privacy-title">Daten und Datenschutz</h2>
             </div>
-            <article class="card setting-card">
+            <article class="card setting-card" data-settings-loading inert>
               <h3>Datenschutz</h3>
               <label class="setting-check">
                 <input type="checkbox" data-keep-data>
@@ -526,13 +526,13 @@
               </button>
               <h2 id="settings-account-title">Konto</h2>
             </div>
-            <article class="card danger-zone danger-zone-card is-hidden" data-non-admin-only>
+            <article class="card danger-zone danger-zone-card is-hidden" data-non-admin-only data-settings-loading inert>
               <h3>Konto löschen</h3>
               <p>Das Konto und die Einstellungen werden entfernt.</p>
               <button class="danger-button" type="button" data-delete-account>Konto löschen</button>
               <p class="form-message" data-delete-message role="status"></p>
             </article>
-            <article class="card is-hidden" data-admin-only>
+            <article class="card is-hidden" data-admin-only data-settings-loading inert>
               <h3>Admin-Konto geschützt</h3>
               <p>Die Adminrolle kann hier nicht geändert und das Admin-Konto nicht gelöscht werden. Persönliche Daten und die übrigen Kontoeinstellungen bleiben bearbeitbar.</p>
             </article>

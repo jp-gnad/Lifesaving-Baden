@@ -1125,78 +1125,47 @@ test("legacy timer login forwards verification flags and drops the old event tar
   assert.equal(destination.searchParams.get("verified"), "1");
 });
 
-test("standalone launch reveals its branding together and covers the landing page during the session check", async () => {
-  const [startScript, minimumScript] = [...source("index.html").matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
-    .map((match) => match[1]);
-  for (const [mode, user] of [
-    ["ios", { uid: "member", emailVerified: true }],
-    ["standalone-fast", null],
-    ["standalone-slow", null],
-    ["browser", null],
-    ["offline", null],
-  ]) {
+test("standalone landing hands its splash to members and only reveals a ready public page for guests", async () => {
+  const startScript = source("index.html").match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+  for (const mode of ["ios-member", "standalone-guest", "browser-member", "browser-guest", "offline"]) {
+    const user = mode.endsWith("member") ? { uid: "member", emailVerified: true } : null;
     const h = harness({ url: "https://example.test/club/", user });
-    const classes = new Set();
-    const timers = new Map();
-    const decoded = deferred();
-    const logo = { decode: () => decoded.promise, style: {} };
-    const content = { firstElementChild: logo, hidden: true, style: {} };
-    const splash = { firstElementChild: content, clientHeight: 800 };
-    let firstFrame;
-    const replacements = [];
-    h.document.body.dataset.page = "landing";
+    const classes = new Set(), gate = deferred();
+    let readyCalls = 0;
     h.document.referrer = "";
-    h.document.querySelector = (selector) => selector === ".app-launch" ? splash : null;
     h.document.documentElement = { classList: {
-      add: (name) => classes.add(name),
+      add: (...names) => names.forEach((name) => classes.add(name)),
       contains: (name) => classes.has(name),
-      remove: (name) => classes.delete(name),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
     } };
-    h.window.navigator = { standalone: mode === "ios" };
+    h.window.navigator = { standalone: mode === "ios-member" };
     h.window.matchMedia = () => ({ matches: mode.startsWith("standalone") || mode === "offline" });
-    h.window.requestAnimationFrame = (callback) => { firstFrame = callback; };
-    h.window.setTimeout = (callback, delay) => { timers.set(delay, callback); };
-    h.window.clearTimeout = (delay) => timers.delete(delay);
-    h.window.location.replace = (url) => replacements.push(url);
+    const launching = !mode.startsWith("browser");
+    let failed = false;
+    h.window.LifesavingAppLaunch = { hold() {}, fail() { failed = true; }, async ready(current = () => true) {
+      readyCalls += 1;
+      await gate.promise;
+      if (current()) classes.delete("app-launching");
+    } };
     if (mode === "offline") delete h.window.firebase;
-
     vm.runInContext(startScript, h.context);
-    assert.equal(classes.has("app-launching"), mode !== "browser");
-    vm.runInContext(minimumScript, h.context);
-    assert.equal(classes.has("app-launch-minimum"), mode !== "browser");
-    assert.equal(timers.has(650), false);
-    assert.equal(content.hidden, true);
-    assert.equal(firstFrame, undefined);
-    if (mode === "offline") timers.get(250)();
-    else decoded.resolve();
-    await new Promise(setImmediate);
-    firstFrame?.();
-    if (mode !== "browser") {
-      assert.equal(content.hidden, false);
-      assert.equal(content.style.top, "364px");
-      assert.equal(logo.style.visibility, mode === "offline" ? "hidden" : undefined);
-      assert.equal(timers.has(650), true);
-    }
-    if (mode === "standalone-slow") {
-      timers.get(650)();
-      assert.equal(classes.has("app-launching"), true);
-      assert.equal(classes.has("app-launch-minimum"), false);
-    }
+    assert.equal(classes.has("app-launching"), launching);
     vm.runInContext(source("assets/js/landing.js"), h.context);
-    assert.deepEqual(replacements, []);
-    await h.callbacks.auth?.(user);
-
+    const pending = h.callbacks.auth?.(user);
+    await new Promise(setImmediate);
     if (user) {
-      assert.deepEqual(replacements, ["https://example.test/club/app.html"]);
+      assert.equal(readyCalls, 0);
+      assert.deepEqual(h.counts.redirects, ["https://example.test/club/app.html" + (launching ? "?appLaunch=1" : "")]);
+      assert.equal(classes.has("app-launching"), launching);
+    } else if (mode === "offline") {
+      assert.equal(failed, true);
+      assert.equal(readyCalls, 0);
       assert.equal(classes.has("app-launching"), true);
     } else {
-      assert.deepEqual(replacements, []);
+      assert.equal(readyCalls, 1);
+      assert.equal(classes.has("app-launching"), launching);
+      gate.resolve(); await pending;
       assert.equal(classes.has("app-launching"), false);
-      if (mode === "standalone-fast" || mode === "offline") {
-        assert.equal(classes.has("app-launch-minimum"), true);
-        timers.get(650)();
-      }
-      assert.equal(classes.has("app-launch-minimum"), false);
     }
   }
 });
@@ -3101,4 +3070,141 @@ test("an optional admin UI error cannot downgrade the already loaded account rol
   assert.equal(label.textContent, "Admin");
   assert.equal(label.classes.has("is-role-admin"), true);
   assert.equal(label.classes.has("is-role-standard"), false);
+});
+
+test("the real member bootstrap finishes profile and role loading behind the splash and keeps interaction blocked until painted", async () => {
+  const profile = deferred(), painted = deferred();
+  const stored = { role: "admin", firstName: "Anna", lastName: "Baden", displayName: "Anna Baden" };
+  const user = { uid: "splash-member", emailVerified: true, displayName: stored.displayName };
+  const h = harness({ url: "https://example.test/club/app.html", user, read: () => profile.promise, adminModule: false });
+  h.document.body.dataset.page = "app";
+  const main = roleUiNode(), label = roleUiNode(), error = roleUiNode();
+  main.setAttribute("inert", ""); error.textContent = "";
+  const bodyClasses = new Set(["auth-context-loading"]);
+  h.document.body.classList = { remove: (name) => bodyClasses.delete(name) };
+  h.document.querySelector = (selector) => ({ main, "[data-auth-error]": error })[selector] || null;
+  h.document.querySelectorAll = (selector) => [".dashboard-header, [data-account-role]", "[data-account-role]"].includes(selector) ? [label] : [];
+  let holds = 0, readyCalls = 0, currentCheck;
+  h.window.LifesavingAppLaunch = { hold() { holds++; }, fail() { assert.fail("unexpected startup error"); }, async ready(current) {
+    readyCalls++; currentCheck = current;
+    assert.equal(label.textContent, "Admin");
+    assert.equal(bodyClasses.has("auth-context-loading"), false, "final layout is rendered underneath the overlay");
+    return painted.promise;
+  } };
+  vm.runInContext(source("assets/js/auth.js"), h.context);
+  h.callbacks.auth(user); await new Promise(setImmediate);
+  assert.equal(readyCalls, 0);
+  assert.equal(main.attributes.has("inert"), true);
+  profile.resolve({ exists: true, data: () => stored }); await new Promise(setImmediate);
+  assert.equal(readyCalls, 1);
+  assert.equal(main.attributes.has("inert"), true);
+  assert.equal(currentCheck(), true);
+  h.callbacks.auth(user); await new Promise(setImmediate);
+  assert.equal(holds, 1, "a duplicate auth event must not invalidate the pending splash readiness");
+  assert.equal(readyCalls, 1);
+  painted.resolve(true); await new Promise(setImmediate);
+  assert.equal(main.attributes.has("inert"), false);
+  assert.equal(main.attributes.get("aria-busy"), "false");
+  assert.equal(h.counts.reads, 1);
+  assert.equal(h.counts.warnings.length, 0);
+  assert.equal(error.textContent, "");
+});
+
+test("a failed profile load reports startup failure without claiming splash readiness", async () => {
+  const user = { uid: "failed-splash-member", emailVerified: true };
+  const h = harness({ url: "https://example.test/club/app.html", user, adminModule: false,
+    read: async () => { throw Object.assign(new Error("denied"), { code: "permission-denied" }); } });
+  h.document.body.dataset.page = "app";
+  h.document.body.classList = { remove() {} };
+  const error = roleUiNode(), main = roleUiNode(); error.textContent = "";
+  main.setAttribute("inert", "");
+  h.document.querySelector = (selector) => ({ main, "[data-auth-error]": error })[selector] || null;
+  let failed = 0;
+  h.window.LifesavingAppLaunch = { active: true, hold() {}, ready() { assert.fail("failed profile cannot be ready"); }, fail() { failed++; } };
+  vm.runInContext(source("assets/js/auth.js"), h.context);
+  h.callbacks.auth(user); await new Promise(setImmediate);
+  assert.equal(failed, 1);
+  assert.equal(main.attributes.has("inert"), true, "failed startup must keep background controls inaccessible");
+  assert.match(error.textContent, /Kontodaten konnten nicht geladen werden/);
+});
+
+function settingsBadgeBootstrap({ cached, user, read } = {}) {
+  const h = harness({ url: "https://example.test/club/account-settings.html", user, read, adminModule: false });
+  h.document.body.dataset.page = "settings";
+  h.document.body.classList = { remove() {} };
+  h.window.matchMedia = () => ({ matches: false, addEventListener() {} });
+  const personal = roleUiNode(), links = roleUiNode(), role = roleUiNode(), main = roleUiNode(), content = roleUiNode(), container = roleUiNode(), error = roleUiNode();
+  content.setAttribute("inert", ""); error.textContent = "";
+  personal.dataset.settingsAttention = "personal"; links.dataset.settingsAttention = "links";
+  personal.closest = links.closest = () => ({ setAttribute() {} });
+  h.document.querySelector = (selector) => ({ main, ".settings-content": container, "[data-auth-error]": error })[selector] || null;
+  h.document.querySelectorAll = (selector) => ({ "[data-settings-attention]": [personal, links],
+    "[data-settings-loading]": [content],
+    ".dashboard-header, [data-account-role]": [role], "[data-account-role]": [role] })[selector] || [];
+  if (cached) h.window.sessionStorage.setItem(`lifesaving-baden:user-doc:${user.uid}`, JSON.stringify(cached));
+  vm.runInContext(source("assets/js/auth.js"), h.context);
+  return { ...h, personal, links, role, main, content, container, error };
+}
+
+test("settings badges use only a fresh matching-account cache before network loading and then adopt fresh counts", async () => {
+  const data = { role: "admin", firstName: "Anna", lastName: "Baden", dlrgBranch: "Baden", gender: "weiblich" };
+  for (const mode of ["fresh", "expired", "foreign", "pending-expired", "none"]) {
+    const response = deferred(), user = { uid: "settings-cached", emailVerified: true };
+    const cached = mode === "none" ? null : { uid: mode === "foreign" ? "other-account" : user.uid,
+      cachedAt: Date.now() - (mode === "expired" ? 6 * 60_000 : mode === "pending-expired" ? 31_000 : 0),
+      data: { ...data, ...(mode === "pending-expired" ? { personLinkRequest: { status: "requested" } } : {}) } };
+    const h = settingsBadgeBootstrap({ user, cached, read: () => response.promise });
+    h.callbacks.auth(user);
+    assert.equal(h.counts.reads, 0);
+    assert.equal(h.main.attributes.has("inert"), false, "the static menu must remain accessible while loading");
+    assert.equal(h.content.attributes.has("inert"), true, "profile forms must stay blocked while loading");
+    assert.equal(h.personal.hidden, mode !== "fresh", mode);
+    assert.equal(h.links.hidden, mode !== "fresh", mode);
+    if (mode === "fresh") {
+      assert.equal(h.personal.textContent, "1"); assert.equal(h.links.textContent, "1");
+    }
+    assert.equal(h.role.textContent, "Standard", "cached role must never authorize the interface");
+    await new Promise(setImmediate);
+    response.resolve({ exists: true, data: () => ({ ...data, role: "standard", dlrgBranch: "", birthDate: "", gender: "" }) });
+    await new Promise(setImmediate);
+    assert.equal(h.personal.textContent, "3", mode);
+    assert.equal(h.links.textContent, "1", mode);
+    assert.equal(h.role.textContent, "Standard");
+    assert.equal(h.content.attributes.has("inert"), false);
+    assert.equal(h.container.attributes.get("aria-busy"), "false");
+    assert.equal(h.counts.reads, 1, "early display must not add a database read");
+    assert.deepEqual(h.counts.tokens, [true]);
+    assert.equal(h.counts.warnings.length, 0);
+    h.auth.currentUser = null; h.callbacks.auth(null);
+    assert.equal(h.personal.hidden, true); assert.equal(h.links.hidden, true);
+  }
+});
+
+test("switching accounts clears cached menu counts and an old profile response cannot restore them", async () => {
+  const first = deferred(), second = deferred(), user = { uid: "settings-first", emailVerified: true };
+  const h = settingsBadgeBootstrap({ user, read: (options, count) => count === 1 ? first.promise : second.promise,
+    cached: { uid: user.uid, cachedAt: Date.now(), data: {} } });
+  h.callbacks.auth(user);
+  assert.equal(h.personal.textContent, "3");
+  await new Promise(setImmediate);
+  const next = h.prepareUser({ uid: "settings-second", emailVerified: true });
+  h.auth.currentUser = next; h.callbacks.auth(next);
+  assert.equal(h.personal.hidden, true); assert.equal(h.links.hidden, true);
+  await new Promise(setImmediate);
+  first.resolve({ exists: true, data: () => ({}) }); await new Promise(setImmediate);
+  assert.equal(h.personal.hidden, true); assert.equal(h.links.hidden, true);
+  second.resolve({ exists: true, data: () => ({ role: "standard", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" }) });
+  await new Promise(setImmediate);
+  assert.equal(h.personal.hidden, true); assert.equal(h.links.textContent, "1");
+  assert.equal(h.counts.warnings.length, 0);
+});
+
+test("a settings load error releases the content's busy state and shows the existing error message", async () => {
+  const user = { uid: "settings-error", emailVerified: true };
+  const h = settingsBadgeBootstrap({ user, read: async () => { throw Object.assign(new Error("denied"), { code: "permission-denied" }); } });
+  h.callbacks.auth(user); await new Promise(setImmediate);
+  assert.equal(h.content.attributes.has("inert"), false);
+  assert.equal(h.container.attributes.get("aria-busy"), "false");
+  assert.equal(h.main.attributes.has("inert"), false);
+  assert.match(h.error.textContent, /Kontodaten konnten nicht geladen werden/);
 });

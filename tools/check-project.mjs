@@ -70,6 +70,9 @@ for (const name of htmlFiles) {
     "admin-accounts.html": "assets/js/admin-accounts.js",
   };
   if (pageEntrypoints[name] && !scripts.includes(pageEntrypoints[name])) failures.push(`${name}: missing page entrypoint ${pageEntrypoints[name]}`);
+  if (["index.html", "app.html"].includes(name) && scripts[0] !== "assets/js/app-launch.js") {
+    failures.push(`${name}: app-launch.js must load before the external SDK and page initialization`);
+  }
   scripts.forEach((script, index) => {
     for (const dependency of dependencies[script] || []) {
       if (!scripts.slice(0, index).includes(dependency)) failures.push(`${name}: ${dependency} must load before ${script}`);

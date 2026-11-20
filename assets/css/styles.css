@@ -4018,22 +4018,22 @@ body[data-page="login"] .auth-privacy a {
 }
 
 /* Mask the actual layout instead of replacing it with differently sized cards. */
-body.auth-context-loading:is([data-page="app"], [data-page="settings"]) > main {
+body.auth-context-loading[data-page="app"] > main,
+body.auth-context-loading[data-page="settings"] [data-settings-loading] {
   pointer-events: none;
   user-select: none;
 }
 body.auth-context-loading .member-app-icon,
-body.auth-context-loading .settings-menu-icon,
 body.auth-context-loading .profile-field-icon,
 body.auth-context-loading [data-profile-value] {
   position: relative;
   color: transparent;
   background: #202126;
 }
-body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon) > * {
+body.auth-context-loading :is(.member-app-icon, .profile-field-icon) > * {
   visibility: hidden;
 }
-body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon, [data-profile-value])::after {
+body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -4043,7 +4043,7 @@ body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-fi
 }
 @keyframes skeleton-pulse { from { opacity: .2; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon, [data-profile-value])::after { animation: none; }
+  body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value])::after { animation: none; }
 }
 .list-more {
   justify-self: center;

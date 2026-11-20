@@ -204,7 +204,7 @@
 
       const entry = JSON.parse(raw);
 
-      if (!isFreshUserDocCache(entry)) {
+      if (entry?.uid !== uid || !isFreshUserDocCache(entry)) {
         window.sessionStorage?.removeItem(getUserDocCacheKey(uid));
         return null;
       }
@@ -570,6 +570,7 @@
 
     async function initializeSignedInUser(user) {
       if (!user) {
+        if (page === "app") window.LifesavingAppLaunch?.hold();
         redirectToLogin();
         return;
       }
@@ -578,6 +579,7 @@
         return bootstrapPromise;
       }
 
+      if (page === "app") window.LifesavingAppLaunch?.hold();
       bootstrapUid = user.uid;
       const pending = (async () => {
         await ensureLocalAuthPersistence(auth);
@@ -596,6 +598,7 @@
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
           if (!isCurrentUser(activeUser)) return;
+          if (page === "settings") updateAccountChecklist(userData);
           const role = getAccountRole(userData, claims);
           if (page === "training" && !role.isAthlete) {
             redirectToApp();
@@ -625,8 +628,16 @@
         }
 
         document.body.classList.remove("auth-context-loading");
+        if (page === "app" && window.LifesavingAppLaunch) {
+          const ready = await window.LifesavingAppLaunch.ready(() => isCurrentUser(activeUser));
+          if (!ready || !isCurrentUser(activeUser)) return;
+        }
         document.querySelector("main")?.removeAttribute?.("inert");
         document.querySelector("main")?.setAttribute?.("aria-busy", "false");
+        if (page === "settings") {
+          document.querySelectorAll("[data-settings-loading]").forEach((element) => element.removeAttribute("inert"));
+          document.querySelector(".settings-content")?.setAttribute?.("aria-busy", "false");
+        }
       })();
       bootstrapPromise = pending;
 
@@ -637,20 +648,31 @@
         console.warn("Kontodaten konnten nicht geladen werden.", error);
         settingsLoadedForUser = null;
         document.body.classList.remove("auth-context-loading");
-        document.querySelector("main")?.removeAttribute?.("inert");
-        document.querySelector("main")?.setAttribute?.("aria-busy", "false");
+        if (!(page === "app" && window.LifesavingAppLaunch?.active)) {
+          document.querySelector("main")?.removeAttribute?.("inert");
+          document.querySelector("main")?.setAttribute?.("aria-busy", "false");
+        }
+        if (page === "settings") {
+          document.querySelectorAll("[data-settings-loading]").forEach((element) => element.removeAttribute("inert"));
+          document.querySelector(".settings-content")?.setAttribute?.("aria-busy", "false");
+        }
         const message = document.querySelector("[data-auth-error]");
         if (message) {
           message.hidden = false;
           const detail = error?.code ? `${translateProfileSaveError(error)} ` : "";
           message.textContent = `Kontodaten konnten nicht geladen werden. ${detail}Bitte lade die Seite erneut.`;
         }
+        if (page === "app") window.LifesavingAppLaunch?.fail();
       } finally {
         if (bootstrapPromise === pending) bootstrapPromise = null;
       }
     }
 
     auth.onAuthStateChanged((user) => {
+      if (page === "settings" && (!user || isCurrentUser(user))) {
+        // Counts are only a display hint; roles and form values still load fresh.
+        updateAccountChecklist(user ? readUserDocCache(user.uid) : null);
+      }
       const form = document.querySelector("[data-profile-form]");
       if (form) delete form.dataset.profileSaving;
       document.querySelector("[data-profile-field-list]")?.removeAttribute?.("inert");

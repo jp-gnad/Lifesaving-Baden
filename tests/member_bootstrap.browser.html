@@ -22,13 +22,15 @@
           if (/^https?:/.test(src) || /firebase-config\.js/.test(src)) script.remove();
         });
         const base = page.createElement("base"); base.href = new URL("../", location.href).href;
-        const fixture = page.createElement("script"); fixture.src = "tests/member-bootstrap-fixture.js?v=role-ui-fix-v2";
+        const fixture = page.createElement("script"); fixture.src = "tests/member-bootstrap-fixture.js?v=settings-menu-v1";
         page.head.prepend(base, fixture);
         document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;
       }
       document.querySelectorAll("[data-page]").forEach((button) => button.onclick = () => loadMemberFixture(button.dataset.page));
       document.querySelectorAll("[data-width]").forEach((button) => button.onclick = () => { document.getElementById("preview").style.width = button.dataset.width; });
-      loadMemberFixture();
+      const options = new URLSearchParams(location.search);
+      if (["390", "320"].includes(options.get("width"))) document.getElementById("preview").style.width = `${options.get("width")}px`;
+      loadMemberFixture(options.get("page") || "app.html");
     </script>
   </body>
 </html>

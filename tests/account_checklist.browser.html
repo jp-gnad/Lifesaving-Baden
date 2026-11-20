@@ -32,7 +32,9 @@
       document.getElementById("toggle-loading").onclick = () => {
         const page = document.getElementById("preview").contentDocument;
         const loading = page.body.classList.toggle("auth-context-loading");
-        page.querySelector("main").toggleAttribute("inert", loading);
+        const contents = page.body.dataset.page === "settings" ? page.querySelectorAll("[data-settings-loading]") : [page.querySelector("main")];
+        contents.forEach((content) => content.toggleAttribute("inert", loading));
+        page.querySelector(".settings-content")?.setAttribute("aria-busy", String(loading));
         page.querySelector("main").setAttribute("aria-busy", String(loading));
       };
       let selectedState = "new";
@@ -59,7 +61,7 @@
           requested: { ...details, personLinkRequest: { status: "requested" } },
           linked: { ...details, personLink: { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" } },
         };
-        const source = await (await fetch("../assets/js/auth.js?v=20261120-role-ui-fix-v1")).text();
+        const source = await (await fetch("../assets/js/auth.js?v=20261120-settings-menu-v1")).text();
         const fixture = page.createElement("script");
         fixture.defer = true;
         // Inline scripts run before deferred dependencies; wait for DOMContentLoaded.
@@ -79,6 +81,8 @@
             document.body.classList.remove("auth-context-loading");
     document.querySelector("main")?.removeAttribute("inert");
     document.querySelector("main")?.setAttribute("aria-busy", "false");
+            document.querySelectorAll("[data-settings-loading]").forEach((content) => content.removeAttribute("inert"));
+            document.querySelector(".settings-content")?.setAttribute("aria-busy", "false");
             document.body.dataset.page = ${JSON.stringify(view)};
             if (${JSON.stringify(view)} === "settings") {
               const form = document.querySelector("[data-profile-form]");

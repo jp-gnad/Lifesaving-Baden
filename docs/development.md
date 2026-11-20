@@ -49,6 +49,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Bereich | Relevante Tests |
 |---|---|
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
+| Startbild, Bereitschaft und Übergabe an den Mitgliederbereich | `app_launch.test.cjs`, `auth_flow.test.cjs`, `member_bootstrap.browser.html?launch=1&delay=5000`; Fehlerfall zusätzlich `&fail=1` |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |
 | Bahnlängenabhängige 100 m Hindernis und weitere Disziplinen | `timer_modules.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
 | Eigene Disziplinennamen je Event und Rundenzahl | `timer_custom_disciplines.test.cjs`, `timer_import.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
@@ -112,6 +113,10 @@ prüfen Verhalten, ersetzen aber keine Layoutkontrolle im Browser.
 
 Die Profilfortschritt-Fixture besitzt einen Schalter „Ladezustand“. Die Skeletons
 maskieren die tatsächlichen Karten-/Formularelemente, damit deren Maße erhalten bleiben.
+Die statischen Menü-Piktogramme der Kontoeinstellungen bleiben dabei sichtbar.
+`member_bootstrap.browser.html?page=account-settings.html&width=390&delay=10000&cached=1`
+prüft mit den tatsächlichen Einstiegsskripten sofortige Menüzähler aus dem Sitzungscache
+und deren spätere Aktualisierung. Ohne `cached=1` bleiben unbekannte Zähler zunächst leer.
 Bei neuen Bildern unterhalb des anfänglich sichtbaren Bereichs an `loading="lazy"`
 denken; sofort sichtbare Start-/Loginbilder früh laden.
 

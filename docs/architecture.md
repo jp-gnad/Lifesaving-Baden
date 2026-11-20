@@ -23,6 +23,17 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
+`app-launch.js` und `app-launch.css` halten beim kalten Start der installierten App
+das Startbild über dem tatsächlichen Layout. `landing.js` übergibt es bei einer
+bestätigten Sitzung mit dem einmaligen URL-Marker `appLaunch=1` an `app.html`;
+die Zielseite entfernt den Marker sofort. Manifest-ID und Start-URL bleiben erhalten.
+`auth.js` meldet erst nach Profil, autoritativer Rolle und UI-Initialisierung die
+Bereitschaft. Danach wartet das Startbild auf Dokument, Schriften, sichtbare lokale
+Bilder und zwei Darstellungsframes. Es entstehen keine zusätzlichen Datenbankabfragen.
+Die Mindestanzeige von 650 ms gibt die Oberfläche niemals vorzeitig frei; nach
+15 Sekunden erscheint lediglich ein Hinweis mit Wiederholungsmöglichkeit.
+Fehler behalten das Startbild und denselben Wiederholungsweg. Normale Seitennavigation
+und Neuladen ohne Marker verwenden weiterhin den bisherigen Seitenstart.
 `dashboard-header.js` passt die Namensschrift im Dashboard und Kontofenster an die
 verfügbare Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
@@ -69,6 +80,13 @@ in eine neue Eventauswahl übernommen. Der Zustand endet beim
 Club-/Kontowechsel und ist keine zusätzliche dauerhafte Offline-Warteschlange.
 Profilfelder in den Einstellungen zeigen ebenfalls sofort den Entwurf und sperren
 weitere Änderungen bis zur Bestätigung; fehlgeschlagene Feldänderungen werden zurückgenommen.
+Die statischen SVG-Piktogramme des Einstellungsmenüs bleiben auch während des
+Profilabrufs sichtbar. Sobald das aktuelle Konto feststeht, zeigen die Menüzähler
+gegebenenfalls dessen noch gültigen Sitzungscache an; die frische Profilantwort
+ersetzt diese Anzeige. Rollen und Formularwerte verwenden weiterhin den geprüften
+Initialisierungsablauf. Kontowechsel oder Abmeldung entfernen vorherige Zähler.
+Menü und Zurück-Navigation bleiben währenddessen bedienbar; `inert` sperrt nur
+die Inhaltskarten der Einstellungen bis zum Abschluss des Ladens.
 
 Arbeitszeiten gleichen Altbestände beim ersten erfolgreichen Speichern je Kontositzung
 ab. Weitere Saves verwenden die transaktionale Reservierung ohne erneute Vollabfrage.
