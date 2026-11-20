@@ -772,7 +772,9 @@ test("notification aggregations count open requests and issues without returning
   await env.clearFirestore();
   await seed({
     "users/admin": { role: "admin" }, "users/trainer": { role: "trainer" },
-    "users/current": { personLinkStatus: "requested", personLinkRequest: { status: "requested" }, personLinkIssue: { status: "reported" } },
+    "users/current": { adminReviewPending: true, personLinkStatus: "requested", personLinkRequest: { status: "requested" }, personLinkIssue: { status: "reported" } },
+    "users/registered": { adminReviewPending: true },
+    "users/registered-request": { adminReviewPending: true, personLinkStatus: "requested" },
     "users/legacy": { personLinkRequest: { status: "requested" } },
     "users/status-only": { personLinkStatus: "requested" },
     "users/issue": { personLinkIssue: { status: "reported" } },
@@ -781,12 +783,17 @@ test("notification aggregations count open requests and issues without returning
   const code = fs.readFileSync(path.join(__dirname, "../assets/js/admin-notifications.js"), "utf8");
   const countCode = code.slice(code.indexOf("  async function countAdminNotifications"), code.indexOf("  function initAdminAccountBadge"));
   const countNotifications = new Function("window", "fetch", `${countCode}; return countAdminNotifications;`)(
-    { firebaseConfig: { projectId: "demo-lifesaving-baden" } },
+    { firebaseConfig: { projectId: "demo-lifesaving-baden" },
+      LifesavingAccountNotifications: require("../assets/js/account-notifications-core.js") },
     (url, options) => fetch(url.replace("https://firestore.googleapis.com", `http://${host}`), options)
   );
   const { createMockUserToken } = require("@firebase/util");
   const user = (uid) => ({ getIdToken: async () => createMockUserToken({ sub: uid, email_verified: true }, "demo-lifesaving-baden") });
-  assert.equal(await countNotifications(user("admin")), 5);
+  assert.equal(await countNotifications(user("admin")), 7);
+  await sdk.updateDoc(sdk.doc(dbFor("admin"), "users/registered-request"), { adminReviewPending: false });
+  assert.equal(await countNotifications(user("admin")), 7, "the open request remains one notification after acknowledging the registration");
+  await sdk.updateDoc(sdk.doc(dbFor("admin"), "users/registered"), { adminReviewPending: false });
+  assert.equal(await countNotifications(user("admin")), 6);
   await assert.rejects(countNotifications(user("trainer")));
 });
 

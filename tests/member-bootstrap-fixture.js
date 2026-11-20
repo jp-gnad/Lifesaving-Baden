@@ -67,7 +67,7 @@
       const a = valueOf(sort === "__name__" ? left.id : left.data()[sort]), b = valueOf(sort === "__name__" ? right.id : right.data()[sort]);
       return (a < b ? -1 : a > b ? 1 : left.id.localeCompare(right.id)) * (direction === "desc" ? -1 : 1);
     };
-    const read = () => ({ metadata: { fromCache: false }, docs: [...records.keys()]
+    const read = () => ({ metadata: { fromCache: false }, get size() { return this.docs.length; }, docs: [...records.keys()]
       .filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
       .filter((key) => filters.every(([field, op, value]) => {
         const actual = field === "__name__" ? key.split("/").pop() : records.get(key)[field], a = valueOf(actual), b = valueOf(value);
