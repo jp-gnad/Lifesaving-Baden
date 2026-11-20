@@ -59,7 +59,7 @@
           requested: { ...details, personLinkRequest: { status: "requested" } },
           linked: { ...details, personLink: { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" } },
         };
-        const source = await (await fetch("../assets/js/auth.js?v=20261120-performance-v2")).text();
+        const source = await (await fetch("../assets/js/auth.js?v=20261120-role-ui-fix-v1")).text();
         const fixture = page.createElement("script");
         fixture.defer = true;
         // Inline scripts run before deferred dependencies; wait for DOMContentLoaded.

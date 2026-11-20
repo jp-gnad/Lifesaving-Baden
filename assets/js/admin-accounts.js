@@ -4,7 +4,7 @@
   // UI and administration only. Authorization remains enforced by firestore.rules.
   function create(dependencies) {
     const {
-      clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
+      updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
     } = dependencies;
 
     function getTimestampMillis(value) {
@@ -157,18 +157,6 @@
       return { organizer: 2, trainer: 3, athlete: 4, standard: 5 }[roleValue] ?? 5;
     }
 
-    function updateAdminAccountCardRole(card, roleValue) {
-      if (!card) {
-        return;
-      }
-
-      card.dataset.accountRoleValue = roleValue;
-      card.classList.toggle("is-admin-account", roleValue === "admin");
-      card.classList.toggle("is-organizer-account", roleValue === "organizer");
-      card.classList.toggle("is-athlete-account", roleValue === "athlete");
-      card.classList.toggle("is-trainer-account", roleValue === "trainer");
-    }
-
     function getAdminAccountCardSortData(card) {
       return {
         rank: getAdminAccountRoleSortRank(
@@ -203,18 +191,6 @@
         });
 
       list.insertBefore(card, target || null);
-    }
-
-    function setAdminAccountRoleAppearance(element, value) {
-      if (!element) {
-        return;
-      }
-
-      element.classList.toggle("is-role-admin", value === "admin");
-      element.classList.toggle("is-role-organizer", value === "organizer");
-      element.classList.toggle("is-role-athlete", value === "athlete");
-      element.classList.toggle("is-role-standard", value === "standard");
-      element.classList.toggle("is-role-trainer", value === "trainer");
     }
 
     function createAdminAccountRoleSelect(item) {

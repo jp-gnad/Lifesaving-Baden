@@ -13,14 +13,39 @@
   } = window.LifesavingAuth;
   const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
-    initAdminAccounts, updateAdminAccountCardRole, setAdminAccountRoleAppearance, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, filterAdminAccounts
+    initAdminAccounts, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, filterAdminAccounts
   } = window.LifesavingAdminAccounts?.create({
-    clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
+    updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
   }) || {};
   const { initAdminAccountBadge, countAdminNotifications } = window.LifesavingAdminNotifications?.create({ isCurrentUser }) || {};
   function formatLinkedPerson(person) {
     return person ? `${person.name} (${String(person.birthYear).slice(-2).padStart(2, "0")}) · ${person.organization || "Keine Gliederung"}` : "Nicht verknüpft";
   }
+  // Shared member/profile styling must be available without the admin UI.
+  function updateAdminAccountCardRole(card, roleValue) {
+    if (!card) {
+      return;
+    }
+
+    card.dataset.accountRoleValue = roleValue;
+    card.classList.toggle("is-admin-account", roleValue === "admin");
+    card.classList.toggle("is-organizer-account", roleValue === "organizer");
+    card.classList.toggle("is-athlete-account", roleValue === "athlete");
+    card.classList.toggle("is-trainer-account", roleValue === "trainer");
+  }
+
+  function setAdminAccountRoleAppearance(element, value) {
+    if (!element) {
+      return;
+    }
+
+    element.classList.toggle("is-role-admin", value === "admin");
+    element.classList.toggle("is-role-organizer", value === "organizer");
+    element.classList.toggle("is-role-athlete", value === "athlete");
+    element.classList.toggle("is-role-standard", value === "standard");
+    element.classList.toggle("is-role-trainer", value === "trainer");
+  }
+
   function translateFirestoreError(error) {
     const messages = {
       "permission-denied": "Firestore-Regeln erlauben diese Aktion noch nicht.",
@@ -617,7 +642,8 @@
         const message = document.querySelector("[data-auth-error]");
         if (message) {
           message.hidden = false;
-          message.textContent = `${translateProfileSaveError(error)} Bitte lade die Seite erneut.`;
+          const detail = error?.code ? `${translateProfileSaveError(error)} ` : "";
+          message.textContent = `Kontodaten konnten nicht geladen werden. ${detail}Bitte lade die Seite erneut.`;
         }
       } finally {
         if (bootstrapPromise === pending) bootstrapPromise = null;
@@ -1029,18 +1055,13 @@
       return;
     }
 
-    try {
-      const data = userData || await loadCurrentUserData(user) || {};
-      const role = getAccountRole(data, claims);
-
-      updateRoleUi(role);
-      if (page === "admin-accounts") await initAdminAccounts(auth, role);
-      if (page === "app" && role.isAdmin) {
-        initAdminAccountBadge?.(auth);
-        clubNotifications?.start(auth);
-      }
-    } catch (error) {
-      updateRoleUi(getDefaultAccountRole());
+    const data = userData || await loadCurrentUserData(user) || {};
+    const role = getAccountRole(data, claims);
+    updateRoleUi(role);
+    if (page === "admin-accounts") await initAdminAccounts(auth, role);
+    if (page === "app" && role.isAdmin) {
+      initAdminAccountBadge?.(auth);
+      clubNotifications?.start(auth);
     }
   }
 

@@ -77,7 +77,7 @@
   firestore.FieldValue = { delete: () => "delete-field", serverTimestamp: () => new Date() };
   window.firebase = { apps: [{}], auth: () => auth, firestore };
   document.body.dataset.page = "admin-preview";
-  const response = await fetch("assets/js/auth.js?v=20261120-performance-v2");
+  const response = await fetch("assets/js/auth.js?v=20261120-role-ui-fix-v1");
   const script = document.createElement("script");
   window.fixtureProfile = records.get(`users/${auth.currentUser.uid}`);
   const initialize = settingsPreview

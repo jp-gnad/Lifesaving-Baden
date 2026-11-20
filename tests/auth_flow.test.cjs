@@ -20,7 +20,7 @@ const localStore = () => {
   };
 };
 
-function harness({ url = "https://example.test/club/login.html", user = null, stored = { role: "sportler" }, read, token, transactionData } = {}) {
+function harness({ url = "https://example.test/club/login.html", user = null, stored = { role: "sportler" }, read, token, transactionData, adminModule = true } = {}) {
   const counts = { persistence: 0, reads: 0, tokens: [], writes: [], delays: [], redirects: [], redirectResults: 0, redirectStarts: 0, warnings: [], events: [] };
   const callbacks = {};
   const elements = new Map();
@@ -121,7 +121,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/auth-core.js"), context);
   vm.runInContext(source("assets/js/collection-pages.js"), context);
   vm.runInContext(source("assets/js/admin-notifications.js"), context);
-  vm.runInContext(source("assets/js/admin-accounts.js"), context);
+  if (adminModule) vm.runInContext(source("assets/js/admin-accounts.js"), context);
   vm.runInContext(source("timer/core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
     login() {
@@ -3021,4 +3021,84 @@ test("profile fields appear immediately and roll back a failed save without clai
   assert.equal(attributes.get("aria-busy"), "false");
   assert.equal(attributes.has("inert"), false);
   assert.match(message.textContent, /nicht erreichbar/);
+});
+
+function roleUiNode() {
+  const classes = new Set(), attributes = new Map();
+  return { dataset: {}, textContent: "Standard", hidden: true, classes, attributes,
+    classList: { toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); }, remove(name) { classes.delete(name); } },
+    setAttribute: (name, value) => attributes.set(name, value), removeAttribute: (name) => attributes.delete(name) };
+}
+
+test("shared role colors, status and profile cards work without loading account administration", () => {
+  const h = harness({ adminModule: false }), functions = memberFunctions(h);
+  const card = roleUiNode(), header = roleUiNode(), label = roleUiNode();
+  h.document.querySelectorAll = (selector) => ({
+    "[data-account-type-card]": [card], ".dashboard-header, [data-account-role]": [header, label], "[data-account-role]": [label],
+  })[selector] || [];
+  for (const role of ["admin", "organizer", "trainer", "athlete", "standard"]) {
+    functions.updateRoleUi(h.core.getAccountRole({ role }, {}));
+    assert.equal(label.textContent, h.core.getAccountRole({ role }, {}).label);
+    assert.equal(header.classes.has(`is-role-${role}`), true);
+    assert.equal(label.classes.has(`is-role-${role}`), true);
+    assert.equal(card.dataset.accountRoleValue, role);
+    assert.equal([...header.classes].filter((name) => name.startsWith("is-role-")).length, 1);
+  }
+});
+
+test("every protected non-admin page completes its actual auth bootstrap with the admin module absent", async (t) => {
+  const cases = [
+    ["app.html", "app", null], ["account-settings.html", "settings", null],
+    ["gliederungen.html", "gliederungen", "LifesavingClubsAdmin"],
+    ["club-verwaltung.html", "clubs", "LifesavingClubs"],
+    ["arbeitszeiten.html", "worktime", "LifesavingWorktime"], ["mein-training.html", "training", null],
+  ];
+  for (const [file, page, factory] of cases) await t.test(file, async () => {
+    const html = source(file);
+    assert.match(html, /src="assets\/js\/auth\.js\?/);
+    assert.doesNotMatch(html, /src="assets\/js\/admin-accounts\.js/);
+    const stored = { role: "admin", firstName: "Anna", lastName: "Baden", displayName: "Anna Baden", email: "anna@example.test", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+    const h = harness({ url: `https://example.test/club/${file}`, adminModule: false,
+      user: { uid: "admin", emailVerified: true, email: stored.email, displayName: stored.displayName }, stored });
+    h.document.body.dataset.page = page;
+    const label = roleUiNode(), card = roleUiNode(), header = roleUiNode(), error = roleUiNode(), main = roleUiNode();
+    error.textContent = ""; main.setAttribute("inert", "");
+    const bodyClasses = new Set(["auth-context-loading"]);
+    h.document.body.classList = { remove: (name) => bodyClasses.delete(name) };
+    const form = { dataset: {}, elements: Object.fromEntries(["firstName", "lastName", "displayName", "dlrgBranch", "birthDate", "gender"].map((name) => [name, { value: "" }])), addEventListener() {}, querySelectorAll: () => [] };
+    h.document.querySelector = (selector) => ({ main, "[data-auth-error]": error,
+      "[data-profile-form]": page === "settings" ? form : null })[selector] || null;
+    h.document.querySelectorAll = (selector) => ({ "[data-account-type-card]": page === "settings" ? [card] : [],
+      ".dashboard-header, [data-account-role]": [header, label], "[data-account-role]": [label] })[selector] || [];
+    h.window.matchMedia = () => ({ matches: false, addEventListener() {} });
+    const starts = [];
+    if (factory) h.window[factory] = { stop() {}, start(auth, user, role) { starts.push({ uid: user.uid, admin: role.isAdmin }); } };
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+    assert.equal(error.textContent, "", `${file}: ${h.counts.warnings.map((args) => args.join(" ")).join(";")}`);
+    assert.equal(h.counts.warnings.length, 0);
+    assert.equal(label.textContent, "Admin");
+    assert.equal(header.classes.has("is-role-admin"), true);
+    assert.equal(bodyClasses.has("auth-context-loading"), false);
+    assert.equal(main.attributes.has("inert"), false);
+    assert.equal(h.counts.redirects.length, 0);
+    if (factory) { assert.equal(starts.length, 1); assert.equal(starts[0].admin, true); }
+    if (page === "settings") {
+      assert.equal(card.classes.has("is-admin-account"), true);
+      for (const field of ["firstName", "lastName", "dlrgBranch", "birthDate", "gender"]) assert.equal(form.elements[field].value, stored[field], field);
+      assert.equal(form.dataset.profileDetailsLoaded, "true");
+    }
+  });
+});
+
+test("an optional admin UI error cannot downgrade the already loaded account role", async () => {
+  const h = harness({ user: { uid: "admin" } });
+  h.document.body.dataset.page = "app";
+  h.window.LifesavingClubNotifications = { create: () => ({ stop() {}, start() { throw new Error("view failed"); } }) };
+  const functions = memberFunctions(h), label = roleUiNode();
+  h.document.querySelectorAll = (selector) => [".dashboard-header, [data-account-role]", "[data-account-role]"].includes(selector) ? [label] : [];
+  await assert.rejects(functions.initAdminStatus(h.auth, { role: "admin" }), /view failed/);
+  assert.equal(label.textContent, "Admin");
+  assert.equal(label.classes.has("is-role-admin"), true);
+  assert.equal(label.classes.has("is-role-standard"), false);
 });

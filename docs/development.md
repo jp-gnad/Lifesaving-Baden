@@ -84,6 +84,11 @@ npm.cmd run test:rules
 
 Nach Start des lokalen HTTP-Servers:
 
+- `tests/member_bootstrap.browser.html`: echter Start aller Mitgliederseiten mit
+  simulierter Firebase-Anmeldung. Lädt die tatsächliche seitenspezifische Liste
+  lokaler Skripte und führt `auth.js` unverändert aus; externe SDKs und Zugriffe
+  sind ersetzt. Prüft insbesondere Rollenfarben, Profilwerte und den Start von
+  Gliederungen, Clubverwaltung und Arbeitszeiten ohne das Admin-Modul.
 - `tests/admin_accounts.browser.html`: Kontenverwaltung, verschiedene Bildschirmbreiten.
   `?many=1` ergänzt 123 Konten für Nachladen und die ausdrückliche vollständige Suche.
 - `tests/account_links.browser.html`: eigene Personenverknüpfung.

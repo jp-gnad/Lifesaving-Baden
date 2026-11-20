@@ -35,6 +35,11 @@ kleinen Zählabfragen für die Mitgliederübersicht. Rasch aufeinanderfolgende
 Sichtbarkeitsereignisse verwenden einen erfolgreichen Zählerstand 15 Sekunden weiter.
 Eigene HTTP-Aggregationsabfragen brechen nach zehn Sekunden ab.
 
+Die gemeinsame Darstellung von Kontotyp und Rollenfarben gehört zu `auth.js` und
+funktioniert ohne das Admin-Modul. `admin-accounts.js` erhält dieselben Darstellungs-
+funktionen als explizite Factory-Callbacks. Fehler einer Administrationsoberfläche
+setzen eine bereits geladene Rolle nicht auf Standard zurück.
+
 `collection-pages.js` hält konten-/ansichtsgebundene Cursor, laufende Abfragen und
 kurzlebige Suchergebnisse. Die Kontenliste startet mit 50 Dokumenten und lädt weitere
 Seiten ausdrücklich nach. Die Suche filtert geladene Konten; „Alle Konten durchsuchen“
