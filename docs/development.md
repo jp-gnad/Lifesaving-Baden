@@ -49,6 +49,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Bereich | Relevante Tests |
 |---|---|
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
+| Neumeldungen zu Konten, Quittierung und deduplizierte Zähler | `account_notifications.test.cjs`, `auth_flow.test.cjs`, `npm run test:rules`; `admin_accounts.browser.html?new=1` |
 | Startbild, Bereitschaft und Übergabe an den Mitgliederbereich | `app_launch.test.cjs`, `auth_flow.test.cjs`, `member_bootstrap.browser.html?launch=1&delay=5000`; Fehlerfall zusätzlich `&fail=1` |
 | Schnelle Rückkehr zur Mitgliederübersicht und Vorschau ohne Berechtigungswirkung | `member_view_cache.test.cjs`, `auth_flow.test.cjs`, Emulator-Suites |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |

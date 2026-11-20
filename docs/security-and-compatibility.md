@@ -37,6 +37,16 @@ erhalten. Der Admin-Zähler verwendet nur die gefilterte Menge offener Clubmeldu
 
 ## Nicht vertrauenswürdige Eingaben
 
+`adminReviewPending` kennzeichnet neue Kontoprofile. Bei der Anlage darf ein
+Eigentümer ausschließlich `true` setzen; für alte Clients bleibt das fehlende Feld
+zulässig. Eigentümer dürfen den Marker anschließend weder ändern noch entfernen.
+Admins dürfen ausschließlich von `true` auf `false` quittieren, auch bei einem
+Admin-Kontoprofil. Verknüpfungsreservierungen bleiben dabei atomar geschützt.
+Es gibt keine rückwirkende Kennzeichnung bestehender Konten und keinen separaten
+Auth-Trigger: Die Meldung entsteht beim Anlegen des Website-Profils, nicht bei
+reinen Firebase-Auth-Konten ohne Profildokument. Geänderte Regeln gemeinsam mit
+den neuen Browserdateien veröffentlichen; alte Marker bleiben unverändert gültig.
+
 Namen, Dokument-IDs, externe Links und bereits vorhandene Firestore-Daten sind
 beim Rendern als Eingaben zu behandeln. DOM-Text über `textContent` setzen;
 Templatewerte einschließlich Attributwerten escapen. Dokument-IDs in URLs
