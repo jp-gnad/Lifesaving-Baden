@@ -22,6 +22,11 @@
     window.sessionStorage.removeItem(`lifesaving-baden:user-doc:${uid}`);
   }
   records.set(`users/${uid}`, profile);
+  if (launchOptions.get("registrations") === "1") {
+    records.set("users/new-account", { firstName: "Neu", lastName: "Baden", role: "standard", adminReviewPending: true });
+    records.set("users/new-with-request", { firstName: "Neu", lastName: "Antrag", role: "standard", adminReviewPending: true,
+      personLinkStatus: "requested", personLinkRequest: { status: "requested" } });
+  }
   records.set(`clubProfiles/${uid}`, { role: "admin", name: "Anna Baden", personId: "", birthYear: 2001, gender: "w", organization: "Baden" });
   records.set("clubs/testclub", { name: "DLRG Testclub", status: "active", responsibilityVersion: 2, needsResponsible: false, managerIds: [uid], createdAt: now, updatedAt: now });
   records.set(`clubs/testclub/people/account_${uid}`, { accountUid: uid, personId: "", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden", activeYears: [year, year + 1], createdAt: now, updatedAt: now,
@@ -112,7 +117,14 @@
     const url = new URL(input, document.baseURI);
     if (url.origin === window.parent.location.origin) return originalFetch(input, options);
     if (url.hostname === "firestore.googleapis.com" && url.pathname.endsWith(":runAggregationQuery")) {
-      return Promise.resolve(new Response(JSON.stringify([{ result: { aggregateFields: { total: { integerValue: "0" } } } }]), { status: 200, headers: { "Content-Type": "application/json" } }));
+      const where = JSON.parse(options.body).structuredAggregationQuery.structuredQuery.where;
+      const matches = (data, filter) => {
+        if (filter.compositeFilter) return filter.compositeFilter.filters.some((part) => matches(data, part));
+        const { field, value } = filter.fieldFilter;
+        return field.fieldPath.split(".").reduce((entry, key) => entry?.[key], data) === (value.booleanValue ?? value.stringValue);
+      };
+      const count = [...records].filter(([path, data]) => /^users\/[^/]+$/.test(path) && matches(data, where)).length;
+      return Promise.resolve(new Response(JSON.stringify([{ result: { aggregateFields: { total: { integerValue: String(count) } } } }]), { status: 200, headers: { "Content-Type": "application/json" } }));
     }
     return Promise.reject(new Error("Externe Zugriffe sind in dieser lokalen Fixture gesperrt."));
   };

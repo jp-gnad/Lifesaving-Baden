@@ -22,7 +22,7 @@
           if (/^https?:/.test(src) || /firebase-config\.js/.test(src)) script.remove();
         });
         const base = page.createElement("base"); base.href = new URL("../", location.href).href;
-        const fixture = page.createElement("script"); fixture.src = "tests/member-bootstrap-fixture.js?v=member-return-v1";
+        const fixture = page.createElement("script"); fixture.src = "tests/member-bootstrap-fixture.js?v=new-account-alerts-v1";
         page.head.prepend(base, fixture);
         document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;
       }
