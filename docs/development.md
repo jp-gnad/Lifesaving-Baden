@@ -133,6 +133,9 @@ PNG-Manifest-/Installationsicons bleiben kompatibel. Es gibt keinen Produktions-
 
 ## CI und Produktionswartung
 
+`member_bootstrap.browser.html?registrations=1&width=390` simuliert zwei neue Konten,
+eines davon mit Verknüpfungsantrag. Der App-Zähler zeigt „2“, nicht „3“.
+
 `.github/workflows/checks.yml` führt bei Push/PR Struktur-, Funktions-, Python-
 und Emulatorprüfungen ohne Produktions-Credentials aus. Der vorhandene Workflow
 `sync-participant-directory.yml` ist davon getrennt: Er verarbeitet die private

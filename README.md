@@ -712,6 +712,15 @@ sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespe
 
 ## Firestore-Regeln veröffentlichen
 
+Neue Registrierungen über die Website erhalten den Marker `adminReviewPending`.
+Die roten Zähler auf der Konten-App und an Personenboxen zeigen neue Konten an;
+ein zusätzlich gestellter Verknüpfungsantrag zählt für dasselbe Konto nur einmal.
+Admins können „Als gesehen markieren“ wählen; das Bearbeiten eines Verknüpfungsantrags
+erledigt ebenfalls die Neumeldung. Bestehende Profile werden nicht rückwirkend markiert.
+Auch für diesen Marker die aktuellen Regeln zusammen mit der Website veröffentlichen,
+damit ausschließlich Admins Neumeldungen quittieren können. Zusätzliche Firebase-
+Dienste, ein kostenpflichtiger Tarif oder eine Datenmigration sind nicht nötig.
+
 Die Club-Verwaltung enthält unter **Events** eine eigene Wettkampfplanung mit
 freiem Namen und Datum. Danach lassen sich im Event Einzelschwimmer und Mannschaften
 mit 4–5 Personen direkt aus dem aktiven Kader des Eventjahrs hinzufügen. Eine direkte

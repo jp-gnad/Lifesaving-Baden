@@ -50,6 +50,10 @@ Browser-Verlauf (`pageshow.persisted`) erfolgt ebenfalls ein Hintergrundabgleich
 Der kalte App-Start mit Logo wartet weiterhin auf die frischen Daten.
 `dashboard-header.js` passt die Namensschrift im Dashboard und Kontofenster an die
 verfügbare Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
+Sein `setName` zeigt Sitzungsvorschauen sofort und blendet neu geladene Namen in
+220 ms ein, ohne identische Hintergrundantworten erneut zu animieren. Die Rollenfarbe
+der Mitgliederübersicht blendet in 750 ms seitlich ein; Farbwechsel interpolieren
+denselben Verlauf. Reduzierte Bewegung deaktiviert beide Effekte.
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.

@@ -52,7 +52,10 @@
         }
       };
       refresh();
-      window.addEventListener("pageshow", refresh);
+      window.addEventListener("pageshow", (event) => {
+        if (event?.persisted) lastUid = "";
+        return refresh();
+      });
       document.addEventListener("visibilitychange", refresh);
     }
 

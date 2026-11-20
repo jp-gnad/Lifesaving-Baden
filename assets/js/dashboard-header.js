@@ -2,6 +2,28 @@ window.LifesavingDashboardHeader = (() => {
   const names = Array.from(document.querySelectorAll(".dashboard-user-name, [data-account-greeting-name]"));
   if (!names.length) return;
   let framePending = false;
+  const nameAnimations = new WeakMap();
+
+  function setName(value, { immediate = false } = {}) {
+    if (immediate) names.forEach((name) => nameAnimations.get(name)?.cancel());
+    const changed = names.filter((name) => name.matches(".dashboard-user-name") && name.textContent !== value);
+    changed.forEach((name) => {
+      nameAnimations.get(name)?.cancel();
+      name.textContent = value;
+    });
+    if (!changed.length) return;
+    fitName();
+    if (immediate || !value || window.LifesavingAppLaunch?.active
+      || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+    changed.forEach((name) => {
+      if (!name.animate) return;
+      const animation = name.animate([
+        { opacity: 0, transform: "translateX(-6px)" },
+        { opacity: 1, transform: "translateX(0)" },
+      ], { duration: 220, easing: "cubic-bezier(.22, 1, .36, 1)" });
+      nameAnimations.set(name, animation);
+    });
+  }
 
   function fitName() {
     framePending = false;
@@ -34,5 +56,5 @@ window.LifesavingDashboardHeader = (() => {
   document.fonts?.ready.then(scheduleFit);
   document.fonts?.addEventListener("loadingdone", scheduleFit);
   fitName();
-  return { refresh: scheduleFit };
+  return { refresh: scheduleFit, setName };
 })();

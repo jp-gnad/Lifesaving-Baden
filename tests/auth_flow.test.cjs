@@ -1844,6 +1844,12 @@ test("admin badge coalesces rapid visibility events and refreshes after its shor
   assert.equal(badge.textContent, "2");
   assert.equal(badge.hidden, false);
   assert.match(attributes.get("aria-label"), /2 offene/);
+  count = 0;
+  await h.callbacks.pageshow({ persisted: true });
+  assert.equal(badge.hidden, true, "returning from account administration must update acknowledged notifications immediately");
+  count = 1;
+  await h.callbacks.pageshow({ persisted: true });
+  assert.equal(badge.textContent, "2");
   h.context.fetch = async () => ({ ok: false });
   clockNow += 15_000;
   await h.callbacks.pageshow();
@@ -3294,9 +3300,12 @@ test("returning members see their cached dashboard before any reload or query; f
   const reload = deferred(), profile = deferred();
   const user = { uid: "return-member", emailVerified: true, reload: () => reload.promise };
   const h = dashboardReturnHarness({ user, read: () => profile.promise });
+  const nameDraws = [];
+  h.window.LifesavingDashboardHeader = { setName(value, options) { nameDraws.push({ value, ...options }); h.name.textContent = value; } };
   h.callbacks.auth(user);
   assert.equal(h.role.textContent, "Admin");
   assert.equal(h.name.textContent, "Anna Baden");
+  assert.deepEqual(nameDraws[0], { value: "Anna Baden", immediate: true });
   assert.equal(h.admin.classes.has("is-hidden"), false);
   assert.equal(h.main.attributes.has("inert"), false);
   assert.equal(h.classes.has("auth-context-loading"), false);
@@ -3310,6 +3319,7 @@ test("returning members see their cached dashboard before any reload or query; f
   await new Promise(setImmediate);
   assert.equal(h.role.textContent, "Standard");
   assert.equal(h.name.textContent, "Neuer Name");
+  assert.deepEqual(nameDraws.at(-1), { value: "Neuer Name", immediate: false });
   assert.equal(h.admin.classes.has("is-hidden"), true);
   assert.equal(h.adminStarts, 0); assert.equal(h.clubStarts, 0);
   assert.deepEqual(h.counts.tokens, [true]);

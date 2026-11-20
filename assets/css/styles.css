@@ -1173,6 +1173,38 @@ body[data-page="app"] .dashboard > .dashboard-header {
   opacity: 1;
 }
 
+/* A stable gradient lets currentColor blend between roles instead of swapping images. */
+body[data-page="app"] .dashboard-header::before {
+  color: transparent;
+  background:
+    radial-gradient(circle at 18% 18%, currentColor, transparent 34%),
+    linear-gradient(105deg, currentColor, transparent 48%);
+  transform: translateX(-14px);
+  transition: color 650ms cubic-bezier(.22, 1, .36, 1),
+    opacity 650ms cubic-bezier(.22, 1, .36, 1),
+    transform 750ms cubic-bezier(.16, 1, .3, 1);
+}
+body[data-page="app"] .dashboard-header.is-role-admin::before { color: rgba(227, 6, 19, .16); }
+body[data-page="app"] .dashboard-header.is-role-organizer::before { color: rgba(60, 156, 255, .16); }
+body[data-page="app"] .dashboard-header.is-role-athlete::before { color: rgba(255, 237, 0, .13); }
+body[data-page="app"] .dashboard-header.is-role-trainer::before { color: rgba(28, 191, 105, .13); }
+body[data-page="app"] .dashboard-header:is(.is-role-admin, .is-role-organizer, .is-role-athlete, .is-role-trainer)::before {
+  transform: translateX(0);
+  animation: dashboard-role-reveal 750ms cubic-bezier(.16, 1, .3, 1) backwards;
+}
+@keyframes dashboard-role-reveal {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="app"] .dashboard-header::before,
+  body[data-page="app"] .dashboard-header:is(.is-role-admin, .is-role-organizer, .is-role-athlete, .is-role-trainer)::before {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}
+
 .dashboard-header::after {
   content: "";
   position: absolute;
