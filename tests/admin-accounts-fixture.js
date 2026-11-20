@@ -67,6 +67,9 @@
       update: (ref, data) => writes.push(() => update(ref.path, data)),
       delete: (ref) => writes.push(() => records.delete(ref.path)),
     });
+    const delay = Number(options.get("delay")) || 0;
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    if (options.get("fail") === "1") throw Object.assign(new Error("Lokaler Testfehler"), { code: "permission-denied" });
     writes.forEach((write) => write());
     return result;
   } };

@@ -70,8 +70,10 @@ Profile erhalten keine nachträgliche Neumeldung. Neues Konto und offener
 Verknüpfungsantrag bilden gemeinsam eine Meldung; ein Verknüpfungsfehler zählt
 separat. Die erste der weiterhin zwei Zählabfragen verwendet dafür eine OR-Abfrage
 über Neumarker und beide bisherigen Antragsformate, ohne Kontodokumente zu laden.
-Admins markieren die Neumeldung ausdrücklich als gesehen; Bearbeitung eines
-Verknüpfungsantrags erledigt den Neumarker in derselben Transaktion.
+Das Öffnen der Personenbox markiert die Neumeldung sofort als gelesen und speichert
+dies im Hintergrund. Editor, Fokus und Entwürfe bleiben erhalten; bei Fehlern wird
+die Neumeldung wiederhergestellt. Offene Anträge und Fehlermeldungen bleiben sichtbar.
+Bearbeitung eines Verknüpfungsantrags erledigt den Neumarker ebenfalls in derselben Transaktion.
 
 Die gemeinsame Darstellung von Kontotyp und Rollenfarben gehört zu `auth.js` und
 funktioniert ohne das Admin-Modul. `admin-accounts.js` erhält dieselben Darstellungs-

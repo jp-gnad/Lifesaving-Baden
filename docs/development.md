@@ -133,6 +133,10 @@ PNG-Manifest-/Installationsicons bleiben kompatibel. Es gibt keinen Produktions-
 
 ## CI und Produktionswartung
 
+`admin_accounts.browser.html?new=1&delay=3000` prüft das automatische Lesen beim
+Öffnen einer Person mit verzögerter Speicherung. Der Editor muss geöffnet bleiben;
+zusätzlich `&fail=1` prüft die Rücknahme des Gelesen-Status bei einem Fehler.
+
 `member_bootstrap.browser.html?registrations=1&width=390` simuliert zwei neue Konten,
 eines davon mit Verknüpfungsantrag. Der App-Zähler zeigt „2“, nicht „3“.
 

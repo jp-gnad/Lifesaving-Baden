@@ -17,7 +17,7 @@
         base.href = new URL("../", location.href).href;
         page.head.prepend(base);
         const fixture = page.createElement("script");
-        fixture.src = "tests/admin-accounts-fixture.js";
+        fixture.src = "tests/admin-accounts-fixture.js?v=20261120-open-read-v1";
         fixture.defer = true;
         page.head.append(fixture);
         document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;

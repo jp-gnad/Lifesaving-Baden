@@ -406,7 +406,9 @@
     }
 
     function createAdminAccountCard(item) {
-      const data = item.data || {};
+      const pending = pendingReviews.get(item.uid);
+      const data = pending?.pages === accountPages && pending?.actorUid === accountOwner?.uid
+        ? { ...item.data, adminReviewPending: false } : item.data || {};
       const request = data.personLinkRequest || {};
       const issue = data.personLinkIssue || {};
       const linkedPerson = window.LifesavingPersonLinks.linkedPerson(data);
@@ -500,12 +502,6 @@
         toolbar.append(unlink);
       }
       editor.append(toolbar);
-      if (isNew) {
-        const registration = element("div", "admin-account-link-actions");
-        registration.append(element("span", "admin-account-club", "Neues Konto"),
-          action("Als gesehen markieren", "adminAccountReview"));
-        editor.append(registration);
-      }
       if (hasOpenRequest || hasOpenIssue) {
         const details = element("dl", "admin-request-details");
         if (hasOpenIssue) {
@@ -532,18 +528,46 @@
         editor.append(decisions);
       }
       card.append(summary, editor);
-      if (hasAttention) {
-        const { count, descriptions } = notifications;
-        const notification = element("span", "admin-account-notification", String(count));
-        notification.title = descriptions.join(", ");
-        notification.setAttribute("role", "status");
-        notification.setAttribute("aria-label", count === 1 ? descriptions[0] : `${count} Meldungen: ${notification.title}`);
-        card.append(notification);
-      }
+      updateCardNotification(card, data);
       return card;
     }
 
     const cardSignatures = new WeakMap();
+    const cardData = new WeakMap();
+    const pendingReviews = new Map();
+
+    function updateCardNotification(card, data) {
+      const { isNew, count, descriptions } = window.LifesavingAccountNotifications.state(data);
+      cardData.set(card, data);
+      cardSignatures.set(card, JSON.stringify(data));
+      card.dataset.newAccount = String(isNew);
+      card.dataset.hasAdminAttention = String(count > 0);
+      card.classList.toggle("has-open-request", count > 0);
+      let badge = card.querySelector(".admin-account-notification");
+      if (!count) { badge?.remove(); return; }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "admin-account-notification";
+        badge.setAttribute("role", "status");
+        card.append(badge);
+      }
+      badge.textContent = String(count);
+      badge.title = descriptions.join(", ");
+      badge.setAttribute("aria-label", count === 1 ? descriptions[0] : `${count} Meldungen: ${badge.title}`);
+    }
+
+    function projectAccountRead(card, isNew) {
+      const uid = card.dataset.targetUid;
+      const stored = accountPages?.docs.find((doc) => doc.id === uid)?.data() || cardData.get(card) || {};
+      const data = { ...stored, adminReviewPending: isNew };
+      accountPages?.replace({ id: uid, exists: true, data: () => data });
+      const list = getAdminAccountControls().list;
+      const current = Array.from(list?.querySelectorAll("[data-admin-account-card]") || [])
+        .find((node) => node.dataset.targetUid === uid) || card;
+      updateCardNotification(current, data);
+      if (accountPages) updateAdminAccountSummary(accountPages.docs.map((doc) => ({ uid: doc.id, data: doc.data() })));
+    }
+
     function renderAdminAccounts(accounts) {
       const { list } = getAdminAccountControls();
 
@@ -576,7 +600,10 @@
       for (const child of Array.from(list.children)) if (!keep.has(child)) child.remove();
       cards.forEach((card, index) => { if (list.children[index] !== card) list.insertBefore(card, list.children[index] || null); });
       filterAdminAccounts();
+      updateAdminAccountSummary(accounts);
+    }
 
+    function updateAdminAccountSummary(accounts) {
       const pendingCount = accounts.filter((account) => hasPendingLinkRequest(account.data)).length;
       const issueCount = accounts.filter((account) => hasOpenLinkIssue(account.data)).length;
       const attentionParts = [];
@@ -798,11 +825,16 @@
       }
     }
 
-    async function acknowledgeNewAccount(auth, button) {
+    async function acknowledgeNewAccount(auth, card) {
       const user = auth.currentUser;
-      const uid = button.closest("[data-admin-account-card]")?.dataset.targetUid;
-      if (!user || !uid) return;
-      button.disabled = true;
+      const uid = card?.dataset.targetUid;
+      if (!user || !uid || card.dataset.newAccount !== "true") return;
+      const pages = accountPages;
+      const pending = pendingReviews.get(uid);
+      if (pending?.actorUid === user.uid && pending.pages === pages) return;
+      const operation = { actorUid: user.uid, pages };
+      pendingReviews.set(uid, operation);
+      projectAccountRead(card, false);
       try {
         const db = window.firebase.firestore();
         const ref = db.collection("users").doc(uid);
@@ -815,10 +847,14 @@
           });
         });
         requireCurrentUser(user);
-        await refreshAdminAccount(auth, uid);
-        setAdminAccountMessage("Neues Konto als gesehen markiert.", true);
-      } catch (error) { setAdminAccountMessage(translateFirestoreError(error), false); }
-      finally { button.disabled = false; }
+        if (pages !== accountPages) return;
+        projectAccountRead(card, false);
+      } catch (error) {
+        if (isCurrentUser(user) && pages === accountPages) {
+          projectAccountRead(card, true);
+          setAdminAccountMessage(`Die Gelesen-Markierung konnte nicht gespeichert werden. ${translateFirestoreError(error)}`, false);
+        }
+      } finally { if (pendingReviews.get(uid) === operation) pendingReviews.delete(uid); }
     }
 
     async function initAdminAccounts(auth, role) {
@@ -833,8 +869,6 @@
         list.dataset.listenerAttached = "true";
         document.querySelector("[data-admin-account-search]")?.addEventListener("input", filterAdminAccounts);
         list.addEventListener("click", (event) => {
-          const reviewButton = event.target.closest("[data-admin-account-review]");
-          if (reviewButton) { acknowledgeNewAccount(auth, reviewButton); return; }
           const linkButton = event.target.closest("[data-admin-account-link]");
           const unlinkButton = event.target.closest("[data-admin-account-unlink]");
           if (linkButton) { openAdminPersonSearch(auth, linkButton.closest("[data-admin-account-card]")); return; }
@@ -856,6 +890,7 @@
             const shouldOpen = editAccountButton.getAttribute("aria-expanded") !== "true";
             resetAdminAccountEditValues(card);
             setAdminAccountEditMode(card, shouldOpen);
+            if (shouldOpen) acknowledgeNewAccount(auth, card);
             return;
           }
 

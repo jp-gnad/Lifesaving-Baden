@@ -1502,6 +1502,7 @@ test("admin account cards allow person linking while only other roles expose a r
     tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this.attributes[name] = value; },
+    querySelector(selector) { return this.children.find((node) => `.${node.className}` === selector) || null; },
   });
   const all = (element) => [element, ...element.children.flatMap(all)];
   for (const role of ["admin", "organizer", "trainer", "athlete", "standard"]) {
@@ -1896,6 +1897,7 @@ test("compact account cards separate profile and database identity and expose co
     setAttribute(key, value) { this.attributes[key] = value; },
     getAttribute(key) { return this.attributes[key]; }, focus() { this.focused = true; },
     querySelector(selector) {
+      if (selector.startsWith(".")) return all(this).find((node) => `.${node.className}` === selector) || null;
       const key = selector.match(/^\[data-(.+)\]$/)[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
       return all(this).find((node) => key in node.dataset);
     },
@@ -2725,16 +2727,70 @@ test("acknowledging a registration is idempotent and cannot write after the admi
   for (const [data, changeSession, writesExpected] of [[{ adminReviewPending: true }, false, 1],
     [{ adminReviewPending: false }, false, 0], [{}, false, 0], [{ adminReviewPending: true }, true, 0]]) {
     const h = harness({ user: { uid: "admin" } }), functions = memberFunctions(h), writes = [];
+    h.document.querySelector = () => null;
+    const card = reviewCard(h, functions, data);
     h.window.firebase.firestore().runTransaction = async (action) => action({ get: async () => {
       if (changeSession) h.auth.currentUser = h.prepareUser({ uid: "other" });
       return { exists: true, data: () => data };
     }, update: (_, value) => writes.push(value) });
-    const button = { closest: () => ({ dataset: { targetUid: "new-account" } }) };
-    await functions.acknowledgeNewAccount(h.auth, button);
+    await functions.acknowledgeNewAccount(h.auth, card);
     assert.equal(writes.length, writesExpected);
     if (writes.length) assert.equal(writes[0].adminReviewPending, false);
-    assert.equal(button.disabled, false);
   }
+});
+
+function reviewCard(h, functions, data) {
+  h.document.createElement = (tagName) => ({ tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
+    append(...children) { children.forEach((node) => { node.parent = this; }); this.children.push(...children); },
+    remove() { this.parent.children = this.parent.children.filter((node) => node !== this); },
+    setAttribute(key, value) { this.attributes[key] = value; },
+    querySelector(selector) { return this.children.find((node) => `.${node.className}` === selector) || null; },
+  });
+  return functions.createAdminAccountCard({ uid: "new-account", data });
+}
+
+test("opening a new account clears only its new marker immediately, retains the editor and coalesces repeat opens", async () => {
+  for (const pendingRequest of [false, true]) {
+    const h = harness({ user: { uid: "admin" } }), functions = memberFunctions(h), done = deferred();
+    h.document.querySelector = () => null;
+    const data = { adminReviewPending: true, ...(pendingRequest ? { personLinkStatus: "requested" } : {}) };
+    const card = reviewCard(h, functions, data);
+    const editor = card.children.find((node) => node.dataset.adminAccountEditor !== undefined);
+    editor.hidden = false; editor.draft = "Unveränderter Entwurf";
+    let transactions = 0;
+    h.window.firebase.firestore().runTransaction = async (action) => {
+      transactions++;
+      await done.promise;
+      return action({ get: async () => ({ exists: true, data: () => data }), update() {} });
+    };
+    const reading = functions.acknowledgeNewAccount(h.auth, card);
+    const badge = card.querySelector(".admin-account-notification");
+    assert.equal(Boolean(badge), pendingRequest);
+    if (badge) assert.equal(badge.textContent, "1");
+    assert.equal(card.dataset.newAccount, "false");
+    await functions.acknowledgeNewAccount(h.auth, card);
+    assert.equal(transactions, 1);
+    done.resolve(); await reading;
+    assert.equal(card.children.includes(editor), true);
+    assert.equal(editor.hidden, false); assert.equal(editor.draft, "Unveränderter Entwurf");
+    assert.equal(h.counts.reads, 0, "reading a notification must not refetch or rebuild the editor");
+    assert.equal(card.children.some((node) => node.dataset.adminAccountReview !== undefined), false);
+  }
+});
+
+test("a failed automatic acknowledgement restores the new-account notification without closing the editor", async () => {
+  const h = harness({ user: { uid: "admin" } }), functions = memberFunctions(h), done = deferred();
+  h.document.querySelector = () => null;
+  const card = reviewCard(h, functions, { adminReviewPending: true });
+  const editor = card.children.find((node) => node.dataset.adminAccountEditor !== undefined);
+  editor.hidden = false;
+  h.window.firebase.firestore().runTransaction = async () => { await done.promise; throw new Error("offline"); };
+  const reading = functions.acknowledgeNewAccount(h.auth, card);
+  assert.equal(card.querySelector(".admin-account-notification"), null);
+  done.resolve(); await reading;
+  assert.equal(card.querySelector(".admin-account-notification").textContent, "1");
+  assert.equal(card.dataset.newAccount, "true");
+  assert.equal(editor.hidden, false);
 });
 
 test("a missing Google surname remains incomplete instead of guessing from the full name", async () => {

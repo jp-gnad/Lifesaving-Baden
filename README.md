@@ -715,8 +715,9 @@ sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespe
 Neue Registrierungen über die Website erhalten den Marker `adminReviewPending`.
 Die roten Zähler auf der Konten-App und an Personenboxen zeigen neue Konten an;
 ein zusätzlich gestellter Verknüpfungsantrag zählt für dasselbe Konto nur einmal.
-Admins können „Als gesehen markieren“ wählen; das Bearbeiten eines Verknüpfungsantrags
-erledigt ebenfalls die Neumeldung. Bestehende Profile werden nicht rückwirkend markiert.
+Beim Öffnen der Personenbox wird die Neumeldung automatisch als gelesen gespeichert;
+das Bearbeiten eines Verknüpfungsantrags erledigt sie ebenfalls. Ein noch offener
+Antrag bleibt sichtbar. Bestehende Profile werden nicht rückwirkend markiert.
 Auch für diesen Marker die aktuellen Regeln zusammen mit der Website veröffentlichen,
 damit ausschließlich Admins Neumeldungen quittieren können. Zusätzliche Firebase-
 Dienste, ein kostenpflichtiger Tarif oder eine Datenmigration sind nicht nötig.
