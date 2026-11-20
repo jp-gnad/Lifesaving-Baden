@@ -154,4 +154,10 @@ Tests laufen ausschließlich mit Mocks oder einem lokalen Demo-Emulator. Ein
 Regeldeploy, ein Personen-Sync oder ein Konto-Cleanup gegen `lifesaving-baden`
 ist eine echte Produktionsaktion und kein Ersatz für einen Testlauf.
 
+Die Performance-Anpassungen vom 20. November 2026 benötigen weder neue Firestore-Regeln
+noch zusätzliche Indizes, Datenmigrationen per CLI oder Dienste. Tarif und Abrechnung
+bleiben unberührt. Gebündelte Profillisten werden ausschließlich mit den schon
+bestehenden Adminrechten verwendet. Optimistische Anzeigen und vorbereitete
+Arbeitszeitsitzungen umgehen keine aktuelle Transaktions- oder Regelprüfung.
+
 Deployment-Anleitung und bestehende Einrichtungsschritte: [README](../README.md).

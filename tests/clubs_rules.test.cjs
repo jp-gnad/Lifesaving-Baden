@@ -624,3 +624,13 @@ test("parallel account deletions may leave an orphan club with exactly one unres
   await store.deleteClub(compat(admin), id, api()).catch(error => { error.message = `delete club: ${error.message}`; throw error; });
   assert.equal((await sdk.getDocs(sdk.query(sdk.collection(admin, "clubs"), sdk.where("needsResponsible", "==", true)))).size, 0);
 });
+
+test("grouped profile queries keep administrator list access separate from trainer document access", { skip: !enabled }, async () => {
+  await seed({ "clubProfiles/a": { name: "Anna", role: "trainer" }, "clubProfiles/b": { name: "Ben", role: "trainer" } });
+  const read = (uid) => sdk.getDocs(sdk.query(sdk.collection(dbFor(uid), "clubProfiles"), sdk.where(sdk.documentId(), "in", ["a", "b"]), sdk.limit(10)));
+  const result = await succeeds(read("admin"));
+  assert.equal(result.size, 2);
+  await fails(read("a"));
+  await succeeds(sdk.getDoc(sdk.doc(dbFor("a"), "clubProfiles/b")));
+  await fails(sdk.getDoc(sdk.doc(dbFor("athlete"), "clubProfiles/b")));
+});

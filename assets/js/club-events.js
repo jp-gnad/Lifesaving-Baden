@@ -325,7 +325,7 @@
         const year = selected.year;
         const existing = selected.participants;
         const choices = new Map();
-        for (const person of sourcePeople().filter((person) => person.activeYears.includes(year))) {
+        for (const person of sourcePeople().filter((person) => !person.pending && person.activeYears.includes(year))) {
           const id = Object.entries(existing).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person);
           if (!existing[id]?.individual) choices.set(id, { person: existing[id] || person, source: person });
         }
@@ -417,7 +417,7 @@
       renderTeamEditor(); teamDialog.showModal();
       byId("club-team-picker-body").scrollTop = 0;
       const editing = teamDraft;
-      for (const person of sourcePeople().filter((person) => person.activeYears.includes(event().year) && !person.gender && person.personId && !genders.has(core.key(person)))) {
+      for (const person of sourcePeople().filter((person) => !person.pending && person.activeYears.includes(event().year) && !person.gender && person.personId && !genders.has(core.key(person)))) {
         genders.set(core.key(person), "");
         context.owner.db.collection("timerParticipantDirectory").doc(person.personId).get({ source: "server" }).then((snapshot) => {
           if (!current(editing.context)) return;
@@ -431,11 +431,11 @@
       const selected = event();
       const editing = teamDraft;
       const choices = new Map(Object.entries(selected.participants));
-      for (const person of sourcePeople().filter((person) => person.activeYears.includes(selected.year))) {
+      for (const person of sourcePeople().filter((person) => !person.pending && person.activeYears.includes(selected.year))) {
         const id = Object.entries(selected.participants).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person);
         if (!choices.has(id)) choices.set(id, person);
       }
-      const activeIds = new Set(sourcePeople().filter((person) => person.activeYears.includes(selected.year)).map((person) =>
+      const activeIds = new Set(sourcePeople().filter((person) => !person.pending && person.activeYears.includes(selected.year)).map((person) =>
         Object.entries(selected.participants).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person)));
       const members = [...editing.selected].map((id) => choices.get(id)).filter(Boolean);
       byId("club-team-title").textContent = editing.expected ? "Mannschaft" : "Mannschaft hinzufügen";

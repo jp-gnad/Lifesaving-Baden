@@ -13,10 +13,14 @@
   } = window.LifesavingAuth;
   const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
-    initAdminAccounts, initAdminAccountBadge, updateAdminAccountCardRole, setAdminAccountRoleAppearance, formatLinkedPerson, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, filterAdminAccounts
-  } = window.LifesavingAdminAccounts.create({
+    initAdminAccounts, updateAdminAccountCardRole, setAdminAccountRoleAppearance, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, filterAdminAccounts
+  } = window.LifesavingAdminAccounts?.create({
     clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
-  });
+  }) || {};
+  const { initAdminAccountBadge, countAdminNotifications } = window.LifesavingAdminNotifications?.create({ isCurrentUser }) || {};
+  function formatLinkedPerson(person) {
+    return person ? `${person.name} (${String(person.birthYear).slice(-2).padStart(2, "0")}) · ${person.organization || "Keine Gliederung"}` : "Nicht verknüpft";
+  }
   function translateFirestoreError(error) {
     const messages = {
       "permission-denied": "Firestore-Regeln erlauben diese Aktion noch nicht.",
@@ -368,33 +372,6 @@
 
   initPasswordVisibilityToggles();
 
-  if (page === "landing") {
-    const launchClasses = document.documentElement.classList;
-    const standaloneLaunch = launchClasses.contains("app-launching");
-    const revealLanding = () => launchClasses.remove("app-launching");
-
-    if (!window.isFirebaseConfigured || !window.firebase?.auth) {
-      revealLanding();
-    } else {
-      try {
-        initFirebase().onAuthStateChanged(async (user) => {
-          const verified = await hasVerifiedAccess(user);
-          if (user && !isCurrentUser(user)) return;
-          if (verified) {
-            redirectToApp({ replace: standaloneLaunch });
-          } else if (user) {
-            redirectToLogin("needsVerification");
-          } else {
-            revealLanding();
-          }
-        }, revealLanding);
-      } catch (error) {
-        revealLanding();
-        console.warn("Firebase-Anmeldung konnte nicht geprüft werden.", error);
-      }
-    }
-  }
-
   if (["app", "settings", "admin-accounts", "worktime", "clubs", "gliederungen", "training"].includes(page)) {
     if (window.location.protocol === "file:" || !window.isFirebaseConfigured || !window.firebase?.auth) {
       redirectToLogin();
@@ -610,7 +587,9 @@
           updateAccountProfile(activeUser);
           fillAccountManagementForms(activeUser);
           updateRoleUi(role);
-          const initializers = [initAccountManagement, initUserSettings, initLinkStatus, initLinkManagement, initAdminStatus];
+          await Promise.all([initAccountManagement(auth, userData), initUserSettings(auth, userData)]);
+          if (!isCurrentUser(activeUser)) return;
+          const initializers = [initLinkStatus, initLinkManagement, initAdminStatus];
           for (const initialize of initializers) {
             if (!isCurrentUser(activeUser)) return;
             await initialize(auth, userData, claims);
@@ -621,6 +600,8 @@
         }
 
         document.body.classList.remove("auth-context-loading");
+        document.querySelector("main")?.removeAttribute?.("inert");
+        document.querySelector("main")?.setAttribute?.("aria-busy", "false");
       })();
       bootstrapPromise = pending;
 
@@ -631,6 +612,8 @@
         console.warn("Kontodaten konnten nicht geladen werden.", error);
         settingsLoadedForUser = null;
         document.body.classList.remove("auth-context-loading");
+        document.querySelector("main")?.removeAttribute?.("inert");
+        document.querySelector("main")?.setAttribute?.("aria-busy", "false");
         const message = document.querySelector("[data-auth-error]");
         if (message) {
           message.hidden = false;
@@ -642,6 +625,10 @@
     }
 
     auth.onAuthStateChanged((user) => {
+      const form = document.querySelector("[data-profile-form]");
+      if (form) delete form.dataset.profileSaving;
+      document.querySelector("[data-profile-field-list]")?.removeAttribute?.("inert");
+      document.querySelector("[data-profile-field-list]")?.setAttribute?.("aria-busy", "false");
       if (trainerApp) {
         window[trainerApp]?.stop();
         settingsLoadedForUser = null;
@@ -1049,7 +1036,7 @@
       updateRoleUi(role);
       if (page === "admin-accounts") await initAdminAccounts(auth, role);
       if (page === "app" && role.isAdmin) {
-        initAdminAccountBadge(auth);
+        initAdminAccountBadge?.(auth);
         clubNotifications?.start(auth);
       }
     } catch (error) {
@@ -1556,6 +1543,7 @@
 
   async function saveProfileField(event, auth, profileForm) {
     event.preventDefault();
+    const editingUser = auth.currentUser;
 
     const editor = document.querySelector("[data-profile-editor]");
     const saveButton = document.querySelector("[data-profile-edit-save]");
@@ -1601,7 +1589,9 @@
       profileForm.elements.lastName.value = nextNameDetails.lastName;
       profileForm.elements.displayName.value = nextNameDetails.displayName;
 
-      if (await persistProfileDetails(auth, profileForm, saveButton)) {
+      const saved = await persistProfileDetails(auth, profileForm, saveButton);
+      if (!isCurrentUser(editingUser)) return;
+      if (saved) {
         closeProfileFieldEditor();
       } else {
         profileForm.elements.firstName.value = previousNameDetails.firstName;
@@ -1628,7 +1618,9 @@
 
     profileForm.elements[fieldName].value = value;
 
-    if (await persistProfileDetails(auth, profileForm, saveButton)) {
+    const saved = await persistProfileDetails(auth, profileForm, saveButton);
+    if (!isCurrentUser(editingUser)) return;
+    if (saved) {
       closeProfileFieldEditor();
     } else {
       profileForm.elements[fieldName].value = previousValue;
@@ -1637,6 +1629,7 @@
   }
 
   async function deleteProfileField(auth, profileForm) {
+    const editingUser = auth.currentUser;
     const editor = document.querySelector("[data-profile-editor]");
     const deleteButton = document.querySelector("[data-profile-edit-delete]");
     const fieldName = editor?.dataset.activeField;
@@ -1650,7 +1643,9 @@
 
     profileForm.elements[fieldName].value = "";
 
-    if (await persistProfileDetails(auth, profileForm, deleteButton)) {
+    const saved = await persistProfileDetails(auth, profileForm, deleteButton);
+    if (!isCurrentUser(editingUser)) return;
+    if (saved) {
       closeProfileFieldEditor();
     } else {
       profileForm.elements[fieldName].value = previousValue;
@@ -2158,7 +2153,15 @@
       return true;
     }
 
+    if (form.dataset.profileSaving === "true") return false;
+    const pendingList = document.querySelector("[data-profile-field-list]");
     try {
+      form.dataset.profileSaving = "true";
+      pendingList?.setAttribute?.("aria-busy", "true");
+      pendingList?.setAttribute?.("inert", "");
+      updateProfileFieldList(form);
+      closeProfileFieldEditor();
+      setProfileMessage("Kontodaten werden gespeichert …", true);
       setLoading(button, true, "Speichern...");
 
       if (displayNameChanged) {
@@ -2184,10 +2187,15 @@
       setProfileMessage("Kontodaten gespeichert.", true);
       return true;
     } catch (error) {
-      setProfileMessage(translateProfileSaveError(error), false);
+      if (isCurrentUser(user)) setProfileMessage(translateProfileSaveError(error), false);
       return false;
     } finally {
-      setLoading(button, false);
+      if (isCurrentUser(user)) {
+        delete form.dataset.profileSaving;
+        pendingList?.removeAttribute?.("inert");
+        pendingList?.setAttribute?.("aria-busy", "false");
+        setLoading(button, false);
+      }
     }
   }
 

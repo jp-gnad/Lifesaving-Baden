@@ -35,7 +35,7 @@ jobs:
       - name: Quelldatei laden
         env:
           SOURCE_URL: ${{ secrets.PARTICIPANT_SOURCE_URL }}
-        run: curl --fail --location --silent --show-error "$SOURCE_URL" --output "$RUNNER_TEMP/source.xlsx"
+        run: curl --fail --location --silent --show-error --connect-timeout 15 --max-time 120 "$SOURCE_URL" --output "$RUNNER_TEMP/source.xlsx"
 
       - name: Suchliste erstellen
         run: python tools/build_participant_directory.py "$RUNNER_TEMP/source.xlsx" "$RUNNER_TEMP/participant-directory.json"

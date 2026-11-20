@@ -9,6 +9,7 @@
   let sequence = 0;
   const options = new URLSearchParams(window.parent.location.search);
   const networkDelay = Number(options.get("delay")) || 0;
+  const admin = options.has("admin");
   const network = window.clubEventFixtureNetwork = { started: 0, completed: 0 };
   const timestamp = (date = new Date()) => ({ toDate: () => new Date(date), toMillis: () => +date, isEqual: (other) => +date === other.toMillis() });
   const now = timestamp(new Date(`${year}-01-01T00:00:00Z`));
@@ -28,6 +29,15 @@
     records.set(`clubs/${clubId}/people/${person.id}`, person);
     records.set(`timerParticipantDirectory/${person.id}`, person);
   }
+  records.set(`clubProfiles/${uid}`, { name: "Anna Trainer", role: "trainer", personId: "", birthYear: 1990, organization: "Musterstadt", gender: "w" });
+  records.set(`users/${uid}`, { displayName: "Anna Trainer", email: "trainer@example.test", role: "trainer" });
+  records.set("users/fixture-organizer", { displayName: "Ben Organisator", email: "ben@example.test", role: "organizer" });
+  records.set("clubDirectory/muster", { name: "DLRG Musterstadt" });
+  records.set("clubDirectory/neu", { name: "DLRG Neue Gliederung" });
+  if (admin && options.has("many")) for (let index = 0; index < 72; index++) records.set(`clubs/extra-${String(index).padStart(3, "0")}`, {
+    name: `DLRG Testclub ${String(index + 1).padStart(2, "0")}`, managerIds: [uid], responsibilityVersion: 2, status: "active", needsResponsible: false, createdAt: now, updatedAt: now,
+  });
+  if (!admin) {
   let event = { name: "Landesmeisterschaften", date: window.StartEligibilityCore.today(), year, participants: {}, teams: {}, assignments: {}, revision: 0, createdAt: now, updatedAt: now };
   for (const person of people.slice(0, 11)) event = window.ClubEventsCore.change(event, { type: "add", id: person.id, person });
   event = window.ClubEventsCore.change(event, { type: "team", id: "girls", memberIds: people.slice(0, 4).map(p => p.id), expected: null });
@@ -46,6 +56,8 @@
   if (options.has("persist")) {
     const saved = JSON.parse(window.parent.sessionStorage.getItem("club-event-fixture-server-v1") || "[]");
     for (const [path, value] of saved) records.set(path, value);
+  }
+
   }
 
   function snapshot(path) { return { id: path.split("/").pop(), exists: records.has(path), data: () => records.get(path), metadata: { fromCache: false } }; }
@@ -70,6 +82,7 @@
     };
     const read = () => ({ docs: [...records.keys()].filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
       .filter((key) => filters.every(([name, op, value]) => op === "array-contains" ? records.get(key)[name].includes(value)
+        : op === "in" ? value.includes(name === "__name__" ? key.split("/").pop() : records.get(key)[name])
         : op === ">=" ? records.get(key)[name] >= value : op === "<" ? records.get(key)[name] < value : records.get(key)[name] === value))
       .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });
     return {
@@ -83,6 +96,7 @@
   const db = { collection, async runTransaction(action) {
     network.started += 1;
     if (networkDelay) await new Promise((resolve) => setTimeout(resolve, networkDelay));
+    if (options.has("fail") && network.started === 1) throw Object.assign(new Error("Simulierter Verbindungsfehler"), { code: "unavailable" });
     const writes = [];
     const result = await action({ get: async (ref) => snapshot(ref.path),
       set: (ref, data) => writes.push(() => records.set(ref.path, data)),
@@ -98,8 +112,12 @@
   const firestore = () => db;
   firestore.FieldValue = { serverTimestamp: timestamp };
   firestore.FieldPath = { documentId: () => "__name__" };
+  firestore.Timestamp = { fromDate: timestamp, now: () => timestamp() };
   window.firebase = { firestore };
   document.body.classList.remove("auth-context-loading");
-  window.LifesavingClubs.start({ currentUser: { uid } }, { uid }, { isAdmin: false });
-  document.querySelector('[data-club-tab="events"]').click();
+  if (admin) window.LifesavingClubsAdmin.start({ currentUser: { uid } }, { uid }, { isAdmin: true });
+  else {
+    window.LifesavingClubs.start({ currentUser: { uid } }, { uid }, { isAdmin: false });
+    document.querySelector('[data-club-tab="events"]').click();
+  }
 })();

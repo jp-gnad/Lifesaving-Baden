@@ -69,9 +69,13 @@
     eventView?.stop();
     owner.view += 1;
     owner.rosterStop?.();
-    owner.profileStops.forEach((stop) => stop());
-    owner.profileStops.clear();
+    owner.profileFeed?.clear();
+    owner.profileFeed = null;
+    owner.searchCache?.clear();
+    owner.rowCache?.clear();
+    owner.groupCache?.clear();
     owner.activityPending.clear();
+    owner.rosterState.clear();
     owner.profiles.clear();
     owner.roster.clear();
     owner.loaded = false;
@@ -107,11 +111,12 @@
     stop();
     const owner = {
       auth, uid: user.uid, role, db: window.firebase.firestore(), sdk: window.firebase.firestore,
-      stops: [], clubs: new Map(), view: 0, profileStops: new Map(),
+      stops: [], clubs: new Map(), view: 0, profileFeed: null, rowCache: new Map(), groupCache: new Map(), accounts: [], directory: [],
       profiles: new Map(), activityPending: new Map(),
-      roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
+      rosterState: window.ClubRosterState.create(), roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
     };
     session = owner;
+    owner.searchCache = window.CollectionPages.searchCache({ check: () => requireCurrent(owner) });
     content.hidden = false;
     message();
     if (adminPage) startAdmin(owner).catch((error) => { if (active(owner)) message(errorText(error)); });
@@ -166,6 +171,7 @@
     owner.rosterStop = owner.db.collection("clubs").doc(id).collection("people").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
       if (!active(owner, view) || snapshot.metadata.fromCache) return;
       owner.roster = new Map(snapshot.docs.map((doc) => [doc.id, { id: doc.id, ...doc.data() }]));
+      owner.rosterState.receive(owner.roster);
       owner.loaded = true;
       reconcile(owner, view);
     }, () => {
@@ -176,7 +182,7 @@
   }
 
   function peopleFor(owner) {
-    return [...owner.roster.values()].map((person) => {
+    return [...owner.rosterState.project(owner.roster).values()].map((person) => {
       const uid = person.accountUid;
       const profile = uid ? owner.profiles.get(uid) : null;
       const responsible = owner.clubs.get(owner.clubId)?.managerIds.includes(uid);
@@ -187,24 +193,40 @@
     });
   }
 
-  function reconcile(owner, view) {
-    const accountIds = new Set();
-    for (const person of owner.roster.values()) {
-      const uid = person.accountUid;
-      if (!uid) continue;
-      accountIds.add(uid);
-      if (owner.profileStops.has(uid)) continue;
-      owner.profileStops.set(uid, owner.db.collection("clubProfiles").doc(uid).onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
-        if (!active(owner, view) || snapshot.metadata.fromCache) return;
-        owner.profiles.set(uid, snapshot.exists ? snapshot.data() : null);
-        reconcile(owner, view);
-      }, () => { if (active(owner, view)) message("Kontorollen konnten nicht aktualisiert werden."); }));
+  function profilesFor(owner, ids) {
+    if (!owner.profileFeed) {
+      const view = owner.view;
+      owner.profileFeed = window.ClubProfileFeed.create({ db: owner.db, isAdmin: owner.role.isAdmin,
+        documentId: owner.sdk.FieldPath.documentId(), isCurrent: () => active(owner, view),
+        onChange: () => scheduleRender(owner), onError: () => message("Kontorollen konnten nicht aktualisiert werden.") });
+      owner.profiles = owner.profileFeed.values;
     }
-    for (const [uid, unsubscribe] of owner.profileStops) {
-      if (!accountIds.has(uid)) { unsubscribe(); owner.profileStops.delete(uid); owner.profiles.delete(uid); }
-    }
-    render(owner);
+    owner.profileFeed.sync(ids);
   }
+
+  function scheduleRender(owner) {
+    if (owner.renderScheduled) return;
+    owner.renderScheduled = true;
+    const view = owner.view;
+    Promise.resolve().then(() => {
+      owner.renderScheduled = false;
+      if (!active(owner, view)) return;
+      if (adminPage) renderAdmin(owner); else render(owner);
+    });
+  }
+
+  function reconcile(owner, view) {
+    if (!active(owner, view)) return;
+    profilesFor(owner, [...owner.roster.values()].map((person) => person.accountUid).filter(Boolean));
+    scheduleRender(owner);
+  }
+
+  function syncChildren(parent, children) {
+    const keep = new Set(children);
+    for (const child of Array.from(parent.children)) if (!keep.has(child)) child.remove();
+    children.forEach((child, index) => { if (parent.children[index] !== child) parent.insertBefore(child, parent.children[index] || null); });
+  }
+  const signature = (value) => JSON.stringify(value, (key, item) => typeof item?.toMillis === "function" ? item.toMillis() : item);
 
   function render(owner = session) {
     if (!active(owner) || adminPage) return;
@@ -242,15 +264,28 @@
     for (const [group, entries] of groups) {
       if (!entries.length) continue;
       entries.sort((a, b) => (tab === "eligibility" ? b.state.stage - a.state.stage : 0) || collator.compare(a.person.name, b.person.name));
-      const section = node("section", "wt-day-group");
-      const heading = node("div", "wt-day-header");
-      heading.append(node("h2", "wt-day-heading", group), node("span", "wt-day-total", entries.length));
-      const card = node("div", "wt-day-card");
-      card.append(...entries.map(({ person, state }) => personRow(owner, person, state)));
-      section.append(heading, card);
+      let section = owner.groupCache.get(group);
+      if (!section) {
+        section = node("section", "wt-day-group");
+        const heading = node("div", "wt-day-header");
+        heading.append(node("h2", "wt-day-heading", group), node("span", "wt-day-total"));
+        section.append(heading, node("div", "wt-day-card"));
+        owner.groupCache.set(group, section);
+      }
+      section.querySelector(".wt-day-total").textContent = entries.length;
+      const rows = entries.map(({ person, state }) => {
+        const pending = [...owner.activityPending].filter(([key]) => key.startsWith(`${person.id}/`));
+        const key = signature({ person, state, tab, pending });
+        let cached = owner.rowCache.get(person.id);
+        if (cached?.key !== key) { cached = { key, row: personRow(owner, person, state) }; owner.rowCache.set(person.id, cached); }
+        return cached.row;
+      });
+      syncChildren(section.querySelector(".wt-day-card"), rows);
       sections.push(section);
     }
-    list.replaceChildren(...sections);
+    const present = new Set(everyone.map((person) => person.id));
+    for (const id of owner.rowCache.keys()) if (!present.has(id)) owner.rowCache.delete(id);
+    syncChildren(list, sections);
     if (!people.length) list.append(node("p", "wt-empty", tab === "people" ? "Noch keine Personen importiert." : `Keine aktiven Personen für ${year}.`));
     list.setAttribute("aria-busy", "false");
     if (focused) byId(focused)?.focus({ preventScroll: true });
@@ -267,6 +302,8 @@
   function personRow(owner, person, state) {
     const row = node(tab === "eligibility" ? "button" : "div", "se-person club-person");
     row.id = `club-person-${person.id}`;
+    row.classList.toggle("is-pending", Boolean(person.pending));
+    row.setAttribute("aria-busy", String(Boolean(person.pending)));
     if (tab === "eligibility") row.type = "button";
     row.dataset.role = roles[person.role] ? person.role : "";
     const details = node("span", "se-person-details");
@@ -286,10 +323,11 @@
       }
       details.append(issues);
       const view = owner.view;
-      row.addEventListener("click", () => window.StartEligibilityEditor.open({
+      row.addEventListener("click", () => { if (person.pending) return; window.StartEligibilityEditor.open({
         person, subjectId: person.subjectId, clubId: owner.clubId, db: owner.db, nextSeason: byId("se-season-next").checked,
         isCurrent: () => active(owner, view), requireCurrent: () => requireCurrent(owner, view),
-      }));
+        onPending: (changes) => optimisticDates(owner, person.id, changes, view),
+      }); });
     } else if (tab === "people") {
       row.classList.add("club-person-roster");
       const open = node("button", "club-person-open");
@@ -324,15 +362,18 @@
   async function toggleActivity(owner, person, year) {
     const view = owner.view;
     const key = `${person.id}/${year}`;
-    if (!active(owner, view) || owner.activityPending.has(key)) return;
+    if (!active(owner, view) || owner.activityPending.has(key) || owner.rosterState.has(person.id)) return;
     const current = owner.roster.get(person.id);
     if (!current || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
     const enabled = !current.activeYears.includes(year);
+    const token = owner.rosterState.begin(person.id, { activeYears: core.activeYears(current.activeYears, year, enabled) });
     owner.activityPending.set(key, enabled);
     render(owner);
     try {
       await store.setActive(owner.db, owner.clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
+      if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); }
     } catch (error) {
+      owner.rosterState.rollback(token);
       if (active(owner, view)) message(errorText(error));
     } finally {
       if (active(owner, view)) { owner.activityPending.delete(key); render(owner); }
@@ -340,6 +381,7 @@
   }
 
   function openPerson(owner, person) {
+    if (person.pending) return;
     selectedPerson = person;
     byId("club-person-title").textContent = core.displayName(person);
     byId("club-person-error").hidden = true;
@@ -363,14 +405,30 @@
     }
   }
 
+  function optimisticDates(owner, id, changes, view) {
+    const token = owner.rosterState.begin(id, changes);
+    render(owner);
+    return {
+      confirm() { if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); render(owner); } },
+      rollback(error) { owner.rosterState.rollback(token); if (active(owner, view)) { render(owner); message(errorText(error)); } },
+    };
+  }
+
   async function removeSelected(owner, person) {
     const clubId = owner.clubId;
     const view = owner.view;
+    if (owner.rosterState.has(person.id)) return;
     if (!window.confirm(`${core.displayName(person)} aus ${owner.clubs.get(clubId).name} entfernen? Die Nachweise in diesem Club werden gelöscht.`)) return;
+    const token = owner.rosterState.begin(person.id, null);
+    byId("club-person-dialog").close();
+    render(owner);
     try {
       await store.removePerson(owner.db, clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
-      if (active(owner, view)) byId("club-person-dialog").close();
-    } catch (error) { if (active(owner, view)) message(errorText(error)); }
+      if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); render(owner); }
+    } catch (error) {
+      owner.rosterState.rollback(token);
+      if (active(owner, view)) { render(owner); message(errorText(error)); }
+    }
   }
 
   function resetSearch() {
@@ -385,7 +443,7 @@
 
   async function searchPeople(owner, prefix, sequence, view) {
     try {
-      const matches = await owner.db.collection("timerParticipantDirectory").orderBy("searchName").startAt(prefix).endAt(`${prefix}\uf8ff`).limit(10).get({ source: "server" });
+      const matches = await owner.searchCache.read(prefix, () => owner.db.collection("timerParticipantDirectory").orderBy("searchName").startAt(prefix).endAt(`${prefix}\uf8ff`).limit(10).get({ source: "server" }));
       if (!active(owner, view) || sequence !== searchSequence || !byId("se-import-dialog").open) return;
       const existing = new Set(peopleFor(owner).map((person) => person.personId));
       byId("se-search-note").textContent = matches.empty ? "Keine Person gefunden." : "";
@@ -400,14 +458,17 @@
         button.addEventListener("click", async () => {
           byId("se-search").disabled = true;
           byId("se-search-results").querySelectorAll("button").forEach((result) => { result.disabled = true; });
+          const now = Date.now();
+          const createdAt = { toMillis: () => now, toDate: () => new Date(now) };
+          const token = owner.rosterState.begin(person.id, { ...person, personId: person.id, accountUid: "", activeYears: [], ...core.proofDates(person), createdAt }, true);
+          byId("se-import-dialog").close();
+          render(owner);
           try {
-            await store.importPerson(owner.db, owner.clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
-            if (active(owner, view)) byId("se-import-dialog").close();
+            const id = await store.importPerson(owner.db, owner.clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
+            if (active(owner, view)) { owner.rosterState.confirm(token, id); owner.rosterState.receive(owner.roster); render(owner); }
           } catch (error) {
-            if (!active(owner, view)) return;
-            byId("se-search-note").textContent = errorText(error);
-            byId("se-search").disabled = false;
-            button.disabled = false;
+            owner.rosterState.rollback(token);
+            if (active(owner, view)) { render(owner); message(errorText(error)); }
           }
         });
         return button;
@@ -416,52 +477,66 @@
   }
 
   async function startAdmin(owner) {
-    const [accounts, profiles, directory] = await Promise.all([
-      owner.db.collection("users").get({ source: "server" }), owner.db.collection("clubProfiles").get({ source: "server" }),
-      owner.db.collection("clubDirectory").get({ source: "server" }),
-    ]);
-    requireCurrent(owner);
-    const accountProfiles = accounts.docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" }));
-    owner.accounts = accountProfiles.filter((account) => ["trainer", "organizer", "admin"].includes(account.role));
-    const existing = new Map(profiles.docs.map((doc) => [doc.id, doc.data()]));
-    const updates = accountProfiles.filter((account) => account.personId || ranks[account.role] >= 3)
-      .filter((account) => { const { uid, email, ...data } = account; return Object.keys(data).some((key) => existing.get(uid)?.[key] !== data[key]); });
-    for (let offset = 0; offset < updates.length; offset += 8) {
-      requireCurrent(owner);
-      const batch = owner.db.batch();
-      for (const account of updates.slice(offset, offset + 8)) { const { uid, email, ...data } = account; batch.set(owner.db.collection("clubProfiles").doc(uid), data); }
-      await batch.commit();
-    }
-    owner.directory = directory.docs.map((doc) => doc.data().name);
-    if (!owner.directory.length) {
-      const people = await owner.db.collection("timerParticipantDirectory").get({ source: "server" });
-      owner.directory = [...new Set(people.docs.map((doc) => doc.data().organization).filter(Boolean))];
-    }
-    requireCurrent(owner);
-    const clubs = await owner.db.collection("clubs").get({ source: "server" });
-    for (const club of clubs.docs) {
-      requireCurrent(owner);
-      if (club.data().responsibilityVersion !== 2 && club.data().status === "active") {
-        await store.migrateResponsibilities(owner.db, club.id, owner.sdk, () => requireCurrent(owner));
-      }
-    }
-    requireCurrent(owner);
+    owner.pageCursors = [null]; owner.pageIndex = 0; owner.pageGeneration = 0;
+    owner.stops.push(() => { owner.adminStop?.(); owner.profileFeed?.clear(); });
     byId("club-create-open").disabled = false;
-    owner.stops.push(owner.db.collection("clubProfiles").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
-      if (!active(owner) || snapshot.metadata.fromCache) return;
-      owner.profiles = new Map(snapshot.docs.map((doc) => [doc.id, doc.data()]));
-      renderAdmin(owner);
-    }));
-    owner.stops.push(owner.db.collection("clubs").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
-      if (!active(owner) || snapshot.metadata.fromCache) return;
+    watchAdminPage(owner, 0);
+  }
+
+  function watchAdminPage(owner, index) {
+    owner.adminStop?.();
+    const version = ++owner.pageGeneration;
+    owner.pageLoading = true;
+    byId("club-admin-previous").disabled = true; byId("club-admin-next").disabled = true;
+    let query = owner.db.collection("clubs").orderBy(owner.sdk.FieldPath.documentId()).limit(50);
+    if (owner.pageCursors[index]) query = query.startAfter(owner.pageCursors[index]);
+    list.setAttribute("aria-busy", "true");
+    owner.adminStop = query.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+      if (!active(owner) || owner.pageGeneration !== version || snapshot.metadata.fromCache) return;
+      owner.pageLoading = false;
+      owner.pageIndex = index;
       owner.clubs = new Map(snapshot.docs.map((doc) => [doc.id, { id: doc.id, ...doc.data() }]));
-      renderAdmin(owner);
-    }, () => { if (active(owner)) message("Gliederungen konnten nicht geladen werden."); }));
+      owner.pageNext = snapshot.docs.length === 50 ? snapshot.docs.at(-1) : null;
+      profilesFor(owner, [...owner.clubs.values()].flatMap((club) => club.managerIds));
+      owner.migrating ||= new Set();
+      for (const club of owner.clubs.values()) if (club.responsibilityVersion !== 2 && club.status === "active" && !owner.migrating.has(club.id)) {
+        owner.migrating.add(club.id);
+        store.migrateResponsibilities(owner.db, club.id, owner.sdk, () => requireCurrent(owner))
+          .catch((error) => { if (active(owner)) message(errorText(error)); })
+          .finally(() => owner.migrating.delete(club.id));
+      }
+      scheduleRender(owner);
+    }, () => { if (active(owner) && owner.pageGeneration === version) { owner.pageLoading = false; renderAdmin(owner); list.setAttribute("aria-busy", "false"); message("Gliederungen konnten nicht geladen werden. Bitte erneut versuchen."); } });
+  }
+
+  async function prepareAdminChoices(owner, directory = false) {
+    const load = async (name) => {
+      const pages = window.CollectionPages.create({ collection: owner.db.collection(name), documentId: owner.sdk.FieldPath.documentId(), check: () => requireCurrent(owner) });
+      await pages.all(); return pages.docs;
+    };
+    if (!owner.accountsPromise || Date.now() - (owner.accountsAt || 0) > 30_000 && !owner.choicesLoading) {
+      owner.choicesLoading = true;
+      owner.accountsPromise = load("users").then((docs) => {
+        requireCurrent(owner);
+        owner.accounts = docs.map((doc) => ({ uid: doc.id, ...core.profile(doc.data()), email: doc.data().email || "" }))
+          .filter((account) => ["trainer", "organizer", "admin"].includes(account.role));
+        owner.accountsAt = Date.now();
+      }).catch((error) => { owner.accountsPromise = null; throw error; }).finally(() => { owner.choicesLoading = false; });
+    }
+    if (directory && !owner.directoryPromise) owner.directoryPromise = load("clubDirectory").then((docs) => {
+      owner.directory = docs.map((doc) => doc.data().name);
+    }).catch((error) => { owner.directoryPromise = null; throw error; });
+    await Promise.all([owner.accountsPromise, directory ? owner.directoryPromise : null]);
+    requireCurrent(owner);
   }
 
   function renderAdmin(owner) {
     if (!active(owner)) return;
+    owner.adminCards ||= new Map();
     const cards = [...owner.clubs.values()].sort((a, b) => collator.compare(a.name, b.name)).map((club) => {
+      const key = signature({ club, profiles: club.managerIds.map((uid) => owner.profiles.get(uid)), deleting: owner.deleting === club.id });
+      const previous = owner.adminCards.get(club.id);
+      if (previous?.key === key) return previous.card;
       const card = node("article", "club-admin-card");
       if (club.status === "active" && club.managerIds.length === 0) {
         const badge = node("span", "club-notification", "1");
@@ -486,13 +561,17 @@
       manage.setAttribute("aria-label", `${club.name}: Verantwortliche verwalten`);
       manage.append(icon("people"));
       manage.disabled = club.status !== "active" || owner.deleting === club.id;
-      manage.addEventListener("click", () => {
+      manage.addEventListener("click", async () => {
         responsibleClub = club.id;
         byId("club-responsible-search").value = "";
         byId("club-responsible-results").replaceChildren();
         byId("club-responsible-error").hidden = true;
         renderResponsible(owner);
         byId("club-responsible-dialog").showModal();
+        byId("club-responsible-search").disabled = true;
+        try { await prepareAdminChoices(owner); }
+        catch (error) { if (active(owner)) message(errorText(error)); }
+        finally { if (active(owner)) byId("club-responsible-search").disabled = false; }
       });
       const remove = node("button", "wt-icon-button", club.status === "deleting" ? "↻" : undefined);
       remove.type = "button";
@@ -510,9 +589,18 @@
       const actions = node("div", "club-admin-actions");
       actions.append(manage, remove);
       card.append(body, actions);
+      owner.adminCards.set(club.id, { key, card });
       return card;
     });
-    list.replaceChildren(...cards);
+    for (const id of owner.adminCards.keys()) if (!owner.clubs.has(id)) owner.adminCards.delete(id);
+    syncChildren(list, cards);
+    const pager = byId("club-admin-pages");
+    if (pager) {
+      pager.hidden = !owner.pageIndex && !owner.pageNext;
+      byId("club-admin-previous").disabled = owner.pageLoading || !owner.pageIndex;
+      byId("club-admin-next").disabled = owner.pageLoading || !owner.pageNext;
+      byId("club-admin-page").textContent = `Seite ${owner.pageIndex + 1}`;
+    }
     if (!cards.length) list.append(node("p", "wt-empty", "Noch keine Gliederungen erstellt."));
     list.setAttribute("aria-busy", "false");
     if (byId("club-responsible-dialog").open) renderResponsible(owner);
@@ -574,6 +662,12 @@
 
   document.querySelectorAll("[data-club-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
   if (adminPage) {
+    byId("club-admin-previous")?.addEventListener("click", () => { if (active(session) && !session.pageLoading && session.pageIndex) watchAdminPage(session, session.pageIndex - 1); });
+    byId("club-admin-next")?.addEventListener("click", () => {
+      if (!active(session) || session.pageLoading || !session.pageNext) return;
+      session.pageCursors[session.pageIndex + 1] = session.pageNext;
+      watchAdminPage(session, session.pageIndex + 1);
+    });
     byId("club-responsible-search").addEventListener("input", () => {
       const owner = session;
       if (!active(owner) || owner.responsibleBusy) return;
@@ -591,11 +685,16 @@
         return button;
       }));
     });
-    byId("club-create-open").addEventListener("click", () => {
+    byId("club-create-open").addEventListener("click", async () => {
       byId("club-create-form").reset(); selectedName = ""; selectedManager = "";
       byId("club-name-results").replaceChildren(); byId("club-manager-results").replaceChildren();
       byId("club-create-error").hidden = true;
       createState(); byId("club-create-dialog").showModal();
+      byId("club-manager-search").disabled = true; byId("club-name").disabled = true;
+      const owner = session;
+      try { await prepareAdminChoices(owner, true); }
+      catch (error) { if (active(owner)) { byId("club-create-error").textContent = errorText(error); byId("club-create-error").hidden = false; } }
+      finally { if (active(owner)) { byId("club-manager-search").disabled = false; byId("club-name").disabled = false; } }
     });
     byId("club-name").addEventListener("input", () => {
       selectedName = "";

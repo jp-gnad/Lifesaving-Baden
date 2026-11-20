@@ -737,7 +737,7 @@ test("notification aggregations count open requests and issues without returning
     "users/issue": { personLinkIssue: { status: "reported" } },
     "users/closed": { personLinkStatus: "linked", personLinkIssue: { status: "resolved" } },
   });
-  const code = fs.readFileSync(path.join(__dirname, "../assets/js/admin-accounts.js"), "utf8");
+  const code = fs.readFileSync(path.join(__dirname, "../assets/js/admin-notifications.js"), "utf8");
   const countCode = code.slice(code.indexOf("  async function countAdminNotifications"), code.indexOf("  function initAdminAccountBadge"));
   const countNotifications = new Function("window", "fetch", `${countCode}; return countAdminNotifications;`)(
     { firebaseConfig: { projectId: "demo-lifesaving-baden" } },
@@ -747,4 +747,16 @@ test("notification aggregations count open requests and issues without returning
   const user = (uid) => ({ getIdToken: async () => createMockUserToken({ sub: uid, email_verified: true }, "demo-lifesaving-baden") });
   assert.equal(await countNotifications(user("admin")), 5);
   await assert.rejects(countNotifications(user("trainer")));
+});
+
+test("cached worktime preparation still sees reservations written by another browser", { skip: !enabled }, async () => {
+  await env.clearFirestore();
+  await seed({ "users/worktime-cache": { role: "trainer" } });
+  const db = compatDb(dbFor("worktime-cache"));
+  const api = { FieldValue: { serverTimestamp: sdk.serverTimestamp }, Timestamp: sdk.Timestamp };
+  await assertSucceeds(worktimeStore.commit(db, "worktime-cache", "first", worktime({ start: "08:00", end: "09:00" }), api));
+  const other = compatDb(dbFor("worktime-cache"));
+  await assertSucceeds(worktimeStore.commit(other, "worktime-cache", "remote", worktime({ start: "10:00", end: "11:00" }), api));
+  await assert.rejects(worktimeStore.commit(db, "worktime-cache", "overlap", worktime({ start: "10:30", end: "11:30" }), api), { code: "worktime/overlap" });
+  await assertSucceeds(worktimeStore.commit(db, "worktime-cache", "adjacent", worktime({ start: "11:00", end: "12:00" }), api));
 });

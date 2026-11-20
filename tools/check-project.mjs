@@ -26,15 +26,17 @@ function checkLocal(owner, value) {
 // Ordered dependencies are explicit because this site runs directly from HTML,
 // without a bundler that could otherwise detect missing modules/imports.
 const dependencies = {
-  "assets/js/auth.js": ["assets/js/auth-core.js", "assets/js/admin-accounts.js"],
-  "assets/js/clubs.js": ["assets/js/clubs-core.js", "assets/js/clubs-store.js", "assets/js/start-eligibility-core.js"],
+  "assets/js/auth.js": ["assets/js/auth-core.js"],
+  "assets/js/landing.js": ["assets/js/auth-core.js"],
+  "assets/js/admin-accounts.js": ["assets/js/collection-pages.js"],
+  "assets/js/clubs.js": ["assets/js/clubs-core.js", "assets/js/clubs-store.js", "assets/js/start-eligibility-core.js", "assets/js/collection-pages.js", "assets/js/club-profile-feed.js", "assets/js/club-roster-state.js"],
   "assets/js/club-events-core.js": ["assets/js/club-teams-core.js"],
   "assets/js/club-events-store.js": ["assets/js/club-events-core.js", "assets/js/clubs-store.js"],
   "assets/js/club-events-queue.js": ["assets/js/club-events-core.js"],
   "assets/js/club-events.js": ["assets/js/club-events-core.js", "assets/js/club-events-store.js", "assets/js/club-events-queue.js", "assets/js/start-eligibility-core.js"],
   "assets/js/worktime.js": ["assets/js/worktime-core.js", "assets/js/worktime-store.js"],
   "timer/firestore-api.js": ["assets/js/auth-core.js", "timer/core.js", "timer/participant-store.js", "timer/result-feed.js"],
-  "timer/app.js": ["timer/core.js", "timer/custom-discipline-picker.js", "timer/participant-picker.js", "timer/participant-updates.js", "timer/time-input.js", "timer/control-input.js", "timer/event-cache.js", "timer/save-queue.js", "timer/offline-store.js", "timer/results-pdf.js", "timer/views/people.js", "timer/firestore-api.js"],
+  "timer/app.js": ["timer/core.js", "timer/custom-discipline-picker.js", "timer/participant-picker.js", "timer/participant-updates.js", "timer/time-input.js", "timer/control-input.js", "timer/event-cache.js", "timer/save-queue.js", "timer/offline-store.js", "timer/lazy-assets.js", "timer/firestore-api.js"],
 };
 
 for (const name of sourceFiles) {
@@ -62,6 +64,12 @@ for (const name of htmlFiles) {
       catch (error) { failures.push(`${name}: invalid inline script: ${error.message}`); }
     }
   }
+  const pageEntrypoints = {
+    "index.html": "assets/js/landing.js",
+    "app.html": "assets/js/admin-notifications.js",
+    "admin-accounts.html": "assets/js/admin-accounts.js",
+  };
+  if (pageEntrypoints[name] && !scripts.includes(pageEntrypoints[name])) failures.push(`${name}: missing page entrypoint ${pageEntrypoints[name]}`);
   scripts.forEach((script, index) => {
     for (const dependency of dependencies[script] || []) {
       if (!scripts.slice(0, index).includes(dependency)) failures.push(`${name}: ${dependency} must load before ${script}`);
@@ -85,6 +93,11 @@ shellPaths.forEach((value) => checkLocal("timer/sw.js", value));
 for (const [, src] of read("timer/index.html").matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)) {
   if (/^https?:/.test(src)) continue;
   if (!shellPaths.includes(src)) failures.push(`timer/sw.js: precache must include the current script URL ${src}`);
+}
+
+for (const [, asset] of read("timer/lazy-assets.js").matchAll(/\["(\.\/[^"\s]+\.js\?[^"\s]+)"/g)) {
+  checkLocal("timer/index.html", asset);
+  if (!shellPaths.includes(asset)) failures.push(`timer/sw.js: precache must include lazy module ${asset}`);
 }
 
 if (failures.length) {

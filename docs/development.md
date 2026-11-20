@@ -65,6 +65,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Arbeitszeiten | `worktime.test.cjs`, `firestore_rules.test.cjs` |
 | Wartungs-CLIs und Quelldaten | `maintenance_tools.test.cjs`, `test_participant_directory.py` |
 | HTML, Assets, Modul-/Dateiversionen | `npm run check`, Python-Integration; passende lokale Browser-Fixture für Layout |
+| Cursor, Suchcache, Profillistener, optimistische Kaderänderungen, Arbeitszeit-Vorbereitung und verzögertes Laden | `performance_modules.test.cjs`, Auth-/Timeransichtstests; bei Datenzugriffen zusätzlich `npm run test:rules` |
 
 `node --test tests/firestore_rules.test.cjs` allein überspringt die Regeln ohne
 `FIRESTORE_EMULATOR_HOST`. Für eine belastbare Prüfung `npm run test:rules` verwenden.
@@ -84,6 +85,7 @@ npm.cmd run test:rules
 Nach Start des lokalen HTTP-Servers:
 
 - `tests/admin_accounts.browser.html`: Kontenverwaltung, verschiedene Bildschirmbreiten.
+  `?many=1` ergänzt 123 Konten für Nachladen und die ausdrückliche vollständige Suche.
 - `tests/account_links.browser.html`: eigene Personenverknüpfung.
 - `tests/account_checklist.browser.html`: Profilfortschritt, Kontozähler und Hinweise im Einstellungsmenü mit lokalen Profilständen bei Desktop, 390 und 320 px; kurze/lange Namen und konstante Headerhöhe bei abgeschlossener Einrichtung.
 - `tests/worktime.browser.html`: Arbeitszeiten.
@@ -93,12 +95,25 @@ Nach Start des lokalen HTTP-Servers:
   im Sitzungsspeicher auf. Damit lassen sich sofortige Anzeige und Wiederaufnahme prüfen.
   `?many=1` ergänzt einen größeren Kader und Mannschaften beider Geschlechter in einer AK
   für die Prüfung von Spalten, mobilen Ansichten und Dialog-Scrollleisten.
+  `?admin=1&many=1` prüft 73 Gliederungen einschließlich Seitennavigation und
+  nachgeladener Verantwortlichenauswahl. `?fail=1&delay=5000` lässt die erste
+  simulierte Änderung fehlschlagen, um die Rücknahme optimistischer Änderungen zu prüfen.
 - `tests/mobile_nav.browser.html`: mobile Navigation.
 - `tests/login.browser.html`: Registrierung und wiederaufgenommene Namenseingabe,
   mit simuliertem Speichern und Mailversand auf Desktop sowie bei 390/320 px.
 
 Diese Fixtures verwenden eigene Daten. Funktionstests mit vereinfachtem DOM
 prüfen Verhalten, ersetzen aber keine Layoutkontrolle im Browser.
+
+Die Profilfortschritt-Fixture besitzt einen Schalter „Ladezustand“. Die Skeletons
+maskieren die tatsächlichen Karten-/Formularelemente, damit deren Maße erhalten bleiben.
+Bei neuen Bildern unterhalb des anfänglich sichtbaren Bereichs an `loading="lazy"`
+denken; sofort sichtbare Start-/Loginbilder früh laden.
+
+Fotografien liegen zusätzlich als WebP mit maximal 1800 beziehungsweise 900 Pixeln
+Kantenlänge und Qualität 83 vor; das Seitenverhältnis bleibt erhalten. Sichtbare
+Logo-/Google-Bilder verwenden kleine verlustfreie WebP-Dateien. Alte Bild-URLs sowie
+PNG-Manifest-/Installationsicons bleiben kompatibel. Es gibt keinen Produktions-Build.
 
 ## CI und Produktionswartung
 

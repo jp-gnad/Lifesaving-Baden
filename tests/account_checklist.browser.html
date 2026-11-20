@@ -14,6 +14,7 @@
   <body>
     <nav>
       <span>Lokale Testdaten</span>
+      <button id="toggle-loading">Ladezustand</button>
       <button data-view="app">Übersicht</button>
       <button data-view="settings">Einstellungsmenü</button>
       <button data-state="new">Neues Konto</button>
@@ -28,6 +29,12 @@
     </nav>
     <iframe id="preview" title="Mitgliederübersicht mit Testdaten"></iframe>
     <script>
+      document.getElementById("toggle-loading").onclick = () => {
+        const page = document.getElementById("preview").contentDocument;
+        const loading = page.body.classList.toggle("auth-context-loading");
+        page.querySelector("main").toggleAttribute("inert", loading);
+        page.querySelector("main").setAttribute("aria-busy", String(loading));
+      };
       let selectedState = "new";
       let selectedView = "app";
       let selectedName = "Anna Baden";
@@ -37,7 +44,7 @@
         const response = await fetch(view === "settings" ? "../account-settings.html" : "../app.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(header|dashboard-header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|dashboard-collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;
@@ -52,7 +59,7 @@
           requested: { ...details, personLinkRequest: { status: "requested" } },
           linked: { ...details, personLink: { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" } },
         };
-        const source = await (await fetch("../assets/js/auth.js")).text();
+        const source = await (await fetch("../assets/js/auth.js?v=20261120-performance-v2")).text();
         const fixture = page.createElement("script");
         fixture.defer = true;
         // Inline scripts run before deferred dependencies; wait for DOMContentLoaded.
@@ -70,6 +77,8 @@
               document.querySelector("[data-account-overlay]").setAttribute("aria-hidden", "true");
             };
             document.body.classList.remove("auth-context-loading");
+    document.querySelector("main")?.removeAttribute("inert");
+    document.querySelector("main")?.setAttribute("aria-busy", "false");
             document.body.dataset.page = ${JSON.stringify(view)};
             if (${JSON.stringify(view)} === "settings") {
               const form = document.querySelector("[data-profile-form]");

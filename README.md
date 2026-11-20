@@ -6,6 +6,11 @@ Firebase Authentication und Firestore speichern die geschützten Konten- und
 Fachdaten. Der Browser lädt HTML, CSS und JavaScript direkt; es gibt keinen
 Produktions-Build und keinen eigenen Node-Server.
 
+Start-/Loginbilder verwenden größenangepasste WebP-Dateien. Verwaltungslisten laden
+in begrenzten Seiten; die Kontensuche kann ausdrücklich die übrigen Seiten durchsuchen.
+Personen- und PDF-Module des Timers laden bei Bedarf und bleiben offline verfügbar.
+Diese Optimierungen benötigen keine zusätzlichen Dienste, Tarife oder Regel-/Indexdeploys.
+
 Der Timer ist unter `timer/` erreichbar, beispielsweise
 [auf GitHub Pages](https://jp-gnad.github.io/Lifesaving-Baden/timer/).
 Bestehende HTML-URLs und installierte Timer bleiben erhalten.

@@ -65,7 +65,7 @@ function fixture({ deferredEvent = null } = {}) {
     setDocumentTitle() {}, safeExternalUrl: () => "", loadEventPdfImage: async () => null,
     compareParticipantsByOrganization: () => 0, birthYearText: () => "05", personAvatar: () => "", icon: () => "",
     bindDialogClose() {}, showDialog(dialog) { dialog.open = true; }, showToast: (message) => toasts.push(message),
-    createResultsPdf(...args) { pdfs.push(args); return {}; }, openPdf() {}, confirm: () => true,
+    async getResultsPdf() { return { createResultsPdf(...args) { pdfs.push(args); return {}; }, openPdf() {}, loadEventPdfImage: async () => null }; }, confirm: () => true,
     setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, cancelAnimationFrame() {},
     setReviewInteractionLock() {}, setTimerInteractionLock() {}, renderError(error) { throw error; }, renderHome() {},
   });

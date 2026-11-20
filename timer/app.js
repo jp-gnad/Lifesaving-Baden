@@ -4,7 +4,12 @@ const {
 const timeInput = window.TimerTimeInput.create({ parseTime });
 const customDisciplinePicker = window.TimerCustomDisciplinePicker.create({ api, localOptions: pendingCustomDisciplineOptions, escapeHtml, customDisciplineKey, customDisciplineName });
 const { renderGroups: renderParticipantGroups } = window.TimerParticipantPicker.create({ escapeHtml });
-const { createResultsPdf, loadEventPdfImage, openPdf } = window.TimerResultsPdf.create({ eventIconUrls });
+let resultsPdf;
+async function getResultsPdf() {
+  await window.TimerLazyAssets.load("pdf");
+  resultsPdf ||= window.TimerResultsPdf.create({ eventIconUrls });
+  return resultsPdf;
+}
 
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
@@ -107,13 +112,14 @@ const saveQueue = window.TimerSaveQueue.create({
   },
 });
 
-const peopleView = window.TimerPeopleView.create({
+let peopleView;
+function createPeopleView() { return window.TimerPeopleView.create({
   app, api, saveInBackground, renderParticipantGroups, eventCan, compareParticipantsByOrganization, personAvatar, birthYearText, escapeHtml, icon, setDocumentTitle, showToast, bindDialogClose, openDialog, normalizedIdentity,
   getRouteVersion: () => routeVersion,
   setRouteCleanup: (cleanup) => { routeCleanup = cleanup; },
   refresh: () => renderRoute(),
   validateParticipant: (values) => window.timerFirestoreApi.validateParticipant(values),
-});
+}); }
 
 function icon(name) {
   return `<svg class="icon" aria-hidden="true"><use href="./icons.svg?v=event-settings#${name}"></use></svg>`;
@@ -867,6 +873,10 @@ async function renderEventSettings(id, section = null) {
 }
 
 async function renderPeople(id, viewData = null) {
+  const version = routeVersion;
+  await window.TimerLazyAssets.load("people");
+  if (version !== routeVersion) return;
+  peopleView ||= createPeopleView();
   return peopleView.render(id, viewData);
 }
 
@@ -1798,14 +1808,6 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
     app.innerHTML = `${resultsOnly ? "" : `<a class="back" href="#/event/${id}" data-history-back>${icon("arrow-left")} ${escapeHtml(event.name)}</a>`}<div class="empty"><strong>Kein Zugriff auf Ergebnisse</strong><p>Die Event-Einstellungen erlauben diese Ansicht für dein Konto nicht.</p></div>`;
     return;
   }
-  let eventPdfImage = null;
-  let eventPdfImageReady = false;
-  loadEventPdfImage(event).then((image) => {
-    if (!isCurrent()) return;
-    eventPdfImage = image;
-    eventPdfImageReady = true;
-    document.querySelector("#create-results-pdf")?.removeAttribute("disabled");
-  });
   const initialItem = disciplines[initialDiscipline];
   const validInitialGender = initialItem?.mixed ? initialGender === "mixed" : ["female", "male"].includes(initialGender);
   let selected = initialItem && validInitialGender
@@ -2332,7 +2334,7 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       }).join("")}</div>`;
     resultsRoot.innerHTML = `<a class="viewer-list-back" id="viewer-list-back" href="${viewerRoot}" ${resultsOnly ? "" : "data-history-back"}>${icon("arrow-left")} Ergebnisse</a>
       <div class="viewer-list-heading"><div class="viewer-list-title"><p class="eyebrow">${genderName(selected.gender)}</p><h2>${escapeHtml(item.name)}</h2></div>
-        <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${eventPdfImageReady && !exporting ? "" : "disabled"}>PDF</button></div>
+        <button class="button secondary results-pdf-button" id="create-results-pdf" type="button" ${exporting ? "disabled" : ""}>PDF</button></div>
       ${selected.discipline === "normal" ? `<label class="field custom-results-filter"><span>Disziplin</span><select id="custom-results-filter"><option value="">Alle benutzerdefinierten Disziplinen</option><option value="__unnamed__">Ohne Namen</option>${[...customResultNames].sort(([, left], [, right]) => left.name.localeCompare(right.name, "de", { numeric: true, sensitivity: "base" })).map(([key, definition]) => `<option value="${escapeHtml(key)}">${escapeHtml(definition.name)} · ${definition.lapCount} Runden</option>`).join("")}</select></label>` : ""}
       ${results.length ? cardView : `<div class="empty">${hasMore || pageIndex > 0 ? "Keine Ergebnisse dieser Gruppe auf dieser Seite. Weitere Seiten sind über die Seitennavigation erreichbar." : "Noch keine Ergebnisse."}</div>`}`;
     if (selected.discipline === "normal") {
@@ -2351,10 +2353,16 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
       const exportSelection = { ...selected, customId: selected.discipline === "normal" ? selectedCustomDisciplineId : "" };
       button.disabled = true;
       try {
-        const all = await window.TimerResultFeed.readAll(
-          (cursor) => api(`/events/${id}/results${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
-          () => { if (!isCurrent()) throw new Error("Ansicht wurde geschlossen."); },
-        );
+        const pdf = await getResultsPdf();
+        if (!isCurrent()) return;
+        const [all, eventPdfImage] = await Promise.all([
+          window.TimerResultFeed.readAll(
+            (cursor) => api(`/events/${id}/results${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+            () => { if (!isCurrent()) throw new Error("Ansicht wurde geschlossen."); },
+          ),
+          pdf.loadEventPdfImage(event),
+        ]);
+        if (!isCurrent()) return;
         const results = all.filter((result) => result.discipline === exportSelection.discipline && (item.mixed || result.gender === exportSelection.gender) && matchesCustomDiscipline(result, exportSelection.customId))
           .sort((left, right) => (left.official_centiseconds ?? left.total_centiseconds) - (right.official_centiseconds ?? right.total_centiseconds) || left.created_at.localeCompare(right.created_at));
         const lapCount = item.flexible || exportSelection.discipline === "obstacle100"
@@ -2402,11 +2410,11 @@ async function renderViewer(id, initialDiscipline = null, initialGender = null, 
           };
           return [{ main: person, secondary: `Zeitnahme: ${resultTimekeeperLabel(result)}` }, ageGroup, ...lapCells, timeCell];
         });
-        openPdf(createResultsPdf(event.name, `${item.name} - ${genderName(exportSelection.gender)}`, headers, rows, eventPdfImage));
+        pdf.openPdf(pdf.createResultsPdf(event.name, `${item.name} - ${genderName(exportSelection.gender)}`, headers, rows, eventPdfImage));
       } catch (error) { if (isCurrent()) showToast(error.message); }
       finally {
         exporting = false;
-        if (isCurrent()) document.querySelector("#create-results-pdf")?.toggleAttribute("disabled", !eventPdfImageReady);
+        if (isCurrent()) document.querySelector("#create-results-pdf")?.toggleAttribute("disabled", false);
       }
     });
   }

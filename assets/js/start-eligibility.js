@@ -99,10 +99,14 @@
     if (!Object.keys(changes).length) { close(); return; }
     busy(true);
     error.hidden = true;
+    const pending = current.onPending?.(changes);
+    if (pending) close();
     try {
       await window.ClubsStore.saveDates(current.db, current.clubId, current.subjectId, changes, sdk, current.requireCurrent, current.person.createdAt);
+      pending?.confirm();
       if (context === current && current.isCurrent()) close();
     } catch (failure) {
+      pending?.rollback(failure);
       if (context !== current || !current.isCurrent()) return;
       error.textContent = failure.code?.startsWith("clubs/") ? failure.message : "Nachweise konnten nicht gespeichert werden. Bitte erneut versuchen.";
       error.hidden = false;

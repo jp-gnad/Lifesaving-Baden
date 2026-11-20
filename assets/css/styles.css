@@ -331,7 +331,7 @@ input {
   background:
     linear-gradient(90deg, rgba(15, 15, 18, 0.94) 0%, rgba(15, 15, 18, 0.76) 42%, rgba(15, 15, 18, 0.32) 100%),
     linear-gradient(0deg, rgba(15, 15, 18, 0.62) 0%, rgba(15, 15, 18, 0.08) 48%, rgba(15, 15, 18, 0.42) 100%),
-    url("../img/hero-swimmer.jpg") center 46% / cover no-repeat;
+    var(--hero-swimmer-image) center 46% / cover no-repeat;
 }
 
 .hero-copy {
@@ -595,7 +595,7 @@ body[data-page="app"] .dashboard > .dashboard-header {
   background:
     linear-gradient(90deg, rgba(15, 15, 18, 0.9) 0%, rgba(15, 15, 18, 0.7) 44%, rgba(15, 15, 18, 0.36) 100%),
     linear-gradient(0deg, rgba(15, 15, 18, 0.72) 0%, rgba(15, 15, 18, 0.2) 58%, rgba(15, 15, 18, 0.58) 100%),
-    url("../img/training-rescue.jpg") center 44% / cover no-repeat;
+    var(--training-rescue-image) center 44% / cover no-repeat;
 }
 
 #training .card {
@@ -1131,7 +1131,7 @@ body[data-page="app"] .dashboard > .dashboard-header {
   background:
     linear-gradient(90deg, rgba(15, 15, 18, 0.92) 0%, rgba(15, 15, 18, 0.72) 48%, rgba(15, 15, 18, 0.28) 100%),
     linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.28) 50%, rgba(15, 15, 18, 0.72) 100%),
-    url("../img/hero-swimmer.jpg") center 34% / cover no-repeat;
+    var(--hero-swimmer-image) center 34% / cover no-repeat;
 }
 
 .dashboard-header::before {
@@ -1259,13 +1259,7 @@ body.auth-context-loading [data-account-open] {
   pointer-events: none;
 }
 
-body.auth-context-loading .member-apps::after {
-  content: "Konto wird geladen …";
-  margin-top: 8px;
-  color: var(--muted);
-  display: block;
-  font-size: 0.75rem;
-}
+
 
 .member-app-grid {
   display: flex;
@@ -3366,7 +3360,7 @@ body.auth-context-loading .member-apps::after {
     background:
       linear-gradient(90deg, rgba(15, 15, 18, 0.94) 0%, rgba(15, 15, 18, 0.78) 100%),
       linear-gradient(0deg, rgb(15, 15, 18) 0%, rgba(15, 15, 18, 0.38) 52%, rgba(15, 15, 18, 0.78) 100%),
-      url("../img/hero-swimmer.jpg") center 34% / cover no-repeat;
+      var(--hero-swimmer-image) center 34% / cover no-repeat;
   }
 
   .hero {
@@ -3977,7 +3971,7 @@ body[data-page="login"] .auth-privacy a {
     border-radius: 2px;
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)),
-      var(--login-background-image, url("../img/auth-pool.jpg?v=20261102-start")) center / cover no-repeat;
+      var(--login-background-image, url("../img/auth-pool.webp")) center / cover no-repeat;
   }
 }
 
@@ -4007,7 +4001,7 @@ body[data-page="login"] .auth-privacy a {
     /* Keep the photo scale independent of the scrollable form height. */
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)) center top / 100% 100% no-repeat local,
-      var(--login-background-image, url("../img/auth-pool.jpg?v=20261102-start")) center top / max(100vw, calc(100dvh * var(--login-background-ratio, 1.5))) auto no-repeat local;
+      var(--login-background-image, url("../img/auth-pool.webp")) center top / max(100vw, calc(100dvh * var(--login-background-ratio, 1.5))) auto no-repeat local;
   }
 
   body[data-page="login"] .auth-panel {
@@ -4023,9 +4017,51 @@ body[data-page="login"] .auth-privacy a {
   }
 }
 
-body.auth-context-loading:is([data-page="app"], [data-page="settings"], [data-page="link-request"]) > main {
+/* Mask the actual layout instead of replacing it with differently sized cards. */
+body.auth-context-loading:is([data-page="app"], [data-page="settings"]) > main {
+  pointer-events: none;
+  user-select: none;
+}
+body.auth-context-loading .member-app-icon,
+body.auth-context-loading .settings-menu-icon,
+body.auth-context-loading .profile-field-icon,
+body.auth-context-loading [data-profile-value] {
+  position: relative;
+  color: transparent;
+  background: #202126;
+}
+body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon) > * {
   visibility: hidden;
 }
+body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon, [data-profile-value])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 15%, #ffffff0a 45%, transparent 75%);
+  animation: skeleton-pulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes skeleton-pulse { from { opacity: .2; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  body.auth-context-loading :is(.member-app-icon, .settings-menu-icon, .profile-field-icon, [data-profile-value])::after { animation: none; }
+}
+.list-more {
+  justify-self: center;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: .82rem;
+  cursor: pointer;
+}
+.list-more:hover, .list-more:focus-visible { background: #ffffff09; color: var(--text); }
+.list-more:disabled { opacity: .45; cursor: default; }
+.list-pagination { display: flex; gap: 12px; justify-content: center; align-items: center; color: var(--muted); font-size: .8rem; }
+.list-pagination[hidden], .list-more[hidden] { display: none; }
+.profile-field-list[aria-busy="true"] { pointer-events: none; }
+.profile-field-list[aria-busy="true"] [data-profile-value] { opacity: .65; }
 
 /* Keep the admin overview focused on the compact account list on phones. */
 .admin-account-panel [data-admin-account-message]:empty { display: none; }
@@ -4052,3 +4088,18 @@ body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight:
   body[data-page="app"] .dashboard > .dashboard-header { height: 280px; }
   .account-manage { padding-inline: 12px 40px; gap: 8px; }
 }
+
+/* Responsive photographs retain their original proportions. */
+:root {
+  --hero-swimmer-image: url("../img/hero-swimmer.webp");
+  --training-rescue-image: url("../img/training-rescue.webp");
+}
+@media (max-width: 700px) {
+  :root {
+    --hero-swimmer-image: url("../img/hero-swimmer-small.webp");
+    --training-rescue-image: url("../img/training-rescue-small.webp");
+    --login-background-image: url("../img/auth-pool-small.webp");
+  }
+}
+
+.club-person.is-pending { opacity: .65; }

@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" type="image/png" href="assets/img/lifesaving-baden-logo.png">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261119-settings-cleanup-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261120-performance-v2">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
@@ -31,14 +31,15 @@
     <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
     <script defer src="assets/js/person-link-store.js?v=20261112-settings-links-v1"></script>
     <script defer src="assets/js/auth-core.js?v=20261112-settings-links-v1"></script>
-    <script defer src="assets/js/admin-accounts.js?v=20261112-structure-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261119-settings-cleanup-v1"></script>
+    <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
+    <script defer src="assets/js/admin-accounts.js?v=20261120-performance-v2"></script>
+    <script defer src="assets/js/auth.js?v=20261120-performance-v2"></script>
   </head>
   <body class="auth-context-loading" data-page="admin-accounts">
     <header class="site-header">
       <a class="brand" href="app.html" aria-label="Lifesaving Baden Mitgliederbereich">
         <span class="brand-mark" aria-hidden="true">
-          <img src="assets/img/lifesaving-baden-logo.png" alt="">
+          <img src="assets/img/lifesaving-baden-logo.webp" alt="">
         </span>
         <span>Lifesaving Baden</span>
       </a>
@@ -74,9 +75,11 @@
           <input type="search" data-admin-account-search placeholder="E-Mail, Kontoname oder verknüpfte Person" autocomplete="off">
         </label>
         <p class="admin-search-summary" data-admin-account-search-summary role="status"></p>
+        <button class="list-more" type="button" data-admin-accounts-search-all hidden>Alle Konten durchsuchen</button>
         <p class="form-message" data-admin-account-message role="status"></p>
         <div class="admin-account-columns" aria-hidden="true"><span>Konto</span><span>Ergebnisdatenbank</span></div>
         <div class="admin-account-list" data-admin-account-list></div>
+        <button class="list-more" type="button" data-admin-accounts-more hidden>Weitere laden</button>
       </section>
     </main>
 

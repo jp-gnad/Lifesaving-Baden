@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
 
-  function create({ eventIconUrls }) {
+  function create({ eventIconUrls, fetchImage = (...args) => fetch(...args), timeoutMs = 8000 }) {
     function pdfSafeText(value) {
       return String(value ?? "")
         .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
@@ -15,25 +15,31 @@
       return pdfSafeText(value).replace(/([\\()])/g, "\\$1");
     }
 
-    async function loadEventPdfImage(event) {
-      for (const url of eventIconUrls(event)) {
-        try {
-          const response = await fetch(url, { cache: "force-cache" });
-          if (!response.ok) continue;
+    const images = new Map();
+    async function readImage(url, budget) {
+      const controller = new AbortController();
+      let objectUrl, element, timer;
+      const expired = new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          if (element) element.src = "";
+          reject(new Error("Eventbild konnte nicht rechtzeitig geladen werden."));
+        }, budget);
+      });
+      try {
+        const load = (async () => {
+          const response = await fetchImage(url, { cache: "force-cache", signal: controller.signal });
+          if (!response.ok) throw new Error("Eventbild ist nicht verfügbar.");
           const blob = await response.blob();
+          if (controller.signal.aborted) throw new Error("Eventbild wurde abgebrochen.");
           const image = await new Promise((resolve, reject) => {
-            const objectUrl = URL.createObjectURL(blob);
-            const element = new Image();
-            element.addEventListener("load", () => {
-              URL.revokeObjectURL(objectUrl);
-              resolve(element);
-            }, { once: true });
-            element.addEventListener("error", () => {
-              URL.revokeObjectURL(objectUrl);
-              reject(new Error("Eventbild konnte nicht gelesen werden."));
-            }, { once: true });
+            objectUrl = URL.createObjectURL(blob);
+            element = new Image();
+            element.addEventListener("load", () => resolve(element), { once: true });
+            element.addEventListener("error", () => reject(new Error("Eventbild konnte nicht gelesen werden.")), { once: true });
             element.src = objectUrl;
           });
+          if (controller.signal.aborted) throw new Error("Eventbild wurde abgebrochen.");
           const maximumPixels = 180;
           const scale = Math.min(1, maximumPixels / Math.max(image.naturalWidth, image.naturalHeight));
           const width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -51,11 +57,30 @@
           let hex = "";
           for (let index = 0; index < binary.length; index += 1) hex += binary.charCodeAt(index).toString(16).padStart(2, "0");
           return { width, height, hex };
-        } catch {
-          // Try the next supported file extension.
-        }
+        })();
+        return await Promise.race([load, expired]);
+      } finally {
+        clearTimeout(timer);
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
       }
-      return null;
+    }
+
+    function loadEventPdfImage(event) {
+      const urls = eventIconUrls(event), key = JSON.stringify(urls);
+      if (images.has(key)) return images.get(key);
+      const pending = (async () => {
+        const deadline = Date.now() + timeoutMs;
+        for (const url of urls) {
+          const remaining = deadline - Date.now();
+          if (remaining <= 0) break;
+          try { return await readImage(url, Math.min(3000, remaining)); }
+          catch { /* An optional picture must never prevent a complete export. */ }
+        }
+        return null;
+      })().then((image) => { if (!image && images.get(key) === pending) images.delete(key); return image; });
+      images.set(key, pending);
+      if (images.size > 20) images.delete(images.keys().next().value);
+      return pending;
     }
 
     function createResultsPdf(title, subtitle, headers, rows, eventImage = null) {

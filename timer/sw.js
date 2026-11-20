@@ -1,4 +1,4 @@
-const staticCache = "lifesaving-timer-static-firebase-v80";
+const staticCache = "lifesaving-timer-static-firebase-v81";
 const baseUrl = new URL("./", self.location.href);
 const relativeAppShell = [
   "./",
@@ -8,7 +8,7 @@ const relativeAppShell = [
   "../assets/js/header.js?v=20261102-header-shadow-v1",
   "./core.js?v=20261114-timekeeper-v1",
   "./offline-store.js?v=20261112-structure-v1",
-  "./results-pdf.js?v=20261114-timekeeper-v1",
+  "./results-pdf.js?v=20261120-performance-v2",
   "./participant-picker.js?v=20261114-age-groups-v1",
   "./participant-updates.js?v=20261114-participant-updates-v1",
   "./views/people.js?v=20261114-age-groups-v1",
@@ -17,7 +17,8 @@ const relativeAppShell = [
   "./control-input.js?v=20261114-timer-controls-v1",
   "./time-input.js?v=20261114-live-time-input-v1",
   "./custom-discipline-picker.js?v=20261114-custom-names-v1",
-  "./app.js?v=20261114-participant-updates-v1",
+  "./lazy-assets.js?v=20261120-performance-v2",
+  "./app.js?v=20261120-performance-v2",
   "./result-feed.js?v=20261112-paged-reads-v1",
   "./firestore-api.js?v=20261114-timekeeper-v1",
   "./participant-store.js?v=20261112-import-reads-v1",

@@ -1,5 +1,6 @@
 (function (root) {
   "use strict";
+  const prepared = new WeakMap();
   const overlapError = () => Object.assign(new Error("Dieser Zeitraum überschneidet sich mit einer anderen Aufgabe. Bitte passe Von oder Bis an."), { code: "worktime/overlap" });
   async function commit(db, uid, entryId, record, sdk, requireUser = () => {}, expectedExists = null) {
     const core = typeof module !== "undefined" && module.exports ? require("./worktime-core.js") : root.WorktimeCore;
@@ -39,24 +40,42 @@
         }
       });
     }
-    if (record) {
+    let accounts = prepared.get(db);
+    if (!accounts) { accounts = new Map(); prepared.set(db, accounts); }
+    if (record && accounts.has(uid)) {
+      await accounts.get(uid);
       requireUser();
-      // V1/V2 entries are checked and registered before new writes. A single
-      // sorted reservation list covers intervals of any number of calendar days.
-      const [existing, guard] = await Promise.all([collection.get({ source: "server" }), schedule.get({ source: "server" })]);
-      requireUser();
-      if (existing.docs.some((item) => item.id !== entryId && core.overlaps(record, item.data()))) throw overlapError();
-      const indexed = new Map((guard.exists ? guard.data().entries : []).map((item) => [item.id, item]));
-      for (const item of existing.docs) {
-        if (item.id === entryId) continue;
-        const prior = indexed.get(item.id);
-        const data = item.data();
-        if (!prior || core.timestampMillis(prior.start) !== core.timestampMillis(data.startedAt) || core.timestampMillis(prior.end) !== core.timestampMillis(data.endedAt)) await transact(item.id, null, null, true);
-      }
+      await transact(entryId, record, expectedExists);
+      return;
     }
-    await transact(entryId, record, expectedExists);
+    const write = async () => {
+      if (record) {
+        requireUser();
+        // V1/V2 entries are checked and registered before new writes. A single
+        // sorted reservation list covers intervals of any number of calendar days.
+        const [existing, guard] = await Promise.all([collection.get({ source: "server" }), schedule.get({ source: "server" })]);
+        requireUser();
+        if (existing.docs.some((item) => item.id !== entryId && core.overlaps(record, item.data()))) throw overlapError();
+        const indexed = new Map((guard.exists ? guard.data().entries : []).map((item) => [item.id, item]));
+        for (const item of existing.docs) {
+          if (item.id === entryId) continue;
+          const prior = indexed.get(item.id);
+          const data = item.data();
+          if (!prior || core.timestampMillis(prior.start) !== core.timestampMillis(data.startedAt) || core.timestampMillis(prior.end) !== core.timestampMillis(data.endedAt)) await transact(item.id, null, null, true);
+        }
+      }
+      await transact(entryId, record, expectedExists);
+    };
+    if (!record) return write();
+    // All current writes atomically maintain the reservation document. Legacy
+    // entries need one reconciliation per account session, not on every save.
+    const pending = write();
+    accounts.set(uid, pending);
+    try { await pending; }
+    catch (error) { if (accounts.get(uid) === pending) accounts.delete(uid); throw error; }
   }
-  const api = Object.freeze({ commit });
+  function clearSession(db, uid) { prepared.get(db)?.delete(uid); }
+  const api = Object.freeze({ commit, clearSession });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.WorktimeStore = api;
 })(typeof window === "undefined" ? globalThis : window);

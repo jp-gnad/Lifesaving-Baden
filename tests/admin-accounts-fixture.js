@@ -32,15 +32,24 @@
     }
     records.set(path, result);
   }
-  const collection = (name, prefix = "", maximum = Infinity) => ({
+  const options = new URLSearchParams(window.parent.location.search);
+  if (options.has("many")) for (let index = 0; index < 123; index++) records.set(`users/test-${String(index).padStart(3, "0")}`, {
+    role: "standard", firstName: `Testperson ${index}`, lastName: "Baden", email: `test${index}@example.test`, dlrgBranch: "Baden",
+  });
+  window.fixtureReads = [];
+  const collection = (name, prefix = "", maximum = Infinity, after = null, ids = null) => ({
     doc: (id) => ref(`${name}/${id}`),
-    orderBy: () => collection(name, prefix, maximum),
-    startAt: (value) => collection(name, value, maximum),
-    endAt: () => collection(name, prefix, maximum),
-    limit: (value) => collection(name, prefix, value),
+    orderBy: () => collection(name, prefix, maximum, after, ids),
+    startAt: (value) => collection(name, value, maximum, after, ids),
+    endAt: () => collection(name, prefix, maximum, after, ids),
+    startAfter: (value) => collection(name, prefix, maximum, value, ids),
+    where: (field, op, value) => collection(name, prefix, maximum, after, value),
+    limit: (value) => collection(name, prefix, value, after, ids),
     get: async () => {
+      window.fixtureReads.push({ name, maximum });
       const docs = [...records.keys()].filter((path) => path.startsWith(`${name}/`) && path.split("/").length === 2
-        && (!prefix || records.get(path).searchName.startsWith(prefix))).slice(0, maximum).map(snapshot);
+        && (!prefix || records.get(path).searchName.startsWith(prefix)) && (!after || path.split("/").pop() > after.id)
+        && (!ids || ids.includes(path.split("/").pop()))).sort().slice(0, maximum).map(snapshot);
       return { docs, size: docs.length };
     },
   });
@@ -64,10 +73,11 @@
     ? { uid: previewUid, email: records.get(`users/${previewUid}`).email, displayName: "Vorschau", providerData: [] }
     : { uid: "admin", email: "admin@example.test" } };
   const firestore = () => db;
+  firestore.FieldPath = { documentId: () => "__name__" };
   firestore.FieldValue = { delete: () => "delete-field", serverTimestamp: () => new Date() };
   window.firebase = { apps: [{}], auth: () => auth, firestore };
   document.body.dataset.page = "admin-preview";
-  const response = await fetch("assets/js/auth.js");
+  const response = await fetch("assets/js/auth.js?v=20261120-performance-v2");
   const script = document.createElement("script");
   window.fixtureProfile = records.get(`users/${auth.currentUser.uid}`);
   const initialize = settingsPreview
@@ -76,6 +86,8 @@
   script.textContent = (await response.text()).replace(/\}\)\(\);\s*$/, `${initialize}})();`);
   document.body.append(script);
   document.body.classList.remove("auth-context-loading");
+    document.querySelector("main")?.removeAttribute("inert");
+    document.querySelector("main")?.setAttribute("aria-busy", "false");
   if (!settingsPreview) document.querySelector("[data-admin-accounts]").classList.remove("is-hidden");
   await window.adminPreviewReady;
   document.body.dataset.page = settingsPreview ? "settings" : "admin-accounts";

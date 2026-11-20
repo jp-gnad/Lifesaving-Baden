@@ -109,6 +109,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     dispatchEvent(event) { counts.events.push(event); },
   };
   const context = vm.createContext({ window, document, URL, URLSearchParams,
+    AbortController, setTimeout, clearTimeout,
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
     console: { warn(...args) { counts.warnings.push(args); } }, FormData: class {
     constructor(form) { this.form = form; }
@@ -118,6 +119,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/clubs-store.js"), context);
   vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
+  vm.runInContext(source("assets/js/collection-pages.js"), context);
+  vm.runInContext(source("assets/js/admin-notifications.js"), context);
   vm.runInContext(source("assets/js/admin-accounts.js"), context);
   vm.runInContext(source("timer/core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
@@ -1179,7 +1182,7 @@ test("standalone launch reveals its branding together and covers the landing pag
       assert.equal(classes.has("app-launching"), true);
       assert.equal(classes.has("app-launch-minimum"), false);
     }
-    vm.runInContext(source("assets/js/auth.js"), h.context);
+    vm.runInContext(source("assets/js/landing.js"), h.context);
     assert.deepEqual(replacements, []);
     await h.callbacks.auth?.(user);
 
@@ -1436,7 +1439,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { saveProfileField, openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1822,9 +1825,11 @@ test("admin badge uses count-only queries, combines both pending request formats
   await assert.rejects(functions.countAdminNotifications(user));
 });
 
-test("admin badge hides at zero and refreshes after returning to the member page", async () => {
+test("admin badge coalesces rapid visibility events and refreshes after its short reuse window", async () => {
   const h = harness({ user: { uid: "admin", getIdToken: async () => "synthetic-token" } });
   const functions = memberFunctions(h);
+  let clockNow = 1_000_000;
+  h.context.Date = class extends Date { static now() { return clockNow; } };
   let count = 0;
   const attributes = new Map();
   const app = { setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) };
@@ -1836,10 +1841,14 @@ test("admin badge hides at zero and refreshes after returning to the member page
   assert.equal(badge.hidden, true);
   count = 1;
   await h.callbacks.pageshow();
+  assert.equal(badge.textContent, "0", "rapid pageshow must reuse a just completed count");
+  clockNow += 15_000;
+  await h.callbacks.pageshow();
   assert.equal(badge.textContent, "2");
   assert.equal(badge.hidden, false);
   assert.match(attributes.get("aria-label"), /2 offene/);
   h.context.fetch = async () => ({ ok: false });
+  clockNow += 15_000;
   await h.callbacks.pageshow();
   assert.equal(badge.textContent, "2");
   assert.match(app.title, /nicht geladen/);
@@ -1863,7 +1872,7 @@ test("admin search combines name, email, branch, person ID and current role with
     input.value = query;
     functions.filterAdminAccounts();
     assert.deepEqual(cards.map((card) => card.hidden), [false, true]);
-    assert.equal(summary.textContent, "1 von 2 Konten gefunden.");
+    assert.equal(summary.textContent, "1 von 2 geladenen Konten gefunden.");
   }
   input.value = "unbekannt";
   functions.filterAdminAccounts();
@@ -2979,4 +2988,37 @@ test("a session change during a settings request neither writes nor updates the 
   await submitting;
   assert.equal(h.message.textContent, "Neue Sitzung");
   assert.equal(h.counts.writes.length, 0);
+});
+
+test("profile fields appear immediately and roll back a failed save without claiming server confirmation", async () => {
+  const stored = { firstName: "Anna", lastName: "Test", displayName: "Anna Test", dlrgBranch: "Baden", birthDate: "2000-01-01", gender: "weiblich" };
+  const h = harness({ user: { uid: "profile", displayName: "Anna Test", emailVerified: true }, stored });
+  const functions = memberFunctions(h);
+  functions.writeUserDocCache("profile", stored);
+  const attributes = new Map(), editor = { dataset: { activeField: "dlrgBranch" }, classList: { add() {} }, setAttribute() {} };
+  const form = { dataset: {}, elements: Object.fromEntries(Object.entries(stored).map(([key, value]) => [key, { value }])) };
+  const value = { dataset: { profileValue: "dlrgBranch" }, textContent: "Baden" }, message = { classList: { toggle() {} } };
+  const list = { setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) };
+  const button = { dataset: {}, innerHTML: "Speichern" };
+  h.document.querySelector = (selector) => ({
+    "[data-profile-editor]": editor, "[data-profile-edit-save]": button,
+    '[name="profileFieldValue"]': { value: "Neue Gliederung", reportValidity: () => true },
+    "[data-profile-field-list]": list, "[data-profile-message]": message,
+  })[selector] || null;
+  h.document.querySelectorAll = (selector) => selector === "[data-profile-value]" ? [value] : [];
+  const gate = deferred(); h.auth.currentUser.reload = () => gate.promise;
+  const pending = functions.saveProfileField({ preventDefault() {} }, h.auth, form);
+  assert.equal(value.textContent, "Neue Gliederung");
+  assert.equal(editor.hidden, true);
+  assert.equal(attributes.get("aria-busy"), "true");
+  assert.equal(attributes.has("inert"), true);
+  gate.resolve();
+  // Refuse the subsequent transaction, simulating a permission/network failure.
+  h.window.firebase.firestore().runTransaction = async () => { throw Object.assign(new Error("offline"), { code: "unavailable" }); };
+  await pending;
+  assert.equal(form.elements.dlrgBranch.value, "Baden");
+  assert.equal(value.textContent, "Baden");
+  assert.equal(attributes.get("aria-busy"), "false");
+  assert.equal(attributes.has("inert"), false);
+  assert.match(message.textContent, /nicht erreichbar/);
 });

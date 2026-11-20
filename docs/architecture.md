@@ -9,9 +9,9 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 
 | Einstieg | Aufgabe | Zuständige Module |
 |---|---|---|
-| `index.html` | Öffentliche Startseite und Weiterleitung bestehender Sitzungen | `auth-core.js`, `auth.js`, `nav.js`, `header.js` |
+| `index.html` | Öffentliche Startseite und Weiterleitung bestehender Sitzungen | `auth-core.js`, `landing.js`, `nav.js`, `header.js` |
 | `login.html` | Anmeldung, Registrierung, Verifikation und Passwort-Reset | `auth-core.js`, `login.js`, `google-handoff.js`, `login-background.js` |
-| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-accounts.js`, `clubs-notifications.js`, `dashboard-header.js` |
+| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-notifications.js`, `clubs-notifications.js`, `dashboard-header.js` |
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
@@ -28,6 +28,47 @@ verfügbare Breite an und reagiert auf Profiltext, Fenstergröße und geladene S
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.
+
+Die öffentliche Startseite lädt keine Kontenverwaltungsoberfläche. `admin-accounts.js`
+gehört ausschließlich zu `admin-accounts.html`; `admin-notifications.js` enthält die
+kleinen Zählabfragen für die Mitgliederübersicht. Rasch aufeinanderfolgende
+Sichtbarkeitsereignisse verwenden einen erfolgreichen Zählerstand 15 Sekunden weiter.
+Eigene HTTP-Aggregationsabfragen brechen nach zehn Sekunden ab.
+
+`collection-pages.js` hält konten-/ansichtsgebundene Cursor, laufende Abfragen und
+kurzlebige Suchergebnisse. Die Kontenliste startet mit 50 Dokumenten und lädt weitere
+Seiten ausdrücklich nach. Die Suche filtert geladene Konten; „Alle Konten durchsuchen“
+durchläuft bei Bedarf die übrigen Seiten. Änderungen lesen nur das betroffene Konto
+neu. Unveränderte Karten und geöffnete Editoren bleiben erhalten. Personenreservierungen
+werden für die höchstens zehn Suchtreffer gemeinsam gelesen; die Schreibtransaktion
+prüft die Zuordnung weiterhin unabhängig von der Anzeige.
+
+Die Gliederungsübersicht verwendet einen Listener für die aktuelle Seite mit höchstens
+50 Dokumenten. Konten für die Verantwortlichenauswahl werden erst beim Öffnen eines
+Bearbeitungsdialogs in begrenzten Seiten geladen, das Gliederungsverzeichnis nur beim
+Erstellen. Der frühere automatische Ersatzscan des gesamten Personenverzeichnisses
+entfällt; neue Gliederungsnamen lassen sich weiterhin manuell eingeben. Altbestände
+werden beim Anzeigen ihrer Seite mit dem bestehenden Store migriert.
+
+`club-profile-feed.js` gruppiert Profillistener für Admins in Gruppen von höchstens
+zehn IDs. Trainer behalten die bestehenden Einzelzugriffe; ihre Listenberechtigung
+wird nicht erweitert. Identische Profildaten erzeugen keine neue Darstellung,
+gleichzeitig eintreffende Änderungen werden zusammengefasst. Clubkader und
+Gliederungskarten verwenden unveränderte DOM-Elemente weiter.
+
+`club-roster-state.js` projiziert ausstehende Imports, Entfernungen, Aktivjahre und
+Nachweise auf den Clubkader. Erst passende Serversnapshots lösen bestätigte Projektionen
+ab; Fehler nehmen die jeweilige Projektion zurück. Ausstehende Personen sind als solche
+gekennzeichnet und werden nicht parallel erneut bearbeitet oder vor ihrer Bestätigung
+in eine neue Eventauswahl übernommen. Der Zustand endet beim
+Club-/Kontowechsel und ist keine zusätzliche dauerhafte Offline-Warteschlange.
+Profilfelder in den Einstellungen zeigen ebenfalls sofort den Entwurf und sperren
+weitere Änderungen bis zur Bestätigung; fehlgeschlagene Feldänderungen werden zurückgenommen.
+
+Arbeitszeiten gleichen Altbestände beim ersten erfolgreichen Speichern je Kontositzung
+ab. Weitere Saves verwenden die transaktionale Reservierung ohne erneute Vollabfrage.
+Fehler verwerfen die Vorbereitung, Kontowechsel leeren sie. Jede Änderung liest weiterhin
+die aktuelle Reservierung in einer Transaktion; die Statistik behält vollständige Summen.
 
 Die gemeinsame Anmeldung lädt auch das Firestore-SDK, um neue E-Mail-Profile vor
 dem Versand der Bestätigungsmail mit Vor- und Nachnamen zu speichern.
@@ -76,6 +117,7 @@ Rollenänderung. Die tatsächliche Zuordnung bleibt ein separater Adminvorgang.
 | `timer/participant-store.js` | `TimerParticipantStore`: Identitätsschlüssel, Migration und atomare Teilnehmeränderungen. |
 | `timer/offline-store.js` | `TimerOfflineStore`: pending Ergebnisse in IndexedDB lesen/schreiben/löschen. Bestätigt Schreibvorgänge erst nach Transaktionsabschluss. |
 | `timer/results-pdf.js` | `TimerResultsPdf.create(...)`: PDF-Ausgabe und optionales Eventbild. |
+| `timer/lazy-assets.js` | Gemeinsamer, wiederholbarer Skriptabruf für Personenansicht und PDF-Modul mit Zeitlimit. Beide Dateien bleiben für Offline-Nutzung im Precache. |
 | `timer/sw.js` | App-Hülle und Offline-Dateiversionen, ohne Firestore-Datenzugriffe. |
 
 Die Disziplin-Definitionen werden von Oberfläche und Firestore-Adapter gemeinsam
@@ -271,6 +313,11 @@ begrenzten Seiten, filtern/sortieren anschließend die vollständige gewählte G
 und erzeugen bei Ladefehlern kein unvollständiges PDF. Auch das Löschen eines Events
 durchläuft alle Ergebnisseiten. Seitenabfragen sind keine gemeinsame Momentaufnahme
 über mehrere Anfragen; gleichzeitige Neuanlagen können einen erneuten Export erfordern.
+
+Die Personenansicht wird erst auf ihrer Route initialisiert, das PDF-Modul erst bei
+einem Exportklick. PDF-Ergebnisse und das optionale Bild laden anschließend parallel.
+Alle Bildversuche teilen ein Zeitbudget von acht Sekunden; ohne Bild bleibt der
+vollständige Export möglich. Erfolgreiche kleine PDF-Bilder werden begrenzt wiederverwendet.
 
 ## Wartungs- und Testcode
 

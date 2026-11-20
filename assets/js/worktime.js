@@ -298,6 +298,7 @@
     subscribe();
   }
   function stop() {
+    if (user?.uid) window.WorktimeStore.clearSession(window.firebase.firestore(), user.uid);
     generation += 1;
     sessionId += 1;
     unsubscribe?.();
