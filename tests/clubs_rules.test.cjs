@@ -418,6 +418,47 @@ test("an unlinked responsible account merges into its database person without du
   assert.equal(roster.docs[0].data().rescueSilver.toDate().getUTCFullYear(), 2026);
 });
 
+test("admins can link an unlinked organizer who is already the sole club manager", { skip: !enabled }, async () => {
+  const uid = "unlinked-organizer";
+  const account = { role: "organizer", displayName: "Organisator", adminReviewPending: true };
+  await seed({ [`users/${uid}`]: account, [`clubProfiles/${uid}`]: core.profile(account) });
+  const id = await create("Organisator verknüpfen", uid);
+  const admin = compat(dbFor("admin"));
+  const year = new Date().getUTCFullYear();
+  await store.setActive(admin, id, `account_${uid}`, year, true, api());
+  const proof = sdk.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+  await store.saveDates(admin, id, `account_${uid}`, { rescueSilver: proof }, api());
+  await succeeds(links.commit(admin, uid, p1, { uid: "admin" }, api().FieldValue));
+  await succeeds(store.syncResponsibleMemberships(admin, uid, api()));
+  const club = (await sdk.getDoc(sdk.doc(dbFor("admin"), `clubs/${id}`))).data();
+  const linked = (await sdk.getDoc(sdk.doc(dbFor("admin"), `users/${uid}`))).data();
+  const member = (await sdk.getDoc(rosterRef(dbFor("admin"), id, `account_${uid}`))).data();
+  assert.deepEqual(club.managerIds, [uid]);
+  assert.equal(linked.role, "organizer");
+  assert.equal(linked.personLink.id, p1);
+  assert.equal(linked.adminReviewPending, false);
+  assert.deepEqual((await sdk.getDoc(sdk.doc(dbFor("admin"), `personAccountLinks/${p1}`))).data(), { uid });
+  assert.equal(member.personId, p1);
+  assert.deepEqual(member.activeYears, [year]);
+  assert.equal(member.rescueSilver.isEqual(proof), true);
+});
+
+test("linking a responsible organizer tolerates legacy non-text account birth dates", { skip: !enabled }, async () => {
+  const uid = "legacy-organizer";
+  await seed({ [`users/${uid}`]: { role: "organizer", displayName: "Organisator" } });
+  const id = await create("Altes Organisatorkonto", uid);
+  const admin = compat(dbFor("admin"));
+  for (const birthDate of [null, sdk.Timestamp.fromDate(new Date("1990-01-01T00:00:00Z"))]) {
+    // Owner profile writes permit these older formats. Linking must use the
+    // selected directory person's birth year, without parsing the old value.
+    await succeeds(sdk.updateDoc(sdk.doc(dbFor(uid), `users/${uid}`), { birthDate }));
+    await succeeds(links.commit(admin, uid, p1, { uid: "admin" }, api().FieldValue));
+    await succeeds(store.syncResponsibleMemberships(admin, uid, api()));
+    assert.equal((await sdk.getDoc(rosterRef(dbFor("admin"), id, `account_${uid}`))).data().birthYear, person("Person").birthYear);
+    await succeeds(links.commit(admin, uid, null, { uid: "admin" }, api().FieldValue));
+  }
+});
+
 test("demoting or deleting a linked manager retains their person and evidence in the club", { skip: !enabled }, async () => {
   const id = await create("Person bleibt", "b");
   const admin = compat(dbFor("admin"));
@@ -554,6 +595,49 @@ test("the last organizer cannot leave or forge an orphan alert without beginning
   await fails(batch.commit());
   await assert.rejects(store.prepareAccountChange(compat(dbFor("admin")), "o", api()), { code: "clubs/last-manager" });
   assert.equal((await sdk.getDoc(sdk.doc(db, "users/o"))).data().accountDeletionStartedAt, undefined);
+});
+
+test("removing an organizer's responsibility allows linking and reassignment without starting account deletion", { skip: !enabled }, async () => {
+  const uid = "ordinary-organizer";
+  const account = { role: "organizer", displayName: "Organisator" };
+  await seed({ [`users/${uid}`]: account });
+  const id = await create("Verantwortung wechseln", uid);
+  await assign(id, "a");
+  const adminDb = dbFor("admin"), admin = compat(adminDb);
+  const year = new Date().getUTCFullYear();
+  await store.setActive(admin, id, `account_${uid}`, year, true, api());
+  await succeeds(store.removePerson(admin, id, `account_${uid}`, api(), () => {}, true));
+  assert.deepEqual((await sdk.getDoc(sdk.doc(adminDb, `users/${uid}`))).data(), account);
+  assert.deepEqual((await sdk.getDoc(sdk.doc(adminDb, `clubs/${id}`))).data().managerIds, ["a"]);
+  await succeeds(links.commit(admin, uid, p1, { uid: "admin" }, api().FieldValue));
+  await succeeds(assign(id, uid));
+  const restored = (await sdk.getDoc(sdk.doc(adminDb, `users/${uid}`))).data();
+  assert.equal(restored.accountDeletionStartedAt, undefined);
+  assert.equal(restored.role, "organizer");
+  assert.equal(restored.personLink.id, p1);
+  assert.deepEqual((await sdk.getDoc(rosterRef(adminDb, id, `account_${uid}`))).data().activeYears, [year]);
+  assert.deepEqual((await sdk.getDoc(sdk.doc(adminDb, `clubs/${id}`))).data().managerIds, ["a", uid]);
+});
+
+test("a deletion marker blocks admin linking and reassignment until an out-of-band correction", { skip: !enabled }, async () => {
+  const uid = "marked-organizer";
+  await seed({ [`users/${uid}`]: { role: "organizer", displayName: "Organisator", accountDeletionStartedAt: sdk.Timestamp.now() } });
+  const id = await create("Markiertes Konto", "a");
+  const adminDb = dbFor("admin"), admin = compat(adminDb);
+  await assert.rejects(assign(id, uid), { code: "clubs/account-deleting" });
+  await fails(links.commit(admin, uid, p1, { uid: "admin" }, api().FieldValue));
+  // Neither the owner nor an admin browser may undo an actual deletion flow.
+  for (const db of [dbFor(uid), adminDb]) {
+    await fails(sdk.updateDoc(sdk.doc(db, `users/${uid}`), { accountDeletionStartedAt: sdk.deleteField() }));
+  }
+  // Simulate a targeted Console/Admin SDK repair of a confirmed false marker.
+  await env.withSecurityRulesDisabled(async context => {
+    await sdk.updateDoc(sdk.doc(context.firestore(), `users/${uid}`), { accountDeletionStartedAt: sdk.deleteField() });
+  });
+  await succeeds(links.commit(admin, uid, p1, { uid: "admin" }, api().FieldValue));
+  await succeeds(assign(id, uid));
+  assert.equal((await sdk.getDoc(sdk.doc(adminDb, `users/${uid}`))).data().personLink.id, p1);
+  assert.equal((await sdk.getDoc(rosterRef(adminDb, id, `account_${uid}`))).data().personId, p1);
 });
 
 test("deleting the sole organizer preserves the database member and evidence and alerts admins until reassigned", { skip: !enabled }, async () => {

@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "assets/js/login-background.js"), "utf8");
 
 test("all three photos can be selected under root and GitHub project URLs", () => {
-  const files = ["auth-pool.webp", "auth-rescue.webp", "auth-competition.webp"];
+  const files = ["auth-pool.jpg", "auth-rescue.webp", "auth-competition.jpg"];
   for (const base of ["https://example.test/", "https://jp-gnad.github.io/Lifesaving-Baden/"]) {
     for (let index = 0; index < files.length; index += 1) {
       const properties = new Map();
@@ -29,14 +29,19 @@ test("all three photos can be selected under root and GitHub project URLs", () =
   }
 });
 
-test("mobile login selects a smaller photograph without changing its aspect ratio", () => {
-  for (const small of [false, true]) {
+test("mobile login uses the original JPEGs and the small rescue WebP", () => {
+  const photos = [
+    ["auth-pool.jpg", 2048 / 1365],
+    ["auth-rescue-small.webp", 3500 / 2262],
+    ["auth-competition.jpg", 3500 / 2368],
+  ];
+  for (const [index, [filename, ratio]] of photos.entries()) {
     const properties = new Map();
-    vm.runInNewContext(source, { URL, Math: { floor: Math.floor, random: () => 0 },
-      window: { matchMedia: () => ({ matches: small }) },
+    vm.runInNewContext(source, { URL, Math: { floor: Math.floor, random: () => (index + 0.5) / photos.length },
+      window: { matchMedia: () => ({ matches: true }) },
       document: { currentScript: { src: "https://example.test/repo/assets/js/login-background.js" },
         documentElement: { style: { setProperty: (name, value) => properties.set(name, value) } } } });
-    assert.match(properties.get("--login-background-image"), small ? /auth-pool-small\.webp/ : /auth-pool\.webp/);
-    assert.equal(Number(properties.get("--login-background-ratio")), 2048 / 1365);
+    assert.equal(properties.get("--login-background-image"), `url("https://example.test/repo/assets/img/${filename}")`);
+    assert.equal(Number(properties.get("--login-background-ratio")), ratio);
   }
 });

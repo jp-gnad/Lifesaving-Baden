@@ -6,8 +6,10 @@ Firebase Authentication und Firestore speichern die geschützten Konten- und
 Fachdaten. Der Browser lädt HTML, CSS und JavaScript direkt; es gibt keinen
 Produktions-Build und keinen eigenen Node-Server.
 
-Start-/Loginbilder verwenden größenangepasste WebP-Dateien. Verwaltungslisten laden
-in begrenzten Seiten; die Kontensuche kann ausdrücklich die übrigen Seiten durchsuchen.
+Startbilder und das Loginfoto `auth-rescue` verwenden größenangepasste WebP-Dateien.
+Die Loginfotos `auth-pool` und `auth-competition` verwenden die JPEG-Originale.
+Verwaltungslisten laden in begrenzten Seiten; die Kontensuche kann ausdrücklich
+die übrigen Seiten durchsuchen.
 Personen- und PDF-Module des Timers laden bei Bedarf und bleiben offline verfügbar.
 Diese Optimierungen benötigen keine zusätzlichen Dienste, Tarife oder Regel-/Indexdeploys.
 
@@ -595,6 +597,22 @@ ohne Ersatz verlassen werden.
 Verantwortliche können selbst austreten, wenn eine weitere verantwortliche Person
 bleibt. Die Admin-App kann Verantwortung entziehen, ohne Mitgliedschaft,
 Aktivjahre oder Nachweise zu löschen.
+
+Die Meldung „Die Kontolöschung wurde bereits begonnen“ bedeutet, dass am
+Kontodokument `users/{uid}` ein `accountDeletionStartedAt` gespeichert ist. Sie
+belegt keine abgeschlossene Firebase-Auth-Löschung. Der Marker sperrt auch
+Personenverknüpfungen und neue Clubverantwortung. Normales Entziehen einer
+Verantwortung setzt ihn nicht. Im Browser kann er absichtlich nicht aufgehoben
+werden, damit eine echte Kontolöschung keine gewöhnliche Austrittsprüfung umgeht.
+Ist die Vormerkung nachweislich falsch und soll das bestehende Konto erhalten
+bleiben, im Projekt `lifesaving-baden` unter **Firestore Database → Daten → users**
+das betroffene Konto anhand seiner UID/E-Mail prüfen und ausschließlich das Feld
+`accountDeletionStartedAt` löschen. Das Kontodokument und der Auth-Nutzer bleiben
+erhalten. Danach die Web-App neu laden und Verantwortung beziehungsweise
+Personenverknüpfung erneut zuweisen. Bereits entfernte Zuständigkeiten werden
+dabei nicht automatisch wiederhergestellt. Eine solche gezielte Console-/Admin-
+SDK-Datenkorrektur benötigt keine gelockerten Firestore-Regeln und keinen Tarifwechsel.
+
 Beim Löschen wird ein Club zuerst gesperrt, danach werden die Zuordnungen
 entfernt. Ein unterbrochenes Löschen kann in der Admin-App fortgesetzt werden.
 
@@ -711,6 +729,13 @@ Arbeitsspeicher und ohne Firebase-Verbindung. Über den lokalen HTTP-Server läs
 sich damit auch die mobile Darstellung prüfen; die Testdaten werden nicht gespeichert.
 
 ## Firestore-Regeln veröffentlichen
+
+Die Regeln für Personenverknüpfungen tolerieren ältere Konto-Geburtsdaten mit
+Nullwert oder anderem Feldtyp. Zuvor konnte die Aktualisierung des Clubprofils
+dadurch auch für Admins mit `permission-denied` scheitern. Nach Veröffentlichung
+der korrigierten Regeln kann die Verknüpfung erneut gespeichert werden; Rolle,
+Gliederungszuständigkeiten und bestehende Nachweise bleiben erhalten. Eine
+Datenmigration oder neue Browserdateien sind für diese Regelkorrektur nicht nötig.
 
 Neue Registrierungen über die Website erhalten den Marker `adminReviewPending`.
 Die roten Zähler auf der Konten-App und an Personenboxen zeigen neue Konten an;

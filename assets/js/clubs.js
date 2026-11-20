@@ -96,9 +96,11 @@
     list.replaceChildren(node("p", "wt-empty", "Clubs werden geladen …"));
     list.setAttribute("aria-busy", "true");
     if (!adminPage) {
-      byId("club-choice").replaceChildren();
-      byId("club-choice").disabled = true;
-      byId("se-import-open").disabled = true;
+      tab = "people";
+      updateClubNavigation();
+      byId("club-tabs").hidden = true;
+      byId("club-overview").hidden = true;
+      byId("se-import-open").hidden = true;
       byId("se-summary").hidden = true;
       byId("se-season-switch").disabled = true;
       byId("se-season-current").checked = true;
@@ -129,44 +131,73 @@
         .where("responsibilityVersion", "==", 2).where("status", "==", "active");
     owner.stops.push(query.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
       if (!active(owner) || snapshot.metadata.fromCache) return;
-      owner.clubs = new Map(snapshot.docs.filter((doc) => doc.data().status === "active").map((doc) => [doc.id, { id: doc.id, ...doc.data() }]));
-      const choice = byId("club-choice");
-      const clubs = [...owner.clubs.values()].sort((a, b) => collator.compare(a.name, b.name));
-      choice.replaceChildren(...clubs.map((club) => { const option = node("option", "", club.name); option.value = club.id; return option; }));
-      choice.disabled = !clubs.length;
+      const clubs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((club) => club.status === "active").sort((a, b) => collator.compare(a.name, b.name));
+      owner.clubs = new Map(clubs.map((club) => [club.id, club]));
       const requested = new URLSearchParams(window.location.search).get("club");
       const id = owner.clubs.has(owner.clubId) ? owner.clubId : owner.clubs.has(requested) ? requested : clubs[0]?.id || "";
-      choice.value = id;
       if (id !== owner.clubId || !owner.loaded) selectClub(owner, id);
       else {
-        byId("club-leave").hidden = !owner.clubs.get(id).managerIds.includes(owner.uid);
+        updateClubNavigation(owner);
         render(owner);
       }
     }, () => {
       if (!active(owner)) return;
-      clearView(owner);
+      owner.clubs.clear();
+      selectClub(owner, "");
       list.replaceChildren(node("p", "wt-empty", "Clubs sind für dieses Konto nicht verfügbar. Bitte aktualisiere die Seite."));
-      byId("se-import-open").disabled = true;
-      byId("club-choice").disabled = true;
     }));
     owner.clock = window.setInterval(refreshDay, 30_000);
+  }
+
+  function updateClubNavigation(owner) {
+    const current = owner?.clubs.get(owner.clubId);
+    const hasChoices = Boolean(current && owner.clubs.size > 1);
+    byId("club-title").textContent = current?.name || "Club-Verwaltung";
+    byId("club-switch-name").textContent = current?.name || "";
+    byId("club-switch").hidden = !hasChoices;
+    byId("club-sidebar").hidden = !hasChoices;
+    const dialog = byId("club-switch-dialog");
+    if (!hasChoices && dialog.open) dialog.close();
+    for (const menu of [byId("club-sidebar"), byId("club-switch-list")]) {
+      const existing = new Map(Array.from(menu.children, (button) => [button.dataset.clubId, button]));
+      const buttons = hasChoices ? Array.from(owner.clubs.values(), (club) => {
+        let button = existing.get(club.id);
+        if (!button) {
+          button = node("button", "club-choice-item");
+          button.type = "button";
+          button.dataset.clubId = club.id;
+          button.addEventListener("click", () => {
+            if (!active(owner) || !owner.clubs.has(club.id)) return;
+            if (dialog.open) dialog.close();
+            if (club.id !== owner.clubId) selectClub(owner, club.id);
+          });
+        }
+        if (button.textContent !== club.name) button.textContent = club.name;
+        if (club.id === current.id) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+        return button;
+      }) : [];
+      syncChildren(menu, buttons);
+    }
   }
 
   function selectClub(owner, id) {
     clearView(owner);
     owner.clubId = id;
     message();
-    byId("se-import-open").disabled = !id;
-    byId("se-season-switch").disabled = !id;
-    byId("se-summary").hidden = true;
-    byId("club-leave").hidden = !id || !owner.clubs.get(id).managerIds.includes(owner.uid);
-    document.querySelectorAll("[data-club-tab]").forEach((button) => { button.disabled = !id; });
+    updateClubNavigation(owner);
+    byId("club-tabs").hidden = !id;
+    byId("se-import-open").hidden = !id || tab !== "people";
+    byId("se-import-open").disabled = true;
+    byId("club-overview").hidden = true;
     if (!id) {
       list.replaceChildren(node("p", "wt-empty", "Noch keiner Gliederung zugeordnet."));
       list.setAttribute("aria-busy", "false");
       return;
     }
     list.replaceChildren(node("p", "wt-empty", "Personen werden geladen …"));
+    list.setAttribute("aria-busy", "true");
     const view = owner.view;
     owner.rosterStop = owner.db.collection("clubs").doc(id).collection("people").onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
       if (!active(owner, view) || snapshot.metadata.fromCache) return;
@@ -177,7 +208,9 @@
     }, () => {
       if (!active(owner, view)) return;
       clearView(owner);
+      render(owner);
       list.replaceChildren(node("p", "wt-empty", "Personen konnten nicht geladen werden. Bitte aktualisiere die Seite."));
+      list.setAttribute("aria-busy", "false");
     });
   }
 
@@ -229,7 +262,7 @@
   const signature = (value) => JSON.stringify(value, (key, item) => typeof item?.toMillis === "function" ? item.toMillis() : item);
 
   function render(owner = session) {
-    if (!active(owner) || adminPage) return;
+    if (!active(owner) || adminPage || !owner.clubId) return;
     const day = eligibility.today();
     owner.day = day;
     byId("se-year-current").textContent = eligibility.seasonYear(day);
@@ -239,11 +272,12 @@
       else button.removeAttribute("aria-current");
     });
     byId("se-import-open").hidden = tab !== "people";
-    byId("se-summary").hidden = tab !== "eligibility";
-    byId("club-event-add").hidden = tab !== "events";
-    byId("club-overview").hidden = false;
-    byId("se-season-switch").hidden = tab === "events";
+    byId("se-import-open").disabled = !owner.loaded;
+    byId("se-summary").hidden = true;
+    byId("se-season-switch").hidden = tab !== "eligibility";
+    byId("se-season-switch").disabled = !owner.loaded;
     if (tab !== "events") eventView.stop();
+    byId("club-overview").hidden = tab === "people" || !owner.loaded;
     if (!owner.loaded) return;
     if (tab === "events") { eventView.render(owner); return; }
     const nextSeason = byId("se-season-next").checked;
@@ -736,7 +770,12 @@
       } finally { controls.forEach((control) => { control.disabled = false; }); createState(); }
     });
   } else {
-    byId("club-choice").addEventListener("change", () => { if (active(session)) selectClub(session, byId("club-choice").value); });
+    byId("club-switch").addEventListener("click", () => {
+      if (!active(session) || session.clubs.size < 2) return;
+      byId("club-switch-dialog").showModal();
+      byId("club-switch-list").querySelector('[aria-current="true"]')?.focus();
+    });
+    byId("club-switch-close").addEventListener("click", () => byId("club-switch-dialog").close());
     document.querySelectorAll("[data-club-tab]").forEach((button) => button.addEventListener("click", () => { tab = button.dataset.clubTab; render(); }));
     byId("se-season-switch").addEventListener("change", () => render());
     byId("se-import-open").addEventListener("click", () => { resetSearch(); byId("se-import-dialog").showModal(); byId("se-search").focus(); });
@@ -755,11 +794,6 @@
       }
     });
     byId("club-person-remove").addEventListener("click", () => { if (active(session) && selectedPerson) removeSelected(session, selectedPerson); });
-    byId("club-leave").addEventListener("click", () => {
-      if (!active(session)) return;
-      const person = peopleFor(session).find((person) => person.accountUid === session.uid);
-      if (person) removeSelected(session, person);
-    });
     window.addEventListener("focus", refreshDay);
     document.addEventListener("visibilitychange", refreshDay);
   }

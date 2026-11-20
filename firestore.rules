@@ -958,7 +958,10 @@ service cloud.firestore {
       let person = account.get("personLink", {});
       let role = accountRoleRank(account, false);
       let birthDate = account.get("birthDate", "");
-      let birthYear = birthDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') ? int(birthDate.split('-')[0]) : null;
+      // Legacy optional dates may be null or non-text. The linked directory
+      // person remains authoritative; only ISO text supplies a fallback year.
+      let birthYear = birthDate is string && birthDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        ? int(birthDate.split('-')[0]) : null;
       return data.keys().hasOnly(["role", "personId", "name", "birthYear", "organization", "gender"])
         && (!data.keys().hasAny(["gender"]) || data.gender == person.get("gender", account.get("gender", "") == "maennlich" ? "m" : account.get("gender", "") == "weiblich" ? "w" : ""))
         && data.role == (role == 5 ? "admin" : role == 4 ? "organizer" : role == 3 ? "trainer" : role == 2 ? "athlete" : "standard")

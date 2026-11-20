@@ -25,6 +25,12 @@
   den zugehörigen Datensätzen atomar geändert werden. Parallelzugriffe sind Teil
   des unterstützten Verhaltens und werden mit Emulator-Tests geprüft.
 
+Beim Abgleich eines Clubprofils liefert die verknüpfte Verzeichnis-Person das
+Geburtsjahr. Ein optionales Konto-`birthDate` wird nur als ISO-Text ausgewertet;
+ältere Nullwerte oder andere Feldtypen dürfen die Admin-Verknüpfung nicht blockieren.
+Ohne Verknüpfung ergeben solche Werte wie im Browserprofil kein Geburtsjahr.
+Die korrigierten Regeln müssen veröffentlicht werden; eine Datenmigration ist nicht nötig.
+
 Eine letzte Clubverantwortung darf nur bei begonnener Kontolöschung entfallen.
 Der unveränderliche Kontomarker `accountDeletionStartedAt` entzieht die bisherigen
 Rollenrechte und ist kein austauschbarer Austrittsparameter. Danach erlauben die
@@ -34,6 +40,14 @@ Verantwortliche muss `needsResponsible: true` tragen. Das Kennzeichen kann nicht
 unabhängig von der Verantwortlichenliste geändert werden. Die verknüpfte
 DB-Person, Aktivjahre und clubbezogene Nachweise bleiben bei der Kontolöschung
 erhalten. Der Admin-Zähler verwendet nur die gefilterte Menge offener Clubmeldungen.
+
+Normales Entziehen einer Verantwortung setzt keinen Kontolöschmarker. Ein
+vorhandener Marker sperrt auch Admin-Verknüpfungen und erneute Verantwortungszuweisungen,
+selbst wenn der Auth-Nutzer noch besteht. Für eine nachweislich falsche Vormerkung
+ist eine gezielte Datenkorrektur außerhalb der Browserregeln nötig, ausschließlich
+am betroffenen Kontodokument. Den Marker nicht beim Zuweisen automatisch entfernen
+und echte Löschabläufe nicht durch eine allgemeine Rücknahmeberechtigung aufheben.
+Die konkrete Console-Reparatur steht im [README](../README.md).
 
 ## Nicht vertrauenswürdige Eingaben
 

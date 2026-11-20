@@ -98,6 +98,8 @@ Nach Start des lokalen HTTP-Servers:
 - `tests/account_checklist.browser.html`: Profilfortschritt, Kontozähler und Hinweise im Einstellungsmenü mit lokalen Profilständen bei Desktop, 390 und 320 px; kurze/lange Namen und konstante Headerhöhe bei abgeschlossener Einrichtung.
 - `tests/worktime.browser.html`: Arbeitszeiten.
 - `tests/club_teams.browser.html`: Club-Events, Erstellung und Mannschaftsbearbeitung mit lokalen Daten; Desktop, 390 und 320 px. Der bestehende Fixture-Pfad bleibt erhalten.
+  `?multi=1` öffnet die Personenansicht mit drei Clubs und prüft die Clubauswahl
+  im Desktopmenü und über den Clubtitel auf dem Handy.
   Mit `?delay=15000` verzögert die Fixture jeden simulierten Servervorgang um 15 Sekunden.
   `&persist=1` bewahrt zusätzlich die simulierten Server-Events für einen Neuladetest
   im Sitzungsspeicher auf. Damit lassen sich sofortige Anzeige und Wiederaufnahme prüfen.

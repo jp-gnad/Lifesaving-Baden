@@ -4001,7 +4001,7 @@ body[data-page="login"] .auth-privacy a {
     border-radius: 2px;
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)),
-      var(--login-background-image, url("../img/auth-pool.webp")) center / cover no-repeat;
+      var(--login-background-image, url("../img/auth-pool.jpg")) center / cover no-repeat;
   }
 }
 
@@ -4031,7 +4031,7 @@ body[data-page="login"] .auth-privacy a {
     /* Keep the photo scale independent of the scrollable form height. */
     background:
       linear-gradient(rgba(15, 15, 18, 0.2), rgba(15, 15, 18, 0.2)) center top / 100% 100% no-repeat local,
-      var(--login-background-image, url("../img/auth-pool.webp")) center top / max(100vw, calc(100dvh * var(--login-background-ratio, 1.5))) auto no-repeat local;
+      var(--login-background-image, url("../img/auth-pool.jpg")) center top / max(100vw, calc(100dvh * var(--login-background-ratio, 1.5))) auto no-repeat local;
   }
 
   body[data-page="login"] .auth-panel {
@@ -4129,7 +4129,6 @@ body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight:
   :root {
     --hero-swimmer-image: url("../img/hero-swimmer-small.webp");
     --training-rescue-image: url("../img/training-rescue-small.webp");
-    --login-background-image: url("../img/auth-pool-small.webp");
   }
 }
 

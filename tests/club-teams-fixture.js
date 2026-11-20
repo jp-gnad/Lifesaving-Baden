@@ -15,6 +15,11 @@
   const now = timestamp(new Date(`${year}-01-01T00:00:00Z`));
   const publish = () => queueMicrotask(() => listeners.forEach((listener) => listener()));
   records.set(`clubs/${clubId}`, { name: "DLRG Musterstadt", managerIds: [uid], responsibilityVersion: 2, status: "active", createdAt: now, updatedAt: now });
+  if (options.has("multi") && !admin) {
+    for (const [id, name] of [["fixture-south", "DLRG Südstadt"], ["fixture-valley", "DLRG Ortsgruppe Oberes Murgtal und Umgebung"]]) {
+      records.set(`clubs/${id}`, { ...records.get(`clubs/${clubId}`), name });
+    }
+  }
   const names = ["Anna Keller", "Clara Wagner", "Emma Fischer", "Lena Schulz", "Ben Schneider", "Emil Weber", "Jonas Becker", "Paul Hoffmann", "Mia Schäfer", "Sophie Koch", "Lea Zimmermann", "Finn Braun", "Alexandra Müller-Lüdenscheidt"];
   const people = names.map((name, index) => ({
     id: `person-${index}`, personId: `person-${index}`, accountUid: "", name, birthYear: year - (index < 4 ? 14 : index < 8 ? 16 : index === 12 ? 18 : 12),
@@ -118,6 +123,6 @@
   if (admin) window.LifesavingClubsAdmin.start({ currentUser: { uid } }, { uid }, { isAdmin: true });
   else {
     window.LifesavingClubs.start({ currentUser: { uid } }, { uid }, { isAdmin: false });
-    document.querySelector('[data-club-tab="events"]').click();
+    if (!options.has("multi")) document.querySelector('[data-club-tab="events"]').click();
   }
 })();

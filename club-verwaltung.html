@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261120-soft-dashboard-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261119-compact-events-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261120-club-layout-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -40,7 +40,7 @@
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-profile-feed.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-roster-state.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261120-performance-v2"></script>
+    <script defer src="assets/js/clubs.js?v=20261120-club-layout-v1"></script>
     <script defer src="assets/js/auth.js?v=20261120-soft-dashboard-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="clubs">
@@ -63,59 +63,71 @@
       </nav>
     </header>
 
-    <main class="wt-main se-main">
+    <main class="wt-main se-main club-main">
       <p class="form-message" data-auth-error role="alert" hidden></p>
       <p class="wt-message" id="club-message" role="status" hidden></p>
-      <div id="se-content" hidden>
-        <section class="wt-heading">
-          <div class="wt-app-title"><img src="assets/img/clubs-app.svg" alt=""><div><p class="eyebrow">Mein Club</p><h1>Club-Verwaltung</h1></div></div>
-          <button class="button se-primary se-import" id="se-import-open" type="button" aria-label="Person importieren" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Importieren</span></button>
-        </section>
-        <div class="club-toolbar">
-          <label class="club-picker"><span class="wt-sr-only">Gliederung wählen</span><select id="club-choice" disabled></select></label>
-          <button class="wt-icon-button" id="club-leave" type="button" aria-label="Club verlassen" title="Club verlassen" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H4v14h5m6-14 5 7-5 7m-7-7h12"/></svg></button>
-        </div>
-        <nav class="wt-tabs club-tabs" aria-label="Clubbereiche">
-          <button type="button" data-club-tab="people" aria-current="page">Personen</button>
-          <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
-          <button type="button" data-club-tab="events">Events</button>
-        </nav>
-        <div class="se-overview" id="club-overview">
-          <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
-            <label>
-              <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
-              <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
-            </label>
-            <label>
-              <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
-              <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
-            </label>
-          </fieldset>
-          <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Eventansicht wählen" hidden>
-            <label><input class="wt-sr-only" type="radio" id="club-event-period-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
-            <label><input class="wt-sr-only" type="radio" id="club-event-period-past" name="club-event-period" value="past"><span>Vergangene</span></label>
-          </fieldset>
-          <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
-          <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
-            <div class="se-stage" data-stage="3">
-              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
-              <strong id="se-total-3">0</strong>
-            </div>
-            <div class="se-stage" data-stage="2">
-              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/></svg><span class="se-stage-label">Läuft ab</span></span>
-              <strong id="se-total-2">0</strong>
-            </div>
-            <div class="se-stage" data-stage="1">
-              <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><span class="se-stage-label">Bis Jahresende</span></span>
-              <strong id="se-total-1">0</strong>
+      <div class="club-shell" id="se-content" hidden>
+        <nav class="club-sidebar club-choice-list" id="club-sidebar" aria-label="Clubs" hidden></nav>
+        <div class="club-workspace">
+          <header class="club-heading">
+            <h1>
+              <span id="club-title">Club-Verwaltung</span>
+              <button class="club-switch" id="club-switch" type="button" aria-haspopup="dialog" aria-controls="club-switch-dialog" hidden>
+                <span id="club-switch-name"></span><span class="wt-sr-only"> – Club wechseln</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </h1>
+            <button class="wt-icon-button club-import" id="se-import-open" type="button" aria-label="Person importieren" title="Person importieren" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </header>
+          <nav class="wt-tabs club-tabs" id="club-tabs" aria-label="Clubbereiche" hidden>
+            <button type="button" data-club-tab="people" aria-current="page">Personen</button>
+            <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
+            <button type="button" data-club-tab="events">Events</button>
+          </nav>
+          <div class="se-overview club-overview" id="club-overview" hidden>
+            <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
+              <label>
+                <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
+                <span><span class="wt-sr-only">Aktuelle Saison </span><span id="se-year-current"></span></span>
+              </label>
+              <label>
+                <input class="wt-sr-only" type="radio" id="se-season-next" name="se-season">
+                <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
+              </label>
+            </fieldset>
+            <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Eventansicht wählen" hidden>
+              <label><input class="wt-sr-only" type="radio" id="club-event-period-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
+              <label><input class="wt-sr-only" type="radio" id="club-event-period-past" name="club-event-period" value="past"><span>Vergangene</span></label>
+            </fieldset>
+            <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
+            <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
+              <div class="se-stage" data-stage="3">
+                <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
+                <strong id="se-total-3">0</strong>
+              </div>
+              <div class="se-stage" data-stage="2">
+                <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/></svg><span class="se-stage-label">Läuft ab</span></span>
+                <strong id="se-total-2">0</strong>
+              </div>
+              <div class="se-stage" data-stage="1">
+                <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><span class="se-stage-label">Bis Jahresende</span></span>
+                <strong id="se-total-1">0</strong>
+              </div>
             </div>
           </div>
+          <div id="se-list" aria-busy="true"><p class="wt-empty" role="status">Clubs werden geladen …</p></div>
         </div>
-        <div id="se-list" aria-busy="true"><p class="wt-empty" role="status">Clubs werden geladen …</p></div>
       </div>
     </main>
 
     <footer class="site-footer"><span class="footer-brand"><img class="moose-icon" src="assets/img/elch-gelb.png" alt="">Lifesaving Baden</span><nav class="footer-links" aria-label="Fußnavigation"><a href="impressum.html">Impressum</a><a href="datenschutz.html">Datenschutz</a></nav></footer>
+
+    <dialog class="wt-dialog se-dialog club-switch-dialog" id="club-switch-dialog" aria-labelledby="club-switch-title">
+      <div class="wt-dialog-heading"><h2 id="club-switch-title">Club wechseln</h2><button class="wt-icon-button" id="club-switch-close" type="button" aria-label="Schließen">×</button></div>
+      <div class="club-choice-list" id="club-switch-list"></div>
+    </dialog>
 
     <dialog class="wt-dialog se-dialog" id="se-import-dialog" aria-labelledby="se-import-title">
       <div class="wt-dialog-heading"><h2 id="se-import-title">Person importieren</h2><button class="wt-icon-button" type="button" data-se-close aria-label="Schließen">×</button></div>
