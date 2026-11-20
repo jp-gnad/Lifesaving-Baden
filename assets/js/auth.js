@@ -11,9 +11,10 @@
     getDefaultAccountRole, getAccountRole, isAdminAccount,
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
+  const memberViewCache = window.LifesavingMemberViewCache?.create({ getStorage: () => window.sessionStorage });
   const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
-    initAdminAccounts, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, filterAdminAccounts
+    initAdminAccounts, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, acknowledgeNewAccount, filterAdminAccounts
   } = window.LifesavingAdminAccounts?.create({
     updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
   }) || {};
@@ -152,6 +153,8 @@
   async function loadFreshUserContext(user) {
     const { userData, claims } = await loadUserContext(user);
     const data = await withRetry(() => synchronizeUserDocument(user, userData));
+    requireCurrentUser(user);
+    memberViewCache?.write(user.uid, data, getAccountRole(data, claims).value);
     return { userData: data, claims };
   }
 
@@ -229,6 +232,8 @@
 
     activeUserDocCache = entry;
 
+    memberViewCache?.updateProfile(uid, data);
+
     try {
       window.sessionStorage?.setItem(getUserDocCacheKey(uid), JSON.stringify(entry));
     } catch (error) {
@@ -250,6 +255,7 @@
   }
 
   function clearUserDocCache(uid) {
+    if (uid) memberViewCache?.clear(uid);
     if (!uid || activeUserDocCache?.uid === uid) {
       activeUserDocCache = null;
     }
@@ -267,6 +273,7 @@
 
   function clearAllUserDocCaches() {
     activeUserDocCache = null;
+    memberViewCache?.clearAll();
 
     try {
       const storage = window.sessionStorage;
@@ -551,6 +558,31 @@
     let settingsLoadedForUser = null;
     let bootstrapPromise = null;
     let bootstrapUid = null;
+    let displayedUid = null;
+
+    function showCachedDashboard(user) {
+      if (page !== "app" || !user?.emailVerified || !isCurrentUser(user) || window.LifesavingAppLaunch?.active) return;
+      const cached = memberViewCache?.read(user.uid);
+      if (!cached) return;
+      updateAccountProfile(user, cached.profile);
+      updateRoleUi(getAccountRole({ role: cached.role }));
+      updateLinkStatusUi(cached.profile);
+      displayedUid = user.uid;
+      document.body.classList.remove("auth-context-loading");
+      document.querySelector("main")?.removeAttribute?.("inert");
+      document.querySelector("main")?.setAttribute?.("aria-busy", "false");
+    }
+
+    function resetDashboard(user) {
+      if (page !== "app") return;
+      displayedUid = null;
+      document.body.classList.add("auth-context-loading");
+      document.querySelector("main")?.setAttribute?.("inert", "");
+      document.querySelector("main")?.setAttribute?.("aria-busy", "true");
+      updateRoleUi(getDefaultAccountRole());
+      updateLinkStatusUi(null);
+      updateAccountProfile(user || { providerData: [] });
+    }
 
     accountOpenButton?.addEventListener("click", () => openAccountModal());
     accountCloseButton?.addEventListener("click", () => closeAccountModal());
@@ -615,6 +647,7 @@
           updateAccountProfile(activeUser);
           fillAccountManagementForms(activeUser);
           updateRoleUi(role);
+          if (page === "app") displayedUid = activeUser.uid;
           await Promise.all([initAccountManagement(auth, userData), initUserSettings(auth, userData)]);
           if (!isCurrentUser(activeUser)) return;
           const initializers = [initLinkStatus, initLinkManagement, initAdminStatus];
@@ -645,6 +678,13 @@
         await pending;
       } catch (error) {
         if (!isCurrentUser(user)) return;
+        if (["auth/user-disabled", "auth/user-not-found", "auth/user-token-expired", "auth/invalid-user-token"].includes(error?.code)) {
+          clearAllUserDocCaches();
+          resetDashboard();
+          await auth.signOut();
+          redirectToLogin();
+          return;
+        }
         console.warn("Kontodaten konnten nicht geladen werden.", error);
         settingsLoadedForUser = null;
         document.body.classList.remove("auth-context-loading");
@@ -668,7 +708,13 @@
       }
     }
 
-    auth.onAuthStateChanged((user) => {
+    function handleAuthState(user) {
+      if (user && !isCurrentUser(user)) return;
+      if (!user) clearAllUserDocCaches();
+      if (page === "app") {
+        if (displayedUid && displayedUid !== user?.uid) resetDashboard(user);
+        if (user && !displayedUid) showCachedDashboard(user);
+      }
       if (page === "settings" && (!user || isCurrentUser(user))) {
         // Counts are only a display hint; roles and form values still load fresh.
         updateAccountChecklist(user ? readUserDocCache(user.uid) : null);
@@ -684,6 +730,12 @@
       initializeSignedInUser(user).catch((error) => {
         console.warn("Firebase-Konto konnte nicht initialisiert werden.", error);
       });
+    }
+    auth.onAuthStateChanged(handleAuthState);
+    window.addEventListener("pageshow", (event) => {
+      if (page !== "app" || !event.persisted) return;
+      settingsLoadedForUser = null;
+      handleAuthState(auth.currentUser);
     });
 
     logoutButtons.forEach((button) => button.addEventListener("click", async () => {
@@ -727,13 +779,13 @@
     });
   }
 
-  function getAccountName(user) {
-    const cachedData = user?.uid ? readUserDocCache(user.uid) : null;
+  function getAccountName(user, data) {
+    const cachedData = data || (user?.uid ? readUserDocCache(user.uid) : null);
     return getNameDetailsFromData(cachedData, user).displayName;
   }
 
-  function getInitials(user) {
-    const source = getAccountName(user);
+  function getInitials(user, data) {
+    const source = getAccountName(user, data);
     const parts = source.replace(/[^a-z0-9]+/gi, " ").trim().split(/\s+/).filter(Boolean);
 
     if (!parts.length) {
@@ -747,7 +799,7 @@
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }
 
-  function updateAvatar(photoSelector, initialsSelector, user) {
+  function updateAvatar(photoSelector, initialsSelector, user, data) {
     const photos = Array.from(document.querySelectorAll(photoSelector));
     const initialsList = Array.from(document.querySelectorAll(initialsSelector));
 
@@ -771,13 +823,13 @@
 
       photo.removeAttribute("src");
       photo.classList.add("is-hidden");
-      initials.textContent = getInitials(user);
+      initials.textContent = getInitials(user, data);
       initials.classList.remove("is-hidden");
     });
   }
 
-  function updateAccountProfile(user) {
-    const accountName = getAccountName(user);
+  function updateAccountProfile(user, data) {
+    const accountName = getAccountName(user, data);
     const googleEmail = getGoogleEmail(user);
     const passwordEmail = hasProvider(user, "password") ? user.email || "" : "";
     const separateEmails = Boolean(googleEmail && passwordEmail && passwordEmail.toLowerCase() !== googleEmail.toLowerCase());
@@ -792,8 +844,8 @@
     setTextForAll("[data-user-name-separator]", accountName ? "," : "");
     setTextForAll("[data-user-name]", accountName);
     setTextForAll("[data-link-account-email]", user.email || "Keine E-Mail geladen.");
-    updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user);
-    updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user);
+    updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user, data);
+    updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user, data);
   }
 
   function updateSignInEmailRow(provider, email, separateEmails) {

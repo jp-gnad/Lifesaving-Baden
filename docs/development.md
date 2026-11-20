@@ -50,6 +50,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 |---|---|
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
 | Startbild, Bereitschaft und Übergabe an den Mitgliederbereich | `app_launch.test.cjs`, `auth_flow.test.cjs`, `member_bootstrap.browser.html?launch=1&delay=5000`; Fehlerfall zusätzlich `&fail=1` |
+| Schnelle Rückkehr zur Mitgliederübersicht und Vorschau ohne Berechtigungswirkung | `member_view_cache.test.cjs`, `auth_flow.test.cjs`, Emulator-Suites |
 | Timer-Domäne, PDF, Offline-Speicher | `timer_modules.test.cjs`, `event_overview.test.cjs` |
 | Bahnlängenabhängige 100 m Hindernis und weitere Disziplinen | `timer_modules.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
 | Eigene Disziplinennamen je Event und Rundenzahl | `timer_custom_disciplines.test.cjs`, `timer_import.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
@@ -117,6 +118,10 @@ Die statischen Menü-Piktogramme der Kontoeinstellungen bleiben dabei sichtbar.
 `member_bootstrap.browser.html?page=account-settings.html&width=390&delay=10000&cached=1`
 prüft mit den tatsächlichen Einstiegsskripten sofortige Menüzähler aus dem Sitzungscache
 und deren spätere Aktualisierung. Ohne `cached=1` bleiben unbekannte Zähler zunächst leer.
+`member_bootstrap.browser.html?preview=1&width=390&delay=10000&role=standard`
+prüft die sofortige Rückkehr mit einer vorherigen Admin-Ansicht und deren Korrektur
+nach dem Hintergrundabgleich. `&fresh=1` ohne `preview=1` prüft einen Cache-Miss;
+`&launch=1` prüft, dass das Startlogo trotz Vorschau auf frische Daten wartet.
 Bei neuen Bildern unterhalb des anfänglich sichtbaren Bereichs an `loading="lazy"`
 denken; sofort sichtbare Start-/Loginbilder früh laden.
 

@@ -1574,7 +1574,7 @@ body.auth-context-loading [data-account-open] {
 .admin-account-card.is-athlete-account { --account-color: #ffed00; --account-glow: rgba(255, 237, 0, 0.05); }
 .admin-account-card.is-trainer-account { --account-color: #35cc80; --account-glow: rgba(28, 191, 105, 0.06); }
 .admin-account-card.is-editing { border-top-color: var(--account-color); }
-.admin-account-notification { position: absolute; top: -6px; right: -6px; z-index: 2; display: grid; place-items: center; width: 21px; height: 21px; border: 2px solid #15151b; border-radius: 50%; background: #e33042; color: #fff; font-size: 0.7rem; font-weight: 650; line-height: 1; pointer-events: none; }
+.admin-account-notification { position: absolute; top: -7px; right: -7px; z-index: 2; display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid var(--bg); border-radius: 50%; background: #ff3b30; color: #fff; font-size: 12px; font-weight: 400; line-height: 1; pointer-events: none; }
 
 .admin-account-summary {
   display: grid;
@@ -1600,7 +1600,6 @@ body.auth-context-loading [data-account-open] {
 .admin-account-profile .admin-account-person-name { color: var(--account-color); }
 .admin-account-club, .admin-account-email, .admin-account-unlinked { color: var(--muted); font-size: 0.76rem; line-height: 1.3; overflow-wrap: anywhere; }
 .admin-account-email { color: #b9b9c7; font-size: 0.72rem; }
-.admin-account-alert { display: inline-block; margin-left: 4px; padding: 1px 4px; border-radius: 3px; background: rgba(255, 237, 0, 0.11); color: var(--primary); font-size: 0.6rem; line-height: 1.3; letter-spacing: 0; }
 
 .admin-account-editor { margin: 0 10px; padding: 9px 0 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
 .admin-account-editor-toolbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 5px; }
@@ -1631,7 +1630,6 @@ body.auth-context-loading [data-account-open] {
   .admin-account-email { font-size: 0.67rem; }
   .admin-account-columns { gap: 9px; padding: 0 9px 0 12px; font-size: 0.65rem; }
   .admin-account-columns > span:last-child { padding-left: 9px; }
-  .admin-account-alert { font-size: 0.55rem; }
 }
 
 .admin-account-field {
@@ -4025,7 +4023,8 @@ body.auth-context-loading[data-page="settings"] [data-settings-loading] {
 }
 body.auth-context-loading .member-app-icon,
 body.auth-context-loading .profile-field-icon,
-body.auth-context-loading [data-profile-value] {
+body.auth-context-loading [data-profile-value],
+body.auth-context-loading [data-sign-in-email-value] {
   position: relative;
   color: transparent;
   background: #202126;
@@ -4033,7 +4032,7 @@ body.auth-context-loading [data-profile-value] {
 body.auth-context-loading :is(.member-app-icon, .profile-field-icon) > * {
   visibility: hidden;
 }
-body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value])::after {
+body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value], [data-sign-in-email-value])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -4043,7 +4042,7 @@ body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profi
 }
 @keyframes skeleton-pulse { from { opacity: .2; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value])::after { animation: none; }
+  body.auth-context-loading :is(.member-app-icon, .profile-field-icon, [data-profile-value], [data-sign-in-email-value])::after { animation: none; }
 }
 .list-more {
   justify-self: center;

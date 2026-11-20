@@ -31,9 +31,23 @@ die Zielseite entfernt den Marker sofort. Manifest-ID und Start-URL bleiben erha
 Bereitschaft. Danach wartet das Startbild auf Dokument, Schriften, sichtbare lokale
 Bilder und zwei Darstellungsframes. Es entstehen keine zusätzlichen Datenbankabfragen.
 Die Mindestanzeige von 650 ms gibt die Oberfläche niemals vorzeitig frei; nach
-15 Sekunden erscheint lediglich ein Hinweis mit Wiederholungsmöglichkeit.
+fünf Sekunden erscheint ein Hinweis mit Wiederholungsmöglichkeit. Auch früh
+gemeldete Fehler erscheinen frühestens nach diesen fünf Sekunden; ein vorher
+erfolgreicher Start verwirft den ausstehenden Hinweis.
 Fehler behalten das Startbild und denselben Wiederholungsweg. Normale Seitennavigation
 und Neuladen ohne Marker verwenden weiterhin den bisherigen Seitenstart.
+Für Rückkehrer stellt `member-view-cache.js` einen getrennten, höchstens 30 Minuten
+alten Sitzungsschnappschuss bereit: Name, Profilfortschritt und effektive Rolle aus
+dem letzten erfolgreichen Profil-/Claims-Abgleich. Erst nach Erkennen desselben
+bestätigten Firebase-Kontos zeigt `auth.js` diese Übersicht ohne wartende Skeletons.
+Der unveränderte frische Abgleich läuft im Hintergrund und korrigiert die Anzeige.
+Die Vorschau startet keine Admin-Listener oder Fachmodule und befüllt weder
+Formulare noch den geschäftlich genutzten Profilcache. Änderungen am Profil
+aktualisieren die Vorschau, verlängern aber nicht die Gültigkeit der geprüften Rolle.
+Abmeldung löscht den Cache; Kontowechsel entfernen die bisherige Darstellung,
+gesperrte/ungültige Sitzungen melden sich ab. Nach Wiederherstellung aus dem
+Browser-Verlauf (`pageshow.persisted`) erfolgt ebenfalls ein Hintergrundabgleich.
+Der kalte App-Start mit Logo wartet weiterhin auf die frischen Daten.
 `dashboard-header.js` passt die Namensschrift im Dashboard und Kontofenster an die
 verfügbare Breite an und reagiert auf Profiltext, Fenstergröße und geladene Schriften.
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
@@ -45,6 +59,15 @@ gehört ausschließlich zu `admin-accounts.html`; `admin-notifications.js` enth�
 kleinen Zählabfragen für die Mitgliederübersicht. Rasch aufeinanderfolgende
 Sichtbarkeitsereignisse verwenden einen erfolgreichen Zählerstand 15 Sekunden weiter.
 Eigene HTTP-Aggregationsabfragen brechen nach zehn Sekunden ab.
+`account-notifications-core.js` definiert dieselbe Zählung für App-Symbol und
+Personenboxen. `auth-core.js` legt neue Kontoprofile mit `adminReviewPending: true`
+an, auch beim Erfassen des Namens vor der E-Mail-Bestätigung. Bereits vorhandene
+Profile erhalten keine nachträgliche Neumeldung. Neues Konto und offener
+Verknüpfungsantrag bilden gemeinsam eine Meldung; ein Verknüpfungsfehler zählt
+separat. Die erste der weiterhin zwei Zählabfragen verwendet dafür eine OR-Abfrage
+über Neumarker und beide bisherigen Antragsformate, ohne Kontodokumente zu laden.
+Admins markieren die Neumeldung ausdrücklich als gesehen; Bearbeitung eines
+Verknüpfungsantrags erledigt den Neumarker in derselben Transaktion.
 
 Die gemeinsame Darstellung von Kontotyp und Rollenfarben gehört zu `auth.js` und
 funktioniert ohne das Admin-Modul. `admin-accounts.js` erhält dieselben Darstellungs-

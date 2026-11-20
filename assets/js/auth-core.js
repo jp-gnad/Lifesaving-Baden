@@ -81,6 +81,7 @@
       providerIds: (user.providerData || []).map((provider) => provider.providerId),
       role: "standard", keepPersonalDataUntilRevoked: true, privateProfile: false, publicProfile: true,
       accountSetupRequired: false,
+      adminReviewPending: true,
     };
   }
 

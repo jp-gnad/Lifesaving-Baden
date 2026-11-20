@@ -109,6 +109,7 @@ service cloud.firestore {
         "kader",
         "isKaderAthlete",
         "personLinkDecision",
+        "adminReviewPending",
         "accountDeletionStartedAt"
       ])
       && (!changedKeys.hasAny(["personLink"]) || validOwnerUnlink(changedKeys))
@@ -225,7 +226,9 @@ service cloud.firestore {
           "isKaderAthlete"
         ])
         && !request.resource.data.keys().hasAny(["personLink", "linkedPersonId", "personId", "personLinked", "personLinkDecision"])
-        && request.resource.data.get("personLinkStatus", "open") != "linked";
+        && request.resource.data.get("personLinkStatus", "open") != "linked"
+        && (!request.resource.data.keys().hasAny(["adminReviewPending"])
+          || request.resource.data.adminReviewPending == true);
     }
 
     function adminKeepsAdminGrantSafe(uid) {
@@ -251,6 +254,7 @@ service cloud.firestore {
         "personLinkIdentityHint",
         "personLinkDecision",
         "personLinkIssue",
+        "adminReviewPending",
         "updatedAt"
       ]);
     }
@@ -300,6 +304,12 @@ service cloud.firestore {
           || (isOwner(resource.data.uid) && getAfter(/databases/$(database)/documents/users/$(resource.data.uid)).data.get("personLink", null) == null));
     }
 
+    function validAdminReviewChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["adminReviewPending"])
+        || (resource.data.get("adminReviewPending", false) == true
+          && request.resource.data.get("adminReviewPending", null) == false);
+    }
+
     match /users/{uid} {
       allow create: if isOwner(uid) && !adminAccount(request.auth.token) && ownerCreatesOnlyStandardAccount();
       allow get: if isOwner(uid) || isAdmin();
@@ -307,7 +317,7 @@ service cloud.firestore {
       allow update: if resource.data.get("accountDeletionStartedAt", null) == null
         && request.resource.data.get("accountDeletionStartedAt", null) == null
         && clubRoleChangeSafe(uid) && ((isOwner(uid) && ownerKeepsProtectedFieldsSafe())
-        || (isAdmin() && validAdminPersonLink(uid) && (adminAccount(resource.data)
+        || (isAdmin() && validAdminReviewChange() && validAdminPersonLink(uid) && (adminAccount(resource.data)
           ? adminUpdatesOnlyPersonLink() : adminKeepsAdminGrantSafe(uid))));
       allow update: if verifiedUser() && isOwner(uid) && !isAdmin()
         && !adminAccount(resource.data) && resource.data.get("accountDeletionStartedAt", null) == null

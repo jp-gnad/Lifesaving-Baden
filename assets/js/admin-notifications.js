@@ -3,11 +3,7 @@
   function create({ isCurrentUser }) {
     async function countAdminNotifications(user) {
       const token = await user.getIdToken();
-      const field = (fieldPath, value) => ({ fieldFilter: { field: { fieldPath }, op: "EQUAL", value: { stringValue: value } } });
-      const filters = [
-        { compositeFilter: { op: "OR", filters: [field("personLinkStatus", "requested"), field("personLinkRequest.status", "requested")] } },
-        field("personLinkIssue.status", "reported")
-      ];
+      const filters = window.LifesavingAccountNotifications.countFilters();
       // Aggregations return counts without downloading the account documents.
       const counts = await Promise.all(filters.map(async (where) => {
         const controller = new AbortController();
@@ -47,7 +43,7 @@
           lastUid = user.uid; lastRefresh = Date.now();
           badge.textContent = String(count);
           badge.hidden = count === 0;
-          app.setAttribute("aria-label", count ? `Kontenübersicht öffnen, ${count} offene Anträge und Meldungen` : "Kontenübersicht öffnen");
+          app.setAttribute("aria-label", count ? `Kontenübersicht öffnen, ${count} offene Meldungen` : "Kontenübersicht öffnen");
           app.removeAttribute("title");
         } catch {
           if (isCurrentUser(user)) app.title = "Benachrichtigungen konnten nicht geladen werden.";

@@ -103,7 +103,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
     location, isFirebaseConfigured: true,
     firebaseConfig: { authDomain: "lifesaving-baden.firebaseapp.com" },
     firebase: { apps: [{}], auth: firebaseAuth, firestore },
-    sessionStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
+    sessionStorage: { get length() { return storage.size; }, key: (index) => [...storage.keys()][index],
+      getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
     setTimeout(fn, delay) { counts.delays.push(delay); queueMicrotask(fn); },
     addEventListener(type, fn) { callbacks[type] = fn; },
     dispatchEvent(event) { counts.events.push(event); },
@@ -119,6 +120,8 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/clubs-store.js"), context);
   vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
+  vm.runInContext(source("assets/js/account-notifications-core.js"), context);
+  vm.runInContext(source("assets/js/member-view-cache.js"), context);
   vm.runInContext(source("assets/js/collection-pages.js"), context);
   vm.runInContext(source("assets/js/admin-notifications.js"), context);
   if (adminModule) vm.runInContext(source("assets/js/admin-accounts.js"), context);
@@ -1206,7 +1209,7 @@ test("the member page initializes an existing account with one document read and
   const stored = { uid: "u", email: user.email, displayName: user.displayName, firstName: "Anna", lastName: "Baden", emailVerified: true, providerIds: ["password"], role: "sportler" };
   const h = harness({ url: "https://example.test/club/app.html", user, stored });
   h.document.body.dataset.page = "app";
-  h.document.body.classList = { remove() {} };
+  h.document.body.classList = { add() {}, remove() {} };
   const error = h.element("[data-auth-error]");
   error.hidden = true;
   h.document.querySelector = (selector) => selector === "[data-auth-error]" ? error : null;
@@ -1233,7 +1236,7 @@ test("trainer apps open only for trainers and higher and clear data on logout", 
       let stops = 0;
       h.window[api] = { start: () => { starts += 1; }, stop: () => { stops += 1; } };
       h.document.body.dataset.page = page;
-      h.document.body.classList = { remove() {} };
+      h.document.body.classList = { add() {}, remove() {} };
       h.document.querySelector = () => null;
       vm.runInContext(source("assets/js/auth.js"), h.context);
       h.callbacks.auth(user);
@@ -1258,7 +1261,7 @@ test("Mein Training opens for athletes and higher and requires a verified login"
     let visible = false;
     heading.classList.toggle = (name, hidden) => { if (name === "is-hidden") visible = !hidden; };
     h.document.body.dataset.page = "training";
-    h.document.body.classList = { remove() {} };
+    h.document.body.classList = { add() {}, remove() {} };
     h.document.querySelector = () => null;
     h.document.querySelectorAll = (selector) => selector === "[data-athlete-only]" ? [heading] : [];
     vm.runInContext(source("assets/js/auth.js"), h.context);
@@ -1275,7 +1278,7 @@ test("Mein Training opens for athletes and higher and requires a verified login"
   for (const user of [null, { uid: "unverified-training", emailVerified: false }]) {
     const h = harness({ url: "https://example.test/club/mein-training.html", user, stored: { role: "athlete" } });
     h.document.body.dataset.page = "training";
-    h.document.body.classList = { remove() {} };
+    h.document.body.classList = { add() {}, remove() {} };
     h.document.querySelector = () => null;
     vm.runInContext(source("assets/js/auth.js"), h.context);
     h.callbacks.auth(user);
@@ -1287,7 +1290,7 @@ test("Mein Training opens for athletes and higher and requires a verified login"
 test("member initialization reports a permanent database error once", async () => {
   const h = harness({ url: "https://example.test/club/app.html", user: { uid: "u", emailVerified: true }, read: () => { throw { code: "permission-denied" }; } });
   h.document.body.dataset.page = "app";
-  h.document.body.classList = { remove() {} };
+  h.document.body.classList = { add() {}, remove() {} };
   const error = h.element("[data-auth-error]");
   error.hidden = true;
   h.document.querySelector = (selector) => selector === "[data-auth-error]" ? error : null;
@@ -1310,7 +1313,7 @@ test("new and legacy profiles enter member home without mandatory setup", async 
   ]) {
     const h = harness({ url: "https://example.test/club/app.html", user: { uid: "new-uid", emailVerified: true }, stored });
     h.document.body.dataset.page = "app";
-    h.document.body.classList = { remove() {} };
+    h.document.body.classList = { add() {}, remove() {} };
     h.document.querySelector = () => null;
     vm.runInContext(source("assets/js/auth.js"), h.context);
     h.callbacks.auth(h.auth.currentUser);
@@ -1408,7 +1411,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { saveProfileField, openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { saveProfileField, openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, acknowledgeNewAccount, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1496,14 +1499,16 @@ test("admin account cards allow person linking while only other roles expose a r
   const h = harness();
   const functions = memberFunctions(h);
   h.document.createElement = (tagName) => ({
-    tagName, dataset: {}, children: [], classList: { toggle() {} },
+    tagName, dataset: {}, children: [], attributes: {}, classList: { toggle() {} },
     append(...children) { this.children.push(...children); },
-    setAttribute() {},
+    setAttribute(name, value) { this.attributes[name] = value; },
   });
   const all = (element) => [element, ...element.children.flatMap(all)];
   for (const role of ["admin", "organizer", "trainer", "athlete", "standard"]) {
     const card = functions.createAdminAccountCard({ uid: role, data: { role, personLinkStatus: "requested", personLinkRequest: { status: "requested" } } });
     const nodes = all(card);
+    assert.equal(nodes.find((node) => node.className === "admin-account-notification").textContent, "1");
+    assert.equal(nodes.some((node) => node.className === "admin-account-alert"), false);
     const select = nodes.find((node) => node.tagName === "select");
     if (role === "admin") {
       assert.equal(select, undefined);
@@ -1525,6 +1530,27 @@ test("admin account cards allow person linking while only other roles expose a r
   assert.match(issueActions[0].innerHTML, /<svg/);
   assert.equal(issueNodes.filter((node) => node.className === "admin-account-notification").length, 1);
   assert.equal(issueNodes.some((node) => node.className === "admin-account-alert"), false);
+  for (const [data, count] of [
+    [{}, 0],
+    [{ personLinkRequest: { status: "requested" }, personLinkStatus: "requested" }, 1],
+    [{ personLinkIssue: { status: "reported" } }, 1],
+    [{ personLinkRequest: { status: "requested" }, personLinkIssue: { status: "reported" } }, 2],
+    [{ personLinkRequest: { status: "requested" }, personLinkIssue: { status: "resolved" } }, 1],
+    [{ personLinkStatus: "rejected", personLinkIssue: { status: "resolved" } }, 0],
+    [{ adminReviewPending: true }, 1],
+    [{ adminReviewPending: true, personLinkStatus: "requested", personLinkRequest: { status: "requested" } }, 1],
+    [{ adminReviewPending: true, personLinkStatus: "requested", personLinkIssue: { status: "reported" } }, 2],
+  ]) {
+    const card = functions.createAdminAccountCard({ uid: "count-test", data });
+    const notifications = all(card).filter((node) => node.className === "admin-account-notification");
+    assert.equal(notifications.length, count ? 1 : 0);
+    if (count) {
+      assert.equal(notifications[0].textContent, String(count));
+      assert.equal(card.children.includes(notifications[0]), true, "badge belongs to the card corner");
+      assert.equal(notifications[0].attributes.role, "status");
+      assert.match(notifications[0].attributes["aria-label"], /Verknüpfungs|Konto/);
+    }
+  }
 });
 
 test("role editing cannot change roles on admin cards or restore manual person IDs", async () => {
@@ -1540,7 +1566,7 @@ test("role editing cannot change roles on admin cards or restore manual person I
 
 test("rejecting an outdated request cannot overwrite a new person assignment or a withdrawn request", async () => {
   const linked = { personLink: { id: "1234567890abcdef", name: "Anna", birthYear: 1991, gender: "w", organization: "Baden" } };
-  for (const [current, expectedWrites] of [[linked, 0], [{}, 0], [{ personLinkStatus: "requested" }, 1]]) {
+  for (const [current, expectedWrites] of [[linked, 0], [{}, 0], [{ personLinkStatus: "requested" }, 1], [{ adminReviewPending: true, personLinkStatus: "requested" }, 1]]) {
     const h = harness({ user: { uid: "admin" } });
     const functions = memberFunctions(h);
     const writes = [];
@@ -1551,6 +1577,7 @@ test("rejecting an outdated request cannot overwrite a new person assignment or 
     await functions.decideAdminAccountRequest(h.auth, button);
     assert.equal(writes.length, expectedWrites);
     if (writes.length) assert.equal(writes[0].personLinkStatus, "rejected");
+    if (writes.length && current.adminReviewPending) assert.equal(writes[0].adminReviewPending, false);
   }
 });
 
@@ -1760,7 +1787,7 @@ test("profile deep links open the requested editor only after loading, with save
 test("opening the accounts page with a non-admin account returns to member home", async () => {
   const h = harness({ user: { uid: "trainer", emailVerified: true }, stored: { role: "trainer" }, url: "https://example.test/club/admin-accounts.html" });
   h.document.body.dataset.page = "admin-accounts";
-  h.document.body.classList = { remove() {} };
+  h.document.body.classList = { add() {}, remove() {} };
   h.document.querySelector = () => null;
   vm.runInContext(source("assets/js/auth.js"), h.context);
   h.callbacks.auth(h.auth.currentUser);
@@ -1789,7 +1816,8 @@ test("admin badge uses count-only queries, combines both pending request formats
   }
   const pending = JSON.parse(requests[0].body).structuredAggregationQuery.structuredQuery.where.compositeFilter;
   assert.equal(pending.op, "OR");
-  assert.deepEqual(pending.filters.map((filter) => filter.fieldFilter.field.fieldPath), ["personLinkStatus", "personLinkRequest.status"]);
+  assert.deepEqual(pending.filters.map((filter) => filter.fieldFilter.field.fieldPath), ["personLinkStatus", "personLinkRequest.status", "adminReviewPending"]);
+  assert.deepEqual(pending.filters[2].fieldFilter.value, { booleanValue: true });
   h.context.fetch = async () => ({ ok: false });
   await assert.rejects(functions.countAdminNotifications(user));
 });
@@ -2669,6 +2697,37 @@ test("Google seeds only an empty profile and never replaces a saved name or role
     assert.equal(saved.role, stored?.role || "standard");
     assert.equal(saved.firstName, stored?.firstName || "Google");
     assert.equal(h.counts.writes.length, stored ? 0 : 1);
+    if (!stored) assert.equal(h.counts.writes[0].adminReviewPending, true);
+  }
+});
+
+test("email signup and first profile creation mark new accounts without relabeling existing profiles", async () => {
+  for (const providerId of ["password", "google.com"]) {
+    const h = harness({ user: { uid: `new-${providerId}`, emailVerified: true, providerData: [{ providerId }] }, stored: null });
+    await h.core.saveAccountName(h.auth.currentUser, { firstName: "Neu", lastName: "Baden" });
+    assert.equal(h.counts.writes[0].adminReviewPending, true);
+  }
+  const fallback = harness({ user: { uid: "missing-profile", emailVerified: true }, stored: null });
+  await fallback.core.loadUserContext(fallback.auth.currentUser);
+  assert.equal(fallback.counts.writes[0].adminReviewPending, true);
+  const old = harness({ user: { uid: "existing", emailVerified: true }, stored: { firstName: "Alt", role: "standard" } });
+  await old.core.saveAccountName(old.auth.currentUser, { firstName: "Alt", lastName: "Baden" });
+  assert.equal("adminReviewPending" in old.counts.writes[0], false);
+});
+
+test("acknowledging a registration is idempotent and cannot write after the admin session changes", async () => {
+  for (const [data, changeSession, writesExpected] of [[{ adminReviewPending: true }, false, 1],
+    [{ adminReviewPending: false }, false, 0], [{}, false, 0], [{ adminReviewPending: true }, true, 0]]) {
+    const h = harness({ user: { uid: "admin" } }), functions = memberFunctions(h), writes = [];
+    h.window.firebase.firestore().runTransaction = async (action) => action({ get: async () => {
+      if (changeSession) h.auth.currentUser = h.prepareUser({ uid: "other" });
+      return { exists: true, data: () => data };
+    }, update: (_, value) => writes.push(value) });
+    const button = { closest: () => ({ dataset: { targetUid: "new-account" } }) };
+    await functions.acknowledgeNewAccount(h.auth, button);
+    assert.equal(writes.length, writesExpected);
+    if (writes.length) assert.equal(writes[0].adminReviewPending, false);
+    assert.equal(button.disabled, false);
   }
 });
 
@@ -3115,7 +3174,7 @@ test("a failed profile load reports startup failure without claiming splash read
   const h = harness({ url: "https://example.test/club/app.html", user, adminModule: false,
     read: async () => { throw Object.assign(new Error("denied"), { code: "permission-denied" }); } });
   h.document.body.dataset.page = "app";
-  h.document.body.classList = { remove() {} };
+  h.document.body.classList = { add() {}, remove() {} };
   const error = roleUiNode(), main = roleUiNode(); error.textContent = "";
   main.setAttribute("inert", "");
   h.document.querySelector = (selector) => ({ main, "[data-auth-error]": error })[selector] || null;
@@ -3131,7 +3190,7 @@ test("a failed profile load reports startup failure without claiming splash read
 function settingsBadgeBootstrap({ cached, user, read } = {}) {
   const h = harness({ url: "https://example.test/club/account-settings.html", user, read, adminModule: false });
   h.document.body.dataset.page = "settings";
-  h.document.body.classList = { remove() {} };
+  h.document.body.classList = { add() {}, remove() {} };
   h.window.matchMedia = () => ({ matches: false, addEventListener() {} });
   const personal = roleUiNode(), links = roleUiNode(), role = roleUiNode(), main = roleUiNode(), content = roleUiNode(), container = roleUiNode(), error = roleUiNode();
   content.setAttribute("inert", ""); error.textContent = "";
@@ -3207,4 +3266,179 @@ test("a settings load error releases the content's busy state and shows the exis
   assert.equal(h.container.attributes.get("aria-busy"), "false");
   assert.equal(h.main.attributes.has("inert"), false);
   assert.match(h.error.textContent, /Kontodaten konnten nicht geladen werden/);
+});
+
+function dashboardReturnHarness({ cached = true, read, user, token, launch = false } = {}) {
+  const h = harness({ url: "https://example.test/club/app.html", adminModule: false, read, token,
+    user: user || { uid: "return-member", emailVerified: true, email: "anna@example.test" } });
+  h.document.body.dataset.page = "app";
+  const classes = new Set(["auth-context-loading"]);
+  h.document.body.classList = { add: (name) => classes.add(name), remove: (name) => classes.delete(name) };
+  const main = roleUiNode(), role = roleUiNode(), name = roleUiNode(), error = roleUiNode(), admin = roleUiNode();
+  name.textContent = ""; error.textContent = ""; main.setAttribute("inert", ""); admin.classes.add("is-hidden");
+  h.document.querySelector = (selector) => ({ main, "[data-auth-error]": error })[selector] || null;
+  h.document.querySelectorAll = (selector) => ({ "[data-user-name]": [name], "[data-admin-only]": [admin],
+    ".dashboard-header, [data-account-role]": [role], "[data-account-role]": [role] })[selector] || [];
+  const cache = h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage });
+  if (cached) cache.write(h.auth.currentUser.uid, { firstName: "Anna", lastName: "Baden", displayName: "Anna Baden" }, "admin");
+  let adminStarts = 0, clubStarts = 0, readyCalls = 0;
+  h.window.LifesavingAdminNotifications = { create: () => ({ initAdminAccountBadge() { adminStarts++; } }) };
+  h.window.LifesavingClubNotifications = { create: () => ({ start() { clubStarts++; }, stop() {} }) };
+  h.window.LifesavingAppLaunch = { active: launch, hold() {}, fail() {}, async ready(current) { readyCalls++; return current(); } };
+  vm.runInContext(source("assets/js/auth.js"), h.context);
+  return { ...h, cache, classes, main, role, name, error, admin,
+    get adminStarts() { return adminStarts; }, get clubStarts() { return clubStarts; }, get readyCalls() { return readyCalls; } };
+}
+
+test("returning members see their cached dashboard before any reload or query; fresh data corrects role and name", async () => {
+  const reload = deferred(), profile = deferred();
+  const user = { uid: "return-member", emailVerified: true, reload: () => reload.promise };
+  const h = dashboardReturnHarness({ user, read: () => profile.promise });
+  h.callbacks.auth(user);
+  assert.equal(h.role.textContent, "Admin");
+  assert.equal(h.name.textContent, "Anna Baden");
+  assert.equal(h.admin.classes.has("is-hidden"), false);
+  assert.equal(h.main.attributes.has("inert"), false);
+  assert.equal(h.classes.has("auth-context-loading"), false);
+  assert.equal(h.counts.reads, 0);
+  assert.equal(h.adminStarts, 0); assert.equal(h.clubStarts, 0);
+  assert.equal(h.window.sessionStorage.getItem("lifesaving-baden:user-doc:return-member"), undefined,
+    "presentation data must not populate the business/profile cache");
+  reload.resolve(); await new Promise(setImmediate);
+  assert.equal(h.counts.reads, 1);
+  profile.resolve({ exists: true, data: () => ({ role: "standard", firstName: "Neuer", lastName: "Name", displayName: "Neuer Name" }) });
+  await new Promise(setImmediate);
+  assert.equal(h.role.textContent, "Standard");
+  assert.equal(h.name.textContent, "Neuer Name");
+  assert.equal(h.admin.classes.has("is-hidden"), true);
+  assert.equal(h.adminStarts, 0); assert.equal(h.clubStarts, 0);
+  assert.deepEqual(h.counts.tokens, [true]);
+  assert.equal(h.counts.reads, 1);
+  assert.equal(h.counts.warnings.length, 0);
+  assert.equal(h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage }).read(user.uid).role, "standard");
+});
+
+test("checked claim-only roles are saved for navigation and privileged listeners only start after fresh checks", async () => {
+  const gate = deferred();
+  const h = dashboardReturnHarness({ read: () => gate.promise, token: () => ({ claims: { admin: true } }) });
+  h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+  assert.equal(h.adminStarts, 0); assert.equal(h.clubStarts, 0);
+  gate.resolve({ exists: true, data: () => ({ role: "standard", firstName: "Anna", lastName: "Baden" }) });
+  await new Promise(setImmediate);
+  assert.equal(h.role.textContent, "Admin");
+  assert.equal(h.adminStarts, 1); assert.equal(h.clubStarts, 1);
+  const saved = h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage }).read(h.auth.currentUser.uid);
+  assert.equal(saved.role, "admin");
+  assert.equal("role" in saved.profile, false);
+});
+
+test("cold app launches still wait for fresh data even when a dashboard snapshot exists", async () => {
+  const profile = deferred(), h = dashboardReturnHarness({ launch: true, read: () => profile.promise });
+  h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+  assert.equal(h.classes.has("auth-context-loading"), true);
+  assert.equal(h.main.attributes.has("inert"), true);
+  assert.equal(h.name.textContent, ""); assert.equal(h.readyCalls, 0);
+  profile.resolve({ exists: true, data: () => ({ role: "standard" }) }); await new Promise(setImmediate);
+  assert.equal(h.readyCalls, 1);
+  assert.equal(h.role.textContent, "Standard");
+  assert.equal(h.main.attributes.has("inert"), false);
+});
+
+test("unknown sessions wait for fresh data and never guess a member's cached identity", async () => {
+  const profile = deferred(), h = dashboardReturnHarness({ cached: false, read: () => profile.promise });
+  h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+  assert.equal(h.classes.has("auth-context-loading"), true);
+  assert.equal(h.main.attributes.has("inert"), true);
+  assert.equal(h.name.textContent, "");
+  profile.resolve({ exists: true, data: () => ({ role: "trainer" }) }); await new Promise(setImmediate);
+  assert.equal(h.role.textContent, "Trainer");
+  assert.equal(h.main.attributes.has("inert"), false);
+});
+
+test("account changes discard the old dashboard immediately and ignore old responses; logout clears previews", async () => {
+  const old = deferred(), next = deferred();
+  const h = dashboardReturnHarness({ read: (options, count) => count === 1 ? old.promise : next.promise });
+  const first = h.auth.currentUser;
+  h.callbacks.auth(first); await new Promise(setImmediate);
+  const second = h.prepareUser({ uid: "return-second", emailVerified: true, displayName: "Bob" });
+  h.auth.currentUser = second; h.callbacks.auth(second);
+  assert.equal(h.admin.classes.has("is-hidden"), true);
+  assert.equal(h.main.attributes.has("inert"), true);
+  assert.equal(h.classes.has("auth-context-loading"), true);
+  assert.notEqual(h.name.textContent, "Anna Baden");
+  await new Promise(setImmediate);
+  old.resolve({ exists: true, data: () => ({ role: "admin", firstName: "Anna", lastName: "Baden" }) });
+  await new Promise(setImmediate);
+  assert.equal(h.admin.classes.has("is-hidden"), true);
+  next.resolve({ exists: true, data: () => ({ role: "standard", displayName: "Bob" }) }); await new Promise(setImmediate);
+  assert.equal(h.role.textContent, "Standard"); assert.equal(h.name.textContent, "Bob");
+  h.auth.currentUser = null; h.callbacks.auth(null);
+  assert.equal(h.name.textContent, "");
+  assert.equal(h.main.attributes.has("inert"), true);
+  const afterLogout = h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage });
+  assert.equal(afterLogout.read(first.uid), null); assert.equal(afterLogout.read(second.uid), null);
+  assert.equal(h.counts.warnings.length, 0);
+});
+
+test("a background refresh failure keeps navigation usable and reports the error", async () => {
+  const h = dashboardReturnHarness({ read: async () => { throw Object.assign(new Error("offline"), { code: "unavailable" }); } });
+  h.callbacks.auth(h.auth.currentUser);
+  await new Promise(setImmediate); await new Promise(setImmediate);
+  assert.equal(h.name.textContent, "Anna Baden");
+  assert.equal(h.role.textContent, "Admin");
+  assert.equal(h.main.attributes.has("inert"), false);
+  assert.match(h.error.textContent, /Kontodaten konnten nicht geladen werden/);
+  assert.equal(h.adminStarts, 0); assert.equal(h.clubStarts, 0);
+});
+
+test("disabled sessions clear the presentation and sign out instead of keeping a cached dashboard", async () => {
+  const h = dashboardReturnHarness({ user: { uid: "return-member", emailVerified: true,
+    reload: async () => { throw Object.assign(new Error("disabled"), { code: "auth/user-disabled" }); } } });
+  h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+  assert.equal(h.auth.currentUser, null);
+  assert.equal(h.name.textContent, ""); assert.equal(h.role.textContent, "Standard");
+  assert.equal(h.main.attributes.has("inert"), true);
+  assert.equal(h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage }).read("return-member"), null);
+  assert.equal(h.counts.redirects.at(-1), "https://example.test/club/login.html");
+});
+
+test("restored history pages remain visible and recheck in the background, deduplicating repeated restore events", async () => {
+  const refresh = deferred();
+  const h = dashboardReturnHarness({ read: (options, count) => count === 1
+    ? Promise.resolve({ exists: true, data: () => ({ role: "admin", displayName: "Anna Baden" }) }) : refresh.promise });
+  h.callbacks.auth(h.auth.currentUser); await new Promise(setImmediate);
+  assert.equal(h.counts.reads, 1);
+  h.callbacks.pageshow({ persisted: false }); await new Promise(setImmediate);
+  assert.equal(h.counts.reads, 1);
+  h.callbacks.pageshow({ persisted: true }); h.callbacks.pageshow({ persisted: true }); await new Promise(setImmediate);
+  assert.equal(h.main.attributes.has("inert"), false);
+  assert.equal(h.classes.has("auth-context-loading"), false);
+  assert.equal(h.counts.reads, 2);
+  refresh.resolve({ exists: true, data: () => ({ role: "standard", displayName: "Anna Baden" }) }); await new Promise(setImmediate);
+  assert.equal(h.role.textContent, "Standard");
+  assert.equal(h.admin.classes.has("is-hidden"), true);
+  assert.equal(h.counts.warnings.length, 0);
+});
+
+test("presentation snapshots never initialize protected feature pages or fill settings before fresh checks", async () => {
+  for (const [file, page, factory] of [["account-settings", "settings", null], ["club-verwaltung", "clubs", "LifesavingClubs"],
+    ["gliederungen", "gliederungen", "LifesavingClubsAdmin"], ["arbeitszeiten", "worktime", "LifesavingWorktime"]]) {
+    const gate = deferred(), user = { uid: `cached-${page}`, emailVerified: true };
+    const h = harness({ url: `https://example.test/club/${file}.html`, user, adminModule: false, read: () => gate.promise });
+    h.document.body.dataset.page = page;
+    h.document.body.classList = { add() {}, remove() {} };
+    h.document.querySelector = () => null; h.document.querySelectorAll = () => [];
+    h.window.matchMedia = () => ({ matches: false, addEventListener() {} });
+    let starts = 0;
+    if (factory) h.window[factory] = { start() { starts++; }, stop() {} };
+    h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage }).write(user.uid,
+      { firstName: "Cached name", role: "admin" }, "admin");
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(user); await new Promise(setImmediate);
+    assert.equal(starts, 0, page);
+    gate.resolve({ exists: true, data: () => ({ role: "standard" }) }); await new Promise(setImmediate);
+    assert.equal(starts, 0, page);
+    if (factory) assert.equal(h.counts.redirects.at(-1), "https://example.test/club/app.html", page);
+    assert.equal(h.counts.reads, 1); assert.equal(h.counts.warnings.length, 0);
+  }
 });

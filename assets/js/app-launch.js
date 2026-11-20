@@ -4,6 +4,10 @@
   const splash = document.querySelector(".app-launch");
   let active = Boolean(splash && root.classList.contains("app-launching"));
   let generation = 0, shownAt = 0, watchdog;
+  const startedAt = Date.now();
+  const noticeDelay = 5_000;
+  let startupFailed = false;
+  const failureText = "Der Start konnte nicht abgeschlossen werden. Bitte versuche es erneut.";
   const blocked = [];
   const pause = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
   const frame = () => new Promise((resolve) => window.requestAnimationFrame(resolve));
@@ -17,7 +21,7 @@
     window.clearTimeout(watchdog);
     root.classList.remove("app-launching", "app-launch-minimum");
     restore();
-    window.removeEventListener("error", failedResource, true);
+    window.removeEventListener("error", resourceError, true);
   }
   function message(text) {
     if (!active) return;
@@ -25,8 +29,14 @@
     if (retry) retry.hidden = false;
   }
   function failedResource() {
-    window.clearTimeout(watchdog);
-    message("Der Start konnte nicht abgeschlossen werden. Bitte versuche es erneut.");
+    if (!active) return;
+    startupFailed = true;
+    if (Date.now() - startedAt >= noticeDelay) message(failureText);
+  }
+  function resourceError(event) {
+    // Hidden avatar placeholders and optional photos can fail independently of startup.
+    if (event?.target?.tagName === "IMG") return;
+    failedResource();
   }
   let brandReady = Promise.resolve();
   if (active) {
@@ -53,13 +63,14 @@
       shownAt = Date.now();
       content.hidden = false;
     })();
-    watchdog = window.setTimeout(() => message("Das Laden dauert länger. Du kannst weiter warten oder es erneut versuchen."), 15_000);
+    watchdog = window.setTimeout(() => message(startupFailed ? failureText
+      : "Das Laden dauert länger. Du kannst weiter warten oder es erneut versuchen."), noticeDelay);
     retry?.addEventListener("click", () => {
       const url = new URL(window.location.href);
       url.searchParams.set("appLaunch", "1");
       window.location.replace(url.href);
     });
-    window.addEventListener("error", failedResource, true);
+    window.addEventListener("error", resourceError, true);
     window.addEventListener("pagehide", () => { generation += 1; hide(); }, { once: true });
   }
 

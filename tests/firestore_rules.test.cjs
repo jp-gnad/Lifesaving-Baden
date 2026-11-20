@@ -44,6 +44,43 @@ const dbFor = (uid, claims = {}) => uid
   ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore()
   : env.unauthenticatedContext().firestore();
 
+test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {
+  await seed({ "users/notification-admin": { role: "admin", adminReviewPending: true } });
+  const owner = dbFor("notification-new"), ref = sdk.doc(owner, "users/notification-new");
+  await assertSucceeds(sdk.setDoc(ref, { role: "standard", adminReviewPending: true, ...timestampFields() }));
+  for (const value of [false, "true", 1]) {
+    const uid = `invalid-notification-${String(value)}`;
+    await assertFails(sdk.setDoc(sdk.doc(dbFor(uid), `users/${uid}`), { role: "standard", adminReviewPending: value }));
+  }
+  await assertFails(sdk.updateDoc(ref, { adminReviewPending: false }));
+  await assertFails(sdk.updateDoc(ref, { adminReviewPending: sdk.deleteField() }));
+  await assertSucceeds(sdk.updateDoc(ref, { displayName: "Eigener Name" }));
+  const admin = dbFor("notification-admin");
+  await assertSucceeds(sdk.updateDoc(sdk.doc(admin, "users/notification-new"), { adminReviewPending: false, updatedAt: sdk.serverTimestamp() }));
+  await assertFails(sdk.updateDoc(sdk.doc(admin, "users/notification-new"), { adminReviewPending: true }));
+  await assertFails(sdk.updateDoc(ref, { adminReviewPending: true }));
+  await assertSucceeds(sdk.updateDoc(sdk.doc(admin, "users/notification-admin"), { adminReviewPending: false }));
+  // Existing documents and legacy clients can retain the old shape.
+  await assertSucceeds(sdk.setDoc(sdk.doc(dbFor("notification-legacy"), "users/notification-legacy"), { role: "standard" }));
+});
+
+test("admin count queries deduplicate new accounts with requests and remain inaccessible to members", { skip: !enabled }, async () => {
+  await seed({ "users/count-admin": { role: "admin" }, "users/count-member": { role: "standard" },
+    "users/count-new": { adminReviewPending: true },
+    "users/count-new-request": { adminReviewPending: true, personLinkStatus: "requested", personLinkRequest: { status: "requested" } },
+    "users/count-old-request": { personLinkRequest: { status: "requested" } },
+    "users/count-issue": { personLinkIssue: { status: "reported" } },
+    "users/count-both": { adminReviewPending: true, personLinkStatus: "requested", personLinkIssue: { status: "reported" } },
+    "users/count-old": { role: "standard" } });
+  const admin = dbFor("count-admin");
+  const union = (db) => sdk.query(sdk.collection(db, "users"), sdk.or(sdk.where("adminReviewPending", "==", true),
+    sdk.where("personLinkStatus", "==", "requested"), sdk.where("personLinkRequest.status", "==", "requested")));
+  const issue = sdk.query(sdk.collection(admin, "users"), sdk.where("personLinkIssue.status", "==", "reported"));
+  const [accounts, issues] = await Promise.all([sdk.getCountFromServer(union(admin)), sdk.getCountFromServer(issue)]);
+  assert.equal(accounts.data().count, 4); assert.equal(issues.data().count, 2);
+  await assertFails(sdk.getCountFromServer(union(dbFor("count-member"))));
+});
+
 test("named custom disciplines are linked atomically within one event and require matching individual lap counts", { skip: !enabled }, async () => {
   await seed({ "timerEvents/custom-names": event("everyone"), "timerEvents/custom-other": event("everyone"), "timerEvents/custom-private": event("locked") });
   const db = dbFor(null);
@@ -624,6 +661,9 @@ test("settings link requests use saved owner data and remain separate from admin
 
 test("only admins can assign existing people, including to themselves and other admins", { skip: !enabled }, async () => {
   await seedLinks();
+  await env.withSecurityRulesDisabled(async (context) => {
+    await sdk.updateDoc(sdk.doc(context.firestore(), "users/one"), { adminReviewPending: true });
+  });
   for (const uid of ["admin", "other-admin", "one", "two"]) {
     await assertSucceeds(commitLink(dbFor("admin"), uid, personId));
     const profile = (await sdk.getDoc(sdk.doc(dbFor(uid), `users/${uid}`))).data();
@@ -631,6 +671,7 @@ test("only admins can assign existing people, including to themselves and other 
     assert.equal(profile.role, uid.includes("admin") ? "admin" : uid === "one" ? "standard" : "trainer");
     if (uid === "one") assert.equal(profile.displayName, "Eigener Name");
     assert.equal("linkedPersonId" in profile, false);
+    if (uid === "one") assert.equal(profile.adminReviewPending, false);
     await assertSucceeds(commitLink(dbFor("admin"), uid, null));
   }
   for (const [uid, role] of [["one", "standard"], ["two", "trainer"], ["organizer", "organizer"]]) {

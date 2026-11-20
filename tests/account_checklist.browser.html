@@ -46,7 +46,7 @@
         const response = await fetch(view === "settings" ? "../account-settings.html" : "../app.html");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
         page.querySelectorAll("script").forEach((script) => {
-          if (!/assets\/js\/(collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|dashboard-collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
+          if (!/assets\/js\/(account-notifications-core|collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|dashboard-collection-pages|club-profile-feed|club-roster-state|admin-notifications|header|person-link-store|auth-core|admin-accounts)\.js/.test(script.getAttribute("src") || "")) script.remove();
         });
         const base = page.createElement("base");
         base.href = new URL("../", location.href).href;
@@ -61,7 +61,7 @@
           requested: { ...details, personLinkRequest: { status: "requested" } },
           linked: { ...details, personLink: { id: "1234567890abcdef", name: "Anna Baden", birthYear: 2001, gender: "w", organization: "Baden" } },
         };
-        const source = await (await fetch("../assets/js/auth.js?v=20261120-settings-menu-v1")).text();
+        const source = await (await fetch("../assets/js/auth.js?v=20261120-new-account-alerts-v1")).text();
         const fixture = page.createElement("script");
         fixture.defer = true;
         // Inline scripts run before deferred dependencies; wait for DOMContentLoaded.

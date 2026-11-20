@@ -90,6 +90,7 @@
         transaction.delete(db.collection("personAccountLinks").doc(previous.id));
       }
       transaction.update(userRef, {
+        ...(account.data().adminReviewPending === true ? { adminReviewPending: false } : {}),
         personLink: person || fieldValue.delete(),
         linkedPersonId: fieldValue.delete(), personId: fieldValue.delete(), personLinked: fieldValue.delete(),
         personLinkStatus: person ? "linked" : "open",

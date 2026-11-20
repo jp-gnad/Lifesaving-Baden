@@ -33,6 +33,13 @@
     records.set(path, result);
   }
   const options = new URLSearchParams(window.parent.location.search);
+  if (options.has("new")) {
+    records.get("users/member").adminReviewPending = true;
+    records.get("users/ready").adminReviewPending = true;
+  }
+  if (options.has("both")) records.get("users/member").personLinkIssue = {
+    status: "reported", message: "Zusätzliche offene Meldung für die lokale Zählerprüfung."
+  };
   if (options.has("many")) for (let index = 0; index < 123; index++) records.set(`users/test-${String(index).padStart(3, "0")}`, {
     role: "standard", firstName: `Testperson ${index}`, lastName: "Baden", email: `test${index}@example.test`, dlrgBranch: "Baden",
   });
@@ -77,7 +84,7 @@
   firestore.FieldValue = { delete: () => "delete-field", serverTimestamp: () => new Date() };
   window.firebase = { apps: [{}], auth: () => auth, firestore };
   document.body.dataset.page = "admin-preview";
-  const response = await fetch("assets/js/auth.js?v=20261120-settings-menu-v1");
+  const response = await fetch("assets/js/auth.js?v=20261120-new-account-alerts-v1");
   const script = document.createElement("script");
   window.fixtureProfile = records.get(`users/${auth.currentUser.uid}`);
   const initialize = settingsPreview

@@ -8,6 +8,11 @@
   gespeicherte Profildaten und Rollenprüfungen im Browser ersetzen diese Regeln nicht.
 - `auth-core.js` lädt Rollen aus Konto und Claims. Rollenaliasnamen sind absichtlich
   unterstützt; das normale Konten-UI vergibt keine Adminrolle.
+- `member-view-cache.js` speichert ausschließlich eine kontobezogene Vorschau für
+  die Mitgliederübersicht, höchstens 30 Minuten lang. Ihre Rolle steuert nur die
+  Darstellung von Navigationslinks. Berechtigungsprüfungen, Admin-Abfragen,
+  Fachmodule und Formulare verwenden weiterhin die frisch geladenen Daten.
+  Ein manipulierter Sitzungscache vergibt keine serverseitigen Rechte.
 - Neue E-Mail-Registrierungen legen vor dem Absenden des Namens kein Firebase-Konto
   an. Der Passwortentwurf bleibt nur im Arbeitsspeicher und wird beim Verlassen
   verworfen. Bereits angelegte Konten bleiben auch ohne bestätigte E-Mail

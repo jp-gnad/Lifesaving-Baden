@@ -33,7 +33,7 @@ function harness({ active = true, loaded = true, fonts = Promise.resolve(), imag
   vm.runInNewContext(read("assets/js/app-launch.js"), { window, document, URL, Date: class extends Date { static now() { return now; } } });
   return { api: window.LifesavingAppLaunch, classes, content, status, retry, header, main, mark, redirects, timers,
     get frames() { return frames; },
-    emit(name) { for (const entry of [...(events.get(name) || [])]) { entry.cb(); if (entry.once) window.removeEventListener(name, entry.cb); } },
+    emit(name, event) { for (const entry of [...(events.get(name) || [])]) { entry.cb(event); if (entry.once) window.removeEventListener(name, entry.cb); } },
     async tick(ms) {
       now += ms;
       for (const [id, timer] of [...timers]) if (timer.time <= now) { timers.delete(id); timer.cb(); }
@@ -66,7 +66,10 @@ test("member readiness waits for document, fonts, visible images and two painted
 
 test("minimum branding duration never dismisses a splash before readiness, even after the watchdog", async () => {
   const h = harness(); await flush();
-  await h.tick(15000);
+  await h.tick(4999);
+  assert.equal(h.status.hidden, true);
+  assert.equal(h.retry.hidden, true);
+  await h.tick(1);
   assert.equal(h.api.active, true);
   assert.match(h.status.textContent, /weiter warten/);
   assert.equal(h.retry.hidden, false);
@@ -97,6 +100,10 @@ test("errors keep the logo and retry preserves repository paths, query parameter
   const h = harness(); await flush();
   h.api.fail();
   assert.equal(h.api.active, true);
+  assert.equal(h.status.hidden, true);
+  await h.tick(4999);
+  assert.equal(h.status.hidden, true);
+  await h.tick(1);
   assert.equal(h.status.hidden, false);
   assert.match(h.status.textContent, /erneut/);
   await h.tick(20000);
@@ -116,6 +123,34 @@ test("ordinary navigation skips the splash and never waits for assets", async ()
   assert.equal(h.frames, 0);
   assert.equal(h.timers.size, 0);
   assert.equal(h.header.attributes.has("inert"), false);
+});
+
+test("optional image failures do not claim that startup failed, while critical script errors offer retry", async () => {
+  const h = harness(); await flush();
+  h.emit("error", { target: { tagName: "IMG" } });
+  assert.equal(h.status.hidden, true);
+  assert.equal(h.retry.hidden, true);
+  assert.equal(h.api.active, true);
+  h.emit("error", { target: { tagName: "SCRIPT" } });
+  assert.equal(h.status.hidden, true);
+  await h.tick(5000);
+  assert.equal(h.status.hidden, false);
+  assert.equal(h.retry.hidden, false);
+  assert.match(h.status.textContent, /nicht abgeschlossen/);
+  h.emit("pagehide");
+});
+
+test("finishing within five seconds cancels early errors and prevents a late notice", async () => {
+  const h = harness(); await flush();
+  h.api.fail(); h.api.fail();
+  const ready = h.api.ready(); await flush();
+  await h.tick(1000);
+  assert.equal(await ready, true);
+  assert.equal(h.status.hidden, true);
+  await h.tick(10000);
+  assert.equal(h.status.hidden, true);
+  assert.equal(h.retry.hidden, true);
+  assert.equal(h.timers.size, 0);
 });
 
 test("a slow logo can appear later without holding all branding text indefinitely", async () => {

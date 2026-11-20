@@ -26,9 +26,10 @@ function checkLocal(owner, value) {
 // Ordered dependencies are explicit because this site runs directly from HTML,
 // without a bundler that could otherwise detect missing modules/imports.
 const dependencies = {
-  "assets/js/auth.js": ["assets/js/auth-core.js"],
+  "assets/js/auth.js": ["assets/js/auth-core.js", "assets/js/member-view-cache.js"],
   "assets/js/landing.js": ["assets/js/auth-core.js"],
-  "assets/js/admin-accounts.js": ["assets/js/collection-pages.js"],
+  "assets/js/admin-accounts.js": ["assets/js/collection-pages.js", "assets/js/account-notifications-core.js"],
+  "assets/js/admin-notifications.js": ["assets/js/account-notifications-core.js"],
   "assets/js/clubs.js": ["assets/js/clubs-core.js", "assets/js/clubs-store.js", "assets/js/start-eligibility-core.js", "assets/js/collection-pages.js", "assets/js/club-profile-feed.js", "assets/js/club-roster-state.js"],
   "assets/js/club-events-core.js": ["assets/js/club-teams-core.js"],
   "assets/js/club-events-store.js": ["assets/js/club-events-core.js", "assets/js/clubs-store.js"],

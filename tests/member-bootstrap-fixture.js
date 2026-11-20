@@ -8,6 +8,12 @@
   const stamp = (value = new Date()) => ({ toDate: () => new Date(value), toMillis: () => +new Date(value) });
   const now = stamp(), year = new Date().getFullYear();
   const profile = { firstName: "Anna", lastName: "Baden", displayName: "Anna Baden", email: "anna@example.test", role: "admin", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+  if (["standard", "athlete", "trainer", "organizer", "admin"].includes(launchOptions.get("role"))) profile.role = launchOptions.get("role");
+  if (launchOptions.get("fresh") === "1") window.sessionStorage.removeItem(`lifesaving-baden:member-view:${uid}`);
+  if (launchOptions.get("preview") === "1") {
+    window.sessionStorage.setItem(`lifesaving-baden:member-view:${uid}`, JSON.stringify({ version: 1, uid, checkedAt: Date.now(),
+      role: "admin", profile: { ...profile, displayName: "Anna Baden" } }));
+  }
   if (launchOptions.get("cached") === "1") {
     // Seed only this fixture's account, to exercise pre-network menu counts.
     window.sessionStorage.setItem(`lifesaving-baden:user-doc:${uid}`, JSON.stringify({ uid, cachedAt: Date.now(),
