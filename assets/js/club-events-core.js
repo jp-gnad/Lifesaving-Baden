@@ -10,6 +10,12 @@
   const categoryOf = (event) => event?.category || "competition";
   const isCompetition = (event) => categoryOf(event) === "competition";
   const isCreate = (action) => action.type === "create" || action.type === "create-training";
+  const recurringTraining = (event) => event?.category === "training" && [7, 14].includes(event.repeatDays);
+  function seriesId(event) {
+    if (!recurringTraining(event)) return "";
+    // Series creation has always used a Firestore auto-ID with numbered suffixes.
+    return /^([a-zA-Z0-9]{20})(?:-(?:[2-9]|[1-4][0-9]|5[0-3]))?$/.exec(event.id)?.[1] || "";
+  }
 
   function excludedSchoolDays(text) {
     return [...new Set(String(text || "").split(/[\s,;]+/).filter(Boolean).map((entry) => {
@@ -41,6 +47,26 @@
   function sameMetadata(first, second) {
     return first.name === second.name && first.date === second.date && categoryOf(first) === categoryOf(second)
       && first.startTime === second.startTime && first.endTime === second.endTime && (first.repeatDays || 0) === (second.repeatDays || 0);
+  }
+
+  function seriesEdits(selected, fields, entries, today) {
+    const values = metadata(fields.name, fields.date, { ...selected, ...fields });
+    const offset = dates.asDate(values.date) - dates.asDate(selected.date);
+    const cutoff = selected.date > today ? selected.date : today;
+    const rootId = seriesId(selected);
+    const edits = {};
+    if (!rootId) return edits;
+    for (const entry of entries) {
+      if (seriesId(entry) !== rootId || entry.id !== selected.id && entry.date < cutoff) continue;
+      const date = dates.dateKey(new Date(+dates.asDate(entry.date) + offset));
+      if (entry.id !== selected.id && date < today) fail("Die Verschiebung würde einen Folgetermin in die Vergangenheit legen.");
+      const expectedMetadata = metadata(entry.name, entry.date, entry);
+      const command = { type: "metadata", date };
+      for (const field of ["name", "startTime", "endTime"]) command[field] = values[field] !== selected[field] ? values[field] : entry[field];
+      const edit = { type: "mutate", expectedMetadata, command };
+      if (replay(entry, edit) !== entry) edits[entry.id] = edit;
+    }
+    return edits;
   }
 
   function occurrences(id, action) {
@@ -91,7 +117,9 @@
     if (command.type === "metadata") {
       if (command.expectedRevision !== event.revision) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
       const values = metadata(command.name, command.date, { ...event, startTime: command.startTime, endTime: command.endTime });
-      if (values.year !== event.year && Object.keys(event.participants).length) fail("Das Jahr kann nur bei einem Termin ohne Teilnehmer geändert werden.");
+      if (values.year !== event.year && !recurringTraining(event) && Object.keys(event.participants).length) {
+        fail("Das Jahr kann nur bei einem Termin ohne Teilnehmer geändert werden.");
+      }
       Object.assign(next, values);
     } else if (command.type === "participants") {
       const changes = command.changes;
@@ -106,6 +134,20 @@
     } else if (command.type === "remove") {
       if (!person) fail("Die Person wurde bereits entfernt.");
       if (event.assignments[command.id]) fail("Bitte die Person zuerst aus der Mannschaft entfernen.");
+      delete next.participants[command.id];
+    } else if (command.type === "rosterRemoval") {
+      if (!person) fail("Die Person wurde bereits entfernt.");
+      const teamId = event.assignments[command.id];
+      const team = event.teams[teamId];
+      if (team) {
+        const memberIds = team.memberIds.filter((id) => id !== command.id);
+        if (memberIds.length >= 4) next.teams[teamId] = { ...team, memberIds };
+        else {
+          delete next.teams[teamId];
+          for (const id of memberIds) delete next.assignments[id];
+        }
+      }
+      delete next.assignments[command.id];
       delete next.participants[command.id];
     } else if (command.type === "individual") {
       if (!isCompetition(event)) fail("Einzelstarts gibt es nur bei Wettkämpfen.");
@@ -212,7 +254,8 @@
     return change(state, command);
   }
 
-  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, excludedSchoolDays, occurrences, participant, sameTeam, change, namedTeams,
+  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, recurringTraining, seriesId, seriesEdits,
+    excludedSchoolDays, occurrences, participant, sameTeam, change, namedTeams,
     displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsCore = api;

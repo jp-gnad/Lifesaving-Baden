@@ -9,6 +9,7 @@
     const personDialog = byId("club-event-person-dialog");
     const collator = new Intl.Collator("de", { sensitivity: "base" });
     const dateFormat = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "UTC" });
+    const monthFormat = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
     const categoryLabels = { competition: "Wettkampf", training: "Training", organization: "Organisation" };
     const repeatLabels = { 7: "Wöchentliche Serie", 14: "Zweiwöchentliche Serie" };
     let context = null;
@@ -42,7 +43,8 @@
       mark.append(icon(category));
       return mark;
     }
-    const sourcePeople = () => getPeople(context.owner).map((person) => ({ ...person, gender: person.gender || genders.get(core.key(person)) || "",
+    const sourcePeople = () => getPeople(context.owner).filter((person) => !person.eventRemovalDate)
+      .map((person) => ({ ...person, gender: person.gender || genders.get(core.key(person)) || "",
       rosterGender: context.owner.roster.get(person.id)?.gender }));
     function button(text, action, className = "button button-secondary") {
       const element = node("button", className, text);
@@ -206,8 +208,22 @@
           .map((id) => queue.project(owner.clubId, id, value.events.get(id))).filter((entry) => entry && core.eventPeriod(entry.date, today) === value.period)
           .sort((a, b) => (value.period === "past" ? -1 : 1) * (a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""))
             || collator.compare(a.name, b.name));
-        const cards = node("div", "wt-day-card");
+        const months = new Map();
         for (const entry of events) {
+          const month = entry.date.slice(0, 7);
+          let cards = months.get(month);
+          if (!cards) {
+            const section = node("section", "wt-day-group");
+            const header = node("div", "wt-day-header");
+            const heading = node("h2", "wt-day-heading", monthFormat.format(new Date(`${month}-01T00:00:00Z`)));
+            heading.id = `club-event-month-${month}`;
+            section.setAttribute("aria-labelledby", heading.id);
+            header.append(heading);
+            cards = node("div", "wt-day-card");
+            section.append(header, cards);
+            list.append(section);
+            months.set(month, cards);
+          }
           const row = button("", () => openEvent(entry.id), "se-person club-event-row");
           row.id = `club-event-${entry.id}`;
           const details = node("span", "se-person-details");
@@ -216,7 +232,7 @@
           row.append(categoryIcon(entry), details, icon("next"));
           cards.append(row);
         }
-        list.append(events.length ? cards : node("p", "wt-empty", value.period === "past" ? "Keine vergangenen Termine." : "Keine geplanten Termine."));
+        if (!events.length) list.append(node("p", "wt-empty", value.period === "past" ? "Keine vergangenen Termine." : "Keine geplanten Termine."));
         if (value.more) list.append(button("Weitere Termine", () => { value.pageIds = []; listen(value, value.cursor); }, "button button-secondary club-event-more"));
       } else {
         const header = node("div", "club-event-heading");
@@ -298,7 +314,8 @@
         notice.append(node("span", "se-meta", status.error || "Wird gespeichert …"));
         if (status.error) {
           notice.append(button("Erneut versuchen", () => { try { queue.retry(owner.clubId); } catch (failure) { value.actionError = errorText(failure); onChange(owner); } }, "club-event-back"));
-          if (value.selected && !status.sending) notice.append(button(status.series ? "Trainingsserie verwerfen" : "Verwerfen", () => {
+          if (value.selected && !status.sending) notice.append(button(status.seriesEdit ? "Serienänderung verwerfen"
+            : status.series ? "Trainingsserie verwerfen" : "Verwerfen", () => {
             queue.discard(owner.clubId, value.selected);
             if (!event()) openEvent(""); else onChange(owner);
           }, "club-event-back"));
@@ -313,7 +330,9 @@
       if (!current()) return;
       const selected = mode === "create" ? null : event();
       draft = { context, mode, step: mode === "participants" ? 2 : 0, busy: false, id: selected?.id || ref().doc().id,
-        expectedRevision: selected?.revision, expectedMetadata: selected && core.metadata(selected.name, selected.date, selected), picked: new Set() };
+        expectedRevision: selected?.revision, expectedMetadata: selected && core.metadata(selected.name, selected.date, selected),
+        seriesId: mode === "metadata" ? core.seriesId(selected) : "", picked: new Set() };
+      byId("club-event-scope-one").checked = true;
       byId("club-event-category").value = core.categoryOf(selected);
       byId("club-event-name").value = selected?.name || "";
       byId("club-event-date").value = selected?.date || "";
@@ -324,7 +343,8 @@
       byId("club-event-skip-school-free").checked = false;
       byId("club-event-excluded-days").value = "";
       const currentYear = root.StartEligibilityCore.seasonYear(root.StartEligibilityCore.today());
-      const fixedYear = mode === "metadata" && (Object.keys(selected.participants).length || selected.year < currentYear || selected.year > currentYear + 1) ? selected.year : null;
+      const fixedYear = mode === "metadata" && ((Object.keys(selected.participants).length && !core.recurringTraining(selected))
+        || selected.year < currentYear || selected.year > currentYear + 1) ? selected.year : null;
       draft.dateMin = `${fixedYear || currentYear}-01-01`;
       draft.dateMax = `${fixedYear || currentYear + 1}-12-31`;
       byId("club-event-search").value = "";
@@ -373,6 +393,7 @@
       byId("club-event-date").min = repeatUntil ? today : draft.dateMin;
       byId("club-event-date").max = repeatUntil ? horizon : draft.dateMax;
       byId("club-event-times").hidden = !times;
+      byId("club-event-series-scope").hidden = !draft.seriesId;
       byId("club-event-start").required = byId("club-event-end").required = times;
       byId("club-event-repeat-field").hidden = !repeat;
       byId("club-event-repeat-until-field").hidden = !repeatUntil;
@@ -423,7 +444,7 @@
       }
       byId("club-event-next").disabled = draft.busy;
     }
-    function submitEvent() {
+    async function submitEvent() {
       const editing = draft;
       if (!editing || editing.mode === "participants" || editing.busy || !current(editing.context)) return;
       if (!byId("club-event-form").reportValidity()) return;
@@ -465,12 +486,38 @@
           repeatDays: 0 }
           : { type: "mutate", expectedMetadata: editing.expectedMetadata,
             command: { type: "metadata", ...fields, expectedRevision: editing.expectedRevision } };
-        queue.enqueue(value.owner.clubId, editing.id, action, original);
+        if (editing.seriesId && byId("club-event-scope-following").checked) {
+          if (core.replay(original, action) !== original) {
+            editing.busy = true;
+            busy(dialog, true);
+            await queueSeriesEdits(editing, fields);
+          }
+        } else queue.enqueue(value.owner.clubId, editing.id, action, original);
         if (!current(value) || draft !== editing) return;
         draft = null; dialog.close();
         openEvent(editing.id);
       } catch (failure) { if (current(value) && draft === editing) error("club-event-error", errorText(failure)); }
       finally { if (current(value) && draft === editing) { editing.busy = false; busy(dialog, false); renderEditor(); } }
+    }
+    async function queueSeriesEdits(editing, fields) {
+      const { owner } = editing.context;
+      const clubId = owner.clubId;
+      const ensureEditor = () => {
+        if (!current(editing.context) || draft !== editing) throw new Error("Die Ansicht hat sich geändert.");
+      };
+      const events = await store.listSeries(owner.db, clubId, editing.seriesId, owner.sdk, ensureEditor);
+      ensureEditor();
+      const server = new Map(events.map((entry) => [entry.id, entry]));
+      const entries = [...new Set([...server.keys(), ...queue.ids(clubId)])]
+        .map((id) => queue.project(clubId, id, server.get(id))).filter(Boolean);
+      const selected = entries.find((entry) => entry.id === editing.id);
+      if (!selected || !core.sameMetadata(selected, editing.expectedMetadata)) {
+        throw Object.assign(new Error("Der Termin wurde geändert. Bitte erneut öffnen."), { code: "clubs/event" });
+      }
+      const edits = core.seriesEdits(selected, fields, entries, root.StartEligibilityCore.today());
+      if (!edits[editing.id]) return;
+      for (const [id, entry] of server) editing.context.events.set(id, entry);
+      queue.enqueue(clubId, editing.id, { type: "series-metadata", seriesId: editing.seriesId, edits }, selected);
     }
     function trainingParticipant({ source }) {
       const stored = context.owner.roster.get(source.id) || source;

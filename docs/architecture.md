@@ -292,6 +292,13 @@ schulfreie Tage. Die Warteschlange speichert die verbleibenden Termindaten mit
 festen IDs in einem Auftrag. Die Regeln erlauben
 pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion;
 Teilnehmerauswahlen dürfen bis zu drei geprüfte Zu- oder Abgänge gemeinsam ändern.
+Der Bearbeitungsdialog bietet bei Serien die Änderung eines einzelnen Termins
+oder dieses und der folgenden geplanten Termine an. Der Store lädt die Serie
+über ihren gemeinsamen Dokument-ID-Präfix in begrenzten Seiten. Er speichert
+eine Serienänderung als einen Warteschlangenauftrag und schreibt alle betroffenen
+Termine atomar. Unveränderte Felder behalten individuelle Abweichungen.
+Eine Datumsänderung verschiebt die vorhandenen Folgetermine um denselben
+Kalenderabstand. Die gespeicherten Lücken bleiben dabei erhalten.
 Der Index reserviert eine Person innerhalb dieses Events für höchstens eine
 Mannschaft mit 4–5 Personen. Mannschaftswechsel und Löschungen ändern Einzelstarts
 nicht; Personen ohne Einzelstart und Mannschaft stehen unter „Ohne Start“.
@@ -303,9 +310,14 @@ Weibliche und männliche Mannschaften derselben AK stehen auf Desktop nebeneinan
 mobil untereinander. Die Karten enthalten nur Personen. Die Darstellung verändert
 keine gespeicherte Mannschaftsnummer.
 
-Für Wettkämpfe benötigen neue Teilnehmer den Aktivstatus des Eventjahrs. Bereits übernommene
-Personen bleiben bei späterer Deaktivierung oder Clubentfernung als Snapshot
-erhalten; die Oberfläche kennzeichnet sie dezent als inaktiv. Fehlendes Geschlecht
+Für Wettkämpfe benötigen neue Teilnehmer den Aktivstatus des Eventjahrs. Bereits
+übernommene Personen bleiben bei späterer Deaktivierung als Snapshot erhalten;
+die Oberfläche kennzeichnet sie dezent als inaktiv. Bei einer Entfernung aus
+dem Clubkader sperrt ein Marker die Neuaufnahme, bis geplante Clubtermine in
+begrenzten Datumsseiten bereinigt sind. Die Bereinigung entfernt Teilnehmer und
+Mannschaftszuordnung pro Termin in einer Transaktion. Eine Mannschaft mit vier
+verbleibenden Personen bleibt bestehen. Frühere Termine bewahren ihre Snapshots.
+Fehlendes Geschlecht
 alter Kaderdatensätze wird nur für ausdrücklich ausgewählte Personen aus der
 maßgeblichen Quelle ergänzt. Aktivjahre, Nachweise und Erstellungszeit bleiben erhalten.
 

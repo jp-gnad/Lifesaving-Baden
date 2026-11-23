@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-trainingserie-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-serienbearbeitung-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
@@ -34,18 +34,18 @@
     <script defer src="assets/js/member-view-cache.js?v=20261120-member-return-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261123-trainingserie-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261123-trainingserie-v1"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261123-kaderentfernung-v1"></script>
     <script defer src="assets/js/club-teams-core.js?v=20261119-event-periods-v1"></script>
     <script defer src="assets/js/bw-school-calendar.js?v=20261123-trainingserie-v1"></script>
-    <script defer src="assets/js/club-events-core.js?v=20261123-trainingserie-v1"></script>
-    <script defer src="assets/js/club-events-store.js?v=20261123-trainingserie-v1"></script>
-    <script defer src="assets/js/club-events-queue.js?v=20261123-trainingserie-v1"></script>
-    <script defer src="assets/js/club-events.js?v=20261123-trainingserie-v1"></script>
+    <script defer src="assets/js/club-events-core.js?v=20261123-serienbearbeitung-v1"></script>
+    <script defer src="assets/js/club-events-store.js?v=20261123-serienbearbeitung-v1"></script>
+    <script defer src="assets/js/club-events-queue.js?v=20261123-serienbearbeitung-v1"></script>
+    <script defer src="assets/js/club-events.js?v=20261123-terminmonate-v1"></script>
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-profile-feed.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-roster-state.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-finance.js?v=20261123-finanzen-v1"></script>
-    <script defer src="assets/js/clubs.js?v=20261123-finanzen-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261123-clubauswahl-v1"></script>
     <script defer src="assets/js/auth.js?v=20261123-indicator-cache-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="clubs">
@@ -211,6 +211,11 @@
           <label class="wt-field"><span>Von</span><input id="club-event-start" type="time"></label>
           <label class="wt-field"><span>Bis</span><input id="club-event-end" type="time"></label>
         </div>
+        <fieldset class="club-event-scope" id="club-event-series-scope" hidden>
+          <legend>Für welche Termine gilt die Änderung?</legend>
+          <label><input type="radio" name="club-event-edit-scope" id="club-event-scope-one" checked> Nur dieser Termin</label>
+          <label><input type="radio" name="club-event-edit-scope" id="club-event-scope-following"> Dieser und alle folgenden geplanten Termine</label>
+        </fieldset>
         <label class="wt-field" id="club-event-repeat-field" hidden>
           <span>Wiederholung</span>
           <select id="club-event-repeat">

@@ -240,6 +240,14 @@
     content.hidden = false;
   }
 
+  function updateClubUrl(id) {
+    const url = new URL(window.location.href);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return;
+    if (url.searchParams.get("club") === id) return;
+    url.searchParams.set("club", id);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   function selectClub(owner, id) {
     if (owner.pendingClub?.id === id) return;
     cancelClubLoad(owner);
@@ -273,6 +281,7 @@
         render(owner);
         byId("club-loading").hidden = true;
         content.hidden = false;
+        updateClubUrl(id);
       } else scheduleRender(owner);
     }, () => {
       if (!active(owner)) return;
@@ -463,7 +472,7 @@
     const view = owner.view;
     if (!active(owner, view) || owner.rosterState.has(person.id)) return;
     const current = owner.roster.get(person.id);
-    if (!current || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
+    if (!current || current.eventRemovalDate || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
     const enabled = !current.activeYears.includes(year);
     const token = owner.rosterState.begin(person.id, { activeYears: core.activeYears(current.activeYears, year, enabled) });
     const errorElement = byId("club-person-years-error");
@@ -503,12 +512,13 @@
       const button = byId(id);
       button.textContent = year;
       button.dataset.year = year;
-      button.setAttribute("aria-disabled", String(pending));
+      button.setAttribute("aria-disabled", String(pending || Boolean(person.eventRemovalDate)));
       button.setAttribute("aria-pressed", String(person.activeYears.includes(year)));
     }
     const club = owner.clubs.get(owner.clubId);
     const manager = club.managerIds.includes(person.accountUid);
-    byId("club-person-meta").textContent = manager ? "Team Manager" : core.isLocalPerson(person) ? "Lokal erstellt" : "";
+    byId("club-person-meta").textContent = person.eventRemovalDate ? "Entfernung ausstehend"
+      : manager ? "Team Manager" : core.isLocalPerson(person) ? "Lokal erstellt" : "";
     const last = manager && club.managerIds.length === 1;
     const protectedManager = manager && !owner.role.isAdmin && person.accountUid !== owner.uid;
     byId("club-person-remove").disabled = last || protectedManager;
@@ -533,12 +543,12 @@
     const clubId = owner.clubId;
     const view = owner.view;
     if (owner.rosterState.has(person.id)) return;
-    if (!window.confirm(`${core.displayName(person)} aus ${owner.clubs.get(clubId).name} entfernen? Die Nachweise in diesem Club werden gelöscht.`)) return;
+    if (!window.confirm(`${core.displayName(person)} aus ${owner.clubs.get(clubId).name} entfernen? Dabei werden Nachweise und Zuordnungen in geplanten Terminen entfernt.`)) return;
     const token = owner.rosterState.begin(person.id, null);
     byId("club-person-dialog").close();
     render(owner);
     try {
-      await store.removePerson(owner.db, clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
+      await window.ClubEventsStore.removeRosterPerson(owner.db, clubId, person, owner.sdk, () => requireCurrent(owner, view));
       if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); render(owner); }
     } catch (error) {
       owner.rosterState.rollback(token);

@@ -1122,11 +1122,14 @@ service cloud.firestore {
             || (request.resource.data.accountUid == "" && exists(/databases/$(database)/documents/personAccountLinks/$(personId))
               && get(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + get(/databases/$(database)/documents/personAccountLinks/$(personId)).data.uid)).data.activeYears == request.resource.data.activeYears))
           && request.resource.data.createdAt == request.time;
+        allow update: if request.resource.data.diff(resource.data).affectedKeys() == ["eventRemovalDate"].toSet()
+          && managesClub(id) && canStartRosterRemoval(id, request.resource.data, resource.data);
         allow update: if isLocalClubPerson(personId, resource.data) && managesClub(id)
           && validLocalClubPerson(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["activeYears", "updatedAt"].concat(startEligibilityDates()))
           && validClubActivity(request.resource.data.activeYears, resource.data.activeYears);
-        allow update: if !isLocalClubPerson(personId, resource.data) && ((releasesOwnClub(id)
+        allow update: if !resource.data.keys().hasAny(["eventRemovalDate"])
+          && !isLocalClubPerson(personId, resource.data) && ((releasesOwnClub(id)
             && personId == adminData().get("personLink", {}).get("id", "") && request.resource.data.accountUid == "") || managesClub(id))
           && validClubPerson(id, personId, request.resource.data)
           && request.resource.data.accountUid == resource.data.accountUid
@@ -1147,6 +1150,18 @@ service cloud.firestore {
 
     function isLocalClubPerson(personId, data) {
       return personId.matches('^local_[a-zA-Z0-9]{20}$') && data.personId == "" && data.accountUid == "";
+    }
+
+    function canStartRosterRemoval(club, next, previous) {
+      let day = next.eventRemovalDate;
+      let parts = day.split('-');
+      let midnight = timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+      let managers = get(/databases/$(database)/documents/clubs/$(club)).data.managerIds;
+      let uid = previous.accountUid;
+      return !previous.keys().hasAny(["eventRemovalDate"])
+        && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && midnight > request.time - duration.value(24, "h") && midnight <= request.time + duration.value(2, "h")
+        && (uid == "" || !(uid in managers) || (managers.size() > 1 && (uid == request.auth.uid || isAdmin())));
     }
 
     function validLocalClubPerson(data) {
@@ -1329,6 +1344,7 @@ service cloud.firestore {
     function validEventParticipant(club, id, member, year, previous, competition) {
       let person = get(/databases/$(database)/documents/clubs/$(club)/people/$(member.rosterId)).data;
       return member.keys().hasOnly(["rosterId", "name", "birthYear", "gender", "createdAtMillis", "individual"])
+        && !person.keys().hasAny(["eventRemovalDate"])
         && id == (person.personId == "" ? member.rosterId : person.personId)
         && !previous.keys().hasAny([id, member.rosterId])
         && (competition ? year in person.activeYears && member.individual is bool : member.individual == true)
@@ -1373,10 +1389,12 @@ service cloud.firestore {
         && (operation == "metadata"
         ? fields.hasOnly(["name", "date", "year", "startTime", "endTime", "operation", "changedId", "changedIds", "revision", "updatedAt"])
           && validClubEvent(next)
-          && (next.year == previous.year || (previous.participants.size() == 0 && currentOrNextClubYear(next.year)))
+          && (next.year == previous.year || (currentOrNextClubYear(next.year) && (previous.participants.size() == 0
+            || (previous.get("category", "") == "training" && previous.get("repeatDays", 0) in [7, 14]))))
         : fields.hasOnly(["participants", "teams", "assignments", "operation", "changedId", "changedIds", "revision", "updatedAt"])
           && (operation == "team" ? competition && validEventTeam(next, previous)
             : operation == "participants" ? validEventSelection(club, next, previous, competition)
+            : operation == "rosterRemoval" ? validEventRosterRemoval(club, next, previous, id)
             : id.matches('^[a-zA-Z0-9_-]+$') && next.teams == previous.teams && next.assignments == previous.assignments
               && next.participants.diff(previous.participants).affectedKeys().hasOnly([id])
               && (operation == "add" ? !previous.participants.keys().hasAny([id])
@@ -1385,6 +1403,28 @@ service cloud.firestore {
                 : operation == "individual" && competition && next.participants[id].individual is bool
                   && (next.participants[id].individual || previous.assignments.get(id, "") != "")
                   && next.participants[id].diff(previous.participants[id]).affectedKeys().hasOnly(["individual"]))));
+    }
+
+    function validEventRosterRemoval(club, next, previous, id) {
+      let member = previous.participants[id];
+      let person = get(/databases/$(database)/documents/clubs/$(club)/people/$(member.rosterId)).data;
+      let team = previous.assignments.get(id, "");
+      return previous.date >= person.eventRemovalDate && int(member.createdAtMillis) == person.createdAt.toMillis()
+        && next.participants.diff(previous.participants).affectedKeys() == [id].toSet()
+        && !next.participants.keys().hasAny([id])
+        && (team == "" ? next.teams == previous.teams && next.assignments == previous.assignments
+          : validRosterRemovalTeam(next, previous, id, team));
+    }
+
+    function validRosterRemovalTeam(next, previous, id, team) {
+      let before = previous.teams[team];
+      let remaining = before.memberIds.removeAll([id]);
+      let released = remaining.size() < 4 ? before.memberIds : [id];
+      return next.teams.diff(previous.teams).affectedKeys() == [team].toSet()
+        && next.assignments.diff(previous.assignments).affectedKeys() == released.toSet()
+        && !next.assignments.keys().hasAny(released)
+        && (remaining.size() < 4 ? !next.teams.keys().hasAny([team])
+          : next.teams[team] == { "order": before.order, "memberIds": remaining });
     }
 
     function validEventSelectionEntry(club, next, previous, ids, index, competition) {

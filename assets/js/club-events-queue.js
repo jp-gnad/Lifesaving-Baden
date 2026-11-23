@@ -11,8 +11,9 @@
     let issued = 0;
     const confirmed = new Map();
     const identity = (clubId, eventId) => `${clubId}/${eventId}`;
-    const eventIds = (record) => record.series ? Object.keys(record.series) : [record.eventId];
-    const includesEvent = (record, id) => record.eventId === id || Boolean(record.series?.[id]);
+    const seriesMembers = (record) => record.series || record.action.edits;
+    const eventIds = (record) => seriesMembers(record) ? Object.keys(seriesMembers(record)) : [record.eventId];
+    const includesEvent = (record, id) => record.eventId === id || Boolean(seriesMembers(record)?.[id]);
     const accountPrefix = () => `${prefix}${encodeURIComponent(owner.uid)}/`;
     const key = (record) => `${prefix}${encodeURIComponent(record.accountId)}/${record.id}`;
     const changed = () => onChange(owner);
@@ -44,7 +45,7 @@
       if (storageError) throw Object.assign(new Error(storageError), { code: "clubs/queue-storage" });
       const series = core.isCreate(action) && action.repeatDays
         ? Object.fromEntries(core.occurrences(eventId, action).map(({ id, date }) => [id, date])) : undefined;
-      const view = core.replay(base, series ? { ...action, date: series[eventId] } : action);
+      const view = core.replay(base, series ? { ...action, date: series[eventId] } : action.edits?.[eventId] || action);
       if (view === base) return view;
       const record = JSON.parse(JSON.stringify({ id: makeId(), accountId: owner.uid, clubId, eventId, action, base,
         series, view, createdAt: issued = Math.max(Date.now(), issued + 1) }));
@@ -116,11 +117,12 @@
       else if (saved && (!server || saved.revision > server.revision)) result = saved;
       else if (saved) confirmed.delete(id);
       for (const record of records.filter((entry) => entry.clubId === clubId && includesEvent(entry, eventId))) {
-        if (!result && !core.isCreate(record.action)) result = record.base;
-        else if (result && record.base?.revision > result.revision) result = record.base;
-        const action = record.series ? { ...record.action, date: record.series[eventId] } : record.action;
+        const base = record.eventId === eventId ? record.base : null;
+        if ((!result && !core.isCreate(record.action)) || (result && base?.revision > result.revision)) result = base;
+        if (record.action.edits && !result) continue;
+        const action = record.series ? { ...record.action, date: record.series[eventId] } : record.action.edits?.[eventId] || record.action;
         try { result = core.replay(result, action); }
-        catch { result = record.view; }
+        catch { if (record.eventId === eventId || !record.action.edits) result = record.view; }
       }
       return result ? { ...result, id: eventId } : null;
     }
@@ -131,7 +133,8 @@
     function status(clubId, eventId = "") {
       const pending = records.filter((entry) => entry.clubId === clubId && (!eventId || includesEvent(entry, eventId)));
       return { count: pending.length, error: storageError || pending.find((entry) => entry.error)?.error.message || "",
-        sending: pending.some((entry) => entry.id === sending), series: pending.some((entry) => entry.series) };
+        sending: pending.some((entry) => entry.id === sending), series: pending.some((entry) => entry.series),
+        seriesEdit: pending.some((entry) => entry.action.edits) };
     }
     function retry(clubId = "") {
       if (!owner || !isCurrent(owner)) return Promise.resolve();
@@ -145,7 +148,7 @@
     }
     function discard(clubId, eventId) {
       if (!owner || !isCurrent(owner)) return;
-      const series = records.find((entry) => entry.clubId === clubId && entry.series && includesEvent(entry, eventId));
+      const series = records.find((entry) => entry.clubId === clubId && seriesMembers(entry) && includesEvent(entry, eventId));
       const ids = series ? eventIds(series) : [eventId];
       const discarded = records.filter((entry) => entry.clubId === clubId && ids.some((id) => includesEvent(entry, id)));
       if (discarded.some((entry) => entry.id === sending)) return;

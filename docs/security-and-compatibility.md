@@ -149,7 +149,14 @@ des Eventjahrs bei der Übernahme und erzwingen die atomare Zuordnung zu höchst
 Mannschaft mit 4–5 Personen. Einzelstarts sind davon unabhängig. Eine Person darf
 nur mit bestehender Mannschaft aus Einzel entfernt werden; das spätere Entfernen
 der Mannschaft stellt den Einzelstart ausdrücklich nicht automatisch wieder her.
-Nachträglich inaktive oder entfernte Personen bleiben als Event-Snapshot erhalten.
+Nachträglich inaktive Personen bleiben als Event-Snapshot erhalten. Beim
+Entfernen aus dem Clubkader markiert der Store zuerst die Mitgliedschaft. Die
+Regeln sperren dadurch weitere Aufnahmen und erlauben das Entfernen aus den ab
+diesem Kalendertag geplanten Terminen samt Korrektur der Mannschaftszuordnung.
+Die ursprüngliche Erstellungszeit schützt eine neu angelegte Mitgliedschaft
+unter derselben ID. Vergangene Termine behalten ihre Snapshots. Wenn die
+Übertragung unterbrochen wird, kann der Clubverantwortliche das Entfernen mit
+dem ursprünglichen Stichtag erneut versuchen.
 Training und Organisation dürfen auch inaktive Kaderpersonen übernehmen. Die
 Regeln überprüfen die Identität jeder Person aus dem aktuellen Clubkader und
 prüfen bei beiden Terminarten die Start- und Endzeit. Die Terminart ist nach dem
@@ -159,6 +166,11 @@ Clubkader geprüft. Eine Transaktion übernimmt die geprüften Personen in alle
 Termine und entfernt den Entwurf. Die Firestore-Regeln verlangen diesen
 gemeinsamen Schreibvorgang. Die aktualisierten Regeln müssen vor der Website
 mit der Trainingsvorauswahl veröffentlicht werden.
+Serienänderungen verwenden die bestehenden Terminrechte. Die Transaktion
+gleicht die ursprünglich geladenen Metadaten aller betroffenen Termine ab und
+bewahrt parallele Änderungen an Teilnehmenden oder Mannschaften. Die Regeln
+erlauben bei wiederkehrenden Trainings eine Verschiebung in ein anderes
+bearbeitbares Kalenderjahr auch mit vorhandener Teilnehmendenliste.
 
 Die sofortige Bedienung nutzt eine eigene kontogebundene lokale Warteschlange.
 Ihre Darstellung autorisiert keinen Schreibvorgang. Vor jeder Übertragung und nach

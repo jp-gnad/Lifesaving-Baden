@@ -104,6 +104,27 @@ test("a new training series projects every selection at revision zero on its act
   await h.queue.flush();
 });
 
+test("one pending series edit projects different metadata on each affected occurrence", async () => {
+  const held = deferred();
+  const h = harness(undefined, () => held.promise);
+  const seriesId = "Tr000000000000000000";
+  const action = { type: "create-training", category: "training", name: "Training", date: "2026-11-25",
+    startTime: "18:00", endTime: "20:00", repeatDays: 7, additions: [] };
+  const first = { ...core.replay(null, action), id: seriesId };
+  const second = { ...core.replay(null, { ...action, date: "2026-12-02", startTime: "17:30" }), id: `${seriesId}-2` };
+  const edits = core.seriesEdits(first, { ...first, endTime: "19:30" }, [first, second], "2026-11-23");
+  h.queue.enqueue("club", first.id, { type: "series-metadata", seriesId, edits }, first);
+  assert.equal(h.storage.length, 1);
+  assert.equal(h.queue.status("club", second.id).count, 1);
+  const projected = h.queue.project("club", second.id, second);
+  assert.equal(projected.date, second.date);
+  assert.equal(projected.startTime, second.startTime);
+  assert.equal(projected.endTime, "19:30");
+  h.owner.active = false;
+  held.resolve(null);
+  await h.queue.flush();
+});
+
 test("reload restores every pending participant and account changes never expose another account's queue", async () => {
   const held = deferred();
   const h = harness(undefined, () => held.promise);

@@ -157,7 +157,7 @@
     return editMember(db, clubId, personId, () => ({}), sdk, checkSession, expectedCreatedAt);
   }
 
-  async function removePerson(db, clubId, personId, sdk, checkSession = () => {}, keepPerson = false, accountDeletion = false) {
+  async function removePerson(db, clubId, personId, sdk, checkSession = () => {}, keepPerson = false, accountDeletion = false, expectedCreatedAt) {
     const { club, people } = references(db, clubId);
     let revision;
     for (let attempt = 0; ; attempt += 1) {
@@ -165,6 +165,9 @@
         await db.runTransaction(async (transaction) => {
           const [clubDoc, person] = await Promise.all([transaction.get(club), transaction.get(people.doc(personId))]);
           if (!clubDoc.exists || !person.exists) return;
+          if (expectedCreatedAt && person.data().createdAt.toMillis() !== expectedCreatedAt.toMillis()) {
+            fail("clubs/stale-person", "Die Person wurde inzwischen neu hinzugefügt.");
+          }
           const data = clubDoc.data();
           revision = data.updatedAt;
           const uid = person.data().accountUid;

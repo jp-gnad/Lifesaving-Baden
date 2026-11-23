@@ -19,11 +19,20 @@ const p1 = "1111111111111111";
 const p2 = "2222222222222222";
 const p3 = "3333333333333333";
 const person = (name) => ({ name, birthYear: 2000, gender: "m", organization: "Testgruppe", searchName: name.toLowerCase() });
-const api = () => ({ FieldValue: { serverTimestamp: sdk.serverTimestamp, arrayUnion: sdk.arrayUnion, arrayRemove: sdk.arrayRemove, delete: sdk.deleteField }, Timestamp: sdk.Timestamp });
+const api = () => ({ FieldValue: { serverTimestamp: sdk.serverTimestamp, arrayUnion: sdk.arrayUnion, arrayRemove: sdk.arrayRemove, delete: sdk.deleteField },
+  FieldPath: { documentId: sdk.documentId }, Timestamp: sdk.Timestamp });
 const dbFor = (uid, claims = {}) => uid ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore() : env.unauthenticatedContext().firestore();
 
 function compat(db) {
+  const eventQuery = (name, filters) => ({
+    where: (...args) => eventQuery(name, [...filters, sdk.where(...args)]),
+    orderBy: (...args) => eventQuery(name, [...filters, sdk.orderBy(...args)]),
+    limit: (size) => eventQuery(name, [...filters, sdk.limit(size)]),
+    startAfter: (cursor) => eventQuery(name, [...filters, sdk.startAfter(cursor.native)]),
+    async get() { return { docs: (await sdk.getDocs(sdk.query(sdk.collection(db, name), ...filters))).docs.map(wrap) }; },
+  });
   const collection = (name) => ({
+    where: (...args) => eventQuery(name, [sdk.where(...args)]),
     limit: (size) => ({ async get() { const snapshot = await sdk.getDocs(sdk.query(sdk.collection(db, name), sdk.limit(size))); return { docs: snapshot.docs.map(wrap) }; } }),
     async get() { const snapshot = await sdk.getDocs(sdk.collection(db, name)); return { docs: snapshot.docs.map(wrap) }; },
     doc(id) {
@@ -35,7 +44,7 @@ function compat(db) {
       };
     },
   });
-  const wrap = (snapshot) => ({ id: snapshot.id, exists: snapshot.exists(), data: () => snapshot.data() });
+  const wrap = (snapshot) => ({ id: snapshot.id, native: snapshot, exists: snapshot.exists(), data: () => snapshot.data() });
   return { collection, runTransaction: (action) => sdk.runTransaction(db, (tx) => action({
     async get(ref) { return wrap(await tx.get(ref.native)); },
     set: (ref, data, options) => options ? tx.set(ref.native, data, options) : tx.set(ref.native, data),
@@ -170,6 +179,57 @@ async function createEvent(f, id = "event", people = f.selected, year = f.year) 
 }
 const command = (f, change, id = "event") => events.mutate(f.db, f.id, id, change, api());
 
+test("removing a roster person updates every page of planned appointments and preserves historical snapshots", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const dates = require("../assets/js/start-eligibility-core.js");
+  const today = dates.today();
+  const beforeToday = dates.asDate(today);
+  beforeToday.setUTCDate(beforeToday.getUTCDate() - 1);
+  const yesterday = dates.dateKey(beforeToday);
+  const person = f.selected[0];
+  const planned = await events.create(f.db, f.id, "planned", "Wettkampf", today, f.selected.slice(0, 5), api());
+  for (const [id, count] of [["planned", 5], ["short", 4]]) {
+    if (id === "short") await events.create(f.db, f.id, id, "Wettkampf", today, f.selected.slice(0, 4), api());
+    await command(f, { type: "team", id: "team", memberIds: f.selected.slice(0, count).map(({ id }) => id), expected: null }, id);
+  }
+  for (const category of ["training", "organization"]) {
+    await events.create(f.db, f.id, category, category, today, [person], api(), undefined,
+      { category, startTime: "18:00", endTime: "19:00" });
+  }
+  const admin = dbFor("admin");
+  const history = { ...(await sdk.getDoc(f.ref("planned"))).data(), date: yesterday, year: Number(yesterday.slice(0, 4)) };
+  const extra = { ...(await sdk.getDoc(f.ref("training"))).data() };
+  await seed(Object.fromEntries([
+    [`clubs/${f.id}/events/history`, history],
+    ...Array.from({ length: 50 }, (_, index) => [`clubs/${f.id}/events/z${index}`, extra]),
+  ]));
+  const writeRemoval = async (id) => {
+    const ref = f.ref(id);
+    const before = (await sdk.getDoc(ref)).data();
+    return sdk.setDoc(ref, { ...eventCore.change(before, { type: "rosterRemoval", id: person.id }), updatedAt: sdk.serverTimestamp() });
+  };
+  await fails(sdk.updateDoc(rosterRef(dbFor("outsider"), f.id, person.id), { eventRemovalDate: today }));
+  await fails(writeRemoval("planned"));
+  await succeeds(sdk.updateDoc(rosterRef(admin, f.id, person.id), { eventRemovalDate: today }));
+  await fails(writeRemoval("history"));
+  await fails(events.create(f.db, f.id, "racing", "Wettkampf", today, [person], api()));
+  await events.removeRosterPerson(f.db, f.id, person, api());
+  assert.equal((await sdk.getDoc(rosterRef(admin, f.id, person.id))).exists(), false);
+  for (const id of ["planned", "short", "training", "organization", "z49"]) {
+    const saved = (await sdk.getDoc(f.ref(id))).data();
+    assert.equal(saved.participants[person.id], undefined, id);
+    assert.equal(saved.assignments[person.id], undefined, id);
+    if (id === "planned") assert.deepEqual(saved.teams.team.memberIds, f.selected.slice(1, 5).map(({ id }) => id));
+    if (id === "short") {
+      assert.deepEqual(saved.teams, {});
+      assert.deepEqual(saved.assignments, {});
+      assert.equal(saved.participants.team1.individual, true);
+    }
+  }
+  assert.deepEqual((await sdk.getDoc(f.ref("history"))).data(), history);
+  assert.ok(planned.participants[person.id]);
+});
+
 test("training and organization accept inactive club members and protect the schedule", { skip: !enabled }, async () => {
   const f = await eventFixture();
   const inactive = f.selected[0];
@@ -224,6 +284,38 @@ test("creating a training series commits up to 52 dates atomically and retries u
   assert.equal((await sdk.getDoc(f.ref("weekly-52"))).data().repeatDays, 7);
   await fails(events.send(f.db, f.id, "invalid-series", { ...action, date: `${f.year + 1}-12-24`, repeatUntil: `${f.year + 2}-01-14` }, api()));
   assert.equal((await sdk.getDoc(f.ref("invalid-series"))).exists(), false);
+});
+
+test("series edits load legacy occurrences by ID and update future metadata atomically", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const dates = require("../assets/js/start-eligibility-core.js");
+  const today = dates.today();
+  const id = "AbC01234567890123456";
+  const action = { type: "create-training", category: "training", name: "Serie", date: today, plannedOn: today,
+    repeatUntil: dates.addMonths(today, 12), startTime: "18:00", endTime: "19:00", repeatDays: 7, additions: [] };
+  await events.send(f.db, f.id, id, action, api());
+  let entries = await events.listSeries(f.db, f.id, id, api(), () => {});
+  assert.equal(entries.length, 53);
+  const selected = entries.find((entry) => entry.id === `${id}-3`);
+  const first = entries.find((entry) => entry.id === id);
+  const other = entries.find((entry) => entry.id === `${id}-4`);
+  await command(f, { type: "metadata", name: "Abweichende Uhrzeit", date: other.date, startTime: "16:00", endTime: "19:00",
+    expectedRevision: other.revision }, other.id);
+  const change = (source) => ({ type: "series-metadata", seriesId: id, edits: eventCore.seriesEdits(selected,
+    { ...selected, endTime: "20:00" }, source, today) });
+  const read = async (id) => (await sdk.getDoc(f.ref(id))).data();
+  await assert.rejects(events.send(f.db, f.id, selected.id, change(entries), api()), /inzwischen geändert|wurde geändert/);
+  assert.equal((await read(selected.id)).endTime, "19:00", "A concurrent metadata change aborts the whole transaction");
+  entries = await events.listSeries(f.db, f.id, id, api(), () => {});
+  const retry = change(entries);
+  await events.send(f.db, f.id, selected.id, retry, api());
+  await events.send(f.db, f.id, selected.id, retry, api());
+  assert.equal((await read(first.id)).endTime, "19:00");
+  assert.equal((await read(other.id)).name, "Abweichende Uhrzeit");
+  assert.equal((await read(other.id)).startTime, "16:00");
+  assert.equal((await read(other.id)).endTime, "20:00");
+  assert.equal((await read(`${id}-53`)).endTime, "20:00");
+  assert.equal((await read(selected.id)).revision, selected.revision + 1);
 });
 
 test("training publication validates the selection once and atomically seeds up to 53 independent occurrences", { skip: !enabled }, async () => {

@@ -43,6 +43,24 @@ test("training series can span at most one calendar year from the planning date"
     repeatUntil: "2030-09-30", skipSchoolFree: true }), /keine vollständigen/);
 });
 
+test("series edits only change the requested fields on the selected and future occurrences", () => {
+  const id = "PlAn0123456789012345";
+  const make = (suffix, date, startTime = "18:00") => ({ ...empty(), id: id + suffix, date, category: "training",
+    name: "Training", startTime, endTime: "20:00", repeatDays: 7 });
+  const first = make("", "2026-12-10");
+  const selected = make("-2", "2026-12-17");
+  const past = make("-3", "2026-12-24");
+  const next = make("-4", "2026-12-31", "17:30");
+  const entries = [first, selected, past, next, { ...next, id: "Other000000000000000" }];
+  const edits = core.seriesEdits(selected, { ...selected, date: "2026-12-18", name: "Abendtraining" }, entries, "2026-12-28");
+  assert.deepEqual(Object.keys(edits), [selected.id, next.id]);
+  assert.equal(core.replay(next, edits[next.id]).date, "2027-01-01");
+  assert.equal(core.replay(next, edits[next.id]).startTime, "17:30");
+  assert.equal(core.replay(selected, edits[selected.id]).name, "Abendtraining");
+  assert.equal(core.seriesId({ ...next, repeatDays: 0 }), "");
+  assert.throws(() => core.seriesEdits(selected, { ...selected, date: "2026-12-10" }, entries, "2026-12-28"), /Vergangenheit/);
+});
+
 test("every new participant starts individually and retains that flag when assigned to a team", () => {
   const before = fixture();
   const event = addTeam(before);

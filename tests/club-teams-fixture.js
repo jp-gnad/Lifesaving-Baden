@@ -98,14 +98,16 @@
   }
   function collection(path, filters = [], max = Infinity, after = null, field = "", direction = "asc") {
     const compare = (a, b) => {
-      const first = field ? String(a.data()[field]) : a.id;
-      const second = field ? String(b.data()[field]) : b.id;
+      const first = field && field !== "__name__" ? String(a.data()[field]) : a.id;
+      const second = field && field !== "__name__" ? String(b.data()[field]) : b.id;
       return (first.localeCompare(second) || a.id.localeCompare(b.id)) * (direction === "desc" ? -1 : 1);
     };
     const read = () => ({ docs: [...records.keys()].filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
-      .filter((key) => filters.every(([name, op, value]) => op === "array-contains" ? records.get(key)[name].includes(value)
-        : op === "in" ? value.includes(name === "__name__" ? key.split("/").pop() : records.get(key)[name])
-        : op === ">=" ? records.get(key)[name] >= value : op === "<" ? records.get(key)[name] < value : records.get(key)[name] === value))
+      .filter((key) => filters.every(([name, op, value]) => {
+        const actual = name === "__name__" ? key.split("/").pop() : records.get(key)[name];
+        return op === "array-contains" ? actual.includes(value) : op === "in" ? value.includes(actual)
+          : op === ">=" ? actual >= value : op === "<" ? actual < value : actual === value;
+      }))
       .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });
     return {
       doc: (id = String(++sequence).padStart(20, "0")) => doc(`${path}/${id}`), get: async () => read(),

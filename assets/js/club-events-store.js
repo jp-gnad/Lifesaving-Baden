@@ -2,6 +2,7 @@
   "use strict";
   const core = typeof module === "object" && module.exports ? require("./club-events-core.js") : root.ClubEventsCore;
   const clubs = typeof module === "object" && module.exports ? require("./clubs-store.js") : root.ClubsStore;
+  const dates = typeof module === "object" && module.exports ? require("./start-eligibility-core.js") : root.StartEligibilityCore;
   const fail = (message) => { throw Object.assign(new Error(message), { code: "clubs/event" }); };
   const reference = (db, clubId, id) => db.collection("clubs").doc(clubId).collection("events").doc(id);
 
@@ -17,9 +18,17 @@
         return await db.runTransaction(async (transaction) => {
           const snapshot = await transaction.get(ref);
           checkSession();
-          if (!snapshot.exists) fail("Der Termin wurde gelöscht.");
+          if (!snapshot.exists) {
+            if (command.type === "rosterRemoval") return null;
+            fail("Der Termin wurde gelöscht.");
+          }
           const previous = snapshot.data();
           revision = previous.revision;
+          if (command.type === "rosterRemoval") {
+            const member = previous.participants[command.id];
+            if (previous.date < command.cutoff || member?.rosterId !== command.rosterId
+              || Math.floor(member.createdAtMillis) !== command.millis) return { ...previous, id };
+          }
           const next = command.type === "replay" ? core.replay(previous, command.action) : core.change(previous, command);
           if (next === previous) return { ...previous, id };
           transaction.set(ref, { ...next, updatedAt: sdk.FieldValue.serverTimestamp() });
@@ -89,6 +98,14 @@
         checkSession();
         if (!snapshot.exists) fail("Die Personenauswahl fehlt. Bitte erneut versuchen.");
         seed = snapshot.data();
+        const people = db.collection("clubs").doc(clubId).collection("people");
+        const selected = Object.values(seed.participants);
+        const roster = await Promise.all(selected.map((member) => transaction.get(people.doc(member.rosterId))));
+        checkSession();
+        if (roster.some((member, index) => !member.exists || member.data().eventRemovalDate
+          || Math.floor(member.data().createdAt.toMillis()) !== selected[index].createdAtMillis)) {
+          fail("Eine ausgewählte Person wurde aus dem Club entfernt. Bitte die Trainingsauswahl neu erstellen.");
+        }
         transaction.delete(seedRef);
       }
       return documents.map(({ id, ref, values }, index) => {
@@ -144,7 +161,80 @@
     });
   }
 
+  async function removeRosterPerson(db, clubId, person, sdk, checkSession = () => {}) {
+    const club = db.collection("clubs").doc(clubId);
+    const memberRef = club.collection("people").doc(person.id);
+    const millis = Math.floor(person.createdAt.toMillis());
+    const cutoff = await db.runTransaction(async (transaction) => {
+      checkSession();
+      const snapshot = await transaction.get(memberRef);
+      checkSession();
+      if (!snapshot.exists) return null;
+      const member = snapshot.data();
+      if (member.createdAt.toMillis() !== person.createdAt.toMillis()) fail("Die Person wurde inzwischen neu hinzugefügt.");
+      if (member.eventRemovalDate) return member.eventRemovalDate;
+      const date = dates.today();
+      transaction.update(memberRef, { eventRemovalDate: date });
+      return date;
+    });
+    if (!cutoff) return;
+    const events = club.collection("events");
+    const query = events.where("date", ">=", cutoff).orderBy("date").limit(50);
+    let cursor;
+    do {
+      checkSession();
+      const page = await (cursor ? query.startAfter(cursor) : query).get({ source: "server" });
+      for (const snapshot of page.docs) {
+        checkSession();
+        const matches = Object.entries(snapshot.data().participants).filter(([, entry]) =>
+          entry.rosterId === person.id && Math.floor(entry.createdAtMillis) === millis);
+        for (const [id] of matches) await mutateDocument(db, events.doc(snapshot.id), {
+          type: "rosterRemoval", id, rosterId: person.id, millis, cutoff,
+        }, sdk, checkSession);
+      }
+      cursor = page.docs.length === 50 ? page.docs.at(-1) : null;
+    } while (cursor);
+    await clubs.removePerson(db, clubId, person.id, sdk, checkSession, false, false, person.createdAt);
+  }
+
+  async function listSeries(db, clubId, id, sdk, checkSession) {
+    const docId = sdk.FieldPath.documentId();
+    const query = db.collection("clubs").doc(clubId).collection("events")
+      .where(docId, ">=", id).where(docId, "<", `${id}.`).orderBy(docId).limit(50);
+    const events = [];
+    let cursor;
+    do {
+      checkSession();
+      const page = await (cursor ? query.startAfter(cursor) : query).get({ source: "server" });
+      checkSession();
+      events.push(...page.docs.map((doc) => ({ ...doc.data(), id: doc.id })));
+      cursor = page.docs.length === 50 ? page.docs.at(-1) : null;
+    } while (cursor);
+    return events.filter((event) => core.seriesId(event) === id);
+  }
+
+  async function editSeries(db, clubId, action, sdk, checkSession) {
+    const edits = Object.entries(action.edits);
+    const refs = edits.map(([id]) => reference(db, clubId, id));
+    return db.runTransaction(async (transaction) => {
+      checkSession();
+      const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
+      checkSession();
+      return snapshots.map((snapshot, index) => {
+        const [id, edit] = edits[index];
+        if (!snapshot.exists || core.seriesId({ ...snapshot.data(), id }) !== action.seriesId) {
+          fail("Ein Serientermin wurde entfernt. Bitte die Serie erneut öffnen.");
+        }
+        const previous = snapshot.data();
+        const next = core.replay(previous, edit);
+        if (next !== previous) transaction.set(refs[index], { ...next, updatedAt: sdk.FieldValue.serverTimestamp() });
+        return { ...next, id };
+      });
+    });
+  }
+
   async function send(db, clubId, id, action, sdk, checkSession = () => {}, series) {
+    if (action.type === "series-metadata") return editSeries(db, clubId, action, sdk, checkSession);
     if (action.type === "create-training") {
       const occurrences = series ? Object.entries(series).map(([id, date]) => ({ id, date })) : core.occurrences(id, action);
       return createTraining(db, clubId, id, occurrences, action, sdk, checkSession);
@@ -166,7 +256,7 @@
     return mutate(db, clubId, id, { type: "replay", action }, sdk, checkSession);
   }
 
-  const api = Object.freeze({ create, mutate, addPerson, updateParticipants, send, remove });
+  const api = Object.freeze({ create, mutate, addPerson, updateParticipants, send, remove, removeRosterPerson, listSeries });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsStore = api;
 })(typeof window === "object" ? window : globalThis);
