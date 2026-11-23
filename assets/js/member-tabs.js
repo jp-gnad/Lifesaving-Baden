@@ -3,6 +3,7 @@ window.LifesavingMemberTabs = (() => {
   if (!tablist) return;
   const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
   const panels = tabs.map((tab) => document.getElementById(tab.getAttribute("aria-controls")));
+  let selectedIndex = 0;
 
   function selectTab(index) {
     if (!tabs[index] || !panels[index]) return;
@@ -12,6 +13,11 @@ window.LifesavingMemberTabs = (() => {
       tab.tabIndex = selected ? 0 : -1;
       if (panels[position]) panels[position].hidden = !selected;
     });
+    if (index !== selectedIndex) {
+      tablist.dataset.indicatorDirection = index < selectedIndex ? "backward" : "forward";
+      tablist.style.setProperty("--member-tab-index", index);
+      selectedIndex = index;
+    }
   }
 
   tabs.forEach((tab, index) => {

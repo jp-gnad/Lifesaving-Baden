@@ -49,8 +49,10 @@
 
   function participant(person, year, competition = true) {
     if (competition && !person.activeYears?.includes(year)) fail("Die Person ist im Jahr des Termins nicht aktiv.");
+    // Rules Timestamp.toMillis() drops submillisecond precision, unlike the browser SDK.
+    const createdAtMillis = Math.floor(person.createdAtMillis ?? person.createdAt.toMillis());
     return { rosterId: person.id, name: person.name, birthYear: person.birthYear || null, gender: teamsCore.gender(person.gender),
-      createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: !competition || person.individual !== false };
+      createdAtMillis, individual: !competition || person.individual !== false };
   }
 
   function sameTeam(a, b) {

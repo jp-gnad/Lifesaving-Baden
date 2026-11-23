@@ -45,7 +45,24 @@
     return /^local_[a-zA-Z0-9]{20}$/.test(person.id) && person.accountUid === "" && person.personId === "";
   }
 
-  const api = Object.freeze({ clubName, clubId, profile, displayName, activeYears, isLocalPerson, dateKeys, proofDates });
+  const maxContributionCents = 99_999_999;
+
+  function parseContribution(value) {
+    const text = value.trim();
+    if (!text) return null;
+    const parts = /^(\d{1,6})(?:[,.](\d{1,2}))?$/.exec(text);
+    if (!parts) throw new Error("Bitte einen Betrag von 0 bis 999.999,99 € mit höchstens zwei Nachkommastellen eingeben.");
+    return Number(parts[1]) * 100 + Number((parts[2] || "").padEnd(2, "0"));
+  }
+
+  function contributionKey(person, contributions) {
+    const id = person.personId || person.id;
+    // An unlinked account can already have a contribution under its roster ID.
+    return !Object.hasOwn(contributions, id) && Object.hasOwn(contributions, person.id) ? person.id : id;
+  }
+
+  const api = Object.freeze({ clubName, clubId, profile, displayName, activeYears, isLocalPerson, dateKeys, proofDates,
+    maxContributionCents, parseContribution, contributionKey });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsCore = api;
 })(typeof window === "object" ? window : globalThis);

@@ -133,6 +133,15 @@ Clubs ausschließlich deren berechtigten Team Managern und Admins. Nach der Anla
 sind Aktivjahre und Nachweise editierbar. Die neuen Regeln zuerst veröffentlichen,
 damit die Website diese Einträge speichern kann.
 
+Teilnehmerbeiträge liegen unter `clubs/{clubId}/finance/{year}`. Berechtigte
+Team Manager und Admins eines aktiven Clubs dürfen das Jahresdokument lesen.
+Pro Schreibvorgang prüfen die Regeln genau eine aktive Person und einen
+ganzzahligen Eurocent-Betrag. Die Bearbeitung ist für das laufende und das
+folgende Jahr freigegeben. Beim ausdrücklichen Löschen einer Gliederung werden
+ihre Finanzdokumente vollständig entfernt.
+Für die Finanzansicht müssen die neuen Firestore-Regeln vor der Website-Version
+veröffentlicht werden.
+
 Die Club-Eventplanung speichert unter `clubs/{clubId}/events/{eventId}` und nutzt
 keine Timer-Events. Zugriff erhalten ausschließlich die bisherigen berechtigten
 Clubverantwortlichen und Admins. Bei Wettkämpfen prüfen die Regeln aktive Personen

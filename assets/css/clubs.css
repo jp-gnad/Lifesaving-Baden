@@ -59,6 +59,14 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-person-roster > svg { width: 14px; color: var(--muted); }
 .club-person-activity { flex-shrink: 0; color: var(--muted); font-size: .76rem; }
 .club-person-activity.is-active { color: #75d4ac; }
+.club-finance-summary {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  margin-bottom: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.club-finance-value { color: #75d4ac; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.club-finance-summary .club-finance-value { font-size: 1.15rem; }
+.club-finance-dialog { max-width: 420px; }
+.club-finance-dialog #club-finance-amount { color: #75d4ac; }
 .club-person-years { min-inline-size: 0; margin: 0 0 16px; padding: 0; border: 0; }
 .club-person-years legend { margin-bottom: 8px; color: var(--muted); font-size: .85rem; }
 .club-year-badges { display: flex; gap: 6px; }

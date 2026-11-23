@@ -196,6 +196,23 @@ test("training and organization accept inactive club members and protect the sch
   await fails(events.send(compat(dbFor("athlete")), f.id, "forbidden", { ...details, category: "training" }, api()));
 });
 
+test("a verified admin can add a group with existing microsecond-precision club identities to a training", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const admin = compat(dbFor("admin"));
+  const firstThree = f.selected.slice(0, 3);
+  const precise = new sdk.Timestamp(firstThree[0].createdAt.seconds, 123456000);
+  await seed(Object.fromEntries(firstThree.map(({ id, rosterGender, ...person }) => [
+    `clubs/${f.id}/people/${id}`, { ...person, createdAt: precise },
+  ])));
+  await events.send(admin, f.id, "training", { type: "create", category: "training", name: "Training",
+    date: `${f.year}-06-20`, startTime: "18:00", endTime: "19:30", additions: [] }, api());
+  const additions = firstThree.map((person) => eventCore.snapshotPerson({ ...person, createdAt: precise }));
+  assert.ok(additions.every(({ createdAtMillis }) => !Number.isInteger(createdAtMillis)), "Queued data retains SDK precision");
+  const updated = await events.send(admin, f.id, "training", { type: "participants", category: "training", additions }, api());
+  assert.deepEqual(Object.keys(updated.participants).sort(), firstThree.map(({ id }) => id).sort());
+  assert.equal(updated.participants[firstThree[0].id].createdAtMillis, Math.floor(precise.toMillis()));
+});
+
 test("creating a training series commits up to 52 dates atomically and retries use the same documents", { skip: !enabled }, async () => {
   const f = await eventFixture();
   const action = { type: "create", category: "training", name: "Training", date: `${f.year}-01-01`,
@@ -422,6 +439,48 @@ test("activity is separate by club and year and a new import starts inactive", {
   assert.deepEqual((await sdk.getDoc(rosterRef(dbFor("a"), first, p1))).data().activeYears, [year]);
   assert.deepEqual((await sdk.getDoc(rosterRef(dbFor("b"), second, p1))).data().activeYears, []);
   await fails(sdk.updateDoc(rosterRef(dbFor("a"), first, p1), { activeYears: [year + 2], updatedAt: sdk.serverTimestamp() }));
+});
+
+test("club finance isolates years and enforces active membership, exact cents and club access", { skip: !enabled }, async () => {
+  const club = await create("Club Finanzen", "a");
+  const otherClub = await create("Anderer Club Finanzen", "b");
+  const db = dbFor("a");
+  const admin = dbFor("admin");
+  const manager = compat(db);
+  const year = new Date().getUTCFullYear();
+  const ledger = (uid, season = year, id = club) => sdk.doc(uid, `clubs/${id}/finance/${season}`);
+  await store.importPerson(manager, club, p1, api());
+  const localId = await store.createLocalPerson(manager, club, { name: "Testperson", birthYear: year - 14, gender: "w" }, api());
+  for (const [id, season] of [[p1, year], [p1, year + 1], [localId, year]]) await store.setActive(manager, club, id, season, true, api());
+  const member = async (id) => ({ ...(await sdk.getDoc(rosterRef(db, club, id))).data(), id });
+  const first = await member(p1);
+  const local = await member(localId);
+  await store.saveContribution(manager, club, year, first, core.parseContribution("12,34"), null, api());
+  await store.saveContribution(manager, club, year, local, 0, null, api());
+  await store.saveContribution(compat(admin), club, year + 1, first, 2001, null, api());
+  assert.deepEqual((await sdk.getDoc(ledger(db))).data().contributions, { [p1]: 1234, [localId]: 0 });
+  assert.deepEqual((await sdk.getDoc(ledger(db, year + 1))).data().contributions, { [p1]: 2001 });
+  assert.equal((await sdk.getDoc(ledger(dbFor("b"), year, otherClub))).exists(), false);
+  await fails(sdk.getDoc(ledger(dbFor("b"))));
+  await fails(store.saveContribution(compat(dbFor("outsider")), club, year, first, 300, 1234, api()));
+  await fails(sdk.deleteDoc(ledger(admin)));
+  await assert.rejects(store.saveContribution(manager, club, year, first, 1500, null, api()), /inzwischen geändert/);
+  const write = (contributions, changedPersonId = p1, rosterId = p1) => sdk.setDoc(ledger(db), {
+    year, contributions, changedPersonId, rosterId, updatedAt: sdk.serverTimestamp(),
+  });
+  for (const amount of [-1, 0.5, 100_000_000, "1500"]) await fails(write({ [p1]: amount, [localId]: 0 }));
+  await fails(write({ [p1]: 1500, [localId]: 1 }));
+  await fails(write({ [p1]: 1234, [localId]: 1 }, localId, p1));
+  await store.setActive(manager, club, p1, year, false, api());
+  await fails(write({ [p1]: 1500, [localId]: 0 }));
+  assert.equal((await sdk.getDoc(ledger(db))).data().contributions[p1], 1234);
+  await store.setActive(manager, club, p1, year, true, api());
+  await store.saveContribution(manager, club, year, first, null, 1234, api());
+  assert.deepEqual((await sdk.getDoc(ledger(db))).data().contributions, { [localId]: 0 });
+  await store.deleteClub(compat(admin), club, api());
+  await env.withSecurityRulesDisabled(async (context) => {
+    for (const season of [year, year + 1]) assert.equal((await sdk.getDoc(ledger(context.firestore(), season))).exists(), false);
+  });
 });
 
 test("imports never grant responsibility; only admins assign staff accounts", { skip: !enabled }, async () => {

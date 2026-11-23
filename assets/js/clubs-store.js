@@ -220,15 +220,16 @@
       checkSession();
       await club.collection("teamSeasons").doc(season.id).delete();
     }
-    // Explicit club deletion traverses all event pages; normal saves read only
-    // the event being changed.
-    for (;;) {
-      checkSession();
-      const events = await club.collection("events").limit(50).get({ source: "server" });
-      if (!events.docs.length) break;
-      for (const event of events.docs) {
+    // Explicit club deletion traverses all event and finance pages.
+    for (const collection of ["events", "finance"]) {
+      for (;;) {
         checkSession();
-        await club.collection("events").doc(event.id).delete();
+        const page = await club.collection(collection).limit(50).get({ source: "server" });
+        if (!page.docs.length) break;
+        for (const entry of page.docs) {
+          checkSession();
+          await club.collection(collection).doc(entry.id).delete();
+        }
       }
     }
     checkSession();
@@ -278,6 +279,33 @@
     return editMember(db, clubId, subjectId, () => changes, sdk, checkSession, expectedCreatedAt);
   }
 
+  async function saveContribution(db, clubId, year, person, cents, expected, sdk, checkSession = () => {}) {
+    if (!Number.isInteger(year) || year < 1900 || year > 9999 || (cents !== null
+      && (!Number.isInteger(cents) || cents < 0 || cents > core.maxContributionCents))) {
+      fail("clubs/contribution", "Der Beitrag oder das Jahr ist ungültig.");
+    }
+    const { club, people } = references(db, clubId);
+    const finance = club.collection("finance").doc(String(year));
+    return db.runTransaction(async (transaction) => {
+      checkSession();
+      const [member, ledger] = await Promise.all([transaction.get(people.doc(person.id)), transaction.get(finance)]);
+      checkSession();
+      const current = member.data();
+      if (!member.exists || current.createdAt.toMillis() !== person.createdAt.toMillis()) {
+        fail("clubs/stale-person", "Die Person wurde entfernt oder neu hinzugefügt.");
+      }
+      if (!current.activeYears.includes(year)) fail("clubs/contribution", "Die Person ist in diesem Jahr nicht aktiv.");
+      const contributions = { ...ledger.data()?.contributions };
+      const key = core.contributionKey({ ...current, id: person.id }, contributions);
+      const previous = Object.hasOwn(contributions, key) ? contributions[key] : null;
+      if (previous === cents) return;
+      if (previous !== expected) fail("clubs/contribution", "Der Beitrag wurde inzwischen geändert. Bitte öffne ihn erneut.");
+      if (cents === null) delete contributions[key];
+      else contributions[key] = cents;
+      transaction.set(finance, { year, contributions, changedPersonId: key, rosterId: person.id, updatedAt: stamp(sdk) });
+    });
+  }
+
   async function syncResponsibleMemberships(db, uid, sdk, checkSession = () => {}) {
     const index = await db.collection("clubAccounts").doc(uid).get({ source: "server" });
     checkSession();
@@ -307,7 +335,8 @@
     return true;
   }
 
-  const api = Object.freeze({ createClub, importPerson, createLocalPerson, assignResponsible, setActive, refreshIdentity, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
+  const api = Object.freeze({ createClub, importPerson, createLocalPerson, assignResponsible, setActive, refreshIdentity, removePerson, deleteClub,
+    prepareAccountChange, prepareAccountDeletion, saveDates, saveContribution, syncResponsibleMemberships, migrateResponsibilities, managerKey });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsStore = api;
 })(typeof window === "object" ? window : globalThis);

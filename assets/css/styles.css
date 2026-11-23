@@ -587,9 +587,34 @@ body[data-page="app"] .dashboard > .dashboard-header {
 }
 
 .dashboard-header > .member-tabs {
+  --member-tab-count: 3;
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--member-tab-count), minmax(0, 1fr));
   margin-top: auto;
+}
+
+.member-tabs::after {
+  --leading-edge-easing: cubic-bezier(0.22, 0.78, 0.28, 1);
+  --trailing-edge-easing: cubic-bezier(0.32, 0.62, 0.38, 1);
+  content: "";
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: calc(var(--member-tab-index, 0) * 100% / var(--member-tab-count));
+  inset-inline-end: calc((var(--member-tab-count) - 1 - var(--member-tab-index, 0)) * 100% / var(--member-tab-count));
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  pointer-events: none;
+  transition: inset-inline-start 340ms var(--trailing-edge-easing), inset-inline-end 340ms var(--leading-edge-easing);
+}
+
+.member-tabs[data-indicator-direction="backward"]::after {
+  transition-timing-function: var(--leading-edge-easing), var(--trailing-edge-easing);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-tabs::after { transition-duration: 0s; }
 }
 
 @media (max-width: 1000px) {
@@ -603,23 +628,17 @@ body[data-page="app"] .dashboard > .dashboard-header {
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 8px;
+  padding: 8px 8px 11px;
   border: 0;
-  border-bottom: 3px solid transparent;
   background: transparent;
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer;
   color: var(--muted);
   font-size: 0.95rem;
   font-weight: 400;
 }
 
-.member-tabs [role="tab"]:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-}
-
 .member-tabs [role="tab"][aria-selected="true"] {
-  border-bottom-color: var(--primary);
   color: var(--primary);
 }
 

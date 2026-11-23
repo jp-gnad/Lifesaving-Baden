@@ -1067,12 +1067,21 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/clubs/$(id)).data.status == "deleting";
       }
 
+      match /finance/{yearId} {
+        allow get: if managesClub(id);
+        allow list: if canClearClubFinance(id) && request.query.limit is int
+          && request.query.limit > 0 && request.query.limit <= 50;
+        allow create: if managesClub(id) && validClubFinance(id, yearId, request.resource.data, {});
+        allow update: if managesClub(id) && validClubFinance(id, yearId, request.resource.data, resource.data.contributions);
+        allow delete: if canClearClubFinance(id);
+      }
+
       match /events/{eventId} {
         allow get: if managesClub(id) || (verifiedUser() && isAdmin());
         allow list: if (managesClub(id) || (verifiedUser() && isAdmin()))
           && request.query.limit is int && request.query.limit > 0 && request.query.limit <= 50;
         allow create: if managesClub(id) && validClubEvent(request.resource.data)
-          && currentEventYear(request.resource.data.year) && request.resource.data.revision == 0
+          && currentOrNextClubYear(request.resource.data.year) && request.resource.data.revision == 0
           && request.resource.data.operation == "create" && request.resource.data.changedId == ""
           && request.resource.data.participants == {} && request.resource.data.teams == {} && request.resource.data.assignments == {}
           && request.resource.data.createdAt == request.time;
@@ -1224,9 +1233,34 @@ service cloud.firestore {
         && startEligibilityDate(data.get("healthDeclaration", null));
     }
 
-    function currentEventYear(year) {
+    function currentOrNextClubYear(year) {
       let current = (request.time + duration.value(2, "h")).year();
       return year in [current, current + 1];
+    }
+
+    function canClearClubFinance(club) {
+      return verifiedUser() && isAdmin()
+        && get(/databases/$(database)/documents/clubs/$(club)).data.status == "deleting";
+    }
+
+    function validContributionMember(club, next, previous) {
+      let person = get(/databases/$(database)/documents/clubs/$(club)/people/$(next.rosterId)).data;
+      let id = person.personId == "" ? next.rosterId : person.personId;
+      return next.year in person.activeYears
+        && (next.changedPersonId == id || (next.changedPersonId == next.rosterId
+          && previous.keys().hasAny([next.rosterId]) && !previous.keys().hasAny([id])));
+    }
+
+    function validClubFinance(club, yearId, next, previous) {
+      let key = next.changedPersonId;
+      let amount = next.contributions.get(key, 0);
+      return next.keys().hasOnly(["year", "contributions", "changedPersonId", "rosterId", "updatedAt"])
+        && next.year is int && yearId == string(next.year) && currentOrNextClubYear(next.year)
+        && next.rosterId is string && next.rosterId.matches('^[a-zA-Z0-9_-]{1,128}$')
+        && key is string && key.matches('^[a-zA-Z0-9_-]{1,128}$') && next.contributions is map
+        && next.contributions.diff(previous).affectedKeys() == [key].toSet()
+        && amount is int && amount >= 0 && amount <= 99999999
+        && next.updatedAt == request.time && validContributionMember(club, next, previous);
     }
 
     function competitionEvent(data) {
@@ -1303,7 +1337,7 @@ service cloud.firestore {
         && (operation == "metadata"
         ? fields.hasOnly(["name", "date", "year", "startTime", "endTime", "operation", "changedId", "changedIds", "revision", "updatedAt"])
           && validClubEvent(next)
-          && (next.year == previous.year || (previous.participants.size() == 0 && currentEventYear(next.year)))
+          && (next.year == previous.year || (previous.participants.size() == 0 && currentOrNextClubYear(next.year)))
         : fields.hasOnly(["participants", "teams", "assignments", "operation", "changedId", "changedIds", "revision", "updatedAt"])
           && (operation == "team" ? competition && validEventTeam(next, previous)
             : operation == "participants" ? validEventSelection(club, next, previous, competition)

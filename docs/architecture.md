@@ -15,7 +15,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
-| `club-verwaltung.html` | Clubkader, Aktivstatus, Nachweise und eigene Eventplanung | `clubs.js`, `clubs-core.js`, `clubs-store.js`, `start-eligibility*.js`, `club-events*.js`, `club-teams-core.js` |
+| `club-verwaltung.html` | Clubkader, Aktivstatus, Nachweise, Teilnehmerbeiträge und eigene Eventplanung | `clubs.js`, `clubs-core.js`, `clubs-store.js`, `club-finance.js`, `start-eligibility*.js`, `club-events*.js`, `club-teams-core.js` |
 | `gliederungen.html` | Clubs und Verantwortliche verwalten | dieselben Clubmodule, Admin-Einstieg |
 | `arbeitszeiten.html` | Aufgaben, Arbeitszeiten und Statistik | `worktime.js`, `worktime-core.js`, `worktime-store.js` |
 | `mein-training.html` | Vorbereiteter geschützter Trainingsbereich | `auth.js`, `training.css`; bisher kein eigener Datenspeicher |
@@ -123,11 +123,16 @@ wird nicht erweitert. Identische Profildaten erzeugen keine neue Darstellung,
 gleichzeitig eintreffende Änderungen werden zusammengefasst. Clubkader und
 Gliederungskarten verwenden unveränderte DOM-Elemente weiter.
 
-Unter „Personen“ wechseln Übersicht und Startberechtigungen per Dropdown.
+Unter „Personen“ wechseln Übersicht, Startberechtigungen und Finanzen per Dropdown.
 Die Jahresauswahl steuert die Altersgruppen und den angezeigten Aktivstatus.
 In der Übersicht bleiben auch inaktive Personen erreichbar. Ihre Aktivjahre
 werden im Personenmenü gesetzt. Die Startberechtigungen filtern wie bisher nach
 aktiven Personen im gewählten Jahr und öffnen den Nachweiseditor.
+Die Finanzansicht lädt nur das Beitragsdokument des gewählten Jahres. Sie
+speichert Beiträge als ganze Eurocent und berechnet die Summe aus den im Jahr
+aktiven Personen des geladenen Clubkaders. Bei der Deaktivierung bleibt ein
+erfasster Beitrag im Jahresdokument und erscheint bei Reaktivierung wieder.
+Die Schreibtransaktion liest nur das Jahresdokument und die betreffende Person.
 „Person erstellen“ speichert Name, Jahrgang und Geschlecht ausschließlich im
 jeweiligen Clubkader. Die eigene Dokument-ID bleibt auch in Club-Events die
 Identität dieser Person. Manuelle Einträge starten mit leeren Aktivjahren und
@@ -359,6 +364,7 @@ werden daraus keine Events konstruiert. Die ungenutzte alte Mannschaftsoberfläc
 | `timerEvents/{eventId}/results/{id}` | Einzelergebnis mit Personensnapshot | Timer-Adapter; idempotente Offline-Übertragung |
 | `timerEvents/{eventId}/customDisciplines/{id}` | Wiederverwendbarer Disziplinenname mit fester Rundenzahl, ausschließlich für Benutzerdefiniert | Timer-Adapter: atomar mit einem Ergebnis; Katalogeinträge sind unveränderlich. |
 | `clubs/{id}` und `clubs/{id}/people/{id}` | Verantwortliche, Kader, Aktivjahre und Nachweise | `clubs-store.js` |
+| `clubs/{id}/finance/{year}` | Teilnehmerbeiträge eines Jahres in Eurocent | `club-finance.js` und `clubs-store.js` |
 | `clubs/{id}/events/{eventId}` | Club-Eventplanung mit Einzelstarts, Mannschaften und atomaren Zuordnungen | `club-events-store.js`; vollständige Bereinigung beim ausdrücklichen Club-Löschen |
 | `clubProfiles/{uid}`, `clubAccounts/{uid}` | Profile und Clubzuordnungen | Club-/Personenlink-Transaktionen |
 | `users/{uid}/worktimeEntries/{id}` | Arbeitsaufgaben und Intervalle | `worktime-store.js` |

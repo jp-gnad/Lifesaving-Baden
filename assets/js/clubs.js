@@ -31,6 +31,7 @@
   let selectedName = "";
   let responsibleClub = "";
   const eventView = adminPage ? null : window.ClubEvents.create({ byId, node, icon, isCurrent: active, getPeople: peopleFor, onChange: render, errorText });
+  const financeView = adminPage ? null : window.ClubFinance.create({ byId, node, icon, isCurrent: active, errorText });
 
   function node(tag, className, text) {
     const element = document.createElement(tag);
@@ -76,6 +77,7 @@
 
   function clearView(owner) {
     eventView?.stop();
+    financeView?.stop();
     owner.view += 1;
     owner.rosterStop?.();
     owner.rosterStop = null;
@@ -342,19 +344,22 @@
       else button.removeAttribute("aria-current");
     });
     const peopleTab = tab === "people";
-    const eligibilityView = peopleTab && byId("club-people-view").value === "eligibility";
-    byId("club-person-actions").hidden = !owner.loaded || !peopleTab || eligibilityView;
+    const peopleView = peopleTab ? byId("club-people-view").value : "";
+    const eligibilityView = peopleView === "eligibility";
+    byId("club-person-actions").hidden = !owner.loaded || peopleView !== "overview";
     byId("se-summary").hidden = true;
     byId("club-people-view").hidden = !peopleTab;
     byId("se-season-switch").hidden = !peopleTab;
     byId("se-season-switch").disabled = !owner.loaded;
     if (tab !== "events") eventView.stop();
+    if (peopleView !== "finance") financeView.stop();
     byId("club-overview").hidden = !owner.loaded;
     if (!owner.loaded) return;
     if (tab === "events") { eventView.render(owner); return; }
     const nextSeason = byId("se-season-next").checked;
     const year = eligibility.seasonYear(day, nextSeason);
     const everyone = peopleFor(owner);
+    if (peopleView === "finance") { financeView.render(owner, year, everyone); return; }
     const people = eligibilityView ? everyone.filter((person) => person.activeYears.includes(year)) : everyone;
     const groups = new Map([...eligibility.groups, "Ohne Jahrgang"].map((group) => [group, []]));
     const totals = { 1: 0, 2: 0, 3: 0 };
