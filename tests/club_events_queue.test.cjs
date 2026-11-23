@@ -140,6 +140,23 @@ test("reload restores every pending participant and account changes never expose
   assert.equal(h.storage.length, 1);
 });
 
+test("an automatic roster invitation remains queued after a reload without appearing as a club event", async () => {
+  const held = deferred();
+  const first = harness(undefined, () => held.promise);
+  first.queue.enqueue("club", "roster:p0", { type: "sync-roster-invitations", rosterId: "p0" }, null);
+  assert.equal(first.storage.length, 1);
+  assert.deepEqual(first.queue.ids("club"), []);
+  await tick();
+  first.owner.active = false;
+  held.resolve([]);
+  await first.queue.flush();
+  const next = harness(first.storage, async () => []);
+  await next.queue.flush();
+  assert.equal(next.calls[0].action.rosterId, "p0");
+  assert.equal(next.storage.length, 0);
+  assert.deepEqual(next.queue.ids("club"), []);
+});
+
 test("failed events retain changes for retry without blocking unrelated events", async () => {
   let fail = true;
   const h = harness(undefined, async (_account, record) => {

@@ -166,6 +166,14 @@ Clubkader geprüft. Eine Transaktion übernimmt die geprüften Personen in alle
 Termine und entfernt den Entwurf. Die Firestore-Regeln verlangen diesen
 gemeinsamen Schreibvorgang. Die aktualisierten Regeln müssen vor der Website
 mit der Trainingsvorauswahl veröffentlicht werden.
+Automatische Einladungen sind für Training und Organisation verfügbar. Das
+optionale Feld `invitationMode` beschreibt, welche Kaderpersonen in geplante
+Termine aufgenommen werden. Ältere Termine ohne Modus verwenden die manuelle
+Auswahl. Die Automatik fragt geplante Termine über einen kombinierten Index
+für `invitationMode` und `date` ab und nutzt die bestehenden Identitätsregeln
+für Teilnehmersnapshots. Vor der neuen Website-Version die Firestore-Regeln
+und den Index aus `firestore.indexes.json` veröffentlichen und den Indexaufbau
+abschließen lassen.
 Serienänderungen verwenden die bestehenden Terminrechte. Die Transaktion
 gleicht die ursprünglich geladenen Metadaten aller betroffenen Termine ab und
 bewahrt parallele Änderungen an Teilnehmenden oder Mannschaften. Die Regeln

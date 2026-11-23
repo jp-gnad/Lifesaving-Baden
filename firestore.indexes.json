@@ -7,6 +7,13 @@
       { "fieldPath": "responsibilityVersion", "order": "ASCENDING" },
       { "fieldPath": "status", "order": "ASCENDING" }
     ]
+  }, {
+    "collectionGroup": "events",
+    "queryScope": "COLLECTION",
+    "fields": [
+      { "fieldPath": "invitationMode", "order": "ASCENDING" },
+      { "fieldPath": "date", "order": "ASCENDING" }
+    ]
   }],
   "fieldOverrides": []
 }

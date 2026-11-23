@@ -12,6 +12,7 @@
     const confirmed = new Map();
     const identity = (clubId, eventId) => `${clubId}/${eventId}`;
     const seriesMembers = (record) => record.series || record.action.edits;
+    const isRosterJob = (record) => record.action.type === "sync-roster-invitations";
     const eventIds = (record) => seriesMembers(record) ? Object.keys(seriesMembers(record)) : [record.eventId];
     const includesEvent = (record, id) => record.eventId === id || Boolean(seriesMembers(record)?.[id]);
     const accountPrefix = () => `${prefix}${encodeURIComponent(owner.uid)}/`;
@@ -43,10 +44,18 @@
     function enqueue(clubId, eventId, action, base) {
       guard(owner);
       if (storageError) throw Object.assign(new Error(storageError), { code: "clubs/queue-storage" });
+      if (action.type === "sync-roster-invitations") {
+        enqueueRecord(clubId, eventId, action, base);
+        return;
+      }
       const series = core.isCreate(action) && action.repeatDays
         ? Object.fromEntries(core.occurrences(eventId, action).map(({ id, date }) => [id, date])) : undefined;
       const view = core.replay(base, series ? { ...action, date: series[eventId] } : action.edits?.[eventId] || action);
       if (view === base) return view;
+      enqueueRecord(clubId, eventId, action, base, series, view);
+      return view;
+    }
+    function enqueueRecord(clubId, eventId, action, base, series, view) {
       const record = JSON.parse(JSON.stringify({ id: makeId(), accountId: owner.uid, clubId, eventId, action, base,
         series, view, createdAt: issued = Math.max(Date.now(), issued + 1) }));
       try { storage.setItem(key(record), JSON.stringify(record)); }
@@ -54,7 +63,6 @@
       records.push(record);
       changed();
       Promise.resolve().then(flush);
-      return view;
     }
     async function drain(account) {
       while (owner === account && isCurrent(account)) {
@@ -127,7 +135,7 @@
       return result ? { ...result, id: eventId } : null;
     }
     function ids(clubId) {
-      return [...new Set([...records.filter((entry) => entry.clubId === clubId).flatMap(eventIds),
+      return [...new Set([...records.filter((entry) => entry.clubId === clubId && !isRosterJob(entry)).flatMap(eventIds),
         ...[...confirmed.keys()].filter((id) => id.startsWith(`${clubId}/`)).map((id) => id.slice(clubId.length + 1))])];
     }
     function status(clubId, eventId = "") {

@@ -328,12 +328,15 @@ automatischen Einzelstart; schon vorhandene Einzelstarts bleiben erhalten.
 Die Einzelauswahl übernimmt Personen sofort und blendet sie aus der Auswahl aus.
 Das Personenmenü eines Einzelstarts bietet „Entfernen“: Mit Mannschaft bleibt die
 Zuordnung erhalten, ohne Mannschaft wird die Person aus dem Event entfernt.
-Bei Training und Organisation lassen sich in der Terminansicht alle Aktiven des
-Terminjahrs, der gesamte Clubkader oder einzelne Personen hinzufügen. Bereits
-eingetragene Personen bleiben erhalten.
-Bei einem Training steht diese Auswahl auch vor der Anlage zur Verfügung. Die
-Vorauswahl der aktiven Personen verwendet das Jahr des ersten stattfindenden
-Termins. Jeder Termin erhält eine eigene Kopie der Auswahl.
+Bei geplanten Trainings- und Organisationsterminen speichert die Gruppenauswahl
+„Alle Aktiven hinzufügen“ oder „Alle Personen hinzufügen“ direkt, welche neuen
+Personen später aufgenommen werden. Anlage, Import und Aktivierung
+einer Kaderperson lösen einen kontogebundenen Warteschlangenauftrag aus. Er
+liest nur geplante Termine mit Automatik in begrenzten Seiten und ergänzt die
+Person nach dem jeweiligen Terminjahr. Bereits eingetragene Personen bleiben
+erhalten. Die Gruppe lässt sich schon vor der Anlage wählen. Die
+Vorauswahl für eine Serie kann gemeinsame Personen im Entwurf übernehmen.
+Jeder Termin ergänzt die für sein Jahr gültige Auswahl nach dem Veröffentlichen.
 
 Speichern bestätigt zuerst den Abschluss eines synchronen lokalen Schreibvorgangs.
 Die Warteschlange nutzt je Auftrag einen eigenen Schlüssel unter

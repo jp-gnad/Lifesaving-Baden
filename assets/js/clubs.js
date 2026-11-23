@@ -142,6 +142,7 @@
       startAdmin(owner).catch((error) => { if (active(owner)) message(errorText(error)); });
     } else {
       byId("club-loading").hidden = false;
+      eventView.start(owner);
       startClubs(owner);
     }
   }
@@ -468,8 +469,15 @@
     return row;
   }
 
+  function synchronizeInvitations(owner, clubId, id) {
+    if (!active(owner)) return;
+    try { eventView.syncRoster(owner, clubId, id); }
+    catch (error) { message(errorText(error)); }
+  }
+
   async function toggleActivity(owner, person, year) {
     const view = owner.view;
+    const clubId = owner.clubId;
     if (!active(owner, view) || owner.rosterState.has(person.id)) return;
     const current = owner.roster.get(person.id);
     if (!current || current.eventRemovalDate || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
@@ -479,7 +487,8 @@
     errorElement.hidden = true;
     render(owner);
     try {
-      await store.setActive(owner.db, owner.clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
+      await store.setActive(owner.db, clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
+      if (enabled) synchronizeInvitations(owner, clubId, person.id);
       if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); }
     } catch (error) {
       owner.rosterState.rollback(token);
@@ -595,7 +604,8 @@
       setBusy(true);
       error.hidden = true;
       try {
-        await store.createLocalPerson(owner.db, clubId, details, owner.sdk, () => requireCurrent(owner, view));
+        const id = await store.createLocalPerson(owner.db, clubId, details, owner.sdk, () => requireCurrent(owner, view));
+        synchronizeInvitations(owner, clubId, id);
         if (active(owner, view)) dialog.close();
       } catch (failure) {
         if (active(owner, view)) {
@@ -623,6 +633,7 @@
         details.append(node("strong", "se-person-name", core.displayName(person)), node("span", "se-meta", `${person.organization}${button.disabled ? " · Bereits im Club" : ""}`));
         button.append(details, icon(button.disabled ? 1 : "add"));
         button.addEventListener("click", async () => {
+          const clubId = owner.clubId;
           byId("se-search").disabled = true;
           byId("se-search-results").querySelectorAll("button").forEach((result) => { result.disabled = true; });
           const now = Date.now();
@@ -631,7 +642,8 @@
           byId("se-import-dialog").close();
           render(owner);
           try {
-            const id = await store.importPerson(owner.db, owner.clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
+            const id = await store.importPerson(owner.db, clubId, person.id, owner.sdk, () => requireCurrent(owner, view));
+            synchronizeInvitations(owner, clubId, id);
             if (active(owner, view)) { owner.rosterState.confirm(token, id); owner.rosterState.receive(owner.roster); render(owner); }
           } catch (error) {
             owner.rosterState.rollback(token);

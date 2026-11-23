@@ -105,7 +105,8 @@
     const read = () => ({ docs: [...records.keys()].filter((key) => key.startsWith(`${path}/`) && key.split("/").length === path.split("/").length + 1)
       .filter((key) => filters.every(([name, op, value]) => {
         const actual = name === "__name__" ? key.split("/").pop() : records.get(key)[name];
-        return op === "array-contains" ? actual.includes(value) : op === "in" ? value.includes(actual)
+        return op === "array-contains" ? actual.includes(value)
+          : op === "array-contains-any" ? value.some((entry) => actual.includes(entry)) : op === "in" ? value.includes(actual)
           : op === ">=" ? actual >= value : op === "<" ? actual < value : actual === value;
       }))
       .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });

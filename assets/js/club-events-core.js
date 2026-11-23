@@ -10,6 +10,8 @@
   const categoryOf = (event) => event?.category || "competition";
   const isCompetition = (event) => categoryOf(event) === "competition";
   const isCreate = (action) => action.type === "create" || action.type === "create-training";
+  const invitationMode = (event) => event?.invitationMode || "manual";
+  const invites = (mode, person, year) => mode === "all" || (mode === "active" && person.activeYears?.includes(year));
   const recurringTraining = (event) => event?.category === "training" && [7, 14].includes(event.repeatDays);
   function seriesId(event) {
     if (!recurringTraining(event)) return "";
@@ -41,12 +43,14 @@
       fail("Bitte eine gültige Start- und Endzeit wählen. Die Endzeit muss nach der Startzeit liegen.");
     }
     if (!(category === "training" ? [0, 7, 14] : [0]).includes(repeatDays)) fail("Ungültige Wiederholung.");
-    return { ...values, category, startTime, endTime, repeatDays };
+    return { ...values, category, startTime, endTime, repeatDays,
+      ...(invitationMode(details) !== "manual" ? { invitationMode: invitationMode(details) } : {}) };
   }
 
   function sameMetadata(first, second) {
     return first.name === second.name && first.date === second.date && categoryOf(first) === categoryOf(second)
-      && first.startTime === second.startTime && first.endTime === second.endTime && (first.repeatDays || 0) === (second.repeatDays || 0);
+      && first.startTime === second.startTime && first.endTime === second.endTime && (first.repeatDays || 0) === (second.repeatDays || 0)
+      && invitationMode(first) === invitationMode(second);
   }
 
   function seriesEdits(selected, fields, entries, today) {
@@ -121,6 +125,9 @@
         fail("Das Jahr kann nur bei einem Termin ohne Teilnehmer geändert werden.");
       }
       Object.assign(next, values);
+    } else if (command.type === "invitationMode") {
+      if (isCompetition(event) || !["manual", "active", "all"].includes(command.mode)) fail("Ungültiger Einladungsmodus.");
+      next.invitationMode = command.mode;
     } else if (command.type === "participants") {
       const changes = command.changes;
       if (!changes.length || changes.length > participantBatchSize || new Set(changes.map((entry) => entry.id)).size !== changes.length) fail("Ungültige Personenauswahl.");
@@ -233,8 +240,13 @@
       state = { ...metadata(action.name, action.date, action), participants: {}, teams: {}, assignments: {}, revision: 0 };
     }
     if (!state) fail("Der Termin wurde gelöscht.");
-    if (isCreate(action) || ["participants", "singles", "team"].includes(action.type)) {
-      const changes = selectionChanges(state, action.additions, action.removals || []);
+    if (action.type === "set-invitation" && invitationMode(state) !== action.mode) {
+      state = change(state, { type: "invitationMode", mode: action.mode });
+    }
+    if (isCreate(action) || ["participants", "singles", "team", "set-invitation"].includes(action.type)) {
+      if (action.automatic && (state.date < action.automatic.today || invitationMode(state) !== action.automatic.mode)) return state;
+      const additions = action.automatic ? action.additions.filter((member) => invites(action.automatic.mode, member, state.year)) : action.additions;
+      const changes = selectionChanges(state, additions, action.removals || []);
       for (let index = 0; index < changes.length; index += participantBatchSize) state = change(state, { type: "participants", changes: changes.slice(index, index + participantBatchSize) });
       if (action.type === "team") return replay(state, { type: "mutate", command: action.command });
       for (const command of action.toggles || []) state = replay(state, { type: "mutate", command });
@@ -254,7 +266,7 @@
     return change(state, command);
   }
 
-  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, recurringTraining, seriesId, seriesEdits,
+  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, invitationMode, invites, recurringTraining, seriesId, seriesEdits,
     excludedSchoolDays, occurrences, participant, sameTeam, change, namedTeams,
     displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
   if (typeof module === "object" && module.exports) module.exports = api;

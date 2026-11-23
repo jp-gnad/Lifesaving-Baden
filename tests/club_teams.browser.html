@@ -15,7 +15,7 @@
         base.href = new URL("../", location.href).href;
         page.head.prepend(base);
         const fixture = page.createElement("script");
-        fixture.src = "tests/club-teams-fixture.js?v=20261123-local-person-v1";
+        fixture.src = "tests/club-teams-fixture.js?v=20261123-auto-einladung-v1";
         fixture.defer = true;
         page.head.append(fixture);
         document.getElementById("preview").srcdoc = "<!doctype html>" + page.documentElement.outerHTML;

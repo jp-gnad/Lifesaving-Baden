@@ -33,7 +33,7 @@ function compat(db) {
   });
   const collection = (name) => ({
     where: (...args) => eventQuery(name, [sdk.where(...args)]),
-    limit: (size) => ({ async get() { const snapshot = await sdk.getDocs(sdk.query(sdk.collection(db, name), sdk.limit(size))); return { docs: snapshot.docs.map(wrap) }; } }),
+    limit: (size) => eventQuery(name, [sdk.limit(size)]),
     async get() { const snapshot = await sdk.getDocs(sdk.collection(db, name)); return { docs: snapshot.docs.map(wrap) }; },
     doc(id) {
       const native = id === undefined ? sdk.doc(sdk.collection(db, name)) : sdk.doc(db, `${name}/${id}`);
@@ -178,6 +178,44 @@ async function createEvent(f, id = "event", people = f.selected, year = f.year) 
   return events.create(f.db, f.id, id, "Wettkampf", `${year}-06-20`, people, api());
 }
 const command = (f, change, id = "event") => events.mutate(f.db, f.id, id, change, api());
+
+test("persistent invitations add new and activated club members to planned appointments by term year", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const dates = require("../assets/js/start-eligibility-core.js");
+  const today = dates.today();
+  const year = Number(today.slice(0, 4));
+  const settings = { type: "create", category: "organization", name: "Clubtermin", date: today, startTime: "19:00", endTime: "20:00", additions: [] };
+  const read = async (id) => (await sdk.getDoc(f.ref(id))).data();
+  await events.send(f.db, f.id, "all", { ...settings, invitationMode: "all" }, api());
+  await events.send(f.db, f.id, "active", settings, api());
+  await events.send(f.db, f.id, "active", { type: "set-invitation", mode: "active", additions: [] }, api());
+  await events.send(f.db, f.id, "next-year", { ...settings, date: `${year + 1}-01-02`, invitationMode: "active" }, api());
+  await events.send(f.db, f.id, "manual", settings, api());
+  assert.equal((await read("active")).invitationMode, "active");
+  assert.equal(Object.keys((await read("active")).participants).length, f.selected.length);
+  const yesterday = dates.asDate(today);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  await seed({ [`clubs/${f.id}/events/history`]: { ...(await read("all")), date: dates.dateKey(yesterday), year: yesterday.getUTCFullYear() } });
+  const newcomer = await store.createLocalPerson(f.db, f.id, { name: "Neu im Club", birthYear: year - 13, gender: "w" }, api());
+  const sync = () => events.send(f.db, f.id, `roster:${newcomer}`, { type: "sync-roster-invitations", rosterId: newcomer }, api());
+  await sync();
+  assert.ok((await read("all")).participants[newcomer]);
+  for (const id of ["active", "next-year", "manual", "history"]) assert.equal((await read(id)).participants[newcomer], undefined, id);
+  await store.setActive(f.db, f.id, newcomer, year + 1, true, api());
+  await sync();
+  assert.ok((await read("next-year")).participants[newcomer]);
+  assert.equal((await read("active")).participants[newcomer], undefined);
+  await store.setActive(f.db, f.id, newcomer, year, true, api());
+  await sync();
+  const revision = (await read("active")).revision;
+  await sync();
+  assert.ok((await read("active")).participants[newcomer]);
+  assert.equal((await read("active")).revision, revision);
+  assert.equal((await read("manual")).participants[newcomer], undefined);
+  assert.equal((await read("history")).participants[newcomer], undefined);
+  await fails(sdk.updateDoc(f.ref("active", "outsider"), { invitationMode: "all", operation: "invitationMode", changedId: "",
+    revision: revision + 1, updatedAt: sdk.serverTimestamp() }));
+});
 
 test("removing a roster person updates every page of planned appointments and preserves historical snapshots", { skip: !enabled }, async () => {
   const f = await eventFixture();

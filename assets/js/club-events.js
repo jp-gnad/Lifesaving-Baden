@@ -12,6 +12,7 @@
     const monthFormat = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
     const categoryLabels = { competition: "Wettkampf", training: "Training", organization: "Organisation" };
     const repeatLabels = { 7: "Wöchentliche Serie", 14: "Zweiwöchentliche Serie" };
+    const invitationLabels = { active: "Alle Aktiven", all: "Alle Personen" };
     let context = null;
     let draft = null;
     let teamDraft = null;
@@ -331,7 +332,7 @@
       const selected = mode === "create" ? null : event();
       draft = { context, mode, step: mode === "participants" ? 2 : 0, busy: false, id: selected?.id || ref().doc().id,
         expectedRevision: selected?.revision, expectedMetadata: selected && core.metadata(selected.name, selected.date, selected),
-        seriesId: mode === "metadata" ? core.seriesId(selected) : "", picked: new Set() };
+        seriesId: mode === "metadata" ? core.seriesId(selected) : "", picked: new Set(), invitationMode: "manual" };
       byId("club-event-scope-one").checked = true;
       byId("club-event-category").value = core.categoryOf(selected);
       byId("club-event-name").value = selected?.name || "";
@@ -383,7 +384,7 @@
       dialog.dataset.picker = String(picking);
       byId("club-event-title").textContent = metadata ? "Termin bearbeiten" : picking ? (competition ? "Einzelschwimmer" : "Personen hinzufügen")
         : draft.step === 0 ? "Termin hinzufügen" : competition ? "Datum" : "Datum und Uhrzeit";
-      byId("club-event-step").textContent = draft.mode === "create" ? `${draft.step + 1}/${category === "training" ? 3 : 2}` : "";
+      byId("club-event-step").textContent = draft.mode === "create" ? `${draft.step + 1}/${competition ? 2 : 3}` : "";
       byId("club-event-category-field").hidden = draft.mode !== "create" || draft.step !== 0;
       byId("club-event-name-field").hidden = !metadata && draft.step !== 0;
       byId("club-event-date-field").hidden = !dates;
@@ -408,16 +409,25 @@
       byId("club-event-previous").hidden = draft.mode !== "create" || draft.step === 0;
       byId("club-event-delete").hidden = !metadata;
       byId("club-event-actions").hidden = draft.mode === "participants";
-      byId("club-event-next").textContent = draft.mode === "create" && (draft.step === 0 || category === "training" && draft.step === 1)
+      byId("club-event-next").textContent = draft.mode === "create" && (draft.step === 0 || !competition && draft.step === 1)
         ? "Weiter" : draft.mode === "create" ? "Erstellen" : "Speichern";
-      byId("club-event-selection").hidden = !choosing;
+      const selection = byId("club-event-selection");
+      selection.hidden = true;
       if (picking) {
-        const selected = choosing ? draft.training : event();
+        const selected = choosing ? draft.appointment : event();
         if (!selected || !choosing && selected.id !== draft.id) { dialog.close(); return; }
         const choices = candidateChoices(selected);
-        if (choosing) byId("club-event-selection").textContent = `${draft.picked.size} ausgewählt`;
-        byId("club-event-add-active").disabled = !choices.some(({ source }) => source.activeYears.includes(selected.year));
-        byId("club-event-add-all").disabled = !choices.length;
+        const automatic = !competition && core.eventPeriod(selected.date, today) === "planned";
+        const mode = automatic ? (choosing ? draft.invitationMode : core.invitationMode(selected)) : "manual";
+        selection.hidden = !choosing && !invitationLabels[mode];
+        const additional = choosing && draft.picked.size ? ` · ${draft.picked.size} zusätzlich ausgewählt` : "";
+        selection.textContent = invitationLabels[mode] ? `Gruppe: ${invitationLabels[mode]}${additional}` : `${draft.picked.size} ausgewählt`;
+        for (const [id, option] of [["club-event-add-active", "active"], ["club-event-add-all", "all"]]) {
+          const control = byId(id);
+          control.disabled = !automatic && !choices.some(({ source }) => core.invites(option, source, selected.year));
+          if (automatic && choosing) control.setAttribute("aria-pressed", String(mode === option));
+          else control.removeAttribute("aria-pressed");
+        }
         const query = root.StartEligibilityCore.normalizeSearch(byId("club-event-search").value);
         const entries = choices.filter((person) => root.StartEligibilityCore.normalizeSearch(person.name).includes(query));
         const renderChoice = (person) => {
@@ -458,27 +468,33 @@
         const fields = { name: byId("club-event-name").value, date: byId("club-event-date").value,
           startTime: byId("club-event-start").value, endTime: byId("club-event-end").value };
         const category = byId("club-event-category").value;
-        if (editing.mode === "create" && category === "training") {
+        if (editing.mode === "create" && !core.isCompetition({ category })) {
           if (editing.step === 1) {
-            const repeatDays = Number(byId("club-event-repeat").value);
+            const training = category === "training";
+            const repeatDays = training ? Number(byId("club-event-repeat").value) : 0;
             const skipSchoolFree = repeatDays > 0 && byId("club-event-skip-school-free").checked;
-            editing.action = { type: "create-training", ...fields, category, additions: [], repeatDays,
+            editing.action = { type: training ? "create-training" : "create", ...fields, category, additions: [], repeatDays,
               repeatUntil: byId("club-event-repeat-until").value, plannedOn: root.StartEligibilityCore.today(), skipSchoolFree,
               excludedDays: skipSchoolFree ? core.excludedSchoolDays(byId("club-event-excluded-days").value) : [] };
             const [first] = core.occurrences(editing.id, editing.action);
-            editing.training = { ...core.metadata(fields.name, first.date, editing.action), participants: {} };
+            editing.appointment = { ...core.metadata(fields.name, first.date, editing.action), participants: {} };
             editing.step = 2;
             renderEditor();
             byId("club-event-title").focus();
             return;
           }
-          const choices = candidateChoices(editing.training).filter((person) => editing.picked.has(person.id));
-          if (choices.length !== editing.picked.size) {
-            editing.picked = new Set(choices.map((person) => person.id));
+          const choices = candidateChoices(editing.appointment);
+          const manuallyPicked = choices.filter((person) => editing.picked.has(person.id));
+          if (manuallyPicked.length !== editing.picked.size) {
+            editing.picked = new Set(manuallyPicked.map((person) => person.id));
             throw Object.assign(new Error("Die Personenauswahl hat sich geändert. Bitte erneut prüfen."), { code: "clubs/event" });
           }
-          queue.enqueue(value.owner.clubId, editing.id, { ...editing.action, plannedOn: root.StartEligibilityCore.today(),
-            additions: choices.map(trainingParticipant) }, null);
+          const plannedOn = root.StartEligibilityCore.today();
+          const plan = { ...editing.action, plannedOn, invitationMode: editing.appointment.date >= plannedOn ? editing.invitationMode : "manual" };
+          const years = [...new Set(core.occurrences(editing.id, plan).map(({ date }) => Number(date.slice(0, 4))))];
+          const additions = choices.filter(({ id, source }) => editing.picked.has(id)
+            || years.every((year) => core.invites(plan.invitationMode, source, year))).map(participantSnapshot);
+          queue.enqueue(value.owner.clubId, editing.id, { ...plan, additions }, null);
           draft = null; dialog.close(); openEvent(editing.id);
           return;
         }
@@ -519,7 +535,7 @@
       for (const [id, entry] of server) editing.context.events.set(id, entry);
       queue.enqueue(clubId, editing.id, { type: "series-metadata", seriesId: editing.seriesId, edits }, selected);
     }
-    function trainingParticipant({ source }) {
+    function participantSnapshot({ source }) {
       const stored = context.owner.roster.get(source.id) || source;
       return core.snapshotPerson({ ...stored, id: source.id, gender: source.rosterGender || "", individual: true });
     }
@@ -529,17 +545,28 @@
       if (!selected || core.isCompetition(selected) || selected.id !== draft.id || !choices.length) return;
       error("club-event-error");
       try {
-        const additions = choices.map(trainingParticipant);
+        const additions = choices.map(participantSnapshot);
         queue.enqueue(context.owner.clubId, selected.id, { type: "participants", category: selected.category, additions }, selected);
       } catch (failure) { error("club-event-error", errorText(failure)); }
     }
-    function addRoster(activeOnly) {
+    function addRoster(mode) {
       if (!draft || !current(draft.context)) return;
       const choosing = draft.mode === "create" && draft.step === 2;
-      const selected = choosing ? draft.training : event();
+      const selected = choosing ? draft.appointment : event();
       if (!selected) return;
-      const choices = candidateChoices(selected).filter(({ source }) => !activeOnly || source.activeYears.includes(selected.year));
-      if (choosing) {
+      const choices = candidateChoices(selected).filter(({ source }) => core.invites(mode, source, selected.year));
+      if (core.eventPeriod(selected.date, root.StartEligibilityCore.today()) === "planned") {
+        error("club-event-error");
+        if (choosing) {
+          draft.invitationMode = draft.invitationMode === mode ? "manual" : mode;
+          renderEditor();
+        }
+        else {
+          try {
+            queue.enqueue(context.owner.clubId, selected.id, { type: "set-invitation", mode, additions: choices.map(participantSnapshot) }, selected);
+          } catch (failure) { error("club-event-error", errorText(failure)); }
+        }
+      } else if (choosing) {
         choices.forEach(({ id }) => draft.picked.add(id));
         renderEditor();
       } else addPeople(choices);
@@ -678,8 +705,8 @@
     byId("club-event-category").addEventListener("change", renderEditor);
     byId("club-event-skip-school-free").addEventListener("change", renderEditor);
     byId("club-event-date").addEventListener("change", renderEditor);
-    byId("club-event-add-active").addEventListener("click", () => addRoster(true));
-    byId("club-event-add-all").addEventListener("click", () => addRoster(false));
+    byId("club-event-add-active").addEventListener("click", () => addRoster("active"));
+    byId("club-event-add-all").addEventListener("click", () => addRoster("all"));
     byId("club-event-close").addEventListener("click", () => { if (!draft?.busy) dialog.close(); });
     dialog.addEventListener("cancel", (e) => { if (draft?.busy) e.preventDefault(); });
     dialog.addEventListener("close", () => { if (!dialog.open) draft = null; });
@@ -700,7 +727,11 @@
     root.addEventListener("online", () => queue.retry());
     root.addEventListener("focus", () => queue.resume());
     root.addEventListener("storage", () => queue.resume());
-    return Object.freeze({ render, stop });
+    function syncRoster(owner, clubId, rosterId) {
+      queue.start(owner);
+      queue.enqueue(clubId, `roster:${rosterId}`, { type: "sync-roster-invitations", rosterId }, null);
+    }
+    return Object.freeze({ render, stop, start: queue.start, syncRoster });
   }
   root.ClubEvents = Object.freeze({ create });
 })(window);

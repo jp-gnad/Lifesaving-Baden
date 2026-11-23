@@ -109,6 +109,7 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .club-event-bulk { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .club-event-bulk .button { width: auto; min-height: 44px; font-size: .8rem; }
+.club-event-bulk .button[aria-pressed="true"] { color: #75d4ac; border-color: #75d4ac70; }
 .club-event-school-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 10px; font-size: .88rem; }
 .club-event-school-toggle input { accent-color: #75d4ac; }
 .club-event-scope { min-width: 0; margin: 0 0 14px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 9px; }

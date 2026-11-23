@@ -19,7 +19,7 @@
           const snapshot = await transaction.get(ref);
           checkSession();
           if (!snapshot.exists) {
-            if (command.type === "rosterRemoval") return null;
+            if (command.type === "rosterRemoval" || command.action?.automatic) return null;
             fail("Der Termin wurde gelöscht.");
           }
           const previous = snapshot.data();
@@ -67,14 +67,14 @@
     return updateDocumentParticipants(db, clubId, reference(db, clubId, id), additions, removals, sdk, checkSession, competition);
   }
 
-  async function updateDocumentParticipants(db, clubId, ref, additions, removals, sdk, checkSession, competition) {
+  async function updateDocumentParticipants(db, clubId, ref, additions, removals, sdk, checkSession, competition, automatic) {
     const entries = [...removals.map((remove) => ({ remove })), ...additions.map((person) => ({ person }))];
     let result;
     for (let index = 0; index < entries.length; index += core.participantBatchSize) {
       checkSession();
       const group = await Promise.all(entries.slice(index, index + core.participantBatchSize).map(async (entry) => entry.person && competition
         ? { person: await preparePerson(db, clubId, entry.person, sdk, checkSession) } : entry));
-      result = await mutateDocument(db, ref, { type: "replay", action: { type: "participants",
+      result = await mutateDocument(db, ref, { type: "replay", action: { type: "participants", automatic,
         additions: group.filter((entry) => entry.person).map((entry) => entry.person), removals: group.filter((entry) => entry.remove).map((entry) => entry.remove) } }, sdk, checkSession);
     }
     return result;
@@ -233,18 +233,84 @@
     });
   }
 
+  async function readPages(query, checkSession) {
+    const rows = [];
+    let cursor;
+    do {
+      checkSession();
+      const snapshot = await (cursor ? query.startAfter(cursor) : query).get({ source: "server" });
+      checkSession();
+      for (const doc of snapshot.docs) rows.push({ ...doc.data(), id: doc.id });
+      cursor = snapshot.docs.length === 50 ? snapshot.docs.at(-1) : null;
+    } while (cursor);
+    return rows;
+  }
+
+  async function applyInvitations(db, clubId, event, roster, sdk, checkSession, today) {
+    const mode = core.invitationMode(event);
+    const eligible = roster.filter((person) => core.invites(mode, person, event.year));
+    const additions = core.selectionChanges(event, eligible, []).map(({ person }) => core.snapshotPerson(person));
+    if (!additions.length) return event;
+    return updateDocumentParticipants(db, clubId, reference(db, clubId, event.id), additions, [], sdk, checkSession, false, { mode, today });
+  }
+
+  async function fillInvitations(db, clubId, events, sdk, checkSession) {
+    const today = dates.today();
+    const planned = events.filter((event) => event.date >= today && core.invitationMode(event) !== "manual");
+    if (!planned.length) return events;
+    const people = db.collection("clubs").doc(clubId).collection("people");
+    const years = [...new Set(planned.map((event) => event.year))];
+    const query = planned.some((event) => core.invitationMode(event) === "all") ? people
+      : people.where("activeYears", "array-contains-any", years);
+    const roster = (await readPages(query.limit(50), checkSession)).filter((person) => !person.eventRemovalDate);
+    const updated = new Map();
+    for (const event of planned) updated.set(event.id, await applyInvitations(db, clubId, event, roster, sdk, checkSession, today));
+    return events.map((event) => updated.has(event.id) ? updated.get(event.id) : event).filter(Boolean);
+  }
+
+  async function synchronizeMemberInvitations(db, clubId, rosterId, sdk, checkSession) {
+    const club = db.collection("clubs").doc(clubId);
+    checkSession();
+    const snapshot = await club.collection("people").doc(rosterId).get({ source: "server" });
+    checkSession();
+    if (!snapshot.exists || snapshot.data().eventRemovalDate) return [];
+    const person = { ...snapshot.data(), id: rosterId };
+    const today = dates.today();
+    const query = club.collection("events").where("invitationMode", "in", ["active", "all"])
+      .where("date", ">=", today).orderBy("date").limit(50);
+    const events = await readPages(query, checkSession);
+    const updated = [];
+    for (const event of events) {
+      const result = await applyInvitations(db, clubId, event, [person], sdk, checkSession, today);
+      if (result && result !== event) updated.push(result);
+    }
+    return updated;
+  }
+
   async function send(db, clubId, id, action, sdk, checkSession = () => {}, series) {
-    if (action.type === "series-metadata") return editSeries(db, clubId, action, sdk, checkSession);
+    if (action.type === "sync-roster-invitations") return synchronizeMemberInvitations(db, clubId, action.rosterId, sdk, checkSession);
+    if (action.type === "set-invitation") {
+      const event = await mutate(db, clubId, id, { type: "replay", action: { ...action, additions: [] } }, sdk, checkSession);
+      return (await fillInvitations(db, clubId, [event], sdk, checkSession))[0];
+    }
+    if (action.type === "series-metadata") {
+      const events = await editSeries(db, clubId, action, sdk, checkSession);
+      const changed = events.filter((event) => action.edits[event.id].expectedMetadata.year !== event.year);
+      const updated = new Map((await fillInvitations(db, clubId, changed, sdk, checkSession)).map((event) => [event.id, event]));
+      return events.map((event) => updated.get(event.id) || event);
+    }
     if (action.type === "create-training") {
       const occurrences = series ? Object.entries(series).map(([id, date]) => ({ id, date })) : core.occurrences(id, action);
-      return createTraining(db, clubId, id, occurrences, action, sdk, checkSession);
+      const events = await createTraining(db, clubId, id, occurrences, action, sdk, checkSession);
+      return fillInvitations(db, clubId, events, sdk, checkSession);
     }
     if (action.type === "create") {
       if (action.repeatDays) {
         const occurrences = series ? Object.entries(series).map(([id, date]) => ({ id, date })) : core.occurrences(id, action);
         return createDocuments(db, clubId, occurrences, action, sdk, checkSession);
       }
-      return create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession, action);
+      const event = await create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession, action);
+      return (await fillInvitations(db, clubId, [event], sdk, checkSession))[0];
     }
     if (["participants", "singles", "team"].includes(action.type)) {
       let result = await updateParticipants(db, clubId, id, action.additions, action.removals || [], sdk, checkSession, core.isCompetition(action));
@@ -253,7 +319,11 @@
       return result;
     }
     if (action.type === "delete") { await remove(db, clubId, id, action.expectedRevision, checkSession); return null; }
-    return mutate(db, clubId, id, { type: "replay", action }, sdk, checkSession);
+    const event = await mutate(db, clubId, id, { type: "replay", action }, sdk, checkSession);
+    if (action.command?.type === "metadata" && action.expectedMetadata?.year !== event.year) {
+      return (await fillInvitations(db, clubId, [event], sdk, checkSession))[0];
+    }
+    return event;
   }
 
   const api = Object.freeze({ create, mutate, addPerson, updateParticipants, send, remove, removeRosterPerson, listSeries });
