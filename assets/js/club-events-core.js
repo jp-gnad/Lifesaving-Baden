@@ -10,13 +10,13 @@
     const value = String(name || "").trim();
     const day = String(date || "");
     const parsed = new Date(`${day}T00:00:00Z`);
-    if (!value || value.length > 120) fail("Bitte einen Eventnamen mit höchstens 120 Zeichen eingeben.");
+    if (!value || value.length > 120) fail("Bitte einen Terminnamen mit höchstens 120 Zeichen eingeben.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(+parsed) || parsed.toISOString().slice(0, 10) !== day) fail("Bitte ein gültiges Datum wählen.");
     return { name: value, date: day, year: Number(day.slice(0, 4)) };
   }
 
   function participant(person, year) {
-    if (!person.activeYears?.includes(year)) fail("Die Person ist im Eventjahr nicht aktiv.");
+    if (!person.activeYears?.includes(year)) fail("Die Person ist im Jahr des Termins nicht aktiv.");
     return { rosterId: person.id, name: person.name, birthYear: person.birthYear || null, gender: teamsCore.gender(person.gender),
       createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: person.individual !== false };
   }
@@ -30,9 +30,9 @@
       operation: command.type, changedId: command.id || "", revision: event.revision + 1 };
     const person = event.participants[command.id];
     if (command.type === "metadata") {
-      if (command.expectedRevision !== event.revision) fail("Das Event wurde geändert. Bitte erneut öffnen.");
+      if (command.expectedRevision !== event.revision) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
       const values = metadata(command.name, command.date);
-      if (values.year !== event.year && Object.keys(event.participants).length) fail("Das Jahr kann nur bei einem leeren Event geändert werden.");
+      if (values.year !== event.year && Object.keys(event.participants).length) fail("Das Jahr kann nur bei einem Termin ohne Teilnehmer geändert werden.");
       Object.assign(next, values);
     } else if (command.type === "participants") {
       const changes = command.changes;
@@ -60,7 +60,7 @@
       if (ids !== null) {
         if (ids.length < 4 || ids.length > 5 || new Set(ids).size !== ids.length) fail("Bitte 4–5 verschiedene Personen auswählen.");
         for (const id of ids) {
-          if (!event.participants[id]) fail("Eine Person nimmt nicht mehr am Event teil.");
+          if (!event.participants[id]) fail("Eine Person nimmt nicht mehr am Termin teil.");
           if (event.assignments[id] && event.assignments[id] !== command.id) fail("Eine Person gehört bereits zu einer anderen Mannschaft.");
         }
         if (!teamsCore.classification(ids.map((id) => event.participants[id]), event.year)) fail("Jahrgang oder Geschlecht fehlt.");
@@ -71,7 +71,7 @@
         next.teams[command.id] = { order: before?.order ?? Math.max(0, ...Object.values(event.teams).map((team) => team.order)) + 1, memberIds: [...ids] };
         for (const id of ids) next.assignments[id] = command.id;
       }
-    } else fail("Unbekannte Eventänderung.");
+    } else fail("Unbekannte Änderung am Termin.");
     return next;
   }
 
@@ -122,7 +122,7 @@
     if (action.type === "create" && !state) {
       state = { ...metadata(action.name, action.date), participants: {}, teams: {}, assignments: {}, revision: 0 };
     }
-    if (!state) fail("Das Event wurde gelöscht.");
+    if (!state) fail("Der Termin wurde gelöscht.");
     if (["create", "participants", "singles", "team"].includes(action.type)) {
       const changes = selectionChanges(state, action.additions, action.removals || []);
       for (let index = 0; index < changes.length; index += participantBatchSize) state = change(state, { type: "participants", changes: changes.slice(index, index + participantBatchSize) });
@@ -137,7 +137,7 @@
       : JSON.stringify(state.teams[command.id]?.memberIds) === JSON.stringify(command.memberIds))) return state;
     if (command.type === "metadata") {
       if (state.name === command.name.trim() && state.date === command.date) return state;
-      if (action.expectedMetadata && (state.name !== action.expectedMetadata.name || state.date !== action.expectedMetadata.date)) fail("Das Event wurde geändert. Bitte erneut öffnen.");
+      if (action.expectedMetadata && (state.name !== action.expectedMetadata.name || state.date !== action.expectedMetadata.date)) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
       command.expectedRevision = state.revision;
     }
     return change(state, command);

@@ -121,6 +121,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/person-link-store.js"), context);
   vm.runInContext(source("assets/js/auth-core.js"), context);
   vm.runInContext(source("assets/js/account-notifications-core.js"), context);
+  vm.runInContext(source("assets/js/account-indicators.js"), context);
   vm.runInContext(source("assets/js/member-view-cache.js"), context);
   vm.runInContext(source("assets/js/collection-pages.js"), context);
   vm.runInContext(source("assets/js/admin-notifications.js"), context);
@@ -1833,6 +1834,10 @@ test("admin badge coalesces rapid visibility events and refreshes after its shor
   const app = { setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) };
   const badge = { dataset: {}, hidden: true, closest: () => app };
   h.document.querySelector = (selector) => selector === "[data-admin-notification-count]" ? badge : null;
+  h.document.querySelectorAll = (selector) => selector === "[data-admin-notification-count]" ? [badge] : [];
+  const uid = h.auth.currentUser.uid;
+  h.window.LifesavingAccountIndicators.setAccount(uid);
+  h.window.LifesavingAccountIndicators.setRole(uid, true);
   h.context.fetch = async () => ({ ok: true, json: async () => [{ result: { aggregateFields: { total: { integerValue: String(count) } } } }] });
   functions.initAdminAccountBadge(h.auth);
   await new Promise(setImmediate);
@@ -3328,6 +3333,24 @@ test("a settings load error releases the content's busy state and shows the exis
   assert.equal(h.container.attributes.get("aria-busy"), "false");
   assert.equal(h.main.attributes.has("inert"), false);
   assert.match(h.error.textContent, /Kontodaten konnten nicht geladen werden/);
+});
+
+test("a Firestore offline snapshot cannot replace the last displayed account indicators", async () => {
+  const user = { uid: "settings-offline", emailVerified: true };
+  const profile = { role: "standard", dlrgBranch: "Baden", birthDate: "2001-02-03", gender: "weiblich" };
+  const h = settingsBadgeBootstrap({ user, read: async (options) => {
+    if (options?.source === "server") throw Object.assign(new Error("Offline"), { code: "unavailable" });
+    return { exists: true, metadata: { fromCache: true }, data: () => ({}) };
+  } });
+  const indicators = h.window.LifesavingAccountIndicators;
+  indicators.setAccount(user.uid);
+  indicators.setProfile(user.uid, indicators.profileCounts(profile, true));
+  h.callbacks.auth(user);
+  await new Promise(setImmediate);
+  assert.equal(h.counts.reads, 4);
+  assert.equal(h.personal.hidden, true);
+  assert.equal(h.links.hidden, true);
+  assert.equal(h.content.attributes.has("inert"), false);
 });
 
 function dashboardReturnHarness({ cached = true, read, user, token, launch = false } = {}) {

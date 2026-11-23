@@ -556,10 +556,12 @@ auswählbar sind Trainer-, Organisator- und Adminkonten. `club-verwaltung.html` 
 und die zunächst reine Mannschaftsliste. Zugeordnete Trainer und Organisatoren
 wechseln zwischen ihren Clubs. Admins haben Zugriff auf alle Clubs.
 
-Personen werden aus dem bestehenden Verzeichnis importiert und beginnen inaktiv.
-Die Aktivierung gilt getrennt für das aktuelle und das nächste Kalenderjahr und
-steuert beide Auswertungen. Neue Folgejahre beginnen ebenfalls inaktiv.
-Verantwortliche erscheinen mit ihren globalen Kontorollen im Personenbestand.
+Unter „Personen“ lassen sich Einträge aus dem Verzeichnis importieren oder mit
+Name, Jahrgang und Geschlecht direkt im Clubkader erstellen. Manuelle Einträge
+erscheinen in dezenter Schrift. Neue Einträge beginnen inaktiv. Die Aktivjahre
+werden im Personenmenü gesetzt und steuern die Startberechtigungen und Eventauswahl.
+Für „Person erstellen“ zuerst die aktualisierten Firestore-Regeln veröffentlichen.
+Verantwortliche erscheinen als „Team Manager“ im Personenbestand.
 Importierte Mitglieder erscheinen ohne Kontorolle und erhalten keine Clubrechte,
 auch wenn ihr Konto Trainer oder Organisator ist. Admins behalten unabhängig von
 Mitgliedschaft oder Verantwortung Zugriff auf alle Clubs. Ein Rollenwechsel oder

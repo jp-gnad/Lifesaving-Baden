@@ -15,7 +15,7 @@ const addTeam = (event, id = "one", memberIds = ["p0", "p1", "p2", "p3"]) => cor
 test("event dates are actual calendar dates and participant selection uses the event year", () => {
   assert.deepEqual(core.metadata(" Test ", "2028-02-29"), { name: "Test", date: "2028-02-29", year: 2028 });
   for (const date of ["2026-02-29", "2026-04-31", "2026-13-01", "20-01-01", ""]) assert.throws(() => core.metadata("Test", date), /Datum/);
-  assert.throws(() => core.metadata(" ", "2026-01-01"), /Eventnamen/);
+  assert.throws(() => core.metadata(" ", "2026-01-01"), /Terminnamen/);
   assert.throws(() => core.participant({ ...person("p"), activeYears: [2027] }, 2026), /nicht aktiv/);
   assert.equal(core.participant({ ...person("p"), activeYears: [2027] }, 2027).individual, true);
 });
@@ -58,7 +58,7 @@ test("swaps release the previous member without changing individual flags and re
 
 test("metadata cannot silently change the year of a populated event, and old participant snapshots remain usable", () => {
   const event = fixture();
-  assert.throws(() => core.change(event, { type: "metadata", expectedRevision: event.revision, name: "Next", date: "2027-01-01" }), /leeren Event/);
+  assert.throws(() => core.change(event, { type: "metadata", expectedRevision: event.revision, name: "Next", date: "2027-01-01" }), /Termin ohne Teilnehmer/);
   assert.throws(() => core.change(event, { type: "metadata", expectedRevision: 0, name: "Changed", date: "2026-01-01" }), /geändert/);
   assert.equal(core.change(empty(), { type: "metadata", expectedRevision: 0, name: "Next", date: "2027-01-01" }).year, 2027);
   assert.equal(addTeam(event).assignments.p0, "one"); // no live activity state is required to retain existing entries

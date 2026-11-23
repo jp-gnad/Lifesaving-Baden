@@ -108,7 +108,7 @@
         : op === ">=" ? records.get(key)[name] >= value : op === "<" ? records.get(key)[name] < value : records.get(key)[name] === value))
       .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });
     return {
-      doc: (id = `new-${++sequence}`) => doc(`${path}/${id}`), get: async () => read(),
+      doc: (id = String(++sequence).padStart(20, "0")) => doc(`${path}/${id}`), get: async () => read(),
       where: (name, op, value) => collection(path, [...filters, [name, op, value]], max, after, field, direction),
       orderBy: (name, order = "asc") => collection(path, filters, max, after, name, order), limit: (size) => collection(path, filters, size, after, field, direction),
       startAfter: (cursor) => collection(path, filters, max, cursor, field, direction),

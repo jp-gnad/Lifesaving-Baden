@@ -576,37 +576,41 @@ body[data-page="app"] .dashboard {
 }
 
 body[data-page="app"] .dashboard > .dashboard-header {
-  --member-tabs-height: 52px;
+  --member-header-height: 390px;
+  display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
-  height: calc(390px + var(--member-tabs-height));
-  min-height: 0;
+  min-height: var(--member-header-height);
   margin-bottom: 0;
   /* The shared hero's negative top margin must leave a visible header gap. */
-  padding-block: calc(clamp(34px, 5vw, 68px) + 28px) calc(28px + var(--member-tabs-height));
+  padding-block: calc(clamp(34px, 5vw, 68px) + 12px) 0;
 }
 
 .dashboard-header > .member-tabs {
-  position: absolute;
-  inset: auto clamp(20px, 5vw, 64px) 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-height: var(--member-tabs-height);
-  border-top: 1px solid var(--line);
+  margin-top: auto;
+}
+
+@media (max-width: 1000px) {
+  .dashboard-header > .member-tabs {
+    margin-inline: calc(-1 * clamp(20px, 5vw, 64px));
+  }
 }
 
 .member-tabs [role="tab"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--member-tabs-height);
-  padding: 12px 8px;
+  min-height: 44px;
+  padding: 8px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
   cursor: pointer;
   color: var(--muted);
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .member-tabs [role="tab"]:hover {
@@ -1283,6 +1287,10 @@ body[data-page="app"] .dashboard-header h1 {
   width: min(100%, 720px);
   max-width: none;
   min-height: 2lh;
+}
+
+body[data-page="app"] .dashboard-header > .eyebrow {
+  margin-bottom: 8px;
 }
 
 .dashboard-header .account-checklist {
@@ -3681,8 +3689,16 @@ body.auth-context-loading.account-avatar-ready [data-account-open] {
   }
 
   body[data-page="app"] .dashboard > .dashboard-header {
-    height: calc(260px + var(--member-tabs-height));
-    padding-block: 20px calc(20px + var(--member-tabs-height));
+    --member-header-height: 260px;
+    padding-block: 10px 0;
+  }
+
+  body[data-page="app"] .dashboard-header .account-checklist {
+    margin-top: 6px;
+  }
+
+  body[data-page="app"] .dashboard-header .checklist-progress-row {
+    margin-bottom: 4px;
   }
 
   .member-apps .eyebrow {
@@ -4158,7 +4174,7 @@ body[data-page="settings"] .link-issue-form textarea,
 body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight: 400; }
 
 @media (max-width: 360px) {
-  body[data-page="app"] .dashboard > .dashboard-header { height: calc(280px + var(--member-tabs-height)); }
+  body[data-page="app"] .dashboard > .dashboard-header { --member-header-height: 280px; }
   .account-manage { padding-inline: 12px 40px; gap: 8px; }
 }
 

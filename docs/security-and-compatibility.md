@@ -9,6 +9,11 @@ anzeigen. Sie bestätigt keine Sitzung und enthält weder Rollen noch Tokens ode
 Formularwerte. Die aktuelle Firebase-Sitzung bleibt maßgeblich; Kontowechsel und
 Abmeldung entfernen die Vorschau, verspätete Bildantworten werden verworfen.
 
+`lifesaving-baden:account-indicators:v1` enthält nur die UID und Anzeigewerte
+für Verknüpfung und Hinweise. Die Admin-Summen werden ausschließlich nach
+bestätigter Rolle abgefragt. Die Vorschau startet keine Abfragen und gibt
+keine Rollen, Formulardaten oder Zugriffsrechte frei.
+
 - Alle statischen HTML-Dateien sind grundsätzlich öffentlich abrufbar. Eine
   Weiterleitung zur Anmeldung schützt die Oberfläche, nicht die Datenbank.
 - Firestore-Regeln entscheiden über Datenzugriff. Das Ausblenden von Links,
@@ -121,6 +126,12 @@ Ergebnis kann ausschließlich in diesem Speicher liegen.
   Schreibvorgänge.
 
 ## Kontingent und Veröffentlichung
+
+Manuell erstellte Personen haben eine eigene ID im Clubkader und leere Verweise
+auf Konto und Personenverzeichnis. Die Regeln erlauben die Erstellung in aktiven
+Clubs ausschließlich deren berechtigten Team Managern und Admins. Nach der Anlage
+sind Aktivjahre und Nachweise editierbar. Die neuen Regeln zuerst veröffentlichen,
+damit die Website diese Einträge speichern kann.
 
 Die Club-Eventplanung speichert unter `clubs/{clubId}/events/{eventId}` und nutzt
 keine Timer-Events. Zugriff erhalten ausschließlich die bisherigen berechtigten

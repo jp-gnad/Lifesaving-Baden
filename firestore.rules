@@ -1088,6 +1088,13 @@ service cloud.firestore {
         allow get: if releasesOwnClub(id) && (personId == "account_" + request.auth.uid
           || personId == adminData().get("personLink", {}).get("id", ""));
         allow read: if managesClub(id) || (verifiedUser() && isAdmin());
+        allow create: if isLocalClubPerson(personId, request.resource.data) && managesClub(id) && validLocalClubPerson(request.resource.data)
+          && request.resource.data.createdAt == request.time && request.resource.data.activeYears.size() == 0
+          && request.resource.data.keys().hasAll(startEligibilityDates())
+          && request.resource.data.get("swimSilver", null) == null && request.resource.data.get("swimGold", null) == null
+          && request.resource.data.get("rescueBronze", null) == null && request.resource.data.get("rescueSilver", null) == null
+          && request.resource.data.get("rescueGold", null) == null && request.resource.data.get("combinedExercise", null) == null
+          && request.resource.data.get("healthDeclaration", null) == null;
         allow create: if ((releasesOwnClub(id) && personId == adminData().get("personLink", {}).get("id", "") && request.resource.data.accountUid == "")
           || managesClub(id) || (verifiedUser() && isAdmin()))
           && validClubPerson(id, personId, request.resource.data)
@@ -1099,7 +1106,11 @@ service cloud.firestore {
             || (request.resource.data.accountUid == "" && exists(/databases/$(database)/documents/personAccountLinks/$(personId))
               && get(/databases/$(database)/documents/clubs/$(id)/people/$("account_" + get(/databases/$(database)/documents/personAccountLinks/$(personId)).data.uid)).data.activeYears == request.resource.data.activeYears))
           && request.resource.data.createdAt == request.time;
-        allow update: if ((releasesOwnClub(id)
+        allow update: if isLocalClubPerson(personId, resource.data) && managesClub(id)
+          && validLocalClubPerson(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["activeYears", "updatedAt"].concat(startEligibilityDates()))
+          && validClubActivity(request.resource.data.activeYears, resource.data.activeYears);
+        allow update: if !isLocalClubPerson(personId, resource.data) && ((releasesOwnClub(id)
             && personId == adminData().get("personLink", {}).get("id", "") && request.resource.data.accountUid == "") || managesClub(id))
           && validClubPerson(id, personId, request.resource.data)
           && request.resource.data.accountUid == resource.data.accountUid
@@ -1116,6 +1127,20 @@ service cloud.firestore {
           && (resource.data.accountUid == "" || resource.data.accountUid == request.auth.uid || isAdmin()
             || !(resource.data.accountUid in get(/databases/$(database)/documents/clubs/$(id)).data.managerIds));
       }
+    }
+
+    function isLocalClubPerson(personId, data) {
+      return personId.matches('^local_[a-zA-Z0-9]{20}$') && data.personId == "" && data.accountUid == "";
+    }
+
+    function validLocalClubPerson(data) {
+      return data.personId == "" && data.accountUid == ""
+        && data.keys().hasOnly(["personId", "accountUid", "name", "birthYear", "organization", "gender", "activeYears", "createdAt", "updatedAt"].concat(startEligibilityDates()))
+        && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
+        && data.birthYear is int && data.birthYear >= 1900 && data.birthYear <= (request.time + duration.value(2, "h")).year()
+        && data.gender in ["w", "m"] && data.organization == ""
+        && data.activeYears is list && data.activeYears.size() == data.activeYears.toSet().size()
+        && validClubDates(data) && data.updatedAt == request.time;
     }
 
     function validClubPerson(id, personId, data) {

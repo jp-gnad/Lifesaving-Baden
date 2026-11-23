@@ -91,7 +91,7 @@
       };
       const failed = () => {
         if (!current(value) || value.token !== token) return;
-        value.error = "Events konnten nicht geladen werden. Bitte aktualisiere die Seite.";
+        value.error = "Termine konnten nicht geladen werden. Bitte aktualisiere die Seite.";
         onChange(value.owner);
       };
       if (selected) value.unsubscribe = ref(value).doc(selected).onSnapshot({ includeMetadataChanges: true }, receive, failed);
@@ -190,7 +190,7 @@
       byId("club-overview").hidden = Boolean(value.selected);
       list.setAttribute("aria-busy", String(!value.loaded));
       list.replaceChildren();
-      if (value.error || !value.loaded) { list.append(node("p", "wt-empty", value.error || "Events werden geladen …")); return; }
+      if (value.error || !value.loaded) { list.append(node("p", "wt-empty", value.error || "Termine werden geladen …")); return; }
       const selected = event();
       if (!selected) {
         const events = [...new Set([...value.events.keys(), ...queue.ids(owner.clubId)])]
@@ -205,16 +205,16 @@
           row.append(details, icon("next"));
           cards.append(row);
         }
-        list.append(events.length ? cards : node("p", "wt-empty", value.period === "past" ? "Keine vergangenen Events." : "Keine geplanten Events."));
-        if (value.more) list.append(button("Weitere Events", () => { value.pageIds = []; listen(value, value.cursor); }, "button button-secondary club-event-more"));
+        list.append(events.length ? cards : node("p", "wt-empty", value.period === "past" ? "Keine vergangenen Termine." : "Keine geplanten Termine."));
+        if (value.more) list.append(button("Weitere Termine", () => { value.pageIds = []; listen(value, value.cursor); }, "button button-secondary club-event-more"));
       } else {
         const header = node("div", "club-event-heading");
         const back = button("Zurück", () => openEvent(""), "club-event-back");
         const title = node("div", "club-event-title");
         title.append(node("h2", "", selected.name), node("p", "se-meta", dateLabel(selected.date)));
         const edit = button("", () => openEditor("metadata"), "club-event-edit");
-        edit.setAttribute("aria-label", "Event bearbeiten");
-        edit.title = "Event bearbeiten";
+        edit.setAttribute("aria-label", "Termin bearbeiten");
+        edit.title = "Termin bearbeiten";
         edit.append(icon("edit"));
         header.append(back, title, edit);
         list.append(header);
@@ -308,7 +308,7 @@
     function renderEditor() {
       if (!draft || !current(draft.context)) return;
       const metadata = draft.mode === "metadata";
-      byId("club-event-title").textContent = metadata ? "Event bearbeiten" : draft.mode === "participants" ? "Einzelschwimmer" : ["Eventname", "Datum"][draft.step];
+      byId("club-event-title").textContent = metadata ? "Termin bearbeiten" : draft.mode === "participants" ? "Einzelschwimmer" : ["Terminname", "Datum"][draft.step];
       byId("club-event-step").textContent = draft.mode === "create" ? `${draft.step + 1}/2` : "";
       byId("club-event-name-field").hidden = !metadata && draft.step !== 0;
       byId("club-event-date-field").hidden = !metadata && draft.step !== 1;
@@ -399,7 +399,7 @@
     }
     function deleteEvent() {
       const editing = draft;
-      if (!editing || editing.busy || !root.confirm("Event löschen?")) return;
+      if (!editing || editing.busy || !root.confirm("Termin löschen?")) return;
       const value = context;
       try {
         queue.enqueue(value.owner.clubId, editing.id, { type: "delete", expectedRevision: editing.expectedRevision }, event());

@@ -228,17 +228,20 @@
   let authRefreshVersion = 0;
   async function refreshTimerAuthContext(user) {
     window.LifesavingAccountAvatar?.setUser(user);
+    const indicators = window.LifesavingAccountIndicators;
+    indicators?.setAccount(user?.uid);
     const userChanged = authContext.user?.uid !== user?.uid;
     if (userChanged) { accountSession += 1; clearParticipantCache(); }
     const refreshVersion = ++authRefreshVersion;
     await Promise.all([authPersistenceReady, persistenceReady]);
     let userData = {};
     let userDataLoaded = false;
+    let fromCache = false;
     let claims = {};
     let authError = "";
     if (user) {
       try {
-        ({ userData, claims } = await loadUserContext(user));
+        ({ userData, claims, fromCache } = await loadUserContext(user));
         userDataLoaded = true;
       } catch (error) {
         console.warn("Timer-Rolle konnte nicht geladen werden.", error);
@@ -262,6 +265,11 @@
       && Boolean(String(userData.dlrgBranch || "").trim())
       && Boolean(String(userData.birthDate || "").trim())
       && Boolean(String(userData.gender || "").trim());
+    if (!authenticated) indicators?.setAccount(null);
+    else if (userDataLoaded && !fromCache) {
+      indicators?.setRole(user.uid, isAdmin);
+      indicators?.setProfile(user.uid, indicators.profileCounts(userData, isLinked));
+    }
     const permissionsChanged = authContext.authenticated !== authenticated
       || authContext.isOrganizer !== isOrganizer || authContext.isAdmin !== isAdmin
       || authContext.isAthlete !== isAthlete || authContext.isTrainer !== isTrainer;

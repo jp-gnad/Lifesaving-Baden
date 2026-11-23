@@ -41,7 +41,11 @@
     return [...new Set([...(years || []).filter((value) => value !== year), ...(enabled ? [year] : [])])].sort((a, b) => a - b);
   }
 
-  const api = Object.freeze({ clubName, clubId, profile, displayName, activeYears, dateKeys, proofDates });
+  function isLocalPerson(person) {
+    return /^local_[a-zA-Z0-9]{20}$/.test(person.id) && person.accountUid === "" && person.personId === "";
+  }
+
+  const api = Object.freeze({ clubName, clubId, profile, displayName, activeYears, isLocalPerson, dateKeys, proofDates });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsCore = api;
 })(typeof window === "object" ? window : globalThis);

@@ -70,6 +70,25 @@
     });
   }
 
+  async function createLocalPerson(db, clubId, details, sdk, checkSession = () => {}) {
+    const name = typeof details.name === "string" ? details.name.trim() : "";
+    if (!name || name.length > 120) fail("clubs/invalid-name", "Bitte einen Namen mit höchstens 120 Zeichen eingeben.");
+    const { birthYear, gender } = details;
+    const year = Number(new Intl.DateTimeFormat("de-DE", { year: "numeric", timeZone: "Europe/Berlin" }).format(new Date()));
+    if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > year) fail("clubs/invalid-year", "Bitte einen gültigen Jahrgang eingeben.");
+    if (gender !== "w" && gender !== "m") fail("clubs/invalid-gender", "Bitte ein Geschlecht auswählen.");
+
+    const { people } = references(db, clubId);
+    const ref = people.doc(`local_${people.doc().id}`);
+    return db.runTransaction(async (transaction) => {
+      const existing = await transaction.get(ref);
+      checkSession();
+      if (existing.exists) fail("clubs/duplicate", "Die Person konnte nicht angelegt werden. Bitte erneut versuchen.");
+      transaction.set(ref, personRecord({ name, birthYear, gender }, sdk));
+      return ref.id;
+    });
+  }
+
   // Only the admin can grant responsibility. Reconciliation of an already
   // assigned account changes its roster representation, never its permissions.
   async function assignResponsible(db, clubId, uid, sdk, checkSession = () => {}, reconcileOnly = false) {
@@ -109,6 +128,11 @@
       const data = person.data();
       if (expectedCreatedAt && data.createdAt.toMillis() !== expectedCreatedAt.toMillis()) {
         fail("clubs/stale-person", "Die Person wurde inzwischen neu hinzugefügt. Bitte öffne sie erneut.");
+      }
+      if (core.isLocalPerson({ ...data, id: personId })) {
+        checkSession();
+        transaction.update(ref, { ...changes(data), updatedAt: stamp(sdk) });
+        return;
       }
       const source = await transaction.get(data.accountUid ? db.collection("clubProfiles").doc(data.accountUid)
         : db.collection("timerParticipantDirectory").doc(data.personId));
@@ -283,7 +307,7 @@
     return true;
   }
 
-  const api = Object.freeze({ createClub, importPerson, assignResponsible, setActive, refreshIdentity, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
+  const api = Object.freeze({ createClub, importPerson, createLocalPerson, assignResponsible, setActive, refreshIdentity, removePerson, deleteClub, prepareAccountChange, prepareAccountDeletion, saveDates, syncResponsibleMemberships, migrateResponsibilities, managerKey });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubsStore = api;
 })(typeof window === "object" ? window : globalThis);

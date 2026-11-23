@@ -188,6 +188,7 @@ class TimerIntegrationTest(unittest.TestCase):
         html = (ROOT / "timer" / "index.html").read_text(encoding="utf-8")
         manifest = (ROOT / "timer" / "manifest.webmanifest").read_text(encoding="utf-8")
         service_worker = (ROOT / "timer" / "sw.js").read_text(encoding="utf-8")
+        app_html = (ROOT / "app.html").read_text(encoding="utf-8")
         expected_sizes = (64, 180, 192, 512, 1024)
 
         for size in expected_sizes:
@@ -197,9 +198,15 @@ class TimerIntegrationTest(unittest.TestCase):
             width, height = struct.unpack(">II", data[16:24])
             self.assertEqual((width, height), (size, size))
 
-        self.assertIn("baden-brand-v1", html)
-        self.assertIn("baden-brand-v1", manifest)
-        self.assertIn("baden-brand-v1", service_worker)
+        tile = re.search(r'"timer/app-icon-1024\.png\?v=([^"\s]+)"', app_html)
+        self.assertIsNotNone(tile, "the member dashboard must use the versioned timer icon")
+        version = tile[1]
+        for size in (64, 512):
+            self.assertIn(f'"./app-icon-{size}.png?v={version}"', html)
+        for size in (192, 512):
+            self.assertIn(f'"./app-icon-{size}.png?v={version}"', manifest)
+        for size in (64, 180, 192, 512):
+            self.assertIn(f'"./app-icon-{size}.png?v={version}"', service_worker)
 
     def test_timer_results_do_not_write_nested_firestore_arrays(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")
@@ -237,8 +244,9 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("firebasejs/12.19.0/firebase-auth-compat.js", app)
         self.assertIn("login.js?v=20261112-login-name-v4", login)
         self.assertRegex(app, r'src="assets/js/auth\.js\?v=[^"\s]+"')
-        self.assertIn("auth-core.js?v=20261120-new-account-alerts-v1", login)
-        self.assertIn("auth-core.js?v=20261120-new-account-alerts-v1", app)
+        auth_core = re.search(r'src="(assets/js/auth-core\.js\?v=[^"\s]+)"', login)
+        self.assertIsNotNone(auth_core)
+        self.assertIn(f'"{auth_core[1]}"', app)
         self.assertIn("loadFreshUserContext(activeUser)", auth)
         self.assertIn('ref.get({ source: "server" })', core)
         self.assertNotIn("loadFreshUserContext", controller)
@@ -247,7 +255,7 @@ class TimerIntegrationTest(unittest.TestCase):
         self.assertIn("window.location.replace(target.href)", timer_login)
         self.assertIn('new URL("../login.html", window.location.href)', timer_app)
         self.assertIn('"./login.html"', timer_worker)
-        self.assertIn("auth-core.js?v=20261120-new-account-alerts-v1", timer_worker)
+        self.assertIn(f'"../{auth_core[1]}"', timer_worker)
 
     def test_timer_waits_for_persistent_auth_and_fresh_role_data(self):
         adapter = (ROOT / "timer" / "firestore-api.js").read_text(encoding="utf-8")

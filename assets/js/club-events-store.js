@@ -13,7 +13,7 @@
         return await db.runTransaction(async (transaction) => {
           const snapshot = await transaction.get(ref);
           checkSession();
-          if (!snapshot.exists) fail("Das Event wurde gelöscht.");
+          if (!snapshot.exists) fail("Der Termin wurde gelöscht.");
           const previous = snapshot.data();
           revision = previous.revision;
           const next = command.type === "replay" ? core.replay(previous, command.action) : core.change(previous, command);
@@ -71,7 +71,7 @@
       checkSession();
       if (snapshot.exists) {
         const existing = snapshot.data();
-        if (existing.name !== values.name || existing.date !== values.date) fail("Das Event wurde inzwischen geändert.");
+        if (existing.name !== values.name || existing.date !== values.date) fail("Der Termin wurde inzwischen geändert.");
         return { ...existing, id };
       }
       const data = { ...values, participants: {}, teams: {}, assignments: {}, revision: 0, operation: "create", changedId: "",
@@ -90,7 +90,7 @@
       const snapshot = await transaction.get(ref);
       checkSession();
       if (!snapshot.exists) return;
-      if (snapshot.data().revision !== expectedRevision) fail("Das Event wurde geändert. Bitte erneut öffnen.");
+      if (snapshot.data().revision !== expectedRevision) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
       transaction.delete(ref);
     });
   }

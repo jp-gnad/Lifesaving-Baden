@@ -37,10 +37,9 @@
   }
 
   function managerIdentity(profile) {
-    const details = node("span", "club-manager-details");
-    details.append(node("span", "club-manager-name", profile ? core.displayName(profile) : "Unbekannt"),
-      node("span", "club-role", "Team Manager"));
-    return details;
+    const name = node("span", "club-manager-name", profile ? core.displayName(profile) : "Unbekannt");
+    if (profile?.role) name.dataset.role = profile.role;
+    return name;
   }
 
   function icon(name) {
@@ -82,7 +81,6 @@
     owner.searchCache?.clear();
     owner.rowCache?.clear();
     owner.groupCache?.clear();
-    owner.activityPending.clear();
     owner.rosterState.clear();
     owner.profiles.clear();
     owner.roster.clear();
@@ -90,6 +88,7 @@
     selectedPerson = null;
     window.StartEligibilityEditor?.close();
     byId("club-person-dialog")?.close();
+    byId("club-local-person-dialog")?.close();
     byId("se-import-dialog")?.close();
     resetSearch();
   }
@@ -112,8 +111,9 @@
       updateClubNavigation();
       byId("club-tabs").hidden = true;
       byId("club-overview").hidden = true;
-      byId("se-import-open").hidden = true;
+      byId("club-person-actions").hidden = true;
       byId("se-summary").hidden = true;
+      byId("club-people-view").value = "overview";
       byId("se-season-switch").disabled = true;
       byId("se-season-current").checked = true;
       byId("club-person-title").textContent = "";
@@ -126,7 +126,7 @@
     const owner = {
       auth, uid: user.uid, role, db: window.firebase.firestore(), sdk: window.firebase.firestore,
       stops: [], clubs: new Map(), view: 0, profileFeed: null, rowCache: new Map(), groupCache: new Map(), accounts: [], directory: [],
-      profiles: new Map(), activityPending: new Map(),
+      profiles: new Map(),
       rosterState: window.ClubRosterState.create(), roster: new Map(), loaded: false, clubId: "", day: eligibility.today(),
     };
     session = owner;
@@ -227,7 +227,7 @@
     message();
     updateClubNavigation(owner);
     byId("club-tabs").hidden = true;
-    byId("se-import-open").hidden = true;
+    byId("club-person-actions").hidden = true;
     byId("club-overview").hidden = true;
     byId("club-loading").hidden = true;
     list.replaceChildren(node("p", "wt-empty", text));
@@ -338,19 +338,21 @@
       if (button.dataset.clubTab === tab) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    byId("se-import-open").hidden = tab !== "people";
-    byId("se-import-open").disabled = !owner.loaded;
+    const peopleTab = tab === "people";
+    const eligibilityView = peopleTab && byId("club-people-view").value === "eligibility";
+    byId("club-person-actions").hidden = !owner.loaded || !peopleTab || eligibilityView;
     byId("se-summary").hidden = true;
-    byId("se-season-switch").hidden = tab !== "eligibility";
+    byId("club-people-view").hidden = !peopleTab;
+    byId("se-season-switch").hidden = !peopleTab;
     byId("se-season-switch").disabled = !owner.loaded;
     if (tab !== "events") eventView.stop();
-    byId("club-overview").hidden = tab === "people" || !owner.loaded;
+    byId("club-overview").hidden = !owner.loaded;
     if (!owner.loaded) return;
     if (tab === "events") { eventView.render(owner); return; }
     const nextSeason = byId("se-season-next").checked;
     const year = eligibility.seasonYear(day, nextSeason);
     const everyone = peopleFor(owner);
-    const people = tab === "people" ? everyone : everyone.filter((person) => person.activeYears.includes(year));
+    const people = eligibilityView ? everyone.filter((person) => person.activeYears.includes(year)) : everyone;
     const groups = new Map([...eligibility.groups, "Ohne Jahrgang"].map((group) => [group, []]));
     const totals = { 1: 0, 2: 0, 3: 0 };
     for (const person of people) {
@@ -359,12 +361,12 @@
       groups.get(state.group).push({ person, state });
     }
     for (const stage of [3, 2, 1]) byId(`se-total-${stage}`).textContent = totals[stage];
-    byId("se-summary").hidden = tab !== "eligibility" || !people.length;
+    byId("se-summary").hidden = !eligibilityView || !people.length;
     const focused = list.contains(document.activeElement) ? document.activeElement.id : "";
     const sections = [];
     for (const [group, entries] of groups) {
       if (!entries.length) continue;
-      entries.sort((a, b) => (tab === "eligibility" ? b.state.stage - a.state.stage : 0) || collator.compare(a.person.name, b.person.name));
+      entries.sort((a, b) => (eligibilityView ? b.state.stage - a.state.stage : 0) || collator.compare(a.person.name, b.person.name));
       let section = owner.groupCache.get(group);
       if (!section) {
         section = node("section", "wt-day-group");
@@ -375,10 +377,9 @@
       }
       section.querySelector(".wt-day-total").textContent = entries.length;
       const rows = entries.map(({ person, state }) => {
-        const pending = [...owner.activityPending].filter(([key]) => key.startsWith(`${person.id}/`));
-        const key = signature({ person, state, tab, pending });
+        const key = signature({ person, state, eligibilityView, year });
         let cached = owner.rowCache.get(person.id);
-        if (cached?.key !== key) { cached = { key, row: personRow(owner, person, state) }; owner.rowCache.set(person.id, cached); }
+        if (cached?.key !== key) { cached = { key, row: personRow(owner, person, state, eligibilityView, year) }; owner.rowCache.set(person.id, cached); }
         return cached.row;
       });
       syncChildren(section.querySelector(".wt-day-card"), rows);
@@ -387,32 +388,36 @@
     const present = new Set(everyone.map((person) => person.id));
     for (const id of owner.rowCache.keys()) if (!present.has(id)) owner.rowCache.delete(id);
     syncChildren(list, sections);
-    if (!people.length) list.append(node("p", "wt-empty", tab === "people" ? "Noch keine Personen importiert." : `Keine aktiven Personen für ${year}.`));
+    if (!people.length) list.append(node("p", "wt-empty", eligibilityView ? `Keine aktiven Personen für ${year}.` : "Noch keine Personen importiert."));
     list.setAttribute("aria-busy", "false");
     if (focused) byId(focused)?.focus({ preventScroll: true });
     if (selectedPerson && byId("club-person-dialog").open) {
       const current = everyone.find((person) => person.id === selectedPerson.id);
       if (current && current.createdAt.toMillis() === selectedPerson.createdAt.toMillis()) {
         selectedPerson = current;
-        updatePersonPermissions(owner, current);
+        updatePersonMenu(owner, current);
       }
       else byId("club-person-dialog").close();
     }
   }
 
-  function personRow(owner, person, state) {
-    const row = node(tab === "eligibility" ? "button" : "div", "se-person club-person");
-    row.id = `club-person-${person.id}`;
+  function personRow(owner, person, state, eligibilityView, year) {
+    const row = node("button", "se-person club-person");
+    row.id = `${eligibilityView ? "club-person" : "club-person-open"}-${person.id}`;
     row.classList.toggle("is-pending", Boolean(person.pending));
     row.setAttribute("aria-busy", String(Boolean(person.pending)));
-    if (tab === "eligibility") row.type = "button";
+    row.type = "button";
     const details = node("span", "se-person-details");
     details.append(node("strong", "se-person-name", core.displayName(person)));
-    const ownEntry = tab === "people" && person.accountUid === owner.uid;
+    if (core.isLocalPerson(person)) {
+      row.classList.add("is-local");
+      details.append(node("span", "wt-sr-only", "Lokal erstellt"));
+    }
+    const ownEntry = !eligibilityView && person.accountUid === owner.uid;
     const manager = owner.clubs.get(owner.clubId)?.managerIds.includes(person.accountUid);
     const roleLabel = manager ? "Team Manager" : ownEntry ? "Du" : "";
     if (roleLabel) details.append(node("span", "club-role", roleLabel));
-    if (tab === "eligibility") {
+    if (eligibilityView) {
       row.dataset.stage = state.stage;
       const status = node("span", "se-person-status");
       status.append(icon(state.stage), node("span", "wt-sr-only", statusNames[state.stage]));
@@ -431,55 +436,44 @@
         isCurrent: () => active(owner, view), requireCurrent: () => requireCurrent(owner, view),
         onPending: (changes) => optimisticDates(owner, person.id, changes, view),
       }); });
-    } else if (tab === "people") {
+    } else {
       row.classList.add("club-person-roster");
-      const open = node("button", "club-person-open");
-      open.id = `club-person-open-${person.id}`;
-      open.type = "button";
-      open.setAttribute("aria-label", `${core.displayName(person)}${ownEntry ? " (du)" : ""} verwalten`);
-      open.append(details, icon("next"));
-      open.addEventListener("click", () => openPerson(owner, person));
-      const activity = node("span", "club-year-badges");
-      const current = eligibility.seasonYear(eligibility.today());
-      for (const activeYear of [current, current + 1]) {
-        const key = `${person.id}/${activeYear}`;
-        const pending = owner.activityPending.get(key);
-        const enabled = pending === undefined ? person.activeYears.includes(activeYear) : pending;
-        const badge = node("button", "", String(activeYear));
-        badge.id = `club-year-${person.id}-${activeYear}`;
-        badge.type = "button";
-        badge.setAttribute("aria-disabled", String(pending !== undefined));
-        badge.setAttribute("aria-pressed", String(enabled));
-        badge.setAttribute("aria-label", `${core.displayName(person)}, ${activeYear} ${enabled ? "aktiv" : "inaktiv"}`);
-        badge.addEventListener("click", () => toggleActivity(owner, person, activeYear));
-        activity.append(badge);
-      }
-      row.append(open, activity);
-      return row;
+      row.addEventListener("click", () => openPerson(owner, person));
     }
     row.append(details);
+    if (!eligibilityView) {
+      const enabled = person.activeYears.includes(year);
+      const status = node("span", "club-person-activity", enabled ? "Aktiv" : "Inaktiv");
+      status.classList.toggle("is-active", enabled);
+      row.append(status);
+    }
     row.append(icon("next"));
     return row;
   }
 
   async function toggleActivity(owner, person, year) {
     const view = owner.view;
-    const key = `${person.id}/${year}`;
-    if (!active(owner, view) || owner.activityPending.has(key) || owner.rosterState.has(person.id)) return;
+    if (!active(owner, view) || owner.rosterState.has(person.id)) return;
     const current = owner.roster.get(person.id);
     if (!current || current.createdAt.toMillis() !== person.createdAt.toMillis()) return;
     const enabled = !current.activeYears.includes(year);
     const token = owner.rosterState.begin(person.id, { activeYears: core.activeYears(current.activeYears, year, enabled) });
-    owner.activityPending.set(key, enabled);
+    const errorElement = byId("club-person-years-error");
+    errorElement.hidden = true;
     render(owner);
     try {
       await store.setActive(owner.db, owner.clubId, person.id, year, enabled, owner.sdk, () => requireCurrent(owner, view), person.createdAt);
       if (active(owner, view)) { owner.rosterState.confirm(token); owner.rosterState.receive(owner.roster); }
     } catch (error) {
       owner.rosterState.rollback(token);
-      if (active(owner, view)) message(errorText(error));
+      if (active(owner, view)) {
+        if (selectedPerson?.id === person.id && byId("club-person-dialog").open) {
+          errorElement.textContent = errorText(error);
+          errorElement.hidden = false;
+        } else message(errorText(error));
+      }
     } finally {
-      if (active(owner, view)) { owner.activityPending.delete(key); render(owner); }
+      if (active(owner, view)) render(owner);
     }
   }
 
@@ -488,14 +482,25 @@
     selectedPerson = person;
     byId("club-person-title").textContent = core.displayName(person);
     byId("club-person-error").hidden = true;
-    updatePersonPermissions(owner, person);
+    byId("club-person-years-error").hidden = true;
+    updatePersonMenu(owner, person);
     byId("club-person-dialog").showModal();
   }
 
-  function updatePersonPermissions(owner, person) {
+  function updatePersonMenu(owner, person) {
+    const currentYear = eligibility.seasonYear(owner.day);
+    const pending = owner.rosterState.has(person.id);
+    byId("club-person-years").setAttribute("aria-busy", String(pending));
+    for (const [id, year] of [["club-person-year-current", currentYear], ["club-person-year-next", currentYear + 1]]) {
+      const button = byId(id);
+      button.textContent = year;
+      button.dataset.year = year;
+      button.setAttribute("aria-disabled", String(pending));
+      button.setAttribute("aria-pressed", String(person.activeYears.includes(year)));
+    }
     const club = owner.clubs.get(owner.clubId);
     const manager = club.managerIds.includes(person.accountUid);
-    byId("club-person-meta").textContent = manager ? "Team Manager" : "";
+    byId("club-person-meta").textContent = manager ? "Team Manager" : core.isLocalPerson(person) ? "Lokal erstellt" : "";
     const last = manager && club.managerIds.length === 1;
     const protectedManager = manager && !owner.role.isAdmin && person.accountUid !== owner.uid;
     byId("club-person-remove").disabled = last || protectedManager;
@@ -541,6 +546,48 @@
     byId("se-search").disabled = false;
     byId("se-search-results").replaceChildren();
     byId("se-search-note").textContent = "Mindestens 3 Buchstaben eingeben.";
+  }
+
+  function bindLocalPersonDialog() {
+    const dialog = byId("club-local-person-dialog");
+    const form = byId("club-local-person-form");
+    const error = byId("club-local-person-error");
+    const save = byId("club-local-person-save");
+    const controls = form.querySelectorAll("input, select, button");
+    function setBusy(busy) {
+      controls.forEach((control) => { control.disabled = busy; });
+      form.setAttribute("aria-busy", String(busy));
+      save.textContent = busy ? "Speichert …" : "Speichern";
+    }
+    byId("club-local-person-open").addEventListener("click", () => {
+      if (!active(session) || !session.loaded) return;
+      form.reset();
+      form.elements.birthYear.max = eligibility.seasonYear(eligibility.today());
+      error.hidden = true;
+      setBusy(false);
+      dialog.showModal();
+    });
+    dialog.addEventListener("cancel", (event) => { if (save.disabled) event.preventDefault(); });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const owner = session;
+      if (!active(owner) || !dialog.open || save.disabled) return;
+      const { view, clubId } = owner;
+      const details = { name: form.elements.name.value, birthYear: form.elements.birthYear.valueAsNumber, gender: form.elements.gender.value };
+      setBusy(true);
+      error.hidden = true;
+      try {
+        await store.createLocalPerson(owner.db, clubId, details, owner.sdk, () => requireCurrent(owner, view));
+        if (active(owner, view)) dialog.close();
+      } catch (failure) {
+        if (active(owner, view)) {
+          error.textContent = errorText(failure);
+          error.hidden = false;
+        }
+      } finally {
+        if (active(owner, view)) setBusy(false);
+      }
+    });
   }
 
   async function searchPeople(owner, prefix, sequence, view) {
@@ -835,6 +882,7 @@
       } finally { controls.forEach((control) => { control.disabled = false; }); createState(); }
     });
   } else {
+    bindLocalPersonDialog();
     byId("club-switch").addEventListener("click", () => {
       if (!active(session) || session.clubs.size < 2) return;
       byId("club-switch-dialog").showModal();
@@ -842,7 +890,12 @@
     });
     byId("club-switch-close").addEventListener("click", () => byId("club-switch-dialog").close());
     document.querySelectorAll("[data-club-tab]").forEach((button) => button.addEventListener("click", () => { tab = button.dataset.clubTab; render(); }));
+    byId("club-people-view").addEventListener("change", () => render());
     byId("se-season-switch").addEventListener("change", () => render());
+    byId("club-person-years").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-year]");
+      if (button && active(session) && selectedPerson) toggleActivity(session, selectedPerson, Number(button.dataset.year));
+    });
     byId("se-import-open").addEventListener("click", () => { resetSearch(); byId("se-import-dialog").showModal(); byId("se-search").focus(); });
     byId("se-import-dialog").querySelector("[data-se-close]").addEventListener("click", () => byId("se-import-dialog").close());
     byId("se-import-dialog").addEventListener("close", resetSearch);

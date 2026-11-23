@@ -145,7 +145,7 @@
         const userData = snapshot.exists ? snapshot.data() || {}
           : isAdminAccount({}, token.claims) ? {} : await createAccountDocument(user, ref);
         requireCurrentUser(user);
-        return { userData, claims: token.claims || {} };
+        return { userData, claims: token.claims || {}, fromCache: snapshot.metadata?.fromCache === true };
       }).finally(() => pendingContexts.delete(user));
       pendingContexts.set(user, pending);
     }

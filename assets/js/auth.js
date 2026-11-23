@@ -12,13 +12,14 @@
     getLoginRedirectUrl, getVerificationRedirectUrl, redirectToApp, redirectToLogin, setLoading, translateAuthError,
   } = window.LifesavingAuth;
   const memberViewCache = window.LifesavingMemberViewCache?.create({ getStorage: () => window.sessionStorage });
+  const accountIndicators = window.LifesavingAccountIndicators;
   const clubNotifications = window.LifesavingClubNotifications?.create({ isCurrentUser });
   const {
     initAdminAccounts, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, acknowledgeNewAccount, filterAdminAccounts
   } = window.LifesavingAdminAccounts?.create({
     updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
   }) || {};
-  const { initAdminAccountBadge, countAdminNotifications } = window.LifesavingAdminNotifications?.create({ isCurrentUser }) || {};
+  const { initAdminAccountBadge, stopAdminAccountBadge, countAdminNotifications } = window.LifesavingAdminNotifications?.create({ isCurrentUser }) || {};
   function formatLinkedPerson(person) {
     return person ? `${person.name} (${String(person.birthYear).slice(-2).padStart(2, "0")}) · ${person.organization || "Keine Gliederung"}` : "Nicht verknüpft";
   }
@@ -151,11 +152,15 @@
   }
 
   async function loadFreshUserContext(user) {
-    const { userData, claims } = await loadUserContext(user);
-    const data = await withRetry(() => synchronizeUserDocument(user, userData));
+    const { userData, claims, fromCache } = await loadUserContext(user);
+    const data = await withRetry(() => synchronizeUserDocument(user, userData, { updateIndicators: !fromCache }));
     requireCurrentUser(user);
-    memberViewCache?.write(user.uid, data, getAccountRole(data, claims).value);
-    return { userData: data, claims };
+    const role = getAccountRole(data, claims);
+    if (!fromCache) {
+      memberViewCache?.write(user.uid, data, role.value);
+      accountIndicators?.setRole(user.uid, role.isAdmin);
+    }
+    return { userData: data, claims, fromCache };
   }
 
   async function requireDeletableAccount(user) {
@@ -219,7 +224,7 @@
     }
   }
 
-  function writeUserDocCache(uid, data) {
+  function writeUserDocCache(uid, data, { updateIndicators = true } = {}) {
     if (!uid || !data) {
       return data || null;
     }
@@ -232,7 +237,10 @@
 
     activeUserDocCache = entry;
 
-    memberViewCache?.updateProfile(uid, data);
+    if (updateIndicators) {
+      memberViewCache?.updateProfile(uid, data);
+      accountIndicators?.setProfile(uid, getMissingAccountCounts(data));
+    }
 
     try {
       window.sessionStorage?.setItem(getUserDocCacheKey(uid), JSON.stringify(entry));
@@ -275,6 +283,7 @@
     activeUserDocCache = null;
     memberViewCache?.clearAll();
     window.LifesavingAccountAvatar?.clear();
+    accountIndicators?.setAccount(null);
 
     try {
       const storage = window.sessionStorage;
@@ -567,7 +576,7 @@
       if (!cached) return;
       updateAccountProfile(user, cached.profile);
       updateRoleUi(getAccountRole({ role: cached.role }));
-      updateLinkStatusUi(cached.profile);
+      updateLinkStatusUi(cached.profile, { preview: true });
       displayedUid = user.uid;
       document.body.classList.remove("auth-context-loading");
       document.querySelector("main")?.removeAttribute?.("inert");
@@ -622,6 +631,7 @@
         const verified = await hasVerifiedAccess(activeUser);
         if (!isCurrentUser(activeUser)) return;
         if (!verified) {
+          accountIndicators?.setAccount(null);
           redirectToLogin("needsVerification");
           return;
         }
@@ -630,9 +640,9 @@
         window.LifesavingAccountAvatar?.setUser(activeUser, getInitials(activeUser));
 
         if (settingsLoadedForUser !== activeUser.uid) {
-          const { userData, claims } = await loadFreshUserContext(activeUser);
+          const { userData, claims, fromCache } = await loadFreshUserContext(activeUser);
           if (!isCurrentUser(activeUser)) return;
-          if (page === "settings") updateAccountChecklist(userData);
+          updateLinkStatusUi(userData, { preview: fromCache });
           const role = getAccountRole(userData, claims);
           if (page === "training" && !role.isAthlete) {
             redirectToApp();
@@ -652,7 +662,7 @@
           if (page === "app") displayedUid = activeUser.uid;
           await Promise.all([initAccountManagement(auth, userData), initUserSettings(auth, userData)]);
           if (!isCurrentUser(activeUser)) return;
-          const initializers = [initLinkStatus, initLinkManagement, initAdminStatus];
+          const initializers = [initLinkManagement, initAdminStatus];
           for (const initialize of initializers) {
             if (!isCurrentUser(activeUser)) return;
             await initialize(auth, userData, claims);
@@ -713,14 +723,16 @@
     function handleAuthState(user) {
       if (user && !isCurrentUser(user)) return;
       window.LifesavingAccountAvatar?.setUser(user, user ? getInitials(user) : "?");
+      accountIndicators?.setAccount(user?.uid);
       if (!user) clearAllUserDocCaches();
       if (page === "app") {
         if (displayedUid && displayedUid !== user?.uid) resetDashboard(user);
         if (user && !displayedUid) showCachedDashboard(user);
       }
-      if (page === "settings" && (!user || isCurrentUser(user))) {
-        // Counts are only a display hint; roles and form values still load fresh.
-        updateAccountChecklist(user ? readUserDocCache(user.uid) : null);
+      if (user && !accountIndicators?.hasProfile()) {
+        // Older sessions can already have a same-account profile snapshot.
+        const cached = readUserDocCache(user.uid);
+        if (cached) updateLinkStatusUi(cached, { preview: true });
       }
       const form = document.querySelector("[data-profile-form]");
       if (form) delete form.dataset.profileSaving;
@@ -736,9 +748,19 @@
     }
     auth.onAuthStateChanged(handleAuthState);
     window.addEventListener("pageshow", (event) => {
-      if (page !== "app" || !event.persisted) return;
-      settingsLoadedForUser = null;
-      handleAuthState(auth.currentUser);
+      if (!event.persisted) return;
+      if (page === "app") {
+        settingsLoadedForUser = null;
+        handleAuthState(auth.currentUser);
+      } else if (!bootstrapPromise && auth.currentUser) {
+        const user = auth.currentUser;
+        const currentCache = activeUserDocCache;
+        loadUserContext(user).then(({ userData, claims, fromCache }) => {
+          if (fromCache || !isCurrentUser(user) || currentCache !== activeUserDocCache) return;
+          accountIndicators?.setRole(user.uid, getAccountRole(userData, claims).isAdmin);
+          accountIndicators?.setProfile(user.uid, getMissingAccountCounts(userData));
+        }).catch(() => { /* Keep the current indicators while offline. */ });
+      }
     });
 
     logoutButtons.forEach((button) => button.addEventListener("click", async () => {
@@ -870,7 +892,7 @@
     row.querySelector("[data-sign-in-email-value]").textContent = email;
   }
 
-  async function synchronizeUserDocument(user, data) {
+  async function synchronizeUserDocument(user, data, cacheOptions) {
     requireCurrentUser(user);
     const db = window.firebase.firestore();
     const fieldValue = window.firebase.firestore.FieldValue;
@@ -949,10 +971,10 @@
         delete cacheData.pendingEmailFrom;
       }
 
-      return writeUserDocCache(user.uid, cacheData);
+      return writeUserDocCache(user.uid, cacheData, cacheOptions);
     }
 
-    return writeUserDocCache(user.uid, data);
+    return writeUserDocCache(user.uid, data, cacheOptions);
   }
 
   async function initLinkStatus(auth, userData) {
@@ -965,9 +987,9 @@
 
     try {
       const data = userData || await loadCurrentUserData(user);
-      updateLinkStatusUi(data);
+      if (isCurrentUser(user)) updateLinkStatusUi(data);
     } catch (error) {
-      updateLinkStatusUi(null);
+      // Keep the previous indicators on a failed refresh.
     }
   }
 
@@ -1022,15 +1044,7 @@
   }
 
   function getMissingAccountCounts(data) {
-    return {
-      personal: [data?.dlrgBranch, data?.birthDate, data?.gender].filter((value) => !hasChecklistValue(value)).length,
-      links: isPersonLinked(data) ? 0 : 1
-    };
-  }
-
-  function getMissingAccountCount(data) {
-    const counts = getMissingAccountCounts(data);
-    return counts.personal + counts.links;
+    return accountIndicators?.profileCounts(data, isPersonLinked(data));
   }
 
   function updateAccountChecklist(data) {
@@ -1040,29 +1054,6 @@
     const total = items.length;
     const percentage = total ? Math.round((completed / total) * 100) : 0;
     const isComplete = hasLoadedData && isAccountChecklistComplete(data);
-
-    const missingCount = getMissingAccountCount(data);
-
-    document.querySelectorAll("[data-account-attention], [data-account-manage-attention]").forEach((element) => {
-      const shouldHide = !hasLoadedData || missingCount === 0;
-
-      element.textContent = shouldHide ? "" : String(missingCount);
-      element.classList.toggle("is-hidden", shouldHide);
-      element.hidden = shouldHide;
-      element.setAttribute("aria-hidden", "true");
-    });
-
-    const categoryCounts = getMissingAccountCounts(data);
-    const categoryLabels = { personal: "Persönliche Daten", links: "Verknüpfungen" };
-    document.querySelectorAll("[data-settings-attention]").forEach((badge) => {
-      const category = badge.dataset.settingsAttention;
-      const count = categoryCounts[category] || 0;
-      const shouldHide = !hasLoadedData || count === 0;
-      badge.textContent = shouldHide ? "" : String(count);
-      badge.hidden = shouldHide;
-      badge.closest("a")?.setAttribute("aria-label", shouldHide ? categoryLabels[category]
-        : `${categoryLabels[category]} – ${count} offene ${count === 1 ? "Angabe" : "Angaben"}`);
-    });
 
     document.querySelectorAll("[data-account-checklist]").forEach((checklist) => {
       if (!hasLoadedData) {
@@ -1106,29 +1097,8 @@
     });
   }
 
-  function updateLinkStatusUi(data) {
-    const hasLoadedData = Boolean(data);
-    const isLinked = isPersonLinked(data);
-    const missingCount = getMissingAccountCount(data);
-    const missingLabel = `${missingCount} offene ${missingCount === 1 ? "Angabe" : "Angaben"}`;
-
-    document.querySelectorAll("[data-link-indicator]").forEach((element) => {
-      const shouldHide = !hasLoadedData || !isLinked;
-      element.classList.toggle("is-hidden", shouldHide);
-      element.hidden = shouldHide;
-    });
-
-    document.querySelectorAll("[data-account-open]").forEach((element) => {
-      element.setAttribute("aria-label", hasLoadedData
-        ? `Kontoprofil öffnen – Konto ${isLinked ? "verknüpft" : "nicht verknüpft"}${missingCount ? `, ${missingLabel}` : ""}`
-        : "Kontoprofil öffnen");
-    });
-
-    document.querySelectorAll(".account-manage").forEach((element) => {
-      element.setAttribute("aria-label", hasLoadedData && missingCount
-        ? `Kontoeinstellungen – ${missingLabel}` : "Kontoeinstellungen");
-    });
-
+  function updateLinkStatusUi(data, { preview = false } = {}) {
+    if (!preview || !accountIndicators?.hasProfile()) accountIndicators?.renderProfile(data && getMissingAccountCounts(data));
     updateAccountChecklist(data);
   }
 
@@ -1141,6 +1111,7 @@
     }
 
     const data = userData || await loadCurrentUserData(user) || {};
+    if (!isCurrentUser(user)) return;
     const role = getAccountRole(data, claims);
     updateRoleUi(role);
     if (page === "admin-accounts") await initAdminAccounts(auth, role);
@@ -1151,7 +1122,10 @@
   }
 
   function updateRoleUi(role = getDefaultAccountRole()) {
-    if (!role.isAdmin) clubNotifications?.stop();
+    if (!role.isAdmin) {
+      clubNotifications?.stop();
+      stopAdminAccountBadge?.();
+    }
     const visibility = {
       "data-admin-only": role.isAdmin,
       "data-non-admin-only": !role.isAdmin,

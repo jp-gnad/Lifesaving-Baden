@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const fs = require("node:fs");
+const indicators = require("../assets/js/account-indicators.js");
 
 function harness() {
   const windowEvents = new Map();
@@ -10,6 +11,7 @@ function harness() {
   const app = { setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key) };
   const badge = { hidden: true, textContent: "", closest: () => app };
   const document = { visibilityState: "visible", querySelector: () => badge,
+    querySelectorAll: (selector) => selector === "[data-club-notification-count]" ? [badge] : [],
     addEventListener: (key, fn) => documentEvents.set(key, fn), removeEventListener: key => documentEvents.delete(key) };
   const auth = { currentUser: { uid: "admin" } };
   const reads = [];
@@ -19,6 +21,9 @@ function harness() {
     firebase: { firestore: () => ({ collection(name) { reads.push(name); return { where(...filter) { reads.push(filter); return {
       onSnapshot(options, next, error) { listeners.push({ next, error }); return () => { stopped++; }; }
     }; } }; } }) } };
+  window.LifesavingAccountIndicators = indicators.create({ document });
+  window.LifesavingAccountIndicators.setAccount(auth.currentUser.uid);
+  window.LifesavingAccountIndicators.setRole(auth.currentUser.uid, true);
   vm.runInNewContext(fs.readFileSync(require.resolve("../assets/js/clubs-notifications.js"), "utf8"), { window });
   const controller = window.LifesavingClubNotifications.create({ isCurrentUser: user => user.uid === auth.currentUser?.uid });
   return { controller, auth, badge, app, attributes, reads, listeners, document, windowEvents, documentEvents, stopped: () => stopped };

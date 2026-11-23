@@ -22,7 +22,7 @@ function node() {
     click() { if (!this.disabled) this.emit("click", { pointerType: "", detail: 0 }); },
     setPointerCapture(id) { this.captured = id; },
     getBoundingClientRect: () => ({ left: 0, right: 150, top: 400, bottom: 480 }),
-    querySelectorAll: () => [], close() { this.open = false; },
+    querySelectorAll: () => [], close() { this.open = false; }, focus() {},
     setAttribute() {},
   };
 }
@@ -99,13 +99,15 @@ async function stopwatch(discipline = "normal", participantResponse = null, enab
       element.querySelector = (selector) => find(`${key} ${selector}`);
       element.querySelectorAll = (selector) => {
         if (!selector.startsWith(".")) return [];
-        return [...markup.matchAll(/<(input|select)\b([^>]*)>/g)]
+        const controls = selector === ".glue-next" ? /<(button)\b([^>]*)>/g : /<(input|select)\b([^>]*)>/g;
+        return [...markup.matchAll(controls)]
           .filter((match) => (match[2].match(/class="([^"]*)"/)?.[1] || "").split(" ").includes(selector.slice(1)))
           .map((match, index) => {
             const input = find(`${key} ${selector}-${index}`);
             if (!input.initialized) {
               input.value = match[2].match(/value="([^"]*)"/)?.[1] || "";
               input.type = match[2].match(/type="([^"]*)"/)?.[1] || "text";
+              if (selector === ".glue-next") input.dataset.glueIndex = match[2].match(/data-glue-index="(\d+)"/)?.[1];
               input.initialized = true;
             }
             return input;
@@ -361,6 +363,77 @@ test("the stopped timer can reopen its existing review without restarting time o
   assert.equal(h.find("#review-result").disabled, true, "continuing a measurement hides the review shortcut");
   h.advance(500);
   assert.equal(h.find("#clock").textContent, "0:02,00");
+});
+
+test("after four stops, switching to four or more laps updates review and keeps the measured times", async () => {
+  const roster = { participants: [{ id: "p", name: "Test", age_group: "Offen", birth_year: 2005, gender: "male", organization: "Baden" }] };
+  const h = await stopwatch("normal", roster, ["normal", "rescue100", "obstacle200", "superLifesaver200"], "25",
+    { user: { uid: "u" }, accountName: "Anna Baden" });
+  await new Promise(setImmediate);
+  h.click("right-action");
+  h.frequencyTap();
+  for (const delay of [1000, 2000, 3000]) { h.advance(delay); h.click("left-action"); }
+  h.advance(4000); h.click("right-action");
+  const review = h.find("#review-view");
+  review.querySelectorAll(".participant-select")[0].value = "p";
+  review.querySelector("#result-note").value = "Notiz behalten";
+  review.querySelector("#official-time").value = "9,98";
+  review.querySelector("#close-review").click();
+
+  h.click("mode-button"); h.group("individual");
+  assert.equal(h.find("#discipline-dialog").open, true);
+  assert.match(h.find("#mode-discipline-list").innerHTML, /data-discipline="rescue100" disabled/);
+  assert.match(h.find("#mode-discipline-list").innerHTML, /Zu kurz für 4 gestoppte Runden/);
+  h.choose("rescue100"); h.choose("obstacle100");
+  assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert", "short and disabled disciplines are rejected");
+  h.choose("superLifesaver200");
+  assert.equal(h.find("#progress").textContent, "4 / 7 Laps");
+  h.click("review-result");
+  assert.equal(review.querySelector("#edit-times").querySelectorAll(".segment-input").length, 7);
+  assert.equal(review.querySelectorAll(".participant-select")[0].value, "p");
+  assert.match(review.innerHTML, /value="0:09,98"/);
+  assert.match(review.innerHTML, /Notiz behalten/);
+  review.querySelector("#official-time").value = "9,98";
+  review.querySelector("#result-note").value = "Notiz behalten";
+  review.querySelector("#close-review").click();
+  assert.equal(h.find("#progress").textContent, "4 / 7 Laps", "three empty review fields do not count as measured laps");
+
+  h.click("mode-button"); h.group("individual"); h.choose("obstacle200");
+  assert.equal(h.find("#progress").textContent, "4 / 4 Laps");
+  assert.equal(h.find("#clock-status").textContent, "Gestoppt");
+  assert.equal(h.find("#clock").textContent, "0:10,00");
+  h.click("review-result");
+  assert.match(review.querySelector("#edit-times").innerHTML, /Runde 4 \(200 m\)/);
+  review.querySelector("#save-result").click(); await new Promise(setImmediate);
+  const saved = JSON.parse(JSON.stringify(h.savedResults[0]));
+  assert.equal(saved.discipline, "obstacle200");
+  assert.equal(saved.participantId, "p");
+  assert.deepEqual(saved.segments, [100, 200, 300, 400]);
+  assert.deepEqual(saved.frequencies, [60, null, null, null]);
+  assert.deepEqual(saved.lapGroups, [[1], [2], [3], [4]]);
+  assert.equal(saved.timekeeper.initials, "AB");
+});
+
+test("two linked time sections still count as their original laps when switching a stopped discipline", async () => {
+  const h = await stopwatch("normal", null, ["normal", "rescue100", "obstacle200"]);
+  h.click("right-action");
+  for (let lap = 1; lap < 4; lap++) { h.advance(1000); h.click("left-action"); }
+  h.advance(1000); h.click("right-action");
+  const review = h.find("#review-view");
+  review.querySelector("#edit-mode").click();
+  review.querySelector("#glue-mode").click();
+  review.querySelector("#edit-times").querySelectorAll(".glue-next")[0].click();
+  review.querySelector("#finish-edit").click();
+  review.querySelector("#close-review").click();
+  h.click("mode-button"); h.group("individual"); h.choose("rescue100");
+  assert.equal(h.find("#mode-name").textContent, "Benutzerdefiniert");
+  h.choose("obstacle200");
+  assert.equal(h.find("#progress").textContent, "4 / 4 Laps");
+  h.click("review-result");
+  const laps = review.querySelector("#edit-times");
+  assert.equal(laps.querySelectorAll(".segment-input").length, 3);
+  assert.match(laps.innerHTML, /Runde 1 \(50 m\) \+ Runde 2 \(100 m\)/);
+  assert.equal(laps.querySelectorAll(".segment-input")[0].value, "0:02,00");
 });
 
 test("a named four-lap custom result can be saved immediately and reused for the next four-lap measurement but not a two-lap one", async () => {

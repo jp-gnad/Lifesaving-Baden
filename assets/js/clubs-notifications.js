@@ -2,6 +2,7 @@
   "use strict";
 
   function create({ isCurrentUser }) {
+    const indicators = root.LifesavingAccountIndicators;
     let session;
 
     function stop() {
@@ -12,9 +13,6 @@
       root.removeEventListener("pageshow", owner.refresh);
       root.removeEventListener("focus", owner.refresh);
       root.document.removeEventListener("visibilitychange", owner.refresh);
-      owner.badge.hidden = true;
-      owner.badge.textContent = "";
-      owner.app.setAttribute("aria-label", "Gliederungen öffnen");
     }
 
     function start(auth) {
@@ -23,7 +21,7 @@
       stop();
       const badge = root.document.querySelector("[data-club-notification-count]");
       if (!badge) return;
-      const owner = { auth, uid: user.uid, badge, app: badge.closest("a") };
+      const owner = { auth, uid: user.uid, app: badge.closest("a") };
       session = owner;
       const current = () => session === owner && isCurrentUser(user);
       owner.refresh = () => {
@@ -39,10 +37,7 @@
         owner.unsubscribe = root.firebase.firestore().collection("clubs").where("needsResponsible", "==", true)
           .onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
             if (!current() || owner.generation !== generation || snapshot.metadata.fromCache) return;
-            const count = snapshot.size;
-            badge.textContent = String(count);
-            badge.hidden = count === 0;
-            owner.app.setAttribute("aria-label", count ? `Gliederungen öffnen, ${count} ohne Verantwortlichen` : "Gliederungen öffnen");
+            indicators?.setCount(user.uid, "clubs", snapshot.size);
             owner.app.removeAttribute("title");
           }, () => {
             if (!current() || owner.generation !== generation) return;

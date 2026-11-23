@@ -34,6 +34,13 @@ die Erneuerung im Hintergrund. Ein geändertes Bild ersetzt die Vorschau erst
 nach vollständigem Laden und Decodieren. Fehler behalten das bisherige Bild,
 Entfernen, Kontowechsel und Abmelden verwerfen es. Der Timer erhält seine
 Avatar-DOM-Elemente bei unverändertem Konto auch über Ansichtswechsel hinweg.
+`account-indicators.js` hält den Verknüpfungsstatus, die roten Profilhinweise und
+die Summen der beiden Admin-Kacheln als reine kontogebundene Anzeige im
+Sitzungsspeicher. Die Darstellung erscheint vor Firebase. Erfolgreiche Abfragen
+ersetzen geänderte Werte. Fehler und ältere Offline-Snapshots behalten die
+letzte Anzeige. Kontowechsel und Abmeldung verwerfen sie, ein bestätigter
+Rollenwechsel entfernt die Admin-Summen. Profil- und Zählerabfragen behalten
+ihre bisherigen Berechtigungsprüfungen und Filter.
 `app-launch.js` und `app-launch.css` halten beim kalten Start der installierten App
 das Startbild über dem tatsächlichen Layout. `landing.js` übergibt es bei einer
 bestätigten Sitzung mit dem einmaligen URL-Marker `appLaunch=1` an `app.html`;
@@ -116,6 +123,15 @@ wird nicht erweitert. Identische Profildaten erzeugen keine neue Darstellung,
 gleichzeitig eintreffende Änderungen werden zusammengefasst. Clubkader und
 Gliederungskarten verwenden unveränderte DOM-Elemente weiter.
 
+Unter „Personen“ wechseln Übersicht und Startberechtigungen per Dropdown.
+Die Jahresauswahl steuert die Altersgruppen und den angezeigten Aktivstatus.
+In der Übersicht bleiben auch inaktive Personen erreichbar. Ihre Aktivjahre
+werden im Personenmenü gesetzt. Die Startberechtigungen filtern wie bisher nach
+aktiven Personen im gewählten Jahr und öffnen den Nachweiseditor.
+„Person erstellen“ speichert Name, Jahrgang und Geschlecht ausschließlich im
+jeweiligen Clubkader. Die eigene Dokument-ID bleibt auch in Club-Events die
+Identität dieser Person. Manuelle Einträge starten mit leeren Aktivjahren und
+Nachweisen und verwenden danach die bestehenden Kaderfunktionen.
 `club-roster-state.js` projiziert ausstehende Imports, Entfernungen, Aktivjahre und
 Nachweise auf den Clubkader. Erst passende Serversnapshots lösen bestätigte Projektionen
 ab; Fehler nehmen die jeweilige Projektion zurück. Ausstehende Personen sind als solche
@@ -198,6 +214,11 @@ Disziplin steht unter dem geschlossenen Bereich „Weitere Disziplinen“.
 Lap-Gruppen; spätere Änderungen der Event-Bahnlänge verändern alte Ergebnisse
 oder deren Bearbeitung nicht. Neue Ergebnisse werden gegen die aktuelle Bahnlänge
 geprüft, bestehende gegen ihre gespeicherte Rundeneinteilung – auch in den Regeln.
+
+Der Stoppmodus kann nach der Rückkehr aus der Ergebnisprüfung geändert werden.
+Die gewählte Disziplin muss alle bereits gestoppten Runden abdecken. Im laufenden
+Timer muss zusätzlich die aktuelle Runde Platz haben. Leere Felder längerer
+Disziplinen bleiben Teil der Ergebnisprüfung und zählen dort als leere Runden.
 
 Der Timer lädt die Personenliste erst nach Aufbau der bedienbaren Stoppuhr im
 Hintergrund. Die Ergebnisprüfung ergänzt nachgeladene Personen, ohne laufende

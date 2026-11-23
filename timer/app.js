@@ -212,8 +212,9 @@ function renderTimerAccount(context) {
       timerAccountControl.dataset.avatarUid = currentTimerAuth.user.uid;
     }
     timerAccountControl.querySelector("[data-timer-account-open]").setAttribute("aria-label", `Account von ${name} öffnen`);
-    timerAccountControl.querySelector("[data-timer-account-header-attention]").hidden = !currentTimerAuth.accountNeedsAttention;
     window.LifesavingAccountAvatar?.render();
+    if (window.LifesavingAccountIndicators) window.LifesavingAccountIndicators.render();
+    else timerAccountControl.querySelector("[data-timer-account-header-attention]").hidden = !currentTimerAuth.accountNeedsAttention;
   }
   if (!timerAccountDialog || !currentTimerAuth.authenticated) return;
   if (!window.LifesavingAccountAvatar) timerAccountDialog.querySelector("[data-timer-account-avatar]").innerHTML = timerAccountAvatar(currentTimerAuth, "large");
@@ -224,8 +225,9 @@ function renderTimerAccount(context) {
   ["admin", "organizer", "trainer", "athlete", "standard"].forEach((role) => {
     roleElement.classList.toggle(`is-role-${role}`, currentTimerAuth.role === role);
   });
-  const manageAttention = timerAccountDialog.querySelector("[data-timer-account-manage-attention]");
-  manageAttention.hidden = !currentTimerAuth.accountNeedsAttention;
+  if (!window.LifesavingAccountIndicators) {
+    timerAccountDialog.querySelector("[data-timer-account-manage-attention]").hidden = !currentTimerAuth.accountNeedsAttention;
+  }
 }
 
 async function refreshTimerAccount() {
@@ -951,6 +953,8 @@ async function renderTimer(id) {
     timekeeper: null,
     discipline: initialDiscipline,
   };
+  const reviewAssignments = { individual: [], team: [] };
+  let reviewDiscipline;
 
   app.innerHTML = `
     <div class="timer-shell">
@@ -983,6 +987,8 @@ async function renderTimer(id) {
 
   const currentCs = () => timer.status === "running" ? timer.displayed + Math.floor((performance.now() - timer.startedAt) / 10) : timer.displayed;
   const capturedTotal = () => timer.segments.reduce((sum, value) => sum + value, 0);
+  const recordedLaps = () => timer.lapGroups.at(-1)?.at(-1) || 0;
+  const requiredLaps = () => recordedLaps() + Number(timer.status === "running");
   const config = () => disciplines[timer.discipline];
   const modeTitle = document.querySelector("#mode-dialog-title");
   const modeBack = document.querySelector("#mode-back");
@@ -990,9 +996,7 @@ async function renderTimer(id) {
   const modeDisciplineList = document.querySelector("#mode-discipline-list");
 
   function canSelectDiscipline(disciplineId) {
-    if (!enabledDisciplineIds.includes(disciplineId) || timer.status === "stopped") return false;
-    // Completed segments plus the live lap must fit into the new discipline.
-    return disciplines[disciplineId].laps > timer.segments.length;
+    return enabledDisciplineIds.includes(disciplineId) && disciplines[disciplineId].laps >= requiredLaps();
   }
 
   function availableModeGroups() {
@@ -1029,7 +1033,8 @@ async function renderTimer(id) {
     const renderChoice = ([disciplineId, item]) => {
       const selected = disciplineId === timer.discipline;
       const selectable = canSelectDiscipline(disciplineId);
-      return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}" ${selectable ? "" : "disabled"}><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps${selectable ? "" : ` · Zu kurz für Runde ${timer.segments.length + 1}`}</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
+      const reason = timer.status === "running" ? `Zu kurz für Runde ${requiredLaps()}` : `Zu kurz für ${requiredLaps()} gestoppte Runden`;
+      return `<button class="discipline-choice ${selected ? "selected" : ""}" type="button" data-discipline="${disciplineId}" ${selectable ? "" : "disabled"}><span><strong>${item.name}</strong><small>${item.flexible ? "max. " : ""}${item.laps} Laps${selectable ? "" : ` · ${reason}`}</small></span><span class="choice-check">${selected ? icon("check") : ""}</span></button>`;
     };
     const standard = entries.filter(([, item]) => !item.additional).map(renderChoice).join("");
     const additional = entries.filter(([, item]) => item.additional).map(renderChoice).join("");
@@ -1108,31 +1113,24 @@ async function renderTimer(id) {
   function renderLaps() {
     const item = config();
     const hasLiveLap = timer.status === "running";
-
-    if (!item.flexible) {
-      elements["lap-list"].hidden = false;
-      elements["lap-list"].innerHTML = Array.from({ length: item.laps }, (_, index) => {
-        const value = timer.segments[index];
-        const isCurrent = hasLiveLap && index === timer.segments.length;
-        const time = value !== undefined
-          ? formatTime(value)
-          : (isCurrent ? formatTime(currentCs() - capturedTotal()) : "–");
-        return `<div class="lap-row ${isCurrent ? "current" : ""}"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1, event))}</span>${lapValues(time, index, isCurrent, value === undefined && !isCurrent)}</div>`;
-      }).join("");
-      return;
-    }
-
-    elements["lap-list"].hidden = timer.segments.length === 0 && !hasLiveLap;
-    const liveRow = hasLiveLap ? `<div class="lap-row current"><span>${escapeHtml(disciplineLapLabel(timer.discipline, timer.segments.length + 1, event))}</span>${lapValues(formatTime(currentCs() - capturedTotal()), timer.segments.length, true)}</div>` : "";
-    const completedRows = timer.segments.map((value, index) => ({ value, index })).reverse().map(({ value, index }) => {
-      return `<div class="lap-row"><span>${escapeHtml(disciplineLapLabel(timer.discipline, index + 1, event))}</span>${lapValues(formatTime(value), index)}</div>`;
+    const nextLap = recordedLaps() + 1;
+    const rows = timer.lapGroups.map((laps, index) => {
+      const value = timer.segments[index];
+      return `<div class="lap-row"><span>${escapeHtml(disciplineLapGroupLabel(timer.discipline, laps, event))}</span>${lapValues(value === null ? "–" : formatTime(value), index, false, value === null)}</div>`;
+    });
+    const remaining = item.flexible ? Number(hasLiveLap) : item.laps - recordedLaps();
+    const openRows = Array.from({ length: remaining }, (_, index) => {
+      const isCurrent = hasLiveLap && index === 0;
+      const time = isCurrent ? formatTime(currentCs() - capturedTotal()) : "–";
+      return `<div class="lap-row ${isCurrent ? "current" : ""}"><span>${escapeHtml(disciplineLapLabel(timer.discipline, nextLap + index, event))}</span>${lapValues(time, timer.segments.length + index, isCurrent, !isCurrent)}</div>`;
     }).join("");
-    elements["lap-list"].innerHTML = liveRow + completedRows;
+    elements["lap-list"].hidden = item.flexible && rows.length === 0 && !hasLiveLap;
+    elements["lap-list"].innerHTML = item.flexible ? openRows + rows.reverse().join("") : rows.join("") + openRows;
   }
 
   function updateProgress() {
     const item = config();
-    elements.progress.textContent = `${timer.segments.length} / ${item.flexible ? "max. " : ""}${item.laps} Laps`;
+    elements.progress.textContent = `${recordedLaps()} / ${item.flexible ? "max. " : ""}${item.laps} Laps`;
   }
 
   function updateMode() {
@@ -1151,7 +1149,6 @@ async function renderTimer(id) {
 
   function updateControls() {
     const item = config();
-    elements["mode-button"].disabled = timer.status === "stopped";
     elements["undo-lap"].disabled = timer.status !== "running" || timer.segments.length === 0;
     elements["review-result"].disabled = timer.status !== "stopped";
     const actions = elements["left-action"].parentElement;
@@ -1163,7 +1160,7 @@ async function renderTimer(id) {
       return;
     }
     if (timer.status === "running") {
-      const lapLimitReached = timer.segments.length >= item.laps - 1;
+      const lapLimitReached = recordedLaps() >= item.laps - 1;
       setControl(elements["left-action"], "Runde", "lap", "secondary", lapLimitReached);
       setControl(elements["right-action"], "Stopp", "stop", "danger", false);
       if (lapLimitReached) {
@@ -1181,10 +1178,12 @@ async function renderTimer(id) {
     refreshReviewParticipants = null;
     cancelAnimationFrame(animationFrame);
     Object.assign(timer, { status: "idle", startedAt: 0, displayed: 0, segments: [], frequencies: [], lapGroups: [], officialTime: null, note: "", customDefinition: {}, timekeeper: null });
+    reviewAssignments.individual = [];
+    reviewAssignments.team = [];
+    reviewDiscipline = undefined;
     resetFrequencyCapture();
     elements.clock.textContent = "0:00,00";
     elements["clock-status"].textContent = "Bereit";
-    elements["mode-button"].disabled = false;
     elements["timer-view"].hidden = false;
     elements["review-view"].hidden = true;
     elements["review-view"].innerHTML = "";
@@ -1195,12 +1194,13 @@ async function renderTimer(id) {
   }
 
   function addSegment() {
-    if (timer.status !== "running" || timer.segments.length >= config().laps - 1) return false;
+    if (timer.status !== "running" || recordedLaps() >= config().laps - 1) return false;
     const total = currentCs();
     const segment = total - capturedTotal();
     if (segment <= 0) return false;
     finishFrequency();
     if (timer.frequencies[timer.segments.length] === undefined) timer.frequencies[timer.segments.length] = null;
+    timer.lapGroups.push([recordedLaps() + 1]);
     timer.segments.push(segment);
     renderLaps(); updateProgress();
     return true;
@@ -1212,13 +1212,17 @@ async function renderTimer(id) {
     // Frequency measurements belong to the discarded boundaries. Start a fresh
     // capture for the combined live lap, without changing the stopwatch origin.
     timer.frequencies.length = timer.segments.length;
-    timer.lapGroups = [];
+    timer.lapGroups.pop();
     resetFrequencyCapture();
     renderLaps(); updateProgress(); updateControls();
   }
 
   function reopenReview() {
     if (timer.status !== "stopped") return;
+    if (reviewDiscipline !== timer.discipline) {
+      showReview();
+      return;
+    }
     // Keep the existing editor and its assignments/drafts when switching back.
     elements["timer-view"].hidden = true;
     elements["review-view"].hidden = false;
@@ -1232,13 +1236,12 @@ async function renderTimer(id) {
     customReviewPicker?.destroy(); customReviewPicker = null;
     const review = elements["review-view"];
     const item = config();
-    const reviewSegments = item.flexible
-      ? timer.segments
-      : Array.from({ length: item.laps }, (_, index) => timer.segments[index] ?? null);
-    const reviewFrequencies = reviewSegments.map((_, index) => timer.frequencies[index] ?? null);
-    let lapGroups = timer.lapGroups.length === timer.segments.length
-      ? timer.lapGroups.map((laps, index) => ({ laps: [...laps], value: timer.segments[index] ?? null, frequency: timer.frequencies[index] ?? null }))
-      : reviewSegments.map((value, index) => ({ laps: [index + 1], value, frequency: reviewFrequencies[index] }));
+    reviewDiscipline = timer.discipline;
+    const assignmentKind = item.team ? "team" : "individual";
+    let lapGroups = timer.lapGroups.map((laps, index) => ({ laps: [...laps], value: timer.segments[index], frequency: timer.frequencies[index] ?? null }));
+    if (!item.flexible) {
+      for (let lap = recordedLaps() + 1; lap <= item.laps; lap += 1) lapGroups.push({ laps: [lap], value: null, frequency: null });
+    }
     let timeMode = "segment";
     let editMode = false;
     let glueMode = false;
@@ -1298,6 +1301,7 @@ async function renderTimer(id) {
     const officialInput = review.querySelector("#official-time");
     const noteInput = review.querySelector("#result-note");
     const participantSelects = [...review.querySelectorAll(".participant-select")];
+    participantSelects.forEach((select, index) => { select.value = reviewAssignments[assignmentKind][index] || ""; });
     const saveResult = review.querySelector("#save-result");
     const personDialog = review.querySelector("#review-person-dialog");
     const participantPickerDialog = review.querySelector("#participant-picker-dialog");
@@ -1315,7 +1319,7 @@ async function renderTimer(id) {
     const reviewTitle = review.querySelector("#review-title");
     let savingResult = false;
     if (timer.discipline === "normal") customReviewPicker = customDisciplinePicker.mount(review.querySelector("#review-custom-discipline"), {
-      eventId: id, prefix: "review-custom", lapCount: resultLapCount({ segments: reviewSegments, lapGroups }), initial: timer.customDefinition,
+      eventId: id, prefix: "review-custom", lapCount: recordedLaps(), initial: timer.customDefinition,
       isCurrent: () => version === routeVersion && authContext.user?.uid === currentTimerAuth.user?.uid,
     });
     let activeParticipantSelect = null;
@@ -1640,15 +1644,20 @@ async function renderTimer(id) {
       }
     });
     function closeReview() {
+      if (savingResult) return;
+      reviewAssignments[assignmentKind] = participantSelects.map((select) => select.value);
+      timer.note = noteInput.value;
       const corrections = readCorrections(false);
       if (corrections) {
-        timer.segments = corrections.segments;
-        timer.frequencies = corrections.frequencies;
-        timer.lapGroups = corrections.lapGroups;
-        timer.displayed = corrections.segments.reduce((sum, value) => sum + (value || 0), 0);
+        const lastRecordedLap = recordedLaps();
+        // Empty fields added for a longer discipline are not stopped laps.
+        const kept = lapGroups.findLastIndex((group) => group.laps[0] <= lastRecordedLap || group.value !== null || group.frequency !== null) + 1;
+        timer.segments = corrections.segments.slice(0, kept);
+        timer.frequencies = corrections.frequencies.slice(0, kept);
+        timer.lapGroups = corrections.lapGroups.slice(0, kept);
+        timer.displayed = capturedTotal();
         timer.officialTime = corrections.officialTime;
-        timer.note = noteInput.value;
-        timer.customDefinition = corrections.customDefinition || {};
+        if (corrections.customDefinition) timer.customDefinition = corrections.customDefinition;
         elements.clock.textContent = formatTime(timer.displayed);
       }
       review.hidden = true;
@@ -1700,7 +1709,6 @@ async function renderTimer(id) {
 
   bindDialogClose(elements["discipline-dialog"]);
   elements["mode-button"].addEventListener("click", () => {
-    if (timer.status === "stopped") return;
     const availableGroups = availableModeGroups();
     if (availableGroups.length === 1) renderModeGroup(availableGroups[0].id, { allowBack: false });
     else renderModeCategories();
@@ -1741,7 +1749,7 @@ async function renderTimer(id) {
       return;
     }
     if (event.clientY < document.documentElement.clientHeight / 2) return;
-    if (timer.segments.length >= config().laps - 1) {
+    if (recordedLaps() >= config().laps - 1) {
       elements["right-action"].click();
       return;
     }
@@ -1772,6 +1780,7 @@ async function renderTimer(id) {
       timer.timekeeper = timekeeperSnapshot(currentTimerAuth);
       finishFrequency();
       if (timer.frequencies[timer.segments.length] === undefined) timer.frequencies[timer.segments.length] = null;
+      timer.lapGroups.push([recordedLaps() + 1]);
       timer.segments.push(finalSegment);
       cancelAnimationFrame(animationFrame);
       elements.clock.textContent = formatTime(timer.displayed);
@@ -1782,6 +1791,7 @@ async function renderTimer(id) {
     }
     timer.segments.pop();
     timer.frequencies.pop();
+    timer.lapGroups.pop();
     resetFrequencyCapture();
     timer.officialTime = null;
     timer.status = "running";

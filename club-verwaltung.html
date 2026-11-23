@@ -15,35 +15,36 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261123-avatar-cache-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-team-manager-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-manager-colors-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
     <script defer src="assets/js/account-avatar.js?v=20261123-avatar-cache-v1"></script>
+    <script defer src="assets/js/account-indicators.js?v=20261123-indicator-cache-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
     <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
-    <script defer src="assets/js/clubs-core.js?v=20261116-teams-v1"></script>
+    <script defer src="assets/js/clubs-core.js?v=20261123-local-person-v1"></script>
     <script defer src="assets/js/person-link-store.js?v=20261120-new-account-alerts-v1"></script>
-    <script defer src="assets/js/auth-core.js?v=20261120-new-account-alerts-v1"></script>
+    <script defer src="assets/js/auth-core.js?v=20261123-indicator-cache-v1"></script>
     <script defer src="assets/js/member-view-cache.js?v=20261120-member-return-v1"></script>
     <script defer src="assets/js/start-eligibility-core.js?v=20261112-clubs-v1"></script>
     <script defer src="assets/js/start-eligibility.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs-store.js?v=20261119-instant-events-v1"></script>
+    <script defer src="assets/js/clubs-store.js?v=20261123-local-person-v1"></script>
     <script defer src="assets/js/club-teams-core.js?v=20261119-event-periods-v1"></script>
-    <script defer src="assets/js/club-events-core.js?v=20261119-event-periods-v1"></script>
-    <script defer src="assets/js/club-events-store.js?v=20261119-instant-events-v1"></script>
+    <script defer src="assets/js/club-events-core.js?v=20261123-termine-v1"></script>
+    <script defer src="assets/js/club-events-store.js?v=20261123-termine-v1"></script>
     <script defer src="assets/js/club-events-queue.js?v=20261119-instant-events-v1"></script>
-    <script defer src="assets/js/club-events.js?v=20261120-performance-v2"></script>
+    <script defer src="assets/js/club-events.js?v=20261123-termine-v1"></script>
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-profile-feed.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-roster-state.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261123-team-manager-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261123-avatar-cache-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261123-manager-colors-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261123-indicator-cache-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="clubs">
     <header class="site-header">
@@ -80,16 +81,16 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
               </button>
             </h1>
-            <button class="wt-icon-button club-import" id="se-import-open" type="button" aria-label="Person importieren" title="Person importieren" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
           </header>
           <nav class="wt-tabs club-tabs" id="club-tabs" aria-label="Clubbereiche" hidden>
             <button type="button" data-club-tab="people" aria-current="page">Personen</button>
-            <button type="button" data-club-tab="eligibility">Startberechtigungen</button>
-            <button type="button" data-club-tab="events">Events</button>
+            <button type="button" data-club-tab="events">Termine</button>
           </nav>
           <div class="se-overview club-overview" id="club-overview" hidden>
+            <select class="club-people-view" id="club-people-view" aria-label="Personenansicht">
+              <option value="overview">Übersicht</option>
+              <option value="eligibility">Startberechtigungen</option>
+            </select>
             <fieldset class="se-season-switch" id="se-season-switch" aria-label="Saison wählen" disabled>
               <label>
                 <input class="wt-sr-only" type="radio" id="se-season-current" name="se-season" checked>
@@ -100,11 +101,11 @@
                 <span><span class="wt-sr-only">Nächste Saison </span><span id="se-year-next"></span></span>
               </label>
             </fieldset>
-            <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Eventansicht wählen" hidden>
+            <fieldset class="se-season-switch" id="club-event-period-switch" aria-label="Terminansicht wählen" hidden>
               <label><input class="wt-sr-only" type="radio" id="club-event-period-planned" name="club-event-period" value="planned" checked><span>Geplante</span></label>
               <label><input class="wt-sr-only" type="radio" id="club-event-period-past" name="club-event-period" value="past"><span>Vergangene</span></label>
             </fieldset>
-            <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Event hinzufügen</span></button>
+            <button class="button se-primary club-team-add" id="club-event-add" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Termin hinzufügen</span></button>
             <div class="se-summary" id="se-summary" aria-label="Statusübersicht" hidden>
               <div class="se-stage" data-stage="3">
                 <span class="se-stage-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v7m0 4h.01"/></svg><span class="se-stage-label">Offen</span></span>
@@ -119,6 +120,10 @@
                 <strong id="se-total-1">0</strong>
               </div>
             </div>
+          </div>
+          <div class="club-person-actions" id="club-person-actions" hidden>
+            <button class="button se-primary" id="club-local-person-open" type="button">Person erstellen</button>
+            <button class="button button-secondary" id="se-import-open" type="button">Person importieren</button>
           </div>
           <div id="se-list" aria-busy="true"></div>
         </div>
@@ -137,6 +142,20 @@
       <label class="wt-field"><span class="wt-sr-only">Name suchen</span><input id="se-search" type="search" inputmode="search" autocomplete="off" maxlength="80" placeholder="Name suchen …"></label>
       <p class="se-search-note" id="se-search-note" role="status"></p>
       <div class="se-search-results" id="se-search-results"></div>
+    </dialog>
+
+    <dialog class="wt-dialog se-dialog" id="club-local-person-dialog" aria-labelledby="club-local-person-title">
+      <form id="club-local-person-form">
+        <div class="wt-dialog-heading">
+          <h2 id="club-local-person-title">Person erstellen</h2>
+          <button class="wt-icon-button" type="button" data-club-close aria-label="Schließen">×</button>
+        </div>
+        <label class="wt-field"><span>Vor- und Nachname</span><input name="name" type="text" maxlength="120" autocomplete="off" required autofocus></label>
+        <label class="wt-field"><span>Jahrgang</span><input name="birthYear" type="number" inputmode="numeric" min="1900" step="1" required></label>
+        <label class="wt-field"><span>Geschlecht</span><select name="gender" required><option value="">Bitte auswählen</option><option value="w">Weiblich</option><option value="m">Männlich</option></select></label>
+        <p class="wt-form-error" id="club-local-person-error" role="alert" hidden></p>
+        <div class="wt-dialog-actions"><button class="button se-primary" id="club-local-person-save" type="submit">Speichern</button></div>
+      </form>
     </dialog>
 
     <dialog class="wt-dialog se-dialog" id="se-editor" aria-labelledby="se-editor-title">
@@ -158,7 +177,7 @@
 
     <dialog class="wt-dialog se-dialog club-event-dialog" id="club-event-dialog" aria-labelledby="club-event-title">
       <form id="club-event-form" novalidate>
-        <div class="wt-dialog-heading"><div><h2 id="club-event-title" tabindex="-1" autofocus>Eventname</h2><p class="se-meta" id="club-event-step"></p></div><button class="wt-icon-button" id="club-event-close" type="button" aria-label="Schließen">×</button></div>
+        <div class="wt-dialog-heading"><div><h2 id="club-event-title" tabindex="-1" autofocus>Terminname</h2><p class="se-meta" id="club-event-step"></p></div><button class="wt-icon-button" id="club-event-close" type="button" aria-label="Schließen">×</button></div>
         <label class="wt-field" id="club-event-name-field"><span>Name</span><input id="club-event-name" type="text" maxlength="120" autocomplete="off" required></label>
         <label class="wt-field" id="club-event-date-field" hidden><span>Datum</span><input id="club-event-date" type="date"></label>
         <div id="club-event-picker" hidden>
@@ -191,6 +210,14 @@
 
     <dialog class="wt-dialog se-dialog" id="club-person-dialog" aria-labelledby="club-person-title">
       <div class="wt-dialog-heading"><div><h2 id="club-person-title" tabindex="-1" autofocus></h2><p class="se-meta" id="club-person-meta"></p></div><button class="wt-icon-button" type="button" data-club-close aria-label="Schließen">×</button></div>
+      <fieldset class="club-person-years" id="club-person-years">
+        <legend>Aktivjahre</legend>
+        <div class="club-year-badges">
+          <button type="button" id="club-person-year-current" aria-pressed="false"></button>
+          <button type="button" id="club-person-year-next" aria-pressed="false"></button>
+        </div>
+        <p class="wt-form-error" id="club-person-years-error" role="alert" hidden></p>
+      </fieldset>
       <p class="wt-form-error" id="club-person-error" role="alert" hidden></p>
       <div class="wt-dialog-actions"><button class="button wt-danger" id="club-person-remove" type="button">Entfernen</button></div>
     </dialog>

@@ -50,6 +50,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 |---|---|
 | Login, Konto, Profil, Administration | `auth_flow.test.cjs`, `person_link_requests.test.cjs`, Python-Timerintegration; bei Daten-/Berechtigungsänderungen zusätzlich Regeln |
 | Kontobild, sofortige Vorschau und Hintergrundabgleich | `account_avatar.test.cjs`, `auth_flow.test.cjs`, Timeransichtstests; `member_bootstrap.browser.html` mit verzögertem Profilabruf |
+| Verknüpfungskreis und Benachrichtigungszähler | `account_indicators.test.cjs`, `auth_flow.test.cjs`, `clubs_notifications.test.cjs`; `member_bootstrap.browser.html` mit verzögertem Profilabruf |
 | Neumeldungen zu Konten, Quittierung und deduplizierte Zähler | `account_notifications.test.cjs`, `auth_flow.test.cjs`, `npm run test:rules`; `admin_accounts.browser.html?new=1` |
 | Startbild, Bereitschaft und Übergabe an den Mitgliederbereich | `app_launch.test.cjs`, `auth_flow.test.cjs`, `member_bootstrap.browser.html?launch=1&delay=5000`; Fehlerfall zusätzlich `&fail=1` |
 | Schnelle Rückkehr zur Mitgliederübersicht und Vorschau ohne Berechtigungswirkung | `member_view_cache.test.cjs`, `auth_flow.test.cjs`, Emulator-Suites |
@@ -57,7 +58,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Bahnlängenabhängige 100 m Hindernis und weitere Disziplinen | `timer_modules.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
 | Eigene Disziplinennamen je Event und Rundenzahl | `timer_custom_disciplines.test.cjs`, `timer_import.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
 | Zeitnahme-Kürzel, unveränderliche Quelle und PDF-Anzeige | `timer_modules.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`, `timer_result_view.test.cjs`, `npm run test:rules` |
-| Stoppuhrbedienung, langes Halten, Runden zurücknehmen und Disziplinwechsel im Lauf | `timer_controls.test.cjs` (simulierte Uhr, ohne Firebase) |
+| Stoppuhrbedienung, Runden zurücknehmen und Disziplinwechsel im Lauf oder nach dem Stoppen | `timer_controls.test.cjs` (simulierte Uhr, ohne Firebase) |
 | Live-Formatierung von Zeiteingaben, Löschen/Cursor und Ergebnisbearbeitung | `timer_time_input.test.cjs`, `timer_result_view.test.cjs` |
 | Altersklassen in der Personenauswahl | `timer_participant_picker.test.cjs`, `timer_controls.test.cjs`, `timer_result_view.test.cjs`, `timer_people_view.test.cjs` |
 | Sofortige Navigation, Hintergrundspeicherung, Wiederholungen und Kontowechsel | `timer_save_queue.test.cjs`, `timer_controls.test.cjs`, `timer_import.test.cjs`; zusätzlich Emulator-Suites bei Adapter-/Store-Änderungen |

@@ -1,6 +1,8 @@
 (function (root) {
   "use strict";
   function create({ isCurrentUser }) {
+    const indicators = root.LifesavingAccountIndicators;
+    let session;
     async function countAdminNotifications(user) {
       const token = await user.getIdToken();
       const filters = window.LifesavingAccountNotifications.countFilters();
@@ -25,41 +27,51 @@
       return counts.reduce((sum, count) => sum + count, 0);
     }
 
+    function stopAdminAccountBadge() {
+      const owner = session;
+      session = null;
+      if (!owner) return;
+      root.removeEventListener?.("pageshow", owner.pageshow);
+      document.removeEventListener?.("visibilitychange", owner.refresh);
+    }
+
     function initAdminAccountBadge(auth) {
       const badge = document.querySelector("[data-admin-notification-count]");
-      if (!badge || badge.dataset.listenerAttached) return;
-      badge.dataset.listenerAttached = "true";
+      const user = auth.currentUser;
+      if (!badge || !user || session?.uid === user.uid) return;
+      stopAdminAccountBadge();
       const app = badge.closest("a");
+      const owner = { uid: user.uid };
+      session = owner;
+      const current = () => session === owner && isCurrentUser(user);
       let loading = false;
-      let lastUid = "", lastRefresh = 0;
-      const refresh = async () => {
-        const user = auth.currentUser;
-        if (loading || !user || document.visibilityState === "hidden") return;
-        if (lastUid === user.uid && Date.now() - lastRefresh < 15_000) return;
+      let lastRefresh = -Infinity;
+      owner.refresh = async () => {
+        if (loading || !current() || document.visibilityState === "hidden") return;
+        if (Date.now() - lastRefresh < 15_000) return;
         loading = true;
         try {
           const count = await countAdminNotifications(user);
-          if (!isCurrentUser(user)) return;
-          lastUid = user.uid; lastRefresh = Date.now();
-          badge.textContent = String(count);
-          badge.hidden = count === 0;
-          app.setAttribute("aria-label", count ? `Kontenübersicht öffnen, ${count} offene Meldungen` : "Kontenübersicht öffnen");
+          if (!current()) return;
+          lastRefresh = Date.now();
+          indicators?.setCount(user.uid, "accounts", count);
           app.removeAttribute("title");
         } catch {
-          if (isCurrentUser(user)) app.title = "Benachrichtigungen konnten nicht geladen werden.";
+          if (current()) app.title = "Benachrichtigungen konnten nicht geladen werden.";
         } finally {
           loading = false;
         }
       };
-      refresh();
-      window.addEventListener("pageshow", (event) => {
-        if (event?.persisted) lastUid = "";
-        return refresh();
-      });
-      document.addEventListener("visibilitychange", refresh);
+      owner.pageshow = (event) => {
+        if (event?.persisted) lastRefresh = -Infinity;
+        return owner.refresh();
+      };
+      owner.refresh();
+      root.addEventListener("pageshow", owner.pageshow);
+      document.addEventListener("visibilitychange", owner.refresh);
     }
 
-    return Object.freeze({ countAdminNotifications, initAdminAccountBadge });
+    return Object.freeze({ countAdminNotifications, initAdminAccountBadge, stopAdminAccountBadge });
   }
   root.LifesavingAdminNotifications = Object.freeze({ create });
 })(window);

@@ -27,9 +27,9 @@ function compat(db) {
     limit: (size) => ({ async get() { const snapshot = await sdk.getDocs(sdk.query(sdk.collection(db, name), sdk.limit(size))); return { docs: snapshot.docs.map(wrap) }; } }),
     async get() { const snapshot = await sdk.getDocs(sdk.collection(db, name)); return { docs: snapshot.docs.map(wrap) }; },
     doc(id) {
-      const native = sdk.doc(db, `${name}/${id}`);
+      const native = id === undefined ? sdk.doc(sdk.collection(db, name)) : sdk.doc(db, `${name}/${id}`);
       return {
-        id, native, collection: (child) => collection(`${name}/${id}/${child}`),
+        id: native.id, native, collection: (child) => collection(`${native.path}/${child}`),
         async get() { return wrap(await sdk.getDoc(native)); },
         set: (data, options) => sdk.setDoc(native, data, options), update: (data) => sdk.updateDoc(native, data), delete: () => sdk.deleteDoc(native),
       };
@@ -77,6 +77,56 @@ beforeEach(async () => {
   records[`timerParticipantDirectory/${p2}`] = person("b");
   records[`timerParticipantDirectory/${p3}`] = person("o");
   await seed(records);
+});
+
+test("club-local people stay in their roster and support activity, evidence and event selection", { skip: !enabled }, async () => {
+  const club = await create("Lokaler Kader", "a");
+  const db = compat(dbFor("a"));
+  const year = new Date().getUTCFullYear();
+  const input = { name: "  Alex Nachwuchs  ", birthYear: year - 14, gender: "w" };
+  await fails(store.createLocalPerson(compat(dbFor("outsider")), club, input, api()));
+  await fails(store.createLocalPerson(compat(dbFor("athlete")), club, input, api()));
+  const id = await store.createLocalPerson(db, club, input, api());
+  const ref = rosterRef(dbFor("a"), club, id);
+  const added = (await sdk.getDoc(ref)).data();
+  assert.equal(core.isLocalPerson({ ...added, id }), true);
+  assert.equal(added.name, "Alex Nachwuchs");
+  assert.deepEqual(added.activeYears, []);
+  assert.equal((await sdk.getDoc(sdk.doc(dbFor("a"), `timerParticipantDirectory/${id}`))).exists(), false);
+  await fails(sdk.getDoc(rosterRef(dbFor("outsider"), club, id)));
+
+  await store.setActive(db, club, id, year, true, api(), undefined, added.createdAt);
+  const proof = sdk.Timestamp.fromDate(new Date(`${year}-01-01T00:00:00Z`));
+  await store.saveDates(db, club, id, { healthDeclaration: proof }, api(), undefined, added.createdAt);
+  const updated = (await sdk.getDoc(ref)).data();
+  assert.deepEqual(updated.activeYears, [year]);
+  assert.equal(updated.healthDeclaration.toMillis(), proof.toMillis());
+  await events.create(db, club, "local-event", "Training", `${year}-06-01`, [], api());
+  await events.addPerson(db, club, "local-event", { ...updated, id, rosterGender: updated.gender }, api());
+  const event = (await sdk.getDoc(sdk.doc(dbFor("a"), `clubs/${club}/events/local-event`))).data();
+  assert.equal(event.participants[id].rosterId, id);
+
+  await store.removePerson(db, club, id, api());
+  assert.equal((await sdk.getDoc(ref)).exists(), false);
+});
+
+test("local roster rules reject forged identities and activity outside the normal flow", { skip: !enabled }, async () => {
+  const club = await create("Lokale Daten schützen", "a");
+  const db = dbFor("a");
+  const year = new Date().getUTCFullYear();
+  const localId = "local_0123456789abcdefghij";
+  const data = { name: "Neue Person", birthYear: year - 14, gender: "m", personId: "", accountUid: "", organization: "", activeYears: [],
+    ...core.proofDates(), createdAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp() };
+  const ref = rosterRef(db, club, localId);
+  for (const invalid of [{ accountUid: "b" }, { personId: p1 }, { birthYear: year + 1 }, { gender: "" }, { name: " " }, { activeYears: [year] }]) {
+    await fails(sdk.setDoc(ref, { ...data, ...invalid }));
+  }
+  await fails(sdk.setDoc(rosterRef(db, club, "not-local"), data));
+  await succeeds(sdk.setDoc(ref, data));
+  await fails(sdk.updateDoc(ref, { personId: p1, updatedAt: sdk.serverTimestamp() }));
+  await fails(sdk.updateDoc(ref, { accountUid: "b", updatedAt: sdk.serverTimestamp() }));
+  await fails(sdk.updateDoc(ref, { activeYears: [year + 2], updatedAt: sdk.serverTimestamp() }));
+  await fails(sdk.updateDoc(rosterRef(dbFor("outsider"), club, localId), { activeYears: [year], updatedAt: sdk.serverTimestamp() }));
 });
 
 async function eventFixture(legacy = false) {
