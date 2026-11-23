@@ -36,6 +36,13 @@
     return element;
   }
 
+  function managerIdentity(profile) {
+    const details = node("span", "club-manager-details");
+    details.append(node("span", "club-manager-name", profile ? core.displayName(profile) : "Unbekannt"),
+      node("span", "club-role", "Team Manager"));
+    return details;
+  }
+
   function icon(name) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
@@ -168,10 +175,10 @@
 
   function updateClubNavigation(owner) {
     const current = owner?.clubs.get(owner.clubId);
-    const hasChoices = Boolean(current && owner.clubs.size > 1);
+    const hasChoices = (owner?.clubs.size || 0) > 1;
     const pending = owner?.pendingClub?.id;
     byId("club-title").textContent = current?.name || "Club-Verwaltung";
-    byId("club-switch-name").textContent = current?.name || "";
+    byId("club-switch-name").textContent = current?.name || "Club-Verwaltung";
     byId("club-switch").hidden = !hasChoices;
     byId("club-switch").setAttribute("aria-busy", String(Boolean(pending)));
     byId("club-sidebar").hidden = !hasChoices;
@@ -192,7 +199,7 @@
           });
         }
         if (button.textContent !== club.name) button.textContent = club.name;
-        if (club.id === current.id) button.setAttribute("aria-current", "true");
+        if (club.id === current?.id) button.setAttribute("aria-current", "true");
         else button.removeAttribute("aria-current");
         if (club.id === pending) button.setAttribute("aria-busy", "true");
         else button.removeAttribute("aria-busy");
@@ -399,10 +406,12 @@
     row.classList.toggle("is-pending", Boolean(person.pending));
     row.setAttribute("aria-busy", String(Boolean(person.pending)));
     if (tab === "eligibility") row.type = "button";
-    row.dataset.role = roles[person.role] ? person.role : "";
     const details = node("span", "se-person-details");
     details.append(node("strong", "se-person-name", core.displayName(person)));
-    if (roles[row.dataset.role]) details.append(node("span", "club-role", roles[row.dataset.role]));
+    const ownEntry = tab === "people" && person.accountUid === owner.uid;
+    const manager = owner.clubs.get(owner.clubId)?.managerIds.includes(person.accountUid);
+    const roleLabel = manager ? "Team Manager" : ownEntry ? "Du" : "";
+    if (roleLabel) details.append(node("span", "club-role", roleLabel));
     if (tab === "eligibility") {
       row.dataset.stage = state.stage;
       const status = node("span", "se-person-status");
@@ -427,7 +436,7 @@
       const open = node("button", "club-person-open");
       open.id = `club-person-open-${person.id}`;
       open.type = "button";
-      open.setAttribute("aria-label", `${core.displayName(person)} verwalten`);
+      open.setAttribute("aria-label", `${core.displayName(person)}${ownEntry ? " (du)" : ""} verwalten`);
       open.append(details, icon("next"));
       open.addEventListener("click", () => openPerson(owner, person));
       const activity = node("span", "club-year-badges");
@@ -484,15 +493,14 @@
   }
 
   function updatePersonPermissions(owner, person) {
-    byId("club-person-meta").textContent = roles[person.role] || "";
-    byId("club-person-meta").dataset.role = person.role || "";
     const club = owner.clubs.get(owner.clubId);
     const manager = club.managerIds.includes(person.accountUid);
+    byId("club-person-meta").textContent = manager ? "Team Manager" : "";
     const last = manager && club.managerIds.length === 1;
     const protectedManager = manager && !owner.role.isAdmin && person.accountUid !== owner.uid;
     byId("club-person-remove").disabled = last || protectedManager;
     byId("club-person-remove").textContent = person.accountUid === owner.uid ? "Club verlassen" : "Entfernen";
-    const lastMessage = "Mindestens ein Verantwortlicher bleibt im Club.";
+    const lastMessage = "Mindestens ein Team Manager bleibt im Club.";
     if (last || byId("club-person-error").textContent === lastMessage) {
       byId("club-person-error").textContent = last ? lastMessage : "";
       byId("club-person-error").hidden = !last;
@@ -635,24 +643,22 @@
       if (club.status === "active" && club.managerIds.length === 0) {
         const badge = node("span", "club-notification", "1");
         badge.setAttribute("role", "status");
-        badge.setAttribute("aria-label", "1 Meldung: Kein Verantwortlicher");
+        badge.setAttribute("aria-label", "1 Meldung: Kein Team Manager");
         card.append(badge);
       }
       const title = node("a", "club-admin-title", club.name);
       title.href = `club-verwaltung.html?club=${encodeURIComponent(club.id)}`;
       const names = node("div", "club-manager-names");
-      if (!club.managerIds.length && club.status === "active") names.append(node("span", "club-no-responsible", "Kein Verantwortlicher"));
+      if (!club.managerIds.length && club.status === "active") names.append(node("span", "club-no-responsible", "Kein Team Manager"));
       for (const uid of club.managerIds) {
         const profile = owner.profiles.get(uid);
-        const manager = node("span", "club-manager-name", profile ? core.displayName(profile) : "Verantwortlicher");
-        manager.dataset.role = profile?.role || "trainer";
-        names.append(manager);
+        names.append(managerIdentity(profile));
       }
       const body = node("div", "club-admin-body");
       body.append(title, names);
       const manage = node("button", "wt-icon-button");
       manage.type = "button";
-      manage.setAttribute("aria-label", `${club.name}: Verantwortliche verwalten`);
+      manage.setAttribute("aria-label", `${club.name}: Team Manager verwalten`);
       manage.append(icon("people"));
       manage.disabled = club.status !== "active" || owner.deleting === club.id;
       manage.addEventListener("click", async () => {
@@ -708,11 +714,10 @@
     byId("club-responsible-members").replaceChildren(...club.managerIds.map((uid) => {
       const profile = owner.profiles.get(uid);
       const row = node("div", "club-responsible-row");
-      const name = node("span", "club-manager-name", profile ? `${core.displayName(profile)} · ${roles[profile.role] || "Mitglied"}` : "Verantwortlicher");
-      name.dataset.role = profile?.role || "";
+      const name = managerIdentity(profile);
       const remove = node("button", "wt-icon-button");
       remove.type = "button"; remove.append(icon("remove"));
-      remove.setAttribute("aria-label", `${profile?.name || "Verantwortlichen"}: Verantwortung entfernen`);
+      remove.setAttribute("aria-label", `${profile ? core.displayName(profile) : "Team Manager"}: Zuordnung entfernen`);
       remove.disabled = club.managerIds.length === 1 || Boolean(owner.responsibleBusy);
       remove.addEventListener("click", () => changeResponsible(owner, () => store.removePerson(owner.db, club.id, store.managerKey(uid), owner.sdk, () => requireCurrent(owner), true)));
       row.append(name, remove);

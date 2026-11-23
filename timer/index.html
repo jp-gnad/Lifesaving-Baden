@@ -17,8 +17,10 @@
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <meta property="og:image:alt" content="Lifesaving Baden Logo auf weißem Hintergrund">
     <link rel="icon" href="./app-icon-64.png?v=baden-brand-v1" type="image/png" sizes="64x64">
-    <link rel="stylesheet" href="./styles.css?v=20261114-timekeeper-v1">
+    <link rel="stylesheet" href="./styles.css?v=20261123-hidden-scrollbars-v1">
     <script defer src="../assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="../assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
+    <script defer src="../assets/js/account-avatar.js?v=20261123-avatar-cache-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
@@ -30,7 +32,7 @@
     <script defer src="./offline-store.js?v=20261112-structure-v1"></script>
     <script defer src="./participant-store.js?v=20261112-import-reads-v1"></script>
     <script defer src="./result-feed.js?v=20261112-paged-reads-v1"></script>
-    <script defer src="./firestore-api.js?v=20261114-timekeeper-v1"></script>
+    <script defer src="./firestore-api.js?v=20261123-avatar-cache-v1"></script>
     <script defer src="./participant-picker.js?v=20261114-age-groups-v1"></script>
     <script defer src="./participant-updates.js?v=20261114-participant-updates-v1"></script>
     <script defer src="./event-cache.js?v=20261114-background-saves-v1"></script>
@@ -39,7 +41,7 @@
     <script defer src="./time-input.js?v=20261114-live-time-input-v1"></script>
     <script defer src="./custom-discipline-picker.js?v=20261114-custom-names-v1"></script>
     <script defer src="./lazy-assets.js?v=20261120-performance-v2"></script>
-    <script defer src="./app.js?v=20261120-performance-v2"></script>
+    <script defer src="./app.js?v=20261123-avatar-cache-v1"></script>
   </head>
   <body>
     <header class="site-header">
@@ -48,7 +50,12 @@
         <span>Lifesaving Timer</span>
       </a>
       <div class="header-actions">
-        <div id="timer-account-control" class="timer-account-control" aria-live="polite"></div>
+        <div id="timer-account-control" class="timer-account-control" aria-live="polite">
+          <span class="timer-account-avatar timer-account-avatar-small" data-account-avatar-preview hidden aria-hidden="true">
+            <img alt="" data-account-photo-small hidden>
+            <span data-account-initials-small>?</span>
+          </span>
+        </div>
       </div>
     </header>
     <p class="form-error container" data-timer-auth-error role="alert" hidden></p>
@@ -74,7 +81,10 @@
 
       <p class="timer-account-email" data-timer-account-email>Keine E-Mail geladen.</p>
 
-      <div class="timer-account-avatar timer-account-avatar-large" data-timer-account-avatar>?</div>
+      <div class="timer-account-avatar timer-account-avatar-large" data-timer-account-avatar>
+        <img alt="" data-account-photo-large hidden>
+        <span data-account-initials-large>?</span>
+      </div>
 
       <h2 id="timer-account-title"><span data-timer-account-name>Mitglied</span></h2>
       <p class="timer-account-name-line">Status: <strong data-timer-account-role>Standard</strong></p>

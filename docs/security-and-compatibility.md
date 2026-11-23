@@ -2,6 +2,13 @@
 
 ## Autorisierung
 
+Die Avatar-Vorschau (`lifesaving-baden:account-avatar:v1` im Sitzungsspeicher)
+enthält nur UID, Bildadresse, begrenzte Bilddaten, Initialen und Cache-Metadaten.
+Sie darf vor Wiederherstellung der Anmeldung ausschließlich das letzte Kontobild
+anzeigen. Sie bestätigt keine Sitzung und enthält weder Rollen noch Tokens oder
+Formularwerte. Die aktuelle Firebase-Sitzung bleibt maßgeblich; Kontowechsel und
+Abmeldung entfernen die Vorschau, verspätete Bildantworten werden verworfen.
+
 - Alle statischen HTML-Dateien sind grundsätzlich öffentlich abrufbar. Eine
   Weiterleitung zur Anmeldung schützt die Oberfläche, nicht die Datenbank.
 - Firestore-Regeln entscheiden über Datenzugriff. Das Ausblenden von Links,

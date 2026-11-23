@@ -227,6 +227,7 @@
   let initialAuthResolved = false;
   let authRefreshVersion = 0;
   async function refreshTimerAuthContext(user) {
+    window.LifesavingAccountAvatar?.setUser(user);
     const userChanged = authContext.user?.uid !== user?.uid;
     if (userChanged) { accountSession += 1; clearParticipantCache(); }
     const refreshVersion = ++authRefreshVersion;

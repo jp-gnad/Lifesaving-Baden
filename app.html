@@ -34,11 +34,14 @@
     <script>
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
-    <link rel="stylesheet" href="assets/css/styles.css?v=20261120-soft-dashboard-v1">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261123-avatar-cache-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/app-launch.js?v=20261120-launch-notice-delay-v1"></script>
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
+    <script defer src="assets/js/member-tabs.js?v=20261123-member-tabs-v1"></script>
+    <script defer src="assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
+    <script defer src="assets/js/account-avatar.js?v=20261123-avatar-cache-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
@@ -51,7 +54,7 @@
     <script defer src="assets/js/account-notifications-core.js?v=20261120-new-account-alerts-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261112-orphan-clubs-v2"></script>
     <script defer src="assets/js/admin-notifications.js?v=20261120-new-account-alerts-v2"></script>
-    <script defer src="assets/js/auth.js?v=20261120-soft-dashboard-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261123-avatar-cache-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <div class="app-launch" role="status" aria-label="Lifesaving Baden wird geöffnet">
@@ -114,10 +117,15 @@
             </li>
           </ul>
         </section>
+        <div class="member-tabs" role="tablist" aria-label="Mitgliederbereich">
+          <button type="button" id="member-tab-home" role="tab" aria-controls="member-panel-home" aria-selected="true" tabindex="0">Home</button>
+          <button type="button" id="member-tab-profile" role="tab" aria-controls="member-panel-profile" aria-selected="false" tabindex="-1">Profil</button>
+          <button type="button" id="member-tab-club" role="tab" aria-controls="member-panel-club" aria-selected="false" tabindex="-1">Club</button>
+        </div>
       </section>
 
       <div class="member-dashboard-content">
-        <div class="member-app-groups">
+        <div class="member-app-groups" id="member-panel-home" role="tabpanel" aria-labelledby="member-tab-home" tabindex="0">
           <section class="member-apps" aria-label="Standard">
             <h2 class="eyebrow">Standard</h2>
             <div class="member-app-grid">
@@ -172,7 +180,8 @@
             </div>
           </section>
         </div>
-
+        <div id="member-panel-profile" role="tabpanel" aria-labelledby="member-tab-profile" tabindex="0" hidden></div>
+        <div id="member-panel-club" role="tabpanel" aria-labelledby="member-tab-club" tabindex="0" hidden></div>
       </div>
     </main>
 

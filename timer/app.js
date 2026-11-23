@@ -177,10 +177,12 @@ function timerAccountRole(context = currentTimerAuth) {
   return context?.authenticated ? "Standard" : "Nicht angemeldet";
 }
 
-function timerAccountAvatar(context = currentTimerAuth) {
+function timerAccountAvatar(context = currentTimerAuth, size = "small") {
   const user = context?.user;
-  if (user?.photoURL) return `<img src="${escapeHtml(user.photoURL)}" alt="">`;
-  return `<span>${escapeHtml(personInitials(timerAccountName(context)))}</span>`;
+  const snapshot = window.LifesavingAccountAvatar?.snapshot();
+  const source = window.LifesavingAccountAvatar ? (snapshot?.uid === user?.uid ? snapshot?.image : "") : user?.photoURL;
+  return `<img ${source ? `src="${escapeHtml(source)}"` : "hidden"} alt="" data-account-photo-${size}>
+    <span ${source ? "hidden" : ""} data-account-initials-${size}>${escapeHtml(personInitials(timerAccountName(context)))}</span>`;
 }
 
 function renderTimerAccount(context) {
@@ -195,16 +197,26 @@ function renderTimerAccount(context) {
   }
   if (!timerAccountControl) return;
   if (!currentTimerAuth.authenticated) {
-    timerAccountControl.innerHTML = `<a class="timer-account-trigger timer-account-login" href="${escapeHtml(timerLoginUrl())}">${icon("users")}<span>Anmelden</span></a>`;
+    if (timerAccountControl.dataset.avatarUid !== "guest") {
+      timerAccountControl.innerHTML = `<a class="timer-account-trigger timer-account-login" href="${escapeHtml(timerLoginUrl())}">${icon("users")}<span>Anmelden</span></a>`;
+      timerAccountControl.dataset.avatarUid = "guest";
+    }
   } else {
     const name = timerAccountName(currentTimerAuth);
-    timerAccountControl.innerHTML = `<button class="timer-account-trigger" type="button" data-timer-account-open aria-label="Account von ${escapeHtml(name)} öffnen">
-      <span class="timer-account-avatar timer-account-avatar-small">${timerAccountAvatar(currentTimerAuth)}</span>
-      <span class="timer-account-attention" aria-hidden="true" ${currentTimerAuth.accountNeedsAttention ? "" : "hidden"}>!</span>
-    </button>`;
+    window.LifesavingAccountAvatar?.setUser(currentTimerAuth.user, personInitials(name));
+    if (timerAccountControl.dataset.avatarUid !== currentTimerAuth.user.uid) {
+      timerAccountControl.innerHTML = `<button class="timer-account-trigger" type="button" data-timer-account-open>
+        <span class="timer-account-avatar timer-account-avatar-small">${timerAccountAvatar(currentTimerAuth)}</span>
+        <span class="timer-account-attention" data-timer-account-header-attention aria-hidden="true" hidden>!</span>
+      </button>`;
+      timerAccountControl.dataset.avatarUid = currentTimerAuth.user.uid;
+    }
+    timerAccountControl.querySelector("[data-timer-account-open]").setAttribute("aria-label", `Account von ${name} öffnen`);
+    timerAccountControl.querySelector("[data-timer-account-header-attention]").hidden = !currentTimerAuth.accountNeedsAttention;
+    window.LifesavingAccountAvatar?.render();
   }
   if (!timerAccountDialog || !currentTimerAuth.authenticated) return;
-  timerAccountDialog.querySelector("[data-timer-account-avatar]").innerHTML = timerAccountAvatar(currentTimerAuth);
+  if (!window.LifesavingAccountAvatar) timerAccountDialog.querySelector("[data-timer-account-avatar]").innerHTML = timerAccountAvatar(currentTimerAuth, "large");
   timerAccountDialog.querySelector("[data-timer-account-name]").textContent = timerAccountName(currentTimerAuth);
   timerAccountDialog.querySelector("[data-timer-account-email]").textContent = currentTimerAuth.user.email || "";
   const roleElement = timerAccountDialog.querySelector("[data-timer-account-role]");

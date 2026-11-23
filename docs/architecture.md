@@ -11,7 +11,7 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 |---|---|---|
 | `index.html` | Öffentliche Startseite und Weiterleitung bestehender Sitzungen | `auth-core.js`, `landing.js`, `nav.js`, `header.js` |
 | `login.html` | Anmeldung, Registrierung, Verifikation und Passwort-Reset | `auth-core.js`, `login.js`, `google-handoff.js`, `login-background.js` |
-| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-notifications.js`, `clubs-notifications.js`, `dashboard-header.js` |
+| `app.html` | Mitgliederübersicht und rollengesteuerte App-Links | `auth.js`, `admin-notifications.js`, `clubs-notifications.js`, `dashboard-header.js`, `member-tabs.js` |
 | `account-settings.html` | Profil, Anmeldeanbieter, Passwort und Personenverknüpfung | `auth.js`, `person-link-store.js` |
 | `link-request.html` | Kompatibilitätsweiterleitung zu den Verknüpfungen in den Einstellungen | Inline-Weiterleitung |
 | `admin-accounts.html` | Konten, Rollen, Anträge und Personen zuordnen | `admin-accounts.js`, `auth.js`, `person-link-store.js` |
@@ -23,6 +23,17 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
+`account-avatar-cache.js` hält ausschließlich das Bild und die Initialen des
+zuletzt aktiven Kontos im Sitzungsspeicher. `account-avatar.js` zeigt diese
+Vorschau auf allen Mitgliederseiten und im Timer bereits vor den Firebase-SDKs.
+Der Bildinhalt wird als begrenzte Data-URL gespeichert; ohne CORS-Unterstützung
+des Bildhosts bleibt dessen normale HTTP-Bildcache-Nutzung als Ersatzweg.
+Die Kontositzung gleicht UID und Bildadresse anschließend unabhängig ab.
+Unveränderte Bilder benötigen 24 Stunden keinen erneuten Abruf; danach erfolgt
+die Erneuerung im Hintergrund. Ein geändertes Bild ersetzt die Vorschau erst
+nach vollständigem Laden und Decodieren. Fehler behalten das bisherige Bild,
+Entfernen, Kontowechsel und Abmelden verwerfen es. Der Timer erhält seine
+Avatar-DOM-Elemente bei unverändertem Konto auch über Ansichtswechsel hinweg.
 `app-launch.js` und `app-launch.css` halten beim kalten Start der installierten App
 das Startbild über dem tatsächlichen Layout. `landing.js` übergibt es bei einer
 bestätigten Sitzung mit dem einmaligen URL-Marker `appLaunch=1` an `app.html`;
@@ -55,6 +66,10 @@ Sein `setName` zeigt Sitzungsvorschauen sofort und blendet neu geladene Namen in
 der Mitgliederübersicht blendet in 750 ms seitlich ein; Farbwechsel interpolieren
 denselben Verlauf. Reduzierte Bewegung deaktiviert beide Effekte.
 Der Mitgliederheader behält seine feste responsive Höhe auch ohne offene Aufgaben.
+`member-tabs.js` schaltet lokal zwischen Home, Profil und Club unterhalb des
+Mitgliederheaders um. Home enthält die bisherigen rollengesteuerten App-Links;
+Profil und Club sind zunächst leer. Die Tab-Leiste unterstützt Pfeiltasten sowie
+Pos1/Ende und startet beim Seitenladen auf Home. Sie lädt keine weiteren Daten.
 Das Rootmanifest gehört zur gesamten App. `timer/sw.js` speichert die Timer-App-Hülle;
 Firestore hat einen separaten SDK-Cache. Diese beiden Speicher haben unterschiedliche Aufgaben.
 

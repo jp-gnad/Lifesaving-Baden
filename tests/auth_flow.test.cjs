@@ -3352,6 +3352,28 @@ function dashboardReturnHarness({ cached = true, read, user, token, launch = fal
     get adminStarts() { return adminStarts; }, get clubStarts() { return clubStarts; }, get readyCalls() { return readyCalls; } };
 }
 
+test("account avatars update on every member page before a delayed authentication reload or profile read", async () => {
+  for (const [file, page] of [["app.html", "app"], ["account-settings.html", "settings"], ["admin-accounts.html", "admin-accounts"],
+    ["club-verwaltung.html", "clubs"], ["arbeitszeiten.html", "worktime"], ["mein-training.html", "training"]]) {
+    const reload = deferred(), profile = deferred();
+    const user = { uid: "avatar-member", emailVerified: true, photoURL: "https://example.test/avatar.png", reload: () => reload.promise };
+    const h = harness({ url: `https://example.test/club/${file}`, user, read: () => profile.promise });
+    h.document.body.dataset.page = page;
+    h.document.querySelector = () => null;
+    h.window.matchMedia = () => ({ matches: false, addEventListener() {} });
+    const draws = [];
+    h.window.LifesavingAccountAvatar = { setUser(value) { draws.push(value?.uid); }, clear() {} };
+    vm.runInContext(source("assets/js/auth.js"), h.context);
+    h.callbacks.auth(user);
+    assert.equal(draws[0], user.uid, `${file}: avatar must not await reload`);
+    assert.equal(h.counts.reads, 0);
+    // Settle the pending initialization with a changed session; it must not make a stale update.
+    h.auth.currentUser = null; reload.resolve(); profile.resolve({ exists: true, data: () => ({}) });
+    await new Promise(setImmediate);
+    assert.equal(draws.length, 1, file);
+  }
+});
+
 test("returning members see their cached dashboard before any reload or query; fresh data corrects role and name", async () => {
   const reload = deferred(), profile = deferred();
   const user = { uid: "return-member", emailVerified: true, reload: () => reload.promise };

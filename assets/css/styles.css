@@ -56,6 +56,15 @@
 
 * {
   box-sizing: border-box;
+  /* Hide scrollbars on pages and nested scrollers without disabling scrolling. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 html {
@@ -567,12 +576,52 @@ body[data-page="app"] .dashboard {
 }
 
 body[data-page="app"] .dashboard > .dashboard-header {
+  --member-tabs-height: 52px;
   flex: 0 0 auto;
-  height: 390px;
+  height: calc(390px + var(--member-tabs-height));
   min-height: 0;
   margin-bottom: 0;
   /* The shared hero's negative top margin must leave a visible header gap. */
-  padding-block: calc(clamp(34px, 5vw, 68px) + 28px) 28px;
+  padding-block: calc(clamp(34px, 5vw, 68px) + 28px) calc(28px + var(--member-tabs-height));
+}
+
+.dashboard-header > .member-tabs {
+  position: absolute;
+  inset: auto clamp(20px, 5vw, 64px) 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: var(--member-tabs-height);
+  border-top: 1px solid var(--line);
+}
+
+.member-tabs [role="tab"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--member-tabs-height);
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.member-tabs [role="tab"]:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.member-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.member-tabs [role="tab"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -4px;
 }
 
 .member-dashboard-content {
@@ -1289,6 +1338,10 @@ body.auth-context-loading .member-apps,
 body.auth-context-loading [data-account-open] {
   opacity: 0.48;
   pointer-events: none;
+}
+
+body.auth-context-loading.account-avatar-ready [data-account-open] {
+  opacity: 1;
 }
 
 
@@ -2291,7 +2344,6 @@ body.auth-context-loading [data-account-open] {
   max-height: calc(100vh - 68px - 48px);
   overflow-y: auto;
   padding: 0 0 24px;
-  scrollbar-width: thin;
 }
 
 .settings-menu-heading {
@@ -3629,8 +3681,8 @@ body.auth-context-loading [data-account-open] {
   }
 
   body[data-page="app"] .dashboard > .dashboard-header {
-    height: 260px;
-    padding-block: 20px;
+    height: calc(260px + var(--member-tabs-height));
+    padding-block: 20px calc(20px + var(--member-tabs-height));
   }
 
   .member-apps .eyebrow {
@@ -4006,16 +4058,6 @@ body[data-page="login"] .auth-privacy a {
 }
 
 @media (min-width: 991px) {
-  html:has(body[data-page="login"]),
-  body[data-page="login"] .auth-layout {
-    scrollbar-width: none;
-  }
-
-  html:has(body[data-page="login"])::-webkit-scrollbar,
-  body[data-page="login"] .auth-layout::-webkit-scrollbar {
-    display: none;
-  }
-
   body[data-page="login"] .auth-screen {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -4116,7 +4158,7 @@ body[data-page="settings"] .link-issue-form textarea,
 body[data-page="settings"] .link-issue-form textarea::placeholder { font-weight: 400; }
 
 @media (max-width: 360px) {
-  body[data-page="app"] .dashboard > .dashboard-header { height: 280px; }
+  body[data-page="app"] .dashboard > .dashboard-header { height: calc(280px + var(--member-tabs-height)); }
   .account-manage { padding-inline: 12px 40px; gap: 8px; }
 }
 

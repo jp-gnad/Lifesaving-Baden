@@ -274,6 +274,7 @@
   function clearAllUserDocCaches() {
     activeUserDocCache = null;
     memberViewCache?.clearAll();
+    window.LifesavingAccountAvatar?.clear();
 
     try {
       const storage = window.sessionStorage;
@@ -626,6 +627,7 @@
         }
 
         updateGoogleProviderStatus(activeUser);
+        window.LifesavingAccountAvatar?.setUser(activeUser, getInitials(activeUser));
 
         if (settingsLoadedForUser !== activeUser.uid) {
           const { userData, claims } = await loadFreshUserContext(activeUser);
@@ -710,6 +712,7 @@
 
     function handleAuthState(user) {
       if (user && !isCurrentUser(user)) return;
+      window.LifesavingAccountAvatar?.setUser(user, user ? getInitials(user) : "?");
       if (!user) clearAllUserDocCaches();
       if (page === "app") {
         if (displayedUid && displayedUid !== user?.uid) resetDashboard(user);
@@ -848,8 +851,12 @@
       setTextForAll("[data-user-name]", accountName);
     }
     setTextForAll("[data-link-account-email]", user.email || "Keine E-Mail geladen.");
-    updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user, data);
-    updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user, data);
+    if (window.LifesavingAccountAvatar) {
+      window.LifesavingAccountAvatar.setUser(user, getInitials(user, data));
+    } else {
+      updateAvatar("[data-account-photo-small]", "[data-account-initials-small]", user, data);
+      updateAvatar("[data-account-photo-large]", "[data-account-initials-large]", user, data);
+    }
   }
 
   function updateSignInEmailRow(provider, email, separateEmails) {
