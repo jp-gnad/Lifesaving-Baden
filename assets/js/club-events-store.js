@@ -6,7 +6,11 @@
   const reference = (db, clubId, id) => db.collection("clubs").doc(clubId).collection("events").doc(id);
 
   async function mutate(db, clubId, id, command, sdk, checkSession = () => {}) {
-    const ref = reference(db, clubId, id);
+    return mutateDocument(db, reference(db, clubId, id), command, sdk, checkSession);
+  }
+
+  async function mutateDocument(db, ref, command, sdk, checkSession) {
+    const id = ref.id;
     let revision;
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -51,19 +55,26 @@
   }
 
   async function updateParticipants(db, clubId, id, additions, removals, sdk, checkSession = () => {}, competition = true) {
+    return updateDocumentParticipants(db, clubId, reference(db, clubId, id), additions, removals, sdk, checkSession, competition);
+  }
+
+  async function updateDocumentParticipants(db, clubId, ref, additions, removals, sdk, checkSession, competition) {
     const entries = [...removals.map((remove) => ({ remove })), ...additions.map((person) => ({ person }))];
     let result;
     for (let index = 0; index < entries.length; index += core.participantBatchSize) {
       checkSession();
       const group = await Promise.all(entries.slice(index, index + core.participantBatchSize).map(async (entry) => entry.person && competition
         ? { person: await preparePerson(db, clubId, entry.person, sdk, checkSession) } : entry));
-      result = await mutate(db, clubId, id, { type: "replay", action: { type: "participants",
+      result = await mutateDocument(db, ref, { type: "replay", action: { type: "participants",
         additions: group.filter((entry) => entry.person).map((entry) => entry.person), removals: group.filter((entry) => entry.remove).map((entry) => entry.remove) } }, sdk, checkSession);
     }
     return result;
   }
 
-  async function createDocuments(db, clubId, occurrences, action, sdk, checkSession) {
+  const eventDocument = (values, sdk) => ({ ...values, participants: {}, teams: {}, assignments: {}, revision: 0,
+    operation: "create", changedId: "", createdAt: sdk.FieldValue.serverTimestamp(), updatedAt: sdk.FieldValue.serverTimestamp() });
+
+  async function createDocuments(db, clubId, occurrences, action, sdk, checkSession, seedRef) {
     const documents = occurrences.map(({ id, date }) => ({ id, ref: reference(db, clubId, id), values: core.metadata(action.name, date, action) }));
     return db.runTransaction(async (transaction) => {
       checkSession();
@@ -72,18 +83,48 @@
       if (documents.length > 1 && snapshots.some((snapshot) => snapshot.exists) && snapshots.some((snapshot) => !snapshot.exists)) {
         fail("Die Trainingsserie wurde inzwischen geändert.");
       }
+      let seed;
+      if (seedRef && !snapshots[0].exists) {
+        const snapshot = await transaction.get(seedRef);
+        checkSession();
+        if (!snapshot.exists) fail("Die Personenauswahl fehlt. Bitte erneut versuchen.");
+        seed = snapshot.data();
+        transaction.delete(seedRef);
+      }
       return documents.map(({ id, ref, values }, index) => {
         if (snapshots[index].exists) {
           const existing = snapshots[index].data();
           if (!core.sameMetadata(existing, values)) fail("Der Termin wurde inzwischen geändert.");
           return { ...existing, id };
         }
-        const data = { ...values, participants: {}, teams: {}, assignments: {}, revision: 0, operation: "create", changedId: "",
-          createdAt: sdk.FieldValue.serverTimestamp(), updatedAt: sdk.FieldValue.serverTimestamp() };
+        const data = eventDocument(values, sdk);
+        if (seed) {
+          data.participants = seed.participants;
+          data.trainingSeedId = seedRef.id;
+        }
         transaction.set(ref, data);
         return { ...data, id };
       });
     });
+  }
+
+  async function createTraining(db, clubId, id, occurrences, action, sdk, checkSession) {
+    if (!action.additions.length) return createDocuments(db, clubId, occurrences, action, sdk, checkSession);
+    const seed = db.collection("clubs").doc(clubId).collection("trainingSeeds").doc(id);
+    const first = reference(db, clubId, id);
+    const values = core.metadata(action.name, occurrences[0].date, action);
+    const pending = await db.runTransaction(async (transaction) => {
+      checkSession();
+      const [published, draft] = await Promise.all([transaction.get(first), transaction.get(seed)]);
+      checkSession();
+      if (published.exists) return false;
+      if (draft.exists) {
+        if (!core.sameMetadata(draft.data(), values)) fail("Die Trainingsserie wurde inzwischen geändert.");
+      } else transaction.set(seed, eventDocument(values, sdk));
+      return true;
+    });
+    if (pending) await updateDocumentParticipants(db, clubId, seed, action.additions, [], sdk, checkSession, false);
+    return createDocuments(db, clubId, occurrences, action, sdk, checkSession, pending ? seed : undefined);
   }
 
   async function create(db, clubId, id, name, date, selected, sdk, checkSession = () => {}, details = {}) {
@@ -103,9 +144,16 @@
     });
   }
 
-  async function send(db, clubId, id, action, sdk, checkSession = () => {}) {
+  async function send(db, clubId, id, action, sdk, checkSession = () => {}, series) {
+    if (action.type === "create-training") {
+      const occurrences = series ? Object.entries(series).map(([id, date]) => ({ id, date })) : core.occurrences(id, action);
+      return createTraining(db, clubId, id, occurrences, action, sdk, checkSession);
+    }
     if (action.type === "create") {
-      if (action.repeatDays) return createDocuments(db, clubId, core.occurrences(id, action), action, sdk, checkSession);
+      if (action.repeatDays) {
+        const occurrences = series ? Object.entries(series).map(([id, date]) => ({ id, date })) : core.occurrences(id, action);
+        return createDocuments(db, clubId, occurrences, action, sdk, checkSession);
+      }
       return create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession, action);
     }
     if (["participants", "singles", "team"].includes(action.type)) {

@@ -88,6 +88,22 @@ test("one durable training-series record projects each date and protects depende
   assert.equal(h.queue.project("club", second.id, null).participants.p0.name, "Person 0");
 });
 
+test("a new training series projects every selection at revision zero on its actual dates", async () => {
+  const held = deferred();
+  const h = harness(undefined, () => held.promise);
+  h.queue.enqueue("club", "preset", { type: "create-training", category: "training", name: "Training",
+    startTime: "09:00", endTime: "10:00", plannedOn: "2026-12-12", date: "2026-12-25", repeatUntil: "2027-01-15",
+    repeatDays: 7, skipSchoolFree: true, additions: people }, null);
+  const initial = h.queue.project("club", "preset", null);
+  assert.equal(initial.date, "2027-01-15");
+  assert.equal(initial.revision, 0);
+  assert.equal(Object.keys(initial.participants).length, people.length);
+  assert.deepEqual(h.queue.ids("club"), ["preset"]);
+  h.owner.active = false;
+  held.resolve(null);
+  await h.queue.flush();
+});
+
 test("reload restores every pending participant and account changes never expose another account's queue", async () => {
   const held = deferred();
   const h = harness(undefined, () => held.promise);

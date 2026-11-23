@@ -1069,22 +1069,32 @@ service cloud.firestore {
 
       match /finance/{yearId} {
         allow get: if managesClub(id);
-        allow list: if canClearClubFinance(id) && request.query.limit is int
+        allow list: if canClearClubData(id) && request.query.limit is int
           && request.query.limit > 0 && request.query.limit <= 50;
         allow create: if managesClub(id) && validClubFinance(id, yearId, request.resource.data, {});
         allow update: if managesClub(id) && validClubFinance(id, yearId, request.resource.data, resource.data.contributions);
-        allow delete: if canClearClubFinance(id);
+        allow delete: if canClearClubData(id);
+      }
+
+      match /trainingSeeds/{seedId} {
+        allow get: if managesClub(id);
+        allow list: if canClearClubData(id) && request.query.limit is int
+          && request.query.limit > 0 && request.query.limit <= 50;
+        allow create: if managesClub(id) && validEventCreation(request.resource.data)
+          && request.resource.data.category == "training" && request.resource.data.participants == {}
+          && !request.resource.data.keys().hasAny(["trainingSeedId"]);
+        allow update: if managesClub(id) && request.resource.data.operation == "participants"
+          && validEventChange(id, request.resource.data, resource.data);
+        allow delete: if managesClub(id) || canClearClubData(id);
       }
 
       match /events/{eventId} {
         allow get: if managesClub(id) || (verifiedUser() && isAdmin());
         allow list: if (managesClub(id) || (verifiedUser() && isAdmin()))
           && request.query.limit is int && request.query.limit > 0 && request.query.limit <= 50;
-        allow create: if managesClub(id) && validClubEvent(request.resource.data)
-          && currentOrNextClubYear(request.resource.data.year) && request.resource.data.revision == 0
-          && request.resource.data.operation == "create" && request.resource.data.changedId == ""
-          && request.resource.data.participants == {} && request.resource.data.teams == {} && request.resource.data.assignments == {}
-          && request.resource.data.createdAt == request.time;
+        allow create: if managesClub(id) && validEventCreation(request.resource.data)
+          && (request.resource.data.keys().hasAny(["trainingSeedId"])
+            ? validTrainingSeed(id, eventId, request.resource.data) : request.resource.data.participants == {});
         allow update: if managesClub(id) && validEventChange(id, request.resource.data, resource.data);
         allow delete: if managesClub(id) || (verifiedUser() && isAdmin()
           && get(/databases/$(database)/documents/clubs/$(id)).data.status == "deleting");
@@ -1238,7 +1248,7 @@ service cloud.firestore {
       return year in [current, current + 1];
     }
 
-    function canClearClubFinance(club) {
+    function canClearClubData(club) {
       return verifiedUser() && isAdmin()
         && get(/databases/$(database)/documents/clubs/$(club)).data.status == "deleting";
     }
@@ -1280,7 +1290,7 @@ service cloud.firestore {
 
     function validClubEvent(data) {
       return data.keys().hasOnly(["name", "date", "year", "category", "startTime", "endTime", "repeatDays",
-          "participants", "teams", "assignments", "revision", "operation", "changedId", "changedIds", "createdAt", "updatedAt"])
+          "participants", "teams", "assignments", "revision", "operation", "changedId", "changedIds", "trainingSeedId", "createdAt", "updatedAt"])
         && data.name is string && data.name.trim().size() > 0 && data.name.size() <= 120
         && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && data.year is int && int(data.date.split('-')[0]) == data.year
@@ -1288,6 +1298,32 @@ service cloud.firestore {
         && data.participants is map && data.teams is map && data.assignments is map && data.revision is int
         && data.changedId is string && data.changedId.size() <= 128
         && data.updatedAt == request.time && validClubEventSchedule(data);
+    }
+
+    function withinTrainingHorizon(data) {
+      let today = request.time + duration.value(2, "h");
+      let parts = data.date.split('-');
+      let month = int(parts[1]);
+      return data.year == today.year() || month < today.month() || (month == today.month() && int(parts[2]) <= today.day());
+    }
+
+    function validEventCreation(data) {
+      return validClubEvent(data) && currentOrNextClubYear(data.year)
+        && (data.get("repeatDays", 0) == 0 || withinTrainingHorizon(data))
+        && data.revision == 0 && data.operation == "create" && data.changedId == ""
+        && data.teams == {} && data.assignments == {} && data.createdAt == request.time;
+    }
+
+    function validTrainingSeed(club, eventId, next) {
+      let id = next.trainingSeedId;
+      let path = /databases/$(database)/documents/clubs/$(club)/trainingSeeds/$(id);
+      let seed = get(path).data;
+      return id is string && id.matches('^[a-zA-Z0-9_-]{1,128}$')
+        && next.get("category", "") == "training" && next.participants.size() > 0
+        && (eventId == id ? seed.date == next.date : eventId.matches('^' + id + '-[0-9]{1,2}$')
+          && seed.repeatDays > 0 && next.date > seed.date)
+        && seed.name == next.name && seed.startTime == next.startTime && seed.endTime == next.endTime && seed.repeatDays == next.repeatDays
+        && seed.participants == next.participants && !existsAfter(path);
     }
 
     function validEventParticipant(club, id, member, year, previous, competition) {

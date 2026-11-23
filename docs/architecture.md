@@ -270,7 +270,9 @@ angeforderte Rückmeldungen bleiben sichtbar.
 Club-Events sind eine eigenständige Planung ohne Verbindung zu `timerEvents`.
 `club-events-core.js` berechnet Änderungen und bewahrt Einzelstarts unabhängig von
 Mannschaftszuordnungen. `club-teams-core.js` liefert die gemeinsame AK-/Geschlechtslogik.
-`club-events-store.js` schreibt einzelne Änderungen oder die Anlage einer Trainingsserie in einer Transaktion.
+`club-events-store.js` schreibt einzelne Änderungen in einer Transaktion. Bei
+Trainings mit Vorauswahl prüft der Store die Personen gruppenweise in einem
+Entwurf und veröffentlicht alle Termine mit der fertigen Auswahl atomar.
 `club-events.js` verbindet Terminübersicht, Erstellungsdialog und Eventansicht als Factory.
 `club-events-queue.js` speichert Änderungen kontogebunden lokal, projiziert sie sofort
 auf die Ansicht und überträgt sie unabhängig von Club-/Ansichtswechseln im Hintergrund.
@@ -279,9 +281,15 @@ auf die Ansicht und überträgt sie unabhängig von Club-/Ansichtswechseln im Hi
 Ein Termin unter `clubs/{clubId}/events/{eventId}` hält Name, Kalendertag, Jahr und
 Teilnehmersnapshots. Bestehende Dokumente gelten als Wettkämpfe mit Mannschaften
 und einem Zuordnungsindex. Trainings- und Organisationstermine halten zusätzlich
-Start- und Endzeit am selben Kalendertag. Eine Trainingsserie erzeugt beim Anlegen
-bis zu 52 einzeln bearbeitbare Termine im Wochen- oder Zweiwochenrhythmus. Die
-Warteschlange speichert alle Vorkommen in einem Auftrag mit festen IDs. Die Regeln erlauben
+Start- und Endzeit am selben Kalendertag. Eine Trainingsserie lässt sich vom
+heutigen Datum bis zum gleichen Kalendertag im Folgejahr anlegen und erzeugt
+bis zu 53 einzeln bearbeitbare Termine im Wochen- oder Zweiwochenrhythmus.
+`bw-school-calendar.js` enthält die veröffentlichten
+[Schulferien](https://km.baden-wuerttemberg.de/de/service/ferien) und berechnet
+die [Feiertage in Baden-Württemberg](https://im.baden-wuerttemberg.de/de/service/feiertage).
+Die Serienoption überspringt diese Tage sowie zusätzlich eingetragene
+schulfreie Tage. Die Warteschlange speichert die verbleibenden Termindaten mit
+festen IDs in einem Auftrag. Die Regeln erlauben
 pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion;
 Teilnehmerauswahlen dürfen bis zu drei geprüfte Zu- oder Abgänge gemeinsam ändern.
 Der Index reserviert eine Person innerhalb dieses Events für höchstens eine
@@ -311,6 +319,9 @@ Zuordnung erhalten, ohne Mannschaft wird die Person aus dem Event entfernt.
 Bei Training und Organisation lassen sich in der Terminansicht alle Aktiven des
 Terminjahrs, der gesamte Clubkader oder einzelne Personen hinzufügen. Bereits
 eingetragene Personen bleiben erhalten.
+Bei einem Training steht diese Auswahl auch vor der Anlage zur Verfügung. Die
+Vorauswahl der aktiven Personen verwendet das Jahr des ersten stattfindenden
+Termins. Jeder Termin erhält eine eigene Kopie der Auswahl.
 
 Speichern bestätigt zuerst den Abschluss eines synchronen lokalen Schreibvorgangs.
 Die Warteschlange nutzt je Auftrag einen eigenen Schlüssel unter
@@ -366,6 +377,7 @@ werden daraus keine Events konstruiert. Die ungenutzte alte Mannschaftsoberfläc
 | `clubs/{id}` und `clubs/{id}/people/{id}` | Verantwortliche, Kader, Aktivjahre und Nachweise | `clubs-store.js` |
 | `clubs/{id}/finance/{year}` | Teilnehmerbeiträge eines Jahres in Eurocent | `club-finance.js` und `clubs-store.js` |
 | `clubs/{id}/events/{eventId}` | Club-Eventplanung mit Einzelstarts, Mannschaften und atomaren Zuordnungen | `club-events-store.js`; vollständige Bereinigung beim ausdrücklichen Club-Löschen |
+| `clubs/{id}/trainingSeeds/{eventId}` | Temporärer Entwurf mit geprüften Trainingspersonen | `club-events-store.js`; atomare Entfernung mit der Veröffentlichung oder beim Club-Löschen |
 | `clubProfiles/{uid}`, `clubAccounts/{uid}` | Profile und Clubzuordnungen | Club-/Personenlink-Transaktionen |
 | `users/{uid}/worktimeEntries/{id}` | Arbeitsaufgaben und Intervalle | `worktime-store.js` |
 | `users/{uid}/worktimeSchedule/intervals` | Atomare Prüfung auf Überschneidungen | dieselbe Arbeitszeittransaktion |

@@ -20,6 +20,29 @@ test("event dates are actual calendar dates and participant selection uses the e
   assert.equal(core.participant({ ...person("p"), activeYears: [2027] }, 2027).individual, true);
 });
 
+test("training series skip BW school breaks, public holidays and extra dates without shifting the weekday", () => {
+  const action = { type: "create-training", category: "training", name: "Training", startTime: "18:00", endTime: "19:00",
+    date: "2026-12-23", plannedOn: "2026-11-23", repeatUntil: "2027-01-27", repeatDays: 7, skipSchoolFree: true,
+    excludedDays: core.excludedSchoolDays("20.01.2027\n20.01.2027") };
+  assert.deepEqual(core.occurrences("first", action), [{ id: "first", date: "2027-01-13" }, { id: "first-2", date: "2027-01-27" }]);
+  const spring = { ...action, date: "2027-03-25", repeatUntil: "2027-04-15" };
+  assert.deepEqual(core.occurrences("easter", spring).map(({ date }) => date), ["2027-04-08", "2027-04-15"]);
+  const autumn = { ...action, date: "2027-11-01", repeatUntil: "2027-11-15" };
+  assert.deepEqual(core.occurrences("autumn", autumn).map(({ date }) => date), ["2027-11-08", "2027-11-15"]);
+  assert.throws(() => core.occurrences("empty", { ...action, repeatUntil: "2027-01-06" }), /ausgeschlossenen/);
+  assert.throws(() => core.excludedSchoolDays("31.02.2027"), /TT.MM.JJJJ/);
+});
+
+test("training series can span at most one calendar year from the planning date", () => {
+  const action = { type: "create-training", category: "training", name: "Training", startTime: "18:00", endTime: "19:00",
+    date: "2026-11-23", plannedOn: "2026-11-23", repeatUntil: "2027-11-23", repeatDays: 7 };
+  assert.equal(core.occurrences("series", action).length, 53);
+  assert.throws(() => core.occurrences("series", { ...action, repeatUntil: "2027-11-24" }), /ein Jahr/);
+  assert.throws(() => core.occurrences("series", { ...action, date: "2026-11-22" }), /ab heute/);
+  assert.throws(() => core.occurrences("series", { ...action, plannedOn: "2030-08-01", date: "2030-08-05",
+    repeatUntil: "2030-09-30", skipSchoolFree: true }), /keine vollständigen/);
+});
+
 test("every new participant starts individually and retains that flag when assigned to a team", () => {
   const before = fixture();
   const event = addTeam(before);

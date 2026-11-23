@@ -1,12 +1,23 @@
 (function (root) {
   "use strict";
   const teamsCore = typeof module === "object" && module.exports ? require("./club-teams-core.js") : root.ClubTeamsCore;
+  const calendar = typeof module === "object" && module.exports ? require("./bw-school-calendar.js") : root.BwSchoolCalendar;
+  const dates = typeof module === "object" && module.exports ? require("./start-eligibility-core.js") : root.StartEligibilityCore;
   const fail = (message) => { throw Object.assign(new Error(message), { code: "clubs/event" }); };
   const key = (person) => person.personId || person.id;
   const participantBatchSize = 3;
   const eventPeriod = (date, today) => date < today ? "past" : "planned";
   const categoryOf = (event) => event?.category || "competition";
   const isCompetition = (event) => categoryOf(event) === "competition";
+  const isCreate = (action) => action.type === "create" || action.type === "create-training";
+
+  function excludedSchoolDays(text) {
+    return [...new Set(String(text || "").split(/[\s,;]+/).filter(Boolean).map((entry) => {
+      const date = entry.replace(/^(\d{2})\.(\d{2})\.(\d{4})$/, "$3-$2-$1");
+      if (!dates.validDate(date)) fail("Bitte zusätzliche schulfreie Tage im Format TT.MM.JJJJ eingeben.");
+      return date;
+    }))];
+  }
 
   function metadata(name, date, details = {}) {
     const value = String(name || "").trim();
@@ -36,15 +47,29 @@
     const values = metadata(action.name, action.date, action);
     if (!values.repeatDays) return [{ id, date: values.date }];
     const end = metadata(values.name, action.repeatUntil).date;
+    if (action.type === "create-training") {
+      if (!dates.validDate(action.plannedOn) || values.date < action.plannedOn || end > dates.addMonths(action.plannedOn, 12)) {
+        fail("Trainingsserien können ab heute bis höchstens ein Jahr im Voraus geplant werden.");
+      }
+    }
+    const skip = action.skipSchoolFree === true;
+    if (skip && !calendar.covers(values.date, end)) fail("Für diesen Zeitraum liegen keine vollständigen BW-Ferientermine vor.");
+    const excluded = new Set(action.excludedDays || []);
     const day = new Date(`${values.date}T00:00:00Z`);
-    const dates = [];
-    while (day.toISOString().slice(0, 10) <= end && dates.length <= 52) {
-      const number = dates.length + 1;
-      dates.push({ id: number === 1 ? id : `${id}-${number}`, date: day.toISOString().slice(0, 10) });
+    const result = [];
+    let candidateCount = 0;
+    const limit = action.type === "create-training" ? 53 : 52;
+    while (dates.dateKey(day) <= end && candidateCount <= limit) {
+      const date = dates.dateKey(day);
+      candidateCount += 1;
+      if (!skip || (!calendar.isSchoolFree(date) && !excluded.has(date))) {
+        result.push({ id: result.length ? `${id}-${result.length + 1}` : id, date });
+      }
       day.setUTCDate(day.getUTCDate() + values.repeatDays);
     }
-    if (dates.length < 2 || dates.length > 52) fail("Bitte ein Enddatum für 2 bis 52 Trainingstermine wählen.");
-    return dates;
+    if (candidateCount < 2 || candidateCount > limit) fail("Bitte ein Enddatum für mindestens zwei Termine innerhalb des Planungszeitraums wählen.");
+    if (!result.length) fail("Alle Termine der Serie liegen auf ausgeschlossenen Tagen.");
+    return result;
   }
 
   function participant(person, year, competition = true) {
@@ -155,12 +180,18 @@
 
   function replay(event, action) {
     if (action.type === "delete") return null;
+    if (action.type === "create-training") {
+      if (event) return event;
+      const values = metadata(action.name, action.date, action);
+      const participants = Object.fromEntries(action.additions.map((person) => [key(person), participant(person, values.year, false)]));
+      return { ...values, participants, teams: {}, assignments: {}, revision: 0 };
+    }
     let state = event;
-    if (action.type === "create" && !state) {
+    if (isCreate(action) && !state) {
       state = { ...metadata(action.name, action.date, action), participants: {}, teams: {}, assignments: {}, revision: 0 };
     }
     if (!state) fail("Der Termin wurde gelöscht.");
-    if (["create", "participants", "singles", "team"].includes(action.type)) {
+    if (isCreate(action) || ["participants", "singles", "team"].includes(action.type)) {
       const changes = selectionChanges(state, action.additions, action.removals || []);
       for (let index = 0; index < changes.length; index += participantBatchSize) state = change(state, { type: "participants", changes: changes.slice(index, index + participantBatchSize) });
       if (action.type === "team") return replay(state, { type: "mutate", command: action.command });
@@ -181,7 +212,7 @@
     return change(state, command);
   }
 
-  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, occurrences, participant, sameTeam, change, namedTeams,
+  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, excludedSchoolDays, occurrences, participant, sameTeam, change, namedTeams,
     displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsCore = api;

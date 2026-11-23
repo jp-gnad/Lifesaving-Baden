@@ -42,10 +42,10 @@
     function enqueue(clubId, eventId, action, base) {
       guard(owner);
       if (storageError) throw Object.assign(new Error(storageError), { code: "clubs/queue-storage" });
-      const view = core.replay(base, action);
-      if (view === base) return view;
-      const series = action.type === "create" && action.repeatDays
+      const series = core.isCreate(action) && action.repeatDays
         ? Object.fromEntries(core.occurrences(eventId, action).map(({ id, date }) => [id, date])) : undefined;
+      const view = core.replay(base, series ? { ...action, date: series[eventId] } : action);
+      if (view === base) return view;
       const record = JSON.parse(JSON.stringify({ id: makeId(), accountId: owner.uid, clubId, eventId, action, base,
         series, view, createdAt: issued = Math.max(Date.now(), issued + 1) }));
       try { storage.setItem(key(record), JSON.stringify(record)); }
@@ -116,7 +116,7 @@
       else if (saved && (!server || saved.revision > server.revision)) result = saved;
       else if (saved) confirmed.delete(id);
       for (const record of records.filter((entry) => entry.clubId === clubId && includesEvent(entry, eventId))) {
-        if (!result && record.action.type !== "create") result = record.base;
+        if (!result && !core.isCreate(record.action)) result = record.base;
         else if (result && record.base?.revision > result.revision) result = record.base;
         const action = record.series ? { ...record.action, date: record.series[eventId] } : record.action;
         try { result = core.replay(result, action); }

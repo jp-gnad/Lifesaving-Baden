@@ -226,6 +226,34 @@ test("creating a training series commits up to 52 dates atomically and retries u
   assert.equal((await sdk.getDoc(f.ref("invalid-series"))).exists(), false);
 });
 
+test("training publication validates the selection once and atomically seeds up to 53 independent occurrences", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const dates = require("../assets/js/start-eligibility-core.js");
+  const today = dates.today();
+  const end = dates.addMonths(today, 12);
+  const admin = compat(dbFor("admin"));
+  const action = { type: "create-training", category: "training", name: "Serie", date: today, plannedOn: today, repeatUntil: end,
+    startTime: "18:00", endTime: "19:00", repeatDays: 7, additions: f.selected.slice(0, 7).map(eventCore.snapshotPerson) };
+  const first = await events.send(admin, f.id, "seeded", action, api());
+  assert.equal(first.length, 53);
+  assert.ok(first.every((event) => Object.keys(event.participants).length === 7));
+  const retry = await events.send(admin, f.id, "seeded", action, api());
+  assert.deepEqual(retry.map(({ id }) => id), first.map(({ id }) => id));
+  const read = (id) => sdk.getDoc(f.ref(id));
+  assert.equal((await read("seeded-53")).data().participants.team6.name, "Person 6");
+  const live = (await read("seeded")).data();
+  await fails(sdk.setDoc(f.ref("seeded-99"), { ...live, createdAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp() }));
+  const seed = sdk.doc(dbFor("a"), `clubs/${f.id}/trainingSeeds/seeded`);
+  assert.equal((await sdk.getDoc(seed)).exists(), false);
+  await fails(sdk.setDoc(seed, { ...live, createdAt: sdk.serverTimestamp(), updatedAt: sdk.serverTimestamp() }));
+  await events.send(admin, f.id, "seeded-53", { type: "participants", category: "training", additions: [], removals: ["team6"] }, api());
+  assert.ok((await read("seeded")).data().participants.team6);
+  assert.equal((await read("seeded-53")).data().participants.team6, undefined);
+  await assert.rejects(events.send(admin, f.id, "invalid", { ...action, additions: [{ ...action.additions[0], name: "Falsche Identität" }] }, api()),
+    { code: "permission-denied" });
+  assert.equal((await read("invalid")).exists(), false);
+});
+
 test("club events default to individual entries and reserve teams independently in each event", { skip: !enabled }, async () => {
   const f = await eventFixture();
   let event = await createEvent(f);

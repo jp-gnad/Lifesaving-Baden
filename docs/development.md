@@ -66,7 +66,7 @@ nutzen ohne Mock weiterhin das konfigurierte Firebase-Projekt.
 | Teilnehmerimport und Cache | `timer_import.test.cjs`, `timer_people_view.test.cjs`, Firestore-Regeltests |
 | Sofortige Personenauswahl nach Neuanlage/Import und verspätete Listen | `timer_participant_updates.test.cjs`, `timer_controls.test.cjs`, `timer_save_queue.test.cjs`, `timer_people_view.test.cjs` |
 | Clubs, Startberechtigungen und Finanzen | `start_eligibility.test.cjs`, `clubs_rules.test.cjs`, `clubs_notifications.test.cjs`, Auth-Tests |
-| Club-Events, sofortige Hintergrundspeicherung, Einzelstarts und Mannschaftszuordnungen | `club_events.test.cjs`, `club_events_queue.test.cjs`, `club_teams.test.cjs`, `clubs_rules.test.cjs`; zusätzlich `npm run test:rules` |
+| Club-Events, Trainingsserien, Hintergrundspeicherung, Einzelstarts und Mannschaftszuordnungen | `club_events.test.cjs`, `club_events_queue.test.cjs`, `club_teams.test.cjs`, `clubs_rules.test.cjs`; zusätzlich `npm run test:rules` |
 | Arbeitszeiten | `worktime.test.cjs`, `firestore_rules.test.cjs` |
 | Wartungs-CLIs und Quelldaten | `maintenance_tools.test.cjs`, `test_participant_directory.py` |
 | HTML, Assets, Modul-/Dateiversionen | `npm run check`, Python-Integration; passende lokale Browser-Fixture für Layout |

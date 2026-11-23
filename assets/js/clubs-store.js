@@ -220,8 +220,8 @@
       checkSession();
       await club.collection("teamSeasons").doc(season.id).delete();
     }
-    // Explicit club deletion traverses all event and finance pages.
-    for (const collection of ["events", "finance"]) {
+    // Explicit club deletion traverses all event, training draft and finance pages.
+    for (const collection of ["events", "trainingSeeds", "finance"]) {
       for (;;) {
         checkSession();
         const page = await club.collection(collection).limit(50).get({ source: "server" });

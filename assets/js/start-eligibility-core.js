@@ -115,7 +115,8 @@
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]/g, "");
   }
 
-  const api = Object.freeze({ groups: Object.freeze(groups), labels, dateKeys: Object.freeze(dateKeys), today, asDate, dateKey, validDate, seasonYear, evaluate, normalizeSearch });
+  const api = Object.freeze({ groups: Object.freeze(groups), labels, dateKeys: Object.freeze(dateKeys), today, asDate, dateKey, validDate, addMonths,
+    seasonYear, evaluate, normalizeSearch });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StartEligibilityCore = api;
 })(typeof window === "undefined" ? globalThis : window);

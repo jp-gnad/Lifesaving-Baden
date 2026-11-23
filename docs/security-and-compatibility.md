@@ -154,6 +154,11 @@ Training und Organisation dürfen auch inaktive Kaderpersonen übernehmen. Die
 Regeln überprüfen die Identität jeder Person aus dem aktuellen Clubkader und
 prüfen bei beiden Terminarten die Start- und Endzeit. Die Terminart ist nach dem
 Anlegen fest. Bestehende Termine ohne Eintrag zur Terminart gelten als Wettkämpfe.
+Die Trainingsvorauswahl wird einmal in einem temporären Entwurf gegen den
+Clubkader geprüft. Eine Transaktion übernimmt die geprüften Personen in alle
+Termine und entfernt den Entwurf. Die Firestore-Regeln verlangen diesen
+gemeinsamen Schreibvorgang. Die aktualisierten Regeln müssen vor der Website
+mit der Trainingsvorauswahl veröffentlicht werden.
 
 Die sofortige Bedienung nutzt eine eigene kontogebundene lokale Warteschlange.
 Ihre Darstellung autorisiert keinen Schreibvorgang. Vor jeder Übertragung und nach
