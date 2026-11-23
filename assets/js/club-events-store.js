@@ -50,12 +50,12 @@
     return core.snapshotPerson({ ...snapshot.data(), id: snapshot.id, individual: cached.individual });
   }
 
-  async function updateParticipants(db, clubId, id, additions, removals, sdk, checkSession = () => {}) {
+  async function updateParticipants(db, clubId, id, additions, removals, sdk, checkSession = () => {}, competition = true) {
     const entries = [...removals.map((remove) => ({ remove })), ...additions.map((person) => ({ person }))];
     let result;
     for (let index = 0; index < entries.length; index += core.participantBatchSize) {
       checkSession();
-      const group = await Promise.all(entries.slice(index, index + core.participantBatchSize).map(async (entry) => entry.person
+      const group = await Promise.all(entries.slice(index, index + core.participantBatchSize).map(async (entry) => entry.person && competition
         ? { person: await preparePerson(db, clubId, entry.person, sdk, checkSession) } : entry));
       result = await mutate(db, clubId, id, { type: "replay", action: { type: "participants",
         additions: group.filter((entry) => entry.person).map((entry) => entry.person), removals: group.filter((entry) => entry.remove).map((entry) => entry.remove) } }, sdk, checkSession);
@@ -63,25 +63,33 @@
     return result;
   }
 
-  async function create(db, clubId, id, name, date, selected, sdk, checkSession = () => {}) {
-    const values = core.metadata(name, date);
-    const ref = reference(db, clubId, id);
-    let event = await db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
+  async function createDocuments(db, clubId, occurrences, action, sdk, checkSession) {
+    const documents = occurrences.map(({ id, date }) => ({ id, ref: reference(db, clubId, id), values: core.metadata(action.name, date, action) }));
+    return db.runTransaction(async (transaction) => {
       checkSession();
-      if (snapshot.exists) {
-        const existing = snapshot.data();
-        if (existing.name !== values.name || existing.date !== values.date) fail("Der Termin wurde inzwischen geändert.");
-        return { ...existing, id };
+      const snapshots = await Promise.all(documents.map(({ ref }) => transaction.get(ref)));
+      checkSession();
+      if (documents.length > 1 && snapshots.some((snapshot) => snapshot.exists) && snapshots.some((snapshot) => !snapshot.exists)) {
+        fail("Die Trainingsserie wurde inzwischen geändert.");
       }
-      const data = { ...values, participants: {}, teams: {}, assignments: {}, revision: 0, operation: "create", changedId: "",
-        createdAt: sdk.FieldValue.serverTimestamp(), updatedAt: sdk.FieldValue.serverTimestamp() };
-      transaction.set(ref, data);
-      return { ...data, id };
+      return documents.map(({ id, ref, values }, index) => {
+        if (snapshots[index].exists) {
+          const existing = snapshots[index].data();
+          if (!core.sameMetadata(existing, values)) fail("Der Termin wurde inzwischen geändert.");
+          return { ...existing, id };
+        }
+        const data = { ...values, participants: {}, teams: {}, assignments: {}, revision: 0, operation: "create", changedId: "",
+          createdAt: sdk.FieldValue.serverTimestamp(), updatedAt: sdk.FieldValue.serverTimestamp() };
+        transaction.set(ref, data);
+        return { ...data, id };
+      });
     });
+  }
+
+  async function create(db, clubId, id, name, date, selected, sdk, checkSession = () => {}, details = {}) {
+    const [event] = await createDocuments(db, clubId, [{ id, date }], { ...details, name }, sdk, checkSession);
     const additions = selected.filter((person) => !event.participants[core.key(person)]);
-    event = await updateParticipants(db, clubId, id, additions, [], sdk, checkSession) || event;
-    return event;
+    return await updateParticipants(db, clubId, id, additions, [], sdk, checkSession, core.isCompetition(event)) || event;
   }
 
   async function remove(db, clubId, id, expectedRevision, checkSession = () => {}) {
@@ -96,9 +104,12 @@
   }
 
   async function send(db, clubId, id, action, sdk, checkSession = () => {}) {
-    if (action.type === "create") return create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession);
+    if (action.type === "create") {
+      if (action.repeatDays) return createDocuments(db, clubId, core.occurrences(id, action), action, sdk, checkSession);
+      return create(db, clubId, id, action.name, action.date, action.additions, sdk, checkSession, action);
+    }
     if (["participants", "singles", "team"].includes(action.type)) {
-      let result = await updateParticipants(db, clubId, id, action.additions, action.removals || [], sdk, checkSession);
+      let result = await updateParticipants(db, clubId, id, action.additions, action.removals || [], sdk, checkSession, core.isCompetition(action));
       if (action.type === "team") return mutate(db, clubId, id, { type: "replay", action: { type: "mutate", command: action.command } }, sdk, checkSession);
       for (const command of action.toggles || []) result = await mutate(db, clubId, id, { type: "replay", action: { type: "mutate", command } }, sdk, checkSession);
       return result;

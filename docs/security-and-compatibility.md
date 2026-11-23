@@ -135,25 +135,31 @@ damit die Website diese Einträge speichern kann.
 
 Die Club-Eventplanung speichert unter `clubs/{clubId}/events/{eventId}` und nutzt
 keine Timer-Events. Zugriff erhalten ausschließlich die bisherigen berechtigten
-Clubverantwortlichen und Admins. Die Regeln prüfen aktive Personen des Eventjahrs
-bei der Übernahme und erzwingen die atomare Zuordnung zu höchstens einer
+Clubverantwortlichen und Admins. Bei Wettkämpfen prüfen die Regeln aktive Personen
+des Eventjahrs bei der Übernahme und erzwingen die atomare Zuordnung zu höchstens einer
 Mannschaft mit 4–5 Personen. Einzelstarts sind davon unabhängig. Eine Person darf
 nur mit bestehender Mannschaft aus Einzel entfernt werden; das spätere Entfernen
 der Mannschaft stellt den Einzelstart ausdrücklich nicht automatisch wieder her.
 Nachträglich inaktive oder entfernte Personen bleiben als Event-Snapshot erhalten.
+Training und Organisation dürfen auch inaktive Kaderpersonen übernehmen. Die
+Regeln überprüfen die Identität jeder Person aus dem aktuellen Clubkader und
+prüfen bei beiden Terminarten die Start- und Endzeit. Die Terminart ist nach dem
+Anlegen fest. Bestehende Termine ohne Eintrag zur Terminart gelten als Wettkämpfe.
 
 Die sofortige Bedienung nutzt eine eigene kontogebundene lokale Warteschlange.
 Ihre Darstellung autorisiert keinen Schreibvorgang. Vor jeder Übertragung und nach
 asynchronen Lesezugriffen wird das Ursprungskonto geprüft. Teilnehmergruppen mit
 höchstens drei Zu- oder Abgängen werden atomar gegen die aktuellen Kaderdokumente
-validiert; veraltete Aktivmarkierungen oder Personen-Neuanlagen werden abgewiesen.
+validiert. Veraltete Identitäten werden abgewiesen. Bei Wettkämpfen gilt das auch
+für veraltete Aktivmarkierungen.
 Alte Einzelaktionen bleiben zulässig. Direkte Mannschaftsaufnahmen können neue
 Eventteilnehmer ohne Einzelstart übernehmen; bestehende Einzelstarts lassen sich
 weiterhin nur mit Mannschaftszuordnung deaktivieren. Fehlerhafte oder offline
 wartende lokale Aufträge werden nicht automatisch gelöscht.
 
-Vor der Website-Version für sofortige Club-Events zuerst die kompatiblen neuen Firestore-Regeln
-veröffentlichen. Ohne sie lassen sich Club-Events nicht lesen oder speichern.
+Die neuen Firestore-Regeln müssen vor der Website-Version mit den neuen
+Terminarten veröffentlicht werden, damit Training und Organisation gespeichert
+werden können. Bestehende Wettkämpfe bleiben kompatibel.
 Es sind keine neuen Dienste, kostenpflichtigen Tarife oder Datenmigrationen nötig.
 Die Eventliste verlangt ein Abfragelimit von höchstens 50; normale Änderungen lesen
 nur das betroffene Event und gegebenenfalls die ausdrücklich ausgewählte Kaderperson.

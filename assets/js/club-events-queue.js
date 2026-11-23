@@ -11,6 +11,8 @@
     let issued = 0;
     const confirmed = new Map();
     const identity = (clubId, eventId) => `${clubId}/${eventId}`;
+    const eventIds = (record) => record.series ? Object.keys(record.series) : [record.eventId];
+    const includesEvent = (record, id) => record.eventId === id || Boolean(record.series?.[id]);
     const accountPrefix = () => `${prefix}${encodeURIComponent(owner.uid)}/`;
     const key = (record) => `${prefix}${encodeURIComponent(record.accountId)}/${record.id}`;
     const changed = () => onChange(owner);
@@ -42,8 +44,10 @@
       if (storageError) throw Object.assign(new Error(storageError), { code: "clubs/queue-storage" });
       const view = core.replay(base, action);
       if (view === base) return view;
+      const series = action.type === "create" && action.repeatDays
+        ? Object.fromEntries(core.occurrences(eventId, action).map(({ id, date }) => [id, date])) : undefined;
       const record = JSON.parse(JSON.stringify({ id: makeId(), accountId: owner.uid, clubId, eventId, action, base,
-        view, createdAt: issued = Math.max(Date.now(), issued + 1) }));
+        series, view, createdAt: issued = Math.max(Date.now(), issued + 1) }));
       try { storage.setItem(key(record), JSON.stringify(record)); }
       catch { throw Object.assign(new Error("Die Änderung konnte nicht lokal gespeichert werden."), { code: "clubs/queue-storage" }); }
       records.push(record);
@@ -57,18 +61,21 @@
         if (storageError) return;
         const blocked = new Set();
         const record = records.find((entry) => {
-          const id = identity(entry.clubId, entry.eventId);
-          if (entry.error) blocked.add(id);
-          return !blocked.has(id);
+          const ids = eventIds(entry).map((id) => identity(entry.clubId, id));
+          if (entry.error) ids.forEach((id) => blocked.add(id));
+          return ids.every((id) => !blocked.has(id));
         });
         if (!record) return;
         sending = record.id;
         try {
           const result = await send(account, record, () => guard(account));
           guard(account);
-          const id = identity(record.clubId, record.eventId);
-          const previous = confirmed.get(id);
-          if (!previous || !result || result.revision >= previous.revision) confirmed.set(id, result ? { ...result, id: record.eventId } : { deleted: true });
+          for (const entry of Array.isArray(result) ? result : [result]) {
+            const eventId = entry?.id || record.eventId;
+            const id = identity(record.clubId, eventId);
+            const previous = confirmed.get(id);
+            if (!previous || !entry || entry.revision >= previous.revision) confirmed.set(id, entry ? { ...entry, id: eventId } : { deleted: true });
+          }
           storage.removeItem(key(record));
         } catch (error) {
           if (owner !== account || !isCurrent(account) || error.code === "clubs/queue-session") return;
@@ -108,21 +115,23 @@
       if (saved?.deleted) result = null;
       else if (saved && (!server || saved.revision > server.revision)) result = saved;
       else if (saved) confirmed.delete(id);
-      for (const record of records.filter((entry) => entry.clubId === clubId && entry.eventId === eventId)) {
+      for (const record of records.filter((entry) => entry.clubId === clubId && includesEvent(entry, eventId))) {
         if (!result && record.action.type !== "create") result = record.base;
         else if (result && record.base?.revision > result.revision) result = record.base;
-        try { result = core.replay(result, record.action); }
+        const action = record.series ? { ...record.action, date: record.series[eventId] } : record.action;
+        try { result = core.replay(result, action); }
         catch { result = record.view; }
       }
       return result ? { ...result, id: eventId } : null;
     }
     function ids(clubId) {
-      return [...new Set([...records.filter((entry) => entry.clubId === clubId).map((entry) => entry.eventId),
+      return [...new Set([...records.filter((entry) => entry.clubId === clubId).flatMap(eventIds),
         ...[...confirmed.keys()].filter((id) => id.startsWith(`${clubId}/`)).map((id) => id.slice(clubId.length + 1))])];
     }
     function status(clubId, eventId = "") {
-      const pending = records.filter((entry) => entry.clubId === clubId && (!eventId || entry.eventId === eventId));
-      return { count: pending.length, error: storageError || pending.find((entry) => entry.error)?.error.message || "", sending: pending.some((entry) => entry.id === sending) };
+      const pending = records.filter((entry) => entry.clubId === clubId && (!eventId || includesEvent(entry, eventId)));
+      return { count: pending.length, error: storageError || pending.find((entry) => entry.error)?.error.message || "",
+        sending: pending.some((entry) => entry.id === sending), series: pending.some((entry) => entry.series) };
     }
     function retry(clubId = "") {
       if (!owner || !isCurrent(owner)) return Promise.resolve();
@@ -136,10 +145,13 @@
     }
     function discard(clubId, eventId) {
       if (!owner || !isCurrent(owner)) return;
-      if (status(clubId, eventId).sending) return;
-      try { for (const record of records.filter((entry) => entry.clubId === clubId && entry.eventId === eventId)) storage.removeItem(key(record)); }
+      const series = records.find((entry) => entry.clubId === clubId && entry.series && includesEvent(entry, eventId));
+      const ids = series ? eventIds(series) : [eventId];
+      const discarded = records.filter((entry) => entry.clubId === clubId && ids.some((id) => includesEvent(entry, id)));
+      if (discarded.some((entry) => entry.id === sending)) return;
+      try { for (const record of discarded) storage.removeItem(key(record)); }
       catch { storageError = "Lokale Änderungen konnten nicht verworfen werden."; changed(); return; }
-      confirmed.delete(identity(clubId, eventId));
+      for (const id of ids) confirmed.delete(identity(clubId, id));
       refresh(); changed();
     }
     function resume() {

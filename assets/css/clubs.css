@@ -94,6 +94,13 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-choice .se-person-name { font-size: .88rem; }
 .club-event-inactive { color: var(--muted); opacity: .65; font-size: .65rem; font-weight: 400; }
 .club-event-row .se-meta { flex-basis: 100%; margin: 0; }
+.club-event-icon { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: #c7a879; background: color-mix(in srgb, currentColor 12%, transparent); }
+.club-event-icon[data-category="training"] { color: #89b4aa; }
+.club-event-icon[data-category="organization"] { color: #a1afd1; }
+.club-event-icon svg { width: 19px; height: 19px; }
+.club-event-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.club-event-bulk { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.club-event-bulk .button { width: auto; min-height: 44px; font-size: .8rem; }
 .club-event-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 18px; }
 .club-event-back { padding: 6px 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .8rem; cursor: pointer; }
 .club-event-title { flex: 1; min-width: 130px; }

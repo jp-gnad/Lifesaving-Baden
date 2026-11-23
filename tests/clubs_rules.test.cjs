@@ -129,6 +129,18 @@ test("local roster rules reject forged identities and activity outside the norma
   await fails(sdk.updateDoc(rosterRef(dbFor("outsider"), club, localId), { activeYears: [year], updatedAt: sdk.serverTimestamp() }));
 });
 
+test("verified admins can create a local person without being assigned to the club", { skip: !enabled }, async () => {
+  const club = await create("Kader ohne Admin-Zuordnung", "a");
+  const details = { name: "Testperson", birthYear: new Date().getUTCFullYear() - 14, gender: "w" };
+  for (const admin of [dbFor("admin"), dbFor("claims-only-admin", { admin: true })]) {
+    const id = await store.createLocalPerson(compat(admin), club, details, api());
+    const saved = await sdk.getDoc(rosterRef(admin, club, id));
+    assert.equal(saved.data().name, details.name);
+    assert.equal(core.isLocalPerson({ ...saved.data(), id }), true);
+  }
+  await fails(store.createLocalPerson(compat(dbFor("admin", { email_verified: false })), club, details, api()));
+});
+
 async function eventFixture(legacy = false) {
   const id = await create("Mannschaften", "a");
   const db = compat(dbFor("a"));
@@ -157,6 +169,45 @@ async function createEvent(f, id = "event", people = f.selected, year = f.year) 
   return events.create(f.db, f.id, id, "Wettkampf", `${year}-06-20`, people, api());
 }
 const command = (f, change, id = "event") => events.mutate(f.db, f.id, id, change, api());
+
+test("training and organization accept inactive club members and protect the schedule", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const inactive = f.selected[0];
+  await store.setActive(f.db, f.id, inactive.id, f.year, false, api());
+  const details = { type: "create", name: "Termin", date: `${f.year}-06-20`, startTime: "18:00", endTime: "19:30", additions: [] };
+  for (const category of ["training", "organization"]) {
+    const original = await events.send(f.db, f.id, category, { ...details, category }, api());
+    const selected = await events.send(f.db, f.id, category, { type: "participants", category,
+      additions: f.selected.slice(0, 4) }, api());
+    assert.equal(Object.keys(selected.participants).length, 4);
+    assert.equal(selected.participants[inactive.id].name, inactive.name);
+    const updated = await command(f, { type: "metadata", name: original.name, date: original.date, startTime: "18:30", endTime: "20:00",
+      expectedRevision: selected.revision }, category);
+    assert.equal(updated.startTime, "18:30");
+    const stored = (await sdk.getDoc(f.ref(category))).data();
+    const write = (patch) => sdk.setDoc(f.ref(category), { ...stored, operation: "metadata", revision: stored.revision + 1, updatedAt: sdk.serverTimestamp(), ...patch });
+    await fails(write({ startTime: "20:01" }));
+    await fails(write({ startTime: "9:05" }));
+    await fails(write({ category: category === "training" ? "organization" : "training" }));
+    await fails(write({ operation: "individual", changedId: inactive.id }));
+    await fails(write({ operation: "team", changedId: "forged" }));
+    await fails(write({ operation: "remove", changedId: inactive.id, endTime: "19:45" }));
+  }
+  await fails(events.send(compat(dbFor("athlete")), f.id, "forbidden", { ...details, category: "training" }, api()));
+});
+
+test("creating a training series commits up to 52 dates atomically and retries use the same documents", { skip: !enabled }, async () => {
+  const f = await eventFixture();
+  const action = { type: "create", category: "training", name: "Training", date: `${f.year}-01-01`,
+    startTime: "17:00", endTime: "18:00", repeatDays: 7, repeatUntil: `${f.year}-12-24`, additions: [] };
+  const first = await events.send(f.db, f.id, "weekly", action, api());
+  const retried = await events.send(f.db, f.id, "weekly", action, api());
+  assert.equal(first.length, 52);
+  assert.deepEqual(first.map(({ id, date }) => ({ id, date })), retried.map(({ id, date }) => ({ id, date })));
+  assert.equal((await sdk.getDoc(f.ref("weekly-52"))).data().repeatDays, 7);
+  await fails(events.send(f.db, f.id, "invalid-series", { ...action, date: `${f.year + 1}-12-24`, repeatUntil: `${f.year + 2}-01-14` }, api()));
+  assert.equal((await sdk.getDoc(f.ref("invalid-series"))).exists(), false);
+});
 
 test("club events default to individual entries and reserve teams independently in each event", { skip: !enabled }, async () => {
   const f = await eventFixture();

@@ -5,20 +5,52 @@
   const key = (person) => person.personId || person.id;
   const participantBatchSize = 3;
   const eventPeriod = (date, today) => date < today ? "past" : "planned";
+  const categoryOf = (event) => event?.category || "competition";
+  const isCompetition = (event) => categoryOf(event) === "competition";
 
-  function metadata(name, date) {
+  function metadata(name, date, details = {}) {
     const value = String(name || "").trim();
     const day = String(date || "");
     const parsed = new Date(`${day}T00:00:00Z`);
     if (!value || value.length > 120) fail("Bitte einen Terminnamen mit höchstens 120 Zeichen eingeben.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(+parsed) || parsed.toISOString().slice(0, 10) !== day) fail("Bitte ein gültiges Datum wählen.");
-    return { name: value, date: day, year: Number(day.slice(0, 4)) };
+    const values = { name: value, date: day, year: Number(day.slice(0, 4)) };
+    const category = categoryOf(details);
+    if (category === "competition") return values;
+    if (!["training", "organization"].includes(category)) fail("Bitte eine Terminart wählen.");
+    const { startTime, endTime, repeatDays = 0 } = details;
+    const clock = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
+    if (typeof startTime !== "string" || typeof endTime !== "string" || !clock.test(startTime) || !clock.test(endTime) || startTime >= endTime) {
+      fail("Bitte eine gültige Start- und Endzeit wählen. Die Endzeit muss nach der Startzeit liegen.");
+    }
+    if (!(category === "training" ? [0, 7, 14] : [0]).includes(repeatDays)) fail("Ungültige Wiederholung.");
+    return { ...values, category, startTime, endTime, repeatDays };
   }
 
-  function participant(person, year) {
-    if (!person.activeYears?.includes(year)) fail("Die Person ist im Jahr des Termins nicht aktiv.");
+  function sameMetadata(first, second) {
+    return first.name === second.name && first.date === second.date && categoryOf(first) === categoryOf(second)
+      && first.startTime === second.startTime && first.endTime === second.endTime && (first.repeatDays || 0) === (second.repeatDays || 0);
+  }
+
+  function occurrences(id, action) {
+    const values = metadata(action.name, action.date, action);
+    if (!values.repeatDays) return [{ id, date: values.date }];
+    const end = metadata(values.name, action.repeatUntil).date;
+    const day = new Date(`${values.date}T00:00:00Z`);
+    const dates = [];
+    while (day.toISOString().slice(0, 10) <= end && dates.length <= 52) {
+      const number = dates.length + 1;
+      dates.push({ id: number === 1 ? id : `${id}-${number}`, date: day.toISOString().slice(0, 10) });
+      day.setUTCDate(day.getUTCDate() + values.repeatDays);
+    }
+    if (dates.length < 2 || dates.length > 52) fail("Bitte ein Enddatum für 2 bis 52 Trainingstermine wählen.");
+    return dates;
+  }
+
+  function participant(person, year, competition = true) {
+    if (competition && !person.activeYears?.includes(year)) fail("Die Person ist im Jahr des Termins nicht aktiv.");
     return { rosterId: person.id, name: person.name, birthYear: person.birthYear || null, gender: teamsCore.gender(person.gender),
-      createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: person.individual !== false };
+      createdAtMillis: person.createdAtMillis ?? person.createdAt.toMillis(), individual: !competition || person.individual !== false };
   }
 
   function sameTeam(a, b) {
@@ -31,7 +63,7 @@
     const person = event.participants[command.id];
     if (command.type === "metadata") {
       if (command.expectedRevision !== event.revision) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
-      const values = metadata(command.name, command.date);
+      const values = metadata(command.name, command.date, { ...event, startTime: command.startTime, endTime: command.endTime });
       if (values.year !== event.year && Object.keys(event.participants).length) fail("Das Jahr kann nur bei einem Termin ohne Teilnehmer geändert werden.");
       Object.assign(next, values);
     } else if (command.type === "participants") {
@@ -43,17 +75,19 @@
       next.changedIds = changes.map((entry) => entry.id);
     } else if (command.type === "add") {
       if (person || Object.values(event.participants).some((entry) => entry.rosterId === command.person.id)) fail("Die Person nimmt bereits teil.");
-      next.participants[command.id] = participant(command.person, event.year);
+      next.participants[command.id] = participant(command.person, event.year, isCompetition(event));
     } else if (command.type === "remove") {
       if (!person) fail("Die Person wurde bereits entfernt.");
       if (event.assignments[command.id]) fail("Bitte die Person zuerst aus der Mannschaft entfernen.");
       delete next.participants[command.id];
     } else if (command.type === "individual") {
+      if (!isCompetition(event)) fail("Einzelstarts gibt es nur bei Wettkämpfen.");
       if (!person) fail("Die Person wurde entfernt.");
       if (person.individual !== command.expected) fail("Der Einzelstart wurde inzwischen geändert.");
       if (!command.enabled && !event.assignments[command.id]) fail("Nur Personen mit Mannschaft können aus Einzel entfernt werden.");
       next.participants[command.id] = { ...person, individual: Boolean(command.enabled) };
     } else if (command.type === "team") {
+      if (!isCompetition(event)) fail("Mannschaften gibt es nur bei Wettkämpfen.");
       const before = event.teams[command.id];
       if (!sameTeam(before, command.expected)) fail("Die Mannschaft wurde geändert. Bitte erneut öffnen.");
       const ids = command.memberIds;
@@ -111,8 +145,9 @@
   }
 
   function selectionChanges(event, additions, removals) {
+    const rosterIds = new Set(Object.values(event.participants).map((entry) => entry.rosterId));
     return [...removals.filter((id) => event.participants[id]).map((id) => ({ id })),
-      ...additions.filter((person) => !event.participants[key(person)] && !Object.values(event.participants).some((entry) => entry.rosterId === person.id))
+      ...additions.filter((person) => !event.participants[key(person)] && !rosterIds.has(person.id))
         .map((person) => ({ id: key(person), person }))];
   }
 
@@ -120,7 +155,7 @@
     if (action.type === "delete") return null;
     let state = event;
     if (action.type === "create" && !state) {
-      state = { ...metadata(action.name, action.date), participants: {}, teams: {}, assignments: {}, revision: 0 };
+      state = { ...metadata(action.name, action.date, action), participants: {}, teams: {}, assignments: {}, revision: 0 };
     }
     if (!state) fail("Der Termin wurde gelöscht.");
     if (["create", "participants", "singles", "team"].includes(action.type)) {
@@ -136,14 +171,16 @@
     if (command.type === "team" && (command.memberIds === null ? !state.teams[command.id]
       : JSON.stringify(state.teams[command.id]?.memberIds) === JSON.stringify(command.memberIds))) return state;
     if (command.type === "metadata") {
-      if (state.name === command.name.trim() && state.date === command.date) return state;
-      if (action.expectedMetadata && (state.name !== action.expectedMetadata.name || state.date !== action.expectedMetadata.date)) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
+      const values = metadata(command.name, command.date, { ...state, startTime: command.startTime, endTime: command.endTime });
+      if (sameMetadata(state, values)) return state;
+      if (action.expectedMetadata && !sameMetadata(state, action.expectedMetadata)) fail("Der Termin wurde geändert. Bitte erneut öffnen.");
       command.expectedRevision = state.revision;
     }
     return change(state, command);
   }
 
-  const api = Object.freeze({ key, metadata, participant, sameTeam, change, namedTeams, displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
+  const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, occurrences, participant, sameTeam, change, namedTeams,
+    displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsCore = api;
 })(typeof window === "object" ? window : globalThis);

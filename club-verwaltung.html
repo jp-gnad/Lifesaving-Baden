@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/start-eligibility.css?v=20261110-compact-v1">
-    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-manager-colors-v1">
+    <link rel="stylesheet" href="assets/css/clubs.css?v=20261123-terminarten-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
@@ -36,14 +36,14 @@
     <script defer src="assets/js/start-eligibility.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/clubs-store.js?v=20261123-local-person-v1"></script>
     <script defer src="assets/js/club-teams-core.js?v=20261119-event-periods-v1"></script>
-    <script defer src="assets/js/club-events-core.js?v=20261123-termine-v1"></script>
-    <script defer src="assets/js/club-events-store.js?v=20261123-termine-v1"></script>
-    <script defer src="assets/js/club-events-queue.js?v=20261119-instant-events-v1"></script>
-    <script defer src="assets/js/club-events.js?v=20261123-termine-v1"></script>
+    <script defer src="assets/js/club-events-core.js?v=20261123-terminarten-v1"></script>
+    <script defer src="assets/js/club-events-store.js?v=20261123-terminarten-v1"></script>
+    <script defer src="assets/js/club-events-queue.js?v=20261123-terminarten-v1"></script>
+    <script defer src="assets/js/club-events.js?v=20261123-terminarten-v1"></script>
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-profile-feed.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/club-roster-state.js?v=20261120-performance-v2"></script>
-    <script defer src="assets/js/clubs.js?v=20261123-manager-colors-v1"></script>
+    <script defer src="assets/js/clubs.js?v=20261123-terminarten-v1"></script>
     <script defer src="assets/js/auth.js?v=20261123-indicator-cache-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="clubs">
@@ -178,9 +178,34 @@
     <dialog class="wt-dialog se-dialog club-event-dialog" id="club-event-dialog" aria-labelledby="club-event-title">
       <form id="club-event-form" novalidate>
         <div class="wt-dialog-heading"><div><h2 id="club-event-title" tabindex="-1" autofocus>Terminname</h2><p class="se-meta" id="club-event-step"></p></div><button class="wt-icon-button" id="club-event-close" type="button" aria-label="Schließen">×</button></div>
+        <label class="wt-field" id="club-event-category-field">
+          <span>Terminart</span>
+          <select id="club-event-category">
+            <option value="competition">Wettkampf</option>
+            <option value="training">Training</option>
+            <option value="organization">Organisation</option>
+          </select>
+        </label>
         <label class="wt-field" id="club-event-name-field"><span>Name</span><input id="club-event-name" type="text" maxlength="120" autocomplete="off" required></label>
         <label class="wt-field" id="club-event-date-field" hidden><span>Datum</span><input id="club-event-date" type="date"></label>
+        <div class="club-event-times" id="club-event-times" hidden>
+          <label class="wt-field"><span>Von</span><input id="club-event-start" type="time"></label>
+          <label class="wt-field"><span>Bis</span><input id="club-event-end" type="time"></label>
+        </div>
+        <label class="wt-field" id="club-event-repeat-field" hidden>
+          <span>Wiederholung</span>
+          <select id="club-event-repeat">
+            <option value="0">Einmalig</option>
+            <option value="7">Wöchentlich</option>
+            <option value="14">Alle zwei Wochen</option>
+          </select>
+        </label>
+        <label class="wt-field" id="club-event-repeat-until-field" hidden><span>Wiederholen bis</span><input id="club-event-repeat-until" type="date"></label>
         <div id="club-event-picker" hidden>
+          <div class="club-event-bulk" id="club-event-bulk" hidden>
+            <button class="button button-secondary" id="club-event-add-active" type="button">Alle Aktiven hinzufügen</button>
+            <button class="button button-secondary" id="club-event-add-all" type="button">Alle Personen hinzufügen</button>
+          </div>
           <label class="wt-field"><span class="wt-sr-only">Person suchen</span><input id="club-event-search" type="search" maxlength="80" autocomplete="off" placeholder="Person suchen …"></label>
           <div id="club-event-choices" class="club-event-choices"></div>
         </div>

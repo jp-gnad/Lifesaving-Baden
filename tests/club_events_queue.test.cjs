@@ -47,6 +47,47 @@ test("confirmed writes never disappear when an older listener response arrives",
   assert.equal(h.queue.project("club", "event", server).revision, server.revision);
 });
 
+test("one durable training-series record projects each date and protects dependent edits until retry", async () => {
+  const series = { type: "create", category: "training", name: "Training", date: "2026-10-18",
+    startTime: "09:00", endTime: "10:00", repeatDays: 7, repeatUntil: "2026-11-02", additions: [] };
+  const held = deferred();
+  const server = new Map();
+  let offline = true;
+  const h = harness(undefined, async (_account, record) => {
+    if (record.action.type === "create") {
+      await held.promise;
+      if (offline) throw Object.assign(new Error("offline"), { code: "unavailable" });
+      const entries = core.occurrences(record.eventId, record.action).map(({ id, date }) => ({
+        ...core.replay(null, { ...record.action, date }), id,
+      }));
+      for (const event of entries) server.set(event.id, event);
+      return entries;
+    }
+    assert.ok(server.has(record.eventId));
+    return core.replay(server.get(record.eventId), record.action);
+  });
+  h.queue.enqueue("club", "series", series, null);
+  assert.equal(h.storage.length, 1);
+  assert.deepEqual(h.queue.ids("club"), ["series", "series-2", "series-3"]);
+  const second = h.queue.project("club", "series-2", null);
+  assert.equal(second.date, "2026-10-25");
+  assert.equal(second.startTime, "09:00");
+  h.queue.enqueue("club", second.id, { type: "participants", category: "training",
+    additions: [{ ...people[0], activeYears: [] }], removals: [] }, second);
+  await tick();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.queue.project("club", second.id, null).participants.p0.name, "Person 0");
+  held.resolve();
+  await h.queue.flush();
+  assert.equal(h.calls.length, 1, "A failed series blocks edits to its individual dates");
+  assert.ok(h.queue.status("club", second.id).error);
+  offline = false;
+  await h.queue.retry("club");
+  assert.equal(h.storage.length, 0);
+  assert.equal(h.queue.project("club", "series-3", null).date, "2026-11-01");
+  assert.equal(h.queue.project("club", second.id, null).participants.p0.name, "Person 0");
+});
+
 test("reload restores every pending participant and account changes never expose another account's queue", async () => {
   const held = deferred();
   const h = harness(undefined, () => held.promise);

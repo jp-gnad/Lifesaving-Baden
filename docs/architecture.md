@@ -265,14 +265,18 @@ angeforderte Rückmeldungen bleiben sichtbar.
 Club-Events sind eine eigenständige Planung ohne Verbindung zu `timerEvents`.
 `club-events-core.js` berechnet Änderungen und bewahrt Einzelstarts unabhängig von
 Mannschaftszuordnungen. `club-teams-core.js` liefert die gemeinsame AK-/Geschlechtslogik.
-`club-events-store.js` schreibt jeweils genau ein Event in einer Transaktion;
+`club-events-store.js` schreibt einzelne Änderungen oder die Anlage einer Trainingsserie in einer Transaktion.
 `club-events.js` verbindet Terminübersicht, Erstellungsdialog und Eventansicht als Factory.
 `club-events-queue.js` speichert Änderungen kontogebunden lokal, projiziert sie sofort
 auf die Ansicht und überträgt sie unabhängig von Club-/Ansichtswechseln im Hintergrund.
 `clubs.js` übergibt den aktuellen Club, Sitzungsprüfung und Kader explizit.
 
-Ein Event unter `clubs/{clubId}/events/{eventId}` hält Name, Kalendertag, Jahr,
-Teilnehmersnapshots, Mannschaften und einen Zuordnungsindex. Die Regeln erlauben
+Ein Termin unter `clubs/{clubId}/events/{eventId}` hält Name, Kalendertag, Jahr und
+Teilnehmersnapshots. Bestehende Dokumente gelten als Wettkämpfe mit Mannschaften
+und einem Zuordnungsindex. Trainings- und Organisationstermine halten zusätzlich
+Start- und Endzeit am selben Kalendertag. Eine Trainingsserie erzeugt beim Anlegen
+bis zu 52 einzeln bearbeitbare Termine im Wochen- oder Zweiwochenrhythmus. Die
+Warteschlange speichert alle Vorkommen in einem Auftrag mit festen IDs. Die Regeln erlauben
 pro Änderung nur eine Teilnehmer-, Einzelstart-, Metadaten- oder Mannschaftsaktion;
 Teilnehmerauswahlen dürfen bis zu drei geprüfte Zu- oder Abgänge gemeinsam ändern.
 Der Index reserviert eine Person innerhalb dieses Events für höchstens eine
@@ -286,19 +290,22 @@ Weibliche und männliche Mannschaften derselben AK stehen auf Desktop nebeneinan
 mobil untereinander. Die Karten enthalten nur Personen. Die Darstellung verändert
 keine gespeicherte Mannschaftsnummer.
 
-Neue Teilnehmer benötigen den Aktivstatus des Eventjahrs. Bereits übernommene
+Für Wettkämpfe benötigen neue Teilnehmer den Aktivstatus des Eventjahrs. Bereits übernommene
 Personen bleiben bei späterer Deaktivierung oder Clubentfernung als Snapshot
 erhalten; die Oberfläche kennzeichnet sie dezent als inaktiv. Fehlendes Geschlecht
 alter Kaderdatensätze wird nur für ausdrücklich ausgewählte Personen aus der
 maßgeblichen Quelle ergänzt. Aktivjahre, Nachweise und Erstellungszeit bleiben erhalten.
 
-Ein Event wird nach Name und Datum ohne Teilnehmer erstellt. Erst in der Eventansicht
+Ein Wettkampf wird nach Name und Datum ohne Teilnehmer erstellt. Erst in der Eventansicht
 werden Einzelschwimmer oder Mannschaften aus dem im Eventjahr aktiven Clubkader
 hinzugefügt. Direkt für eine Mannschaft übernommene Personen erhalten keinen
 automatischen Einzelstart; schon vorhandene Einzelstarts bleiben erhalten.
 Die Einzelauswahl übernimmt Personen sofort und blendet sie aus der Auswahl aus.
 Das Personenmenü eines Einzelstarts bietet „Entfernen“: Mit Mannschaft bleibt die
 Zuordnung erhalten, ohne Mannschaft wird die Person aus dem Event entfernt.
+Bei Training und Organisation lassen sich in der Terminansicht alle Aktiven des
+Terminjahrs, der gesamte Clubkader oder einzelne Personen hinzufügen. Bereits
+eingetragene Personen bleiben erhalten.
 
 Speichern bestätigt zuerst den Abschluss eines synchronen lokalen Schreibvorgangs.
 Die Warteschlange nutzt je Auftrag einen eigenen Schlüssel unter
@@ -312,8 +319,9 @@ Verwerfen erhalten und blockieren keine anderen Events. Der Timer-Speicher bleib
 
 Der Store übernimmt gecachte Kaderidentitäten ohne erneuten Personenabruf in Gruppen
 von höchstens drei Personen. Die Firestore-Regeln prüfen in jeder Gruppe den aktuellen
-Kader, Aktivstatus und die ursprüngliche Erstellungszeit unabhängig von diesen Cachewerten.
-Nur alte Datensätze ohne Geschlecht benötigen eine zusätzliche Quellenaktualisierung.
+Kader und die ursprüngliche Erstellungszeit unabhängig von diesen Cachewerten.
+Bei Wettkämpfen prüfen sie zusätzlich den Aktivstatus. Für Wettkämpfe benötigen
+alte Datensätze ohne Geschlecht eine zusätzliche Quellenaktualisierung.
 Direkte Mannschaftsaufnahme, Einzelstartwechsel und spätere Bearbeitungen werden
 geordnet übertragen; bereits gespeicherte Personen und Startflags bleiben bei
 Wiederholung erhalten. Ein kleiner Status kennzeichnet ausstehende Übertragungen.
