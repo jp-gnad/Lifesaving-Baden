@@ -10,6 +10,17 @@
   const categoryOf = (event) => event?.category || "competition";
   const isCompetition = (event) => categoryOf(event) === "competition";
   const isCreate = (action) => action.type === "create" || action.type === "create-training";
+
+  function eventWeek(date) {
+    const start = dates.asDate(date);
+    start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
+    const thursday = new Date(start);
+    thursday.setUTCDate(thursday.getUTCDate() + 3);
+    const daysSinceNewYear = (thursday - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / 86_400_000;
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    return { start: dates.dateKey(start), end: dates.dateKey(end), number: Math.floor(daysSinceNewYear / 7) + 1 };
+  }
   const invitationMode = (event) => event?.invitationMode || "manual";
   const invites = (mode, person, year) => mode === "all" || (mode === "active" && person.activeYears?.includes(year));
   const recurringTraining = (event) => event?.category === "training" && [7, 14].includes(event.repeatDays);
@@ -268,7 +279,7 @@
 
   const api = Object.freeze({ key, metadata, sameMetadata, categoryOf, isCompetition, isCreate, invitationMode, invites, recurringTraining, seriesId, seriesEdits,
     excludedSchoolDays, occurrences, participant, sameTeam, change, namedTeams,
-    displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod });
+    displayGroups, snapshotPerson, selectionChanges, replay, participantBatchSize, eventPeriod, eventWeek });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ClubEventsCore = api;
 })(typeof window === "object" ? window : globalThis);
