@@ -53,6 +53,11 @@ for (const name of sourceFiles) {
 
 for (const name of htmlFiles) {
   const html = read(name).replace(/<!--[\s\S]*?-->/g, "");
+  const viewport = html.match(/<meta\b[^>]*\bname="viewport"[^>]*\bcontent="([^"]+)"/i)?.[1] || "";
+  const scaling = viewport.split(",").map((value) => value.trim());
+  if (!["initial-scale=1", "minimum-scale=1", "maximum-scale=1", "user-scalable=no"].every((value) => scaling.includes(value))) {
+    failures.push(`${name}: inconsistent app viewport scaling`);
+  }
   for (const [, tag] of html.matchAll(/<(?:script|link|img|a|source|iframe)\b([^>]*?)>/gi)) {
     for (const [, value] of tag.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/gi)) checkLocal(name, value);
   }
@@ -72,6 +77,9 @@ for (const name of htmlFiles) {
     "app.html": "assets/js/admin-notifications.js",
     "admin-accounts.html": "assets/js/admin-accounts.js",
   };
+  if (name !== "firebase-hosting/404.html" && (!scripts.includes("assets/js/app-zoom.js") || !html.includes("assets/css/app-zoom.css?"))) {
+    failures.push(`${name}: missing shared zoom controls`);
+  }
   if (pageEntrypoints[name] && !scripts.includes(pageEntrypoints[name])) failures.push(`${name}: missing page entrypoint ${pageEntrypoints[name]}`);
   if (["index.html", "app.html"].includes(name) && scripts[0] !== "assets/js/app-launch.js") {
     failures.push(`${name}: app-launch.js must load before the external SDK and page initialization`);
@@ -100,6 +108,8 @@ for (const [, src] of read("timer/index.html").matchAll(/<script\b[^>]*\bsrc="([
   if (/^https?:/.test(src)) continue;
   if (!shellPaths.includes(src)) failures.push(`timer/sw.js: precache must include the current script URL ${src}`);
 }
+const touchStyles = read("timer/index.html").match(/\bhref="([^"]*assets\/css\/app-zoom\.css\?[^"]+)"/)?.[1];
+if (touchStyles && !shellPaths.includes(touchStyles)) failures.push(`timer/sw.js: precache must include ${touchStyles}`);
 
 for (const [, asset] of read("timer/lazy-assets.js").matchAll(/\["(\.\/[^"\s]+\.js\?[^"\s]+)"/g)) {
   checkLocal("timer/index.html", asset);

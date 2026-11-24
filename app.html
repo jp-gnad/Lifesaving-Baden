@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="description" content="Geschützter Demo-Bereich von Lifesaving Baden.">
     <meta name="theme-color" content="#0f0f12">
     <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
@@ -35,13 +35,15 @@
       window.addEventListener("pageswap", (event) => event.viewTransition?.skipTransition());
     </script>
     <link rel="stylesheet" href="assets/css/styles.css?v=20261123-animated-tabs-v1">
+    <link rel="stylesheet" href="assets/css/app-zoom.css?v=20261124-zoom-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
     <script defer src="assets/js/app-launch.js?v=20261120-launch-notice-delay-v1"></script>
+    <script defer src="assets/js/app-zoom.js?v=20261124-zoom-v1"></script>
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
     <script defer src="assets/js/member-tabs.js?v=20261123-animated-tabs-v1"></script>
-    <script defer src="assets/js/account-avatar-cache.js?v=20261123-avatar-cache-v1"></script>
-    <script defer src="assets/js/account-avatar.js?v=20261123-avatar-cache-v1"></script>
+    <script defer src="assets/js/account-avatar-cache.js?v=20261124-name-preview-v1"></script>
+    <script defer src="assets/js/account-avatar.js?v=20261124-name-preview-v1"></script>
     <script defer src="assets/js/account-indicators.js?v=20261123-indicator-cache-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
@@ -55,7 +57,7 @@
     <script defer src="assets/js/account-notifications-core.js?v=20261120-new-account-alerts-v1"></script>
     <script defer src="assets/js/clubs-notifications.js?v=20261123-indicator-cache-v1"></script>
     <script defer src="assets/js/admin-notifications.js?v=20261123-indicator-cache-v1"></script>
-    <script defer src="assets/js/auth.js?v=20261123-indicator-cache-v1"></script>
+    <script defer src="assets/js/auth.js?v=20261124-name-preview-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="app">
     <div class="app-launch" role="status" aria-label="Lifesaving Baden wird geöffnet">
@@ -90,7 +92,6 @@
     <main inert aria-busy="true" class="dashboard">
       <p class="form-message" data-auth-error role="alert" hidden></p>
       <section class="dashboard-header">
-        <p class="eyebrow">Mitgliederbereich</p>
         <h1>Willkommen<span data-user-name-separator></span><span class="dashboard-user-name" data-user-name></span></h1>
         <section class="account-checklist is-hidden" data-account-checklist hidden aria-hidden="true" aria-label="Profil ergänzen">
           <div class="checklist-progress-row">

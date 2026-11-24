@@ -2,6 +2,25 @@
   "use strict";
   const photoSelectors = ["[data-account-photo-small]", "[data-account-photo-large]"];
   const initialsSelectors = ["[data-account-initials-small]", "[data-account-initials-large]"];
+  const greeting = document.querySelectorAll("[data-user-name]");
+  const greetingSeparator = document.querySelectorAll("[data-user-name-separator]");
+  let greetingUid, greetingName;
+
+  function renderGreeting(snapshot) {
+    if (!greeting.length || (greetingUid === snapshot?.uid && greetingName === snapshot?.name)) return;
+    greetingUid = snapshot?.uid;
+    greetingName = snapshot?.name;
+    const name = greetingName || "";
+    for (const separator of greetingSeparator) {
+      const text = name ? "," : "";
+      if (separator.textContent !== text) separator.textContent = text;
+    }
+    if (window.LifesavingDashboardHeader?.setName) {
+      window.LifesavingDashboardHeader.setName(name, { immediate: true });
+    } else {
+      for (const element of greeting) if (element.textContent !== name) element.textContent = name;
+    }
+  }
 
   function render(snapshot = cache.read()) {
     photoSelectors.forEach((selector, group) => {
@@ -21,6 +40,7 @@
     });
     document.querySelectorAll("[data-account-avatar-preview]").forEach((preview) => { preview.hidden = !snapshot; });
     document.body.classList.toggle("account-avatar-ready", Boolean(snapshot));
+    renderGreeting(snapshot);
   }
 
   function decodeImage(source) {
@@ -68,7 +88,11 @@
     }
     return cache.sync(user, initials.toUpperCase());
   }
-  window.LifesavingAccountAvatar = Object.freeze({ setUser, clear: cache.clear, render, snapshot: cache.read });
+  function setName(uid, name) {
+    if (window.firebase?.apps?.length && window.firebase.auth().currentUser?.uid !== uid) return;
+    cache.setName(uid, name);
+  }
+  window.LifesavingAccountAvatar = Object.freeze({ setUser, setName, clear: cache.clear, render, snapshot: cache.read });
   cache.restore();
   window.addEventListener("pageshow", (event) => {
     if (!event.persisted) return;

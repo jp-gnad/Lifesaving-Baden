@@ -1412,7 +1412,7 @@ test("the timer service worker retains its auth script fallback when offline", a
 
 function memberFunctions(h) {
   h.document.querySelector = () => null;
-  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { saveProfileField, openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, initSettingsZoomProtection, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, acknowledgeNewAccount, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
+  vm.runInContext(source("assets/js/auth.js").replace(/\}\)\(\);\s*$/, "window.memberTest = { saveProfileField, openRequestedProfileField, updateAccountProfile, updateLinkStatusUi, updateRoleUi, updateAdminAccountCardRole, initSettingsMenu, unlinkOwnPerson, persistProfileDetails, initLinkManagement, updateLinkManagementUi, updateLinkRequestAvailability, submitSettingsLinkRequest, writeUserDocCache, changeAccountPassword, savePasswordEmail, requireDeletableAccount, loadFreshUserContext, createAdminAccountCard, createAdminAccountRoleSelect, setAdminAccountEditMode, saveAdminAccountChanges, decideAdminAccountRequest, acknowledgeNewAccount, countAdminNotifications, initAdminAccountBadge, initAdminStatus, filterAdminAccounts, manageGoogleAccount, unlinkGoogleAccount, unlinkPasswordAccount, deleteCurrentAccount };})();"), h.context);
   return h.window.memberTest;
 }
 
@@ -1971,24 +1971,6 @@ function settingsNavigationHarness({ mobile = true, hash = "" } = {}) {
   return { ...h, items, categories, back, history };
 }
 
-test("settings prevent zoom gestures while single-finger scrolling remains available", () => {
-  const h = harness();
-  const functions = memberFunctions(h);
-  functions.initSettingsZoomProtection();
-  let prevented = 0;
-  const event = (details) => ({ preventDefault() { prevented++; }, ...details });
-  h.callbacks.gesturestart(event({}));
-  h.callbacks.gesturechange(event({}));
-  h.callbacks.touchstart(event({ touches: [{}, {}] }));
-  h.callbacks.touchmove(event({ touches: [{}, {}] }));
-  h.callbacks.wheel(event({ ctrlKey: true }));
-  assert.equal(prevented, 5);
-  h.callbacks.touchstart(event({ touches: [{}] }));
-  h.callbacks.touchmove(event({ touches: [{}] }));
-  h.callbacks.wheel(event({ ctrlKey: false }));
-  assert.equal(prevented, 5);
-});
-
 test("the account unlink action always targets the signed-in user", async () => {
   const h = harness({ user: { uid: "own-account" } });
   const functions = memberFunctions(h);
@@ -2299,20 +2281,6 @@ test("opening or restoring mobile login focuses the heading without opening the 
   h.callbacks.pageshow({ persisted: false });
   assert.equal(heading.focused, true);
   assert.notEqual(h.email.focused, true);
-});
-
-test("iOS zoom gestures are prevented only in the mobile login layout", () => {
-  const h = mobileEmailHarness();
-  h.login();
-  let prevented = 0;
-  const gesture = { preventDefault() { prevented++; } };
-  h.callbacks.gesturestart(gesture);
-  h.callbacks.gesturechange(gesture);
-  assert.equal(prevented, 2);
-  h.mobile.matches = false;
-  h.callbacks.gesturestart(gesture);
-  h.callbacks.gesturechange(gesture);
-  assert.equal(prevented, 2);
 });
 
 test("mobile fields require a deliberate interaction before editing, including after page restoration", async () => {
@@ -3427,6 +3395,29 @@ test("returning members see their cached dashboard before any reload or query; f
   assert.equal(h.counts.reads, 1);
   assert.equal(h.counts.warnings.length, 0);
   assert.equal(h.window.LifesavingMemberViewCache.create({ getStorage: () => h.window.sessionStorage }).read(user.uid).role, "standard");
+});
+
+test("an older dashboard snapshot does not replace the cached greeting before a fresh profile arrives", async () => {
+  const profile = deferred(), h = dashboardReturnHarness({ read: () => profile.promise });
+  const user = h.auth.currentUser;
+  const avatar = { uid: user.uid, name: "Name aus dem Sitzungscache" };
+  const updates = [];
+  h.name.textContent = avatar.name;
+  h.window.LifesavingAccountAvatar = {
+    snapshot: () => ({ ...avatar }),
+    setUser() {},
+    setName(uid, name) { updates.push({ uid, name }); avatar.name = name; },
+  };
+  h.callbacks.auth(user);
+  await new Promise(setImmediate);
+  assert.equal(h.name.textContent, "Name aus dem Sitzungscache");
+  assert.equal(h.counts.reads, 1);
+  assert.deepEqual(updates, []);
+
+  profile.resolve({ exists: true, data: () => ({ role: "standard", displayName: "Neuer Name" }) });
+  await new Promise(setImmediate);
+  assert.equal(h.name.textContent, "Neuer Name");
+  assert.deepEqual(updates, [{ uid: user.uid, name: "Neuer Name" }]);
 });
 
 test("checked claim-only roles are saved for navigation and privileged listeners only start after fresh checks", async () => {

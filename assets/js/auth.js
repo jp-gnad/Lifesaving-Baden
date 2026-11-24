@@ -157,6 +157,7 @@
     requireCurrentUser(user);
     const role = getAccountRole(data, claims);
     if (!fromCache) {
+      window.LifesavingAccountAvatar?.setName?.(user.uid, getAccountName(user, data));
       memberViewCache?.write(user.uid, data, role.value);
       accountIndicators?.setRole(user.uid, role.isAdmin);
     }
@@ -424,22 +425,7 @@
   }
 
   if (page === "settings") {
-    initSettingsZoomProtection();
     initSettingsMenu();
-  }
-
-  function initSettingsZoomProtection() {
-    ["gesturestart", "gesturechange"].forEach((type) => {
-      document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
-    });
-    ["touchstart", "touchmove"].forEach((type) => {
-      document.addEventListener(type, (event) => {
-        if (event.touches?.length > 1) event.preventDefault();
-      }, { passive: false });
-    });
-    document.addEventListener("wheel", (event) => {
-      if (event.ctrlKey) event.preventDefault();
-    }, { passive: false });
   }
 
   function initSettingsMenu() {
@@ -574,7 +560,7 @@
       if (page !== "app" || !user?.emailVerified || !isCurrentUser(user) || window.LifesavingAppLaunch?.active) return;
       const cached = memberViewCache?.read(user.uid);
       if (!cached) return;
-      updateAccountProfile(user, cached.profile);
+      updateAccountProfile(user, cached.profile, { preserveGreeting: true });
       updateRoleUi(getAccountRole({ role: cached.role }));
       updateLinkStatusUi(cached.profile, { preview: true });
       displayedUid = user.uid;
@@ -631,6 +617,7 @@
         const verified = await hasVerifiedAccess(activeUser);
         if (!isCurrentUser(activeUser)) return;
         if (!verified) {
+          window.LifesavingAccountAvatar?.setName?.(activeUser.uid, "");
           accountIndicators?.setAccount(null);
           redirectToLogin("needsVerification");
           return;
@@ -656,7 +643,7 @@
             redirectToApp();
             return;
           }
-          updateAccountProfile(activeUser);
+          updateAccountProfile(activeUser, undefined, { preserveGreeting: fromCache });
           fillAccountManagementForms(activeUser);
           updateRoleUi(role);
           if (page === "app") displayedUid = activeUser.uid;
@@ -800,7 +787,7 @@
 
   function setTextForAll(selector, text) {
     document.querySelectorAll(selector).forEach((element) => {
-      element.textContent = text;
+      if (element.textContent !== text) element.textContent = text;
     });
   }
 
@@ -853,8 +840,10 @@
     });
   }
 
-  function updateAccountProfile(user, data) {
+  function updateAccountProfile(user, data, { preserveGreeting = false } = {}) {
     const accountName = getAccountName(user, data);
+    const preview = preserveGreeting ? window.LifesavingAccountAvatar?.snapshot?.() : null;
+    const greeting = preview?.uid === user.uid && typeof preview?.name === "string" ? preview.name : accountName;
     const googleEmail = getGoogleEmail(user);
     const passwordEmail = hasProvider(user, "password") ? user.email || "" : "";
     const separateEmails = Boolean(googleEmail && passwordEmail && passwordEmail.toLowerCase() !== googleEmail.toLowerCase());
@@ -866,11 +855,11 @@
     updateSignInEmailRow("password", googleEmail && !separateEmails ? "" : passwordEmail, separateEmails);
     setTextForAll("[data-account-name]", accountName);
     setTextForAll("[data-account-greeting-name]", accountName);
-    setTextForAll("[data-user-name-separator]", accountName ? "," : "");
+    setTextForAll("[data-user-name-separator]", greeting ? "," : "");
     if (window.LifesavingDashboardHeader?.setName) {
-      window.LifesavingDashboardHeader.setName(accountName, { immediate: Boolean(data) });
+      window.LifesavingDashboardHeader.setName(greeting, { immediate: Boolean(data) || Boolean(preview) });
     } else {
-      setTextForAll("[data-user-name]", accountName);
+      setTextForAll("[data-user-name]", greeting);
     }
     setTextForAll("[data-link-account-email]", user.email || "Keine E-Mail geladen.");
     if (window.LifesavingAccountAvatar) {
@@ -2334,6 +2323,7 @@
       window.LifesavingPersonLinks.syncClubProfile(transaction, db, user.uid, { ...(snapshot.data() || {}), ...cachePayload });
     });
     requireCurrentUser(user);
+    if (nameDetails) window.LifesavingAccountAvatar?.setName?.(user.uid, identity.displayName);
     const updatedData = { ...cachedData, ...cachePayload };
     if (pendingEmail === null) {
       delete updatedData.pendingEmail;

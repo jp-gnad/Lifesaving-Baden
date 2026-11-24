@@ -1,0 +1,11 @@
+:where(*) {
+  touch-action: manipulation;
+  touch-action: pan-x pan-y;
+}
+
+@media (any-pointer: coarse) {
+  /* WebKit may magnify small form controls when they receive focus. */
+  :is(input:not([type]), input:is([type="text"], [type="search"], [type="email"], [type="password"], [type="number"], [type="tel"], [type="url"]), textarea, select) {
+    font-size: max(16px, 1em) !important;
+  }
+}

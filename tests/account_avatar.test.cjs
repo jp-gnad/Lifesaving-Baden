@@ -107,8 +107,10 @@ function element() {
 }
 function page(shared, authUser, browser = {}) {
   const small = element(), large = element(), initials = element(), largeInitials = element(), body = element(), preview = element();
+  const greeting = element(), separator = element();
   const selectors = { "[data-account-photo-small]": [small], "[data-account-photo-large]": [large],
-    "[data-account-initials-small]": [initials], "[data-account-initials-large]": [largeInitials], "[data-account-avatar-preview]": [preview] };
+    "[data-account-initials-small]": [initials], "[data-account-initials-large]": [largeInitials], "[data-account-avatar-preview]": [preview],
+    "[data-user-name]": [greeting], "[data-user-name-separator]": [separator] };
   const auth = { currentUser: authUser }, events = {};
   const window = { LifesavingAccountAvatarCache: { create }, sessionStorage: shared, setTimeout, clearTimeout,
     firebase: { apps: [{}], auth: () => auth }, addEventListener(name, fn) { events[name] = fn; } };
@@ -116,7 +118,7 @@ function page(shared, authUser, browser = {}) {
     window, document: { body, querySelectorAll: (selector) => selectors[selector] || [] },
     ...browser,
   });
-  return { api: window.LifesavingAccountAvatar, small, large, initials, largeInitials, body, preview, auth, events };
+  return { api: window.LifesavingAccountAvatar, small, large, initials, largeInitials, body, preview, greeting, separator, auth, events };
 }
 
 test("every page paints the cached header and dialog before Firebase, without reassigning an unchanged image", async () => {
@@ -143,6 +145,36 @@ test("stale page callbacks cannot restore an earlier account and history restora
   assert.equal(next.api.snapshot().uid, "b"); assert.equal(next.small.src, "");
   next.auth.currentUser = null; next.events.pageshow({ persisted: true });
   assert.equal(next.api.snapshot(), null);
+});
+
+test("the member greeting restores before auth, refreshes after confirmation and clears on account changes", async () => {
+  const shared = storage(), account = { ...user, photoURL: null };
+  const first = page(shared, account);
+  await first.api.setUser(account, "AB");
+  first.api.setName(account.uid, "Anna Baden");
+
+  const next = page(shared, null);
+  assert.equal(next.greeting.textContent, "Anna Baden");
+  assert.equal(next.separator.textContent, ",");
+  next.auth.currentUser = { ...account, displayName: "Alter Firebase-Name" };
+  await next.api.setUser(next.auth.currentUser, "AB");
+  assert.equal(next.greeting.textContent, "Anna Baden");
+
+  next.api.setName(account.uid, "Anna Neu");
+  assert.equal(next.greeting.textContent, "Anna Neu");
+  assert.equal(page(shared, null).greeting.textContent, "Anna Neu");
+
+  const other = { uid: "b", photoURL: null };
+  next.auth.currentUser = other;
+  await next.api.setUser(other, "BB");
+  next.api.setName(account.uid, "Verspäteter Name");
+  assert.equal(next.greeting.textContent, "");
+  assert.equal(next.separator.textContent, "");
+  next.api.setName(other.uid, "Bob Baden");
+  next.auth.currentUser = null;
+  await next.api.setUser(null);
+  assert.equal(next.greeting.textContent, "");
+  assert.equal(page(shared, null).greeting.textContent, "");
 });
 
 test("the browser loader saves decoded image bytes, then the next page renders them without fetching", async () => {

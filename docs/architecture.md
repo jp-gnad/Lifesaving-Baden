@@ -23,9 +23,15 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
-`account-avatar-cache.js` hält ausschließlich das Bild und die Initialen des
-zuletzt aktiven Kontos im Sitzungsspeicher. `account-avatar.js` zeigt diese
-Vorschau auf allen Mitgliederseiten und im Timer bereits vor den Firebase-SDKs.
+`app-zoom.js`, `app-zoom.css` und die Viewport-Einstellung bilden die gemeinsame
+Zoomsteuerung der WebApp und der Timer-Ansichten. Die Styles erlauben normales
+Scrollen und verhindern auf Touchgeräten die automatische Vergrößerung von
+kleinen Eingabefeldern.
+`account-avatar-cache.js` hält das Bild, die Initialen und den bestätigten
+Anzeigenamen des zuletzt aktiven Kontos im Sitzungsspeicher. `account-avatar.js`
+zeigt die Bildvorschau auf allen Mitgliederseiten und im Timer bereits vor den
+Firebase-SDKs. Im Mitgliederbereich zeigt es auch die Begrüßung sofort. Ein
+bestätigter Profilabruf oder eine gespeicherte Namensänderung aktualisiert sie.
 Der Bildinhalt wird als begrenzte Data-URL gespeichert; ohne CORS-Unterstützung
 des Bildhosts bleibt dessen normale HTTP-Bildcache-Nutzung als Ersatzweg.
 Die Kontositzung gleicht UID und Bildadresse anschließend unabhängig ab.
@@ -55,9 +61,9 @@ erfolgreicher Start verwirft den ausstehenden Hinweis.
 Fehler behalten das Startbild und denselben Wiederholungsweg. Normale Seitennavigation
 und Neuladen ohne Marker verwenden weiterhin den bisherigen Seitenstart.
 Für Rückkehrer stellt `member-view-cache.js` einen getrennten, höchstens 30 Minuten
-alten Sitzungsschnappschuss bereit: Name, Profilfortschritt und effektive Rolle aus
-dem letzten erfolgreichen Profil-/Claims-Abgleich. Erst nach Erkennen desselben
-bestätigten Firebase-Kontos zeigt `auth.js` diese Übersicht ohne wartende Skeletons.
+alten Sitzungsschnappschuss für die vollständige Übersicht bereit. Erst nach
+Erkennen desselben bestätigten Firebase-Kontos zeigt `auth.js` diese Übersicht
+ohne wartende Skeletons.
 Der unveränderte frische Abgleich läuft im Hintergrund und korrigiert die Anzeige.
 Die Vorschau startet keine Admin-Listener oder Fachmodule und befüllt weder
 Formulare noch den geschäftlich genutzten Profilcache. Änderungen am Profil

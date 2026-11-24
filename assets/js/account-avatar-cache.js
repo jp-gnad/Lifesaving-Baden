@@ -5,8 +5,9 @@
   const safeSource = (value) => typeof value === "string" && /^https?:\/\//i.test(value) && value.length < 4096 ? value : "";
   const safeImage = (value, source) => typeof value === "string" && value.length <= maxImageLength
     && (/^data:image\/(?:png|jpeg|webp|gif|avif);base64,[a-z0-9+/=]+$/i.test(value) || value === safeSource(source)) ? value : "";
+  const safeName = (value) => typeof value === "string" && value.length <= 512 ? value : undefined;
 
-  // Image/initials only. This snapshot never establishes authentication or roles.
+  // Presentation only. This snapshot never establishes authentication or roles.
   function create({ getStorage = () => null, loadImage = async () => "", now = Date.now, onChange = () => {}, refreshMs = 24 * 60 * 60_000 } = {}) {
     let entry = null;
     let generation = 0;
@@ -33,7 +34,7 @@
         if (saved?.version === 1 && typeof saved.uid === "string" && saved.uid && saved.uid.length < 256
           && typeof saved.initials === "string" && saved.initials.length <= 4
           && Number.isFinite(saved.updatedAt) && saved.updatedAt <= now()) {
-          entry = { version: 1, uid: saved.uid, initials: saved.initials, source: safeSource(saved.source),
+          entry = { version: 1, uid: saved.uid, initials: saved.initials, name: safeName(saved.name), source: safeSource(saved.source),
             imageSource: safeSource(saved.imageSource), image: safeImage(saved.image, saved.imageSource), updatedAt: saved.updatedAt };
         } else entry = null;
       } catch { entry = null; }
@@ -48,7 +49,7 @@
         pending = null;
       }
       const sameAccount = entry?.uid === user.uid;
-      entry = { version: 1, uid: user.uid, initials: String(initials).slice(0, 4), source,
+      entry = { version: 1, uid: user.uid, initials: String(initials).slice(0, 4), name: sameAccount ? entry.name : undefined, source,
         imageSource: sameAccount ? entry.imageSource : "", image: sameAccount ? entry.image : "",
         updatedAt: sameAccount ? entry.updatedAt : 0 };
       if (!source) { entry.image = ""; entry.imageSource = ""; }
@@ -65,7 +66,13 @@
       pending = request;
       return request;
     }
-    return Object.freeze({ restore, read, sync, clear });
+    function setName(uid, value) {
+      const name = safeName(value);
+      if (!entry || entry.uid !== uid || entry.name === name) return;
+      entry = { ...entry, name };
+      persist();
+    }
+    return Object.freeze({ restore, read, sync, clear, setName });
   }
   const api = Object.freeze({ create });
   if (typeof module === "object" && module.exports) module.exports = api;

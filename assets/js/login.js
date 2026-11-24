@@ -114,11 +114,6 @@
     const emailSummary = document.querySelector("[data-login-email-summary]");
     const dividerCopy = document.querySelector("[data-login-divider-copy]");
     const mobileLoginQuery = window.matchMedia?.("(max-width: 700px)");
-    ["gesturestart", "gesturechange"].forEach((type) => {
-      document.addEventListener(type, (event) => {
-        if (mobileLoginQuery?.matches) event.preventDefault();
-      }, { passive: false });
-    });
     const loginTitle = document.querySelector("#auth-title");
     const emailInput = loginForm?.querySelector('input[name="email"]');
     const passwordInput = loginForm?.querySelector('input[name="password"]');

@@ -2,12 +2,13 @@
 
 ## Autorisierung
 
-Die Avatar-Vorschau (`lifesaving-baden:account-avatar:v1` im Sitzungsspeicher)
-enthält nur UID, Bildadresse, begrenzte Bilddaten, Initialen und Cache-Metadaten.
-Sie darf vor Wiederherstellung der Anmeldung ausschließlich das letzte Kontobild
-anzeigen. Sie bestätigt keine Sitzung und enthält weder Rollen noch Tokens oder
-Formularwerte. Die aktuelle Firebase-Sitzung bleibt maßgeblich; Kontowechsel und
-Abmeldung entfernen die Vorschau, verspätete Bildantworten werden verworfen.
+Die Kontovorschau (`lifesaving-baden:account-avatar:v1` im Sitzungsspeicher)
+enthält nur UID, Bildadresse, begrenzte Bilddaten, Initialen, den bestätigten
+Anzeigenamen und Cache-Metadaten. Vor Wiederherstellung der Anmeldung zeigt sie
+das letzte Kontobild und die Begrüßung im Mitgliederbereich. Sie bestätigt keine
+Sitzung und enthält weder Rollen noch Tokens oder Formularwerte. Die aktuelle
+Firebase-Sitzung bleibt maßgeblich. Kontowechsel und Abmeldung entfernen die
+Vorschau, verspätete Antworten des früheren Kontos werden verworfen.
 
 `lifesaving-baden:account-indicators:v1` enthält nur die UID und Anzeigewerte
 für Verknüpfung und Hinweise. Die Admin-Summen werden ausschließlich nach

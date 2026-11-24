@@ -15,8 +15,6 @@ const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 const offlineSyncStatus = document.querySelector("#offline-sync-status");
 const offlineSyncText = document.querySelector("#offline-sync-text");
-const viewportMeta = document.querySelector('meta[name="viewport"]');
-const defaultViewport = viewportMeta.content;
 const timerAccountControl = document.querySelector("#timer-account-control");
 const timerAccountDialog = document.querySelector("#timer-account-dialog");
 const timerAccountLogout = document.querySelector("#timer-account-logout");
@@ -421,27 +419,12 @@ function setDocumentTitle(title) {
   document.title = title ? `${title} · Lifesaving Timer` : "Lifesaving Timer";
 }
 
-function updateViewportLock() {
-  const locked = document.body.classList.contains("timer-locked")
-    || document.body.classList.contains("review-active")
-    || document.body.classList.contains("home-page")
-    || document.body.classList.contains("event-page")
-    || document.body.classList.contains("people-page")
-    || document.body.classList.contains("settings-page")
-    || document.body.classList.contains("viewer-page");
-  viewportMeta.content = locked
-    ? "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    : defaultViewport;
-}
-
 function setTimerInteractionLock(locked) {
   document.body.classList.toggle("timer-locked", locked);
-  updateViewportLock();
 }
 
 function setReviewInteractionLock(locked) {
   document.body.classList.toggle("review-active", locked);
-  updateViewportLock();
 }
 
 function renderError(error, back = "#/", backText = "Zurück zur Übersicht") {
