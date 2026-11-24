@@ -18,6 +18,19 @@
   gap: 12px;
 }
 
+.admin-overview-actions { display: flex; flex: 0 0 auto; gap: 3px; }
+.admin-overview-filter-toggle { position: relative; }
+.admin-overview-filter-toggle[aria-expanded="true"] { color: var(--text); background: var(--surface-muted); }
+.admin-overview-filter-toggle.has-active-filters::after {
+  position: absolute;
+  inset: 8px 8px auto auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--trainer-accent);
+  content: "";
+}
+
 .admin-overview-count {
   display: flex;
   align-items: baseline;
@@ -41,6 +54,7 @@
   gap: 8px;
   margin-bottom: 4px;
 }
+.admin-overview-filters[hidden] { display: none; }
 
 .admin-overview-search { position: relative; min-width: 0; }
 .admin-overview-search svg {
@@ -72,7 +86,6 @@
 
 .admin-overview-filters input { padding-inline-start: 38px; }
 .admin-overview-filters :is(input, select):focus-visible { outline: 1px solid var(--muted); outline-offset: 1px; }
-.admin-overview-filters + .admin-search-summary { margin: 0; }
 .admin-account-panel [data-admin-accounts-more] { justify-self: center; min-height: 44px; }
 
 @media (max-width: 600px) {

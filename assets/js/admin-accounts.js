@@ -606,16 +606,17 @@
     function showAccountPages() {
       if (!accountPages || !isCurrentUser(accountOwner)) return;
       const filters = getAdminAccountFilters();
+      const toggle = document.querySelector("[data-admin-account-filter-toggle]");
+      if (toggle) {
+        const filtered = Boolean(filters.role || filters.status || filters.terms.length);
+        toggle.classList.toggle("has-active-filters", filtered);
+        toggle.setAttribute("aria-label", filtered ? "Suche und Filter (aktiv)" : "Suche und Filter");
+      }
       const accounts = accountRows(filters);
       const visible = accounts.slice(0, visibleLimit);
       const unloaded = hasUnloadedAccounts(filters);
       const more = document.querySelector("[data-admin-accounts-more]");
       if (more) more.hidden = accounts.length <= visibleLimit && !unloaded;
-      const summary = document.querySelector("[data-admin-account-search-summary]");
-      if (summary) {
-        const filtered = Boolean(filters.role || filters.status || filters.terms.length);
-        summary.textContent = filtered && visible.length ? `${visible.length} Treffer${!more?.hidden ? " angezeigt" : ""}` : "";
-      }
       renderAdminAccounts(visible, unloaded ? "Bisher keine Treffer." : "Keine Konten gefunden.");
     }
 
@@ -883,10 +884,18 @@
       initAdminPersonSearch(auth);
       if (!list.dataset.listenerAttached) {
         list.dataset.listenerAttached = "true";
+        const filterForm = document.querySelector("[data-admin-account-filters]");
+        const filterToggle = document.querySelector("[data-admin-account-filter-toggle]");
+        filterToggle?.addEventListener("click", () => {
+          if (!filterForm) return;
+          const expanded = filterForm.hidden;
+          filterForm.hidden = !expanded;
+          filterToggle.setAttribute("aria-expanded", String(expanded));
+        });
         document.querySelector("[data-admin-account-search]")?.addEventListener("input", () => filterAdminAccounts(auth, { debounce: true }));
         document.querySelector("[data-admin-account-role-filter]")?.addEventListener("change", () => filterAdminAccounts(auth));
         document.querySelector("[data-admin-account-status-filter]")?.addEventListener("change", () => filterAdminAccounts(auth));
-        document.querySelector("[data-admin-account-filters]")?.addEventListener("submit", (event) => {
+        filterForm?.addEventListener("submit", (event) => {
           event.preventDefault();
           filterAdminAccounts(auth);
         });

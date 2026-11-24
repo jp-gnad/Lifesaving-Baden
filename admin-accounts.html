@@ -21,7 +21,7 @@
     <link rel="stylesheet" href="assets/css/app-zoom.css?v=20261124-zoom-v1">
     <link rel="stylesheet" href="assets/css/worktime.css?v=20261106-mobile-zoom-v1">
     <link rel="stylesheet" href="assets/css/mobile-nav.css?v=20261105-menu-navigation-v1">
-    <link rel="stylesheet" href="assets/css/admin-accounts.css?v=20261124-overview-v1">
+    <link rel="stylesheet" href="assets/css/admin-accounts.css?v=20261124-filtermenue-v1">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/app-zoom.js?v=20261124-zoom-v1"></script>
     <script defer src="assets/js/dashboard-header.js?v=20261120-soft-dashboard-v1"></script>
@@ -42,7 +42,7 @@
     <script defer src="assets/js/admin-notifications.js?v=20261124-overview-v1"></script>
     <script defer src="assets/js/collection-pages.js?v=20261120-performance-v2"></script>
     <script defer src="assets/js/admin-account-pages.js?v=20261124-overview-v1"></script>
-    <script defer src="assets/js/admin-accounts.js?v=20261124-overview-v1"></script>
+    <script defer src="assets/js/admin-accounts.js?v=20261124-filtermenue-v1"></script>
     <script defer src="assets/js/auth.js?v=20261124-name-preview-v1"></script>
   </head>
   <body class="auth-context-loading" data-page="admin-accounts">
@@ -78,11 +78,16 @@
       <section class="admin-account-panel is-hidden" data-admin-only data-admin-accounts aria-label="Konten verwalten">
         <div class="admin-overview-summary">
           <p class="admin-overview-count" role="status" aria-atomic="true"><strong data-admin-account-summary>–</strong> <span data-admin-account-count-label>Konten</span></p>
-          <button class="admin-account-icon-button" type="button" data-admin-accounts-refresh aria-label="Konten aktualisieren" title="Aktualisieren">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 5v6h-6"/></svg>
-          </button>
+          <div class="admin-overview-actions">
+            <button class="admin-account-icon-button" type="button" data-admin-accounts-refresh aria-label="Konten aktualisieren" title="Aktualisieren">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 5v6h-6"/></svg>
+            </button>
+            <button class="admin-account-icon-button admin-overview-filter-toggle" type="button" data-admin-account-filter-toggle aria-controls="admin-account-filters" aria-expanded="false" aria-label="Suche und Filter" title="Suche und Filter">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6 7v6l-4 2v-8L4 5Z"/></svg>
+            </button>
+          </div>
         </div>
-        <form class="admin-overview-filters" data-admin-account-filters role="search" aria-label="Konten filtern">
+        <form class="admin-overview-filters" id="admin-account-filters" data-admin-account-filters role="search" aria-label="Konten filtern" hidden>
           <div class="admin-overview-search">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.8" cy="10.8" r="5.8"/><path d="m15 15 4.5 4.5"/></svg>
             <input type="search" data-admin-account-search aria-label="Konten suchen" placeholder="Name oder E-Mail suchen" autocomplete="off">
@@ -103,7 +108,6 @@
             <option value="requested">Offene Anträge</option>
           </select>
         </form>
-        <p class="admin-search-summary" data-admin-account-search-summary role="status"></p>
         <p class="form-message" data-admin-account-message role="status"></p>
         <div class="admin-account-columns" aria-hidden="true"><span>Konto</span><span>Ergebnisdatenbank</span></div>
         <div class="admin-account-list" data-admin-account-list></div>
