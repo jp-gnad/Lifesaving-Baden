@@ -23,6 +23,9 @@ Berechtigungen durch. Es gibt keinen Node-Server und keinen Produktions-Build.
 | Weitere Root-HTML-Seiten | Öffentliche Inhalte, Rechner, Rechtstexte | seiteneigenes HTML/JavaScript, gemeinsame Navigation/CSS |
 
 Die in der Tabelle abgekürzten gemeinsamen JS-Dateien liegen in `assets/js/`.
+Der Mitgliederbereich, die Kontenübersicht, die Einstellungen und die dunklen
+Apps verwenden den gemeinsamen Sticky Header aus `styles.css`. Das mobile Menü
+aus `mobile-nav.css` gehört zur öffentlichen Navigation.
 `app-zoom.js`, `app-zoom.css` und die Viewport-Einstellung bilden die gemeinsame
 Zoomsteuerung der WebApp und der Timer-Ansichten. Die Styles erlauben normales
 Scrollen und verhindern auf Touchgeräten die automatische Vergrößerung von
