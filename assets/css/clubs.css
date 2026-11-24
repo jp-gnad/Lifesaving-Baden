@@ -101,7 +101,26 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-choice + .club-event-choice { border-top: 1px solid var(--line); }
 .club-event-choice .se-person-name { font-size: .88rem; }
 .club-event-inactive { color: var(--muted); opacity: .65; font-size: .65rem; font-weight: 400; }
-.club-event-row .se-meta { flex-basis: 100%; margin: 0; }
+.club-event-week + .club-event-week { margin-top: 22px; }
+.club-event-week-heading { margin: 0 0 8px; color: var(--muted); font-size: .82rem; font-weight: 600; }
+.club-event-week-cards { display: grid; gap: 8px; }
+.club-event-row {
+  display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 14px; align-items: center;
+  width: 100%; min-width: 0; min-height: 84px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--surface); color: var(--text); font: inherit; text-align: start; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.club-event-row:focus-visible { outline: 2px solid #75d4ac; outline-offset: 2px; }
+.club-event-card-date {
+  display: grid; gap: 3px; justify-items: center; padding-inline-end: 10px; border-inline-end: 1px solid var(--line);
+  text-align: center; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.club-event-card-month { color: var(--muted); font-size: .92rem; font-weight: 400; }
+.club-event-card-day { font-size: 1.55rem; font-weight: 650; }
+.club-event-card-details { display: grid; gap: 3px; min-width: 0; }
+.club-event-card-title { font-size: 1rem; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.club-event-card-time { color: var(--text); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.club-event-card-category { color: var(--muted); font-size: .73rem; }
 .club-event-icon { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: #c7a879; background: color-mix(in srgb, currentColor 12%, transparent); }
 .club-event-icon[data-category="training"] { color: #89b4aa; }
 .club-event-icon[data-category="organization"] { color: #a1afd1; }
@@ -124,7 +143,6 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-title h2 { margin: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
 .club-event-title p { margin: 4px 0 0; }
 .club-event-edit { display: grid; place-items: center; width: 44px; height: 44px; padding: 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
-.club-event-edit:hover { color: var(--text); background: var(--surface-muted); }
 .club-event-edit svg { width: 17px; height: 17px; }
 .club-event-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
 .club-event-toolbar .button { width: auto; min-height: 42px; padding: 9px 12px; font-size: .8rem; }
@@ -158,7 +176,6 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-team-add svg { width: 16px; height: 16px; }
 .club-team-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .club-team-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.club-team-card:hover { background: var(--surface-muted); }
 .club-team-dialog, .club-event-dialog[data-picker="true"] { height: min(860px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); overflow: hidden; }
 .club-team-dialog { max-width: 540px; }
 .club-team-dialog form, .club-event-dialog[data-picker="true"] form { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -178,6 +195,16 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-team-person .se-person-name { font-size: .84rem; }
 .club-team-actions { justify-content: space-between; }
 #club-team-save { margin-left: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .club-event-row:hover, .club-team-card:hover { background: var(--surface-muted); }
+  .club-event-edit:hover { color: var(--text); background: var(--surface-muted); }
+}
+@media (hover: none), (pointer: coarse) {
+  #club-event-add:hover, :is(.club-event-toolbar, .club-event-dialog, .club-team-dialog) .se-primary:hover { background: #287c5b; }
+  :is(.club-event-dialog, .club-team-dialog, .club-event-person-dialog) .wt-icon-button:hover { color: var(--muted); background: transparent; }
+  :is(.club-event-choice, .club-team-person):hover:not(:disabled) { background: transparent; }
+  .club-event-choice[aria-pressed="true"]:hover:not(:disabled) { background: #75d4ac12; }
+}
 @media (max-width: 600px) {
   .club-main { padding-block-start: 18px; }
   .club-heading h1 { font-size: clamp(1.25rem, 5vw, 1.4rem); }

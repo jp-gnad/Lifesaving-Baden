@@ -177,3 +177,11 @@ test("club event periods include today in planned events and classify previous y
   assert.equal(core.eventPeriod("2026-12-31", "2027-01-01"), "past");
   assert.equal(core.eventPeriod("2026-11-19", "2026-11-20"), "past");
 });
+
+test("event calendar weeks run Monday through Sunday across months and ISO week-years", () => {
+  assert.deepEqual(core.eventWeek("2026-09-01"), { start: "2026-08-31", end: "2026-09-06", number: 36 });
+  assert.deepEqual(core.eventWeek("2027-01-03"), { start: "2026-12-28", end: "2027-01-03", number: 53 });
+  assert.deepEqual(core.eventWeek("2027-01-04"), { start: "2027-01-04", end: "2027-01-10", number: 1 });
+  assert.deepEqual(core.eventWeek("2024-12-30"), { start: "2024-12-30", end: "2025-01-05", number: 1 });
+  assert.deepEqual(core.eventWeek("2026-03-29"), { start: "2026-03-23", end: "2026-03-29", number: 13 });
+});

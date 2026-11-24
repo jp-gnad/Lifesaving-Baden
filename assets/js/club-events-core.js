@@ -16,7 +16,9 @@
     start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
     const thursday = new Date(start);
     thursday.setUTCDate(thursday.getUTCDate() + 3);
-    const daysSinceNewYear = (thursday - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / 86_400_000;
+    const yearStart = new Date(thursday);
+    yearStart.setUTCMonth(0, 1);
+    const daysSinceNewYear = (thursday - yearStart) / 86_400_000;
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 6);
     return { start: dates.dateKey(start), end: dates.dateKey(end), number: Math.floor(daysSinceNewYear / 7) + 1 };

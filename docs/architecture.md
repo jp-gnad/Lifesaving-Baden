@@ -371,8 +371,10 @@ Wiederholung erhalten. Ein kleiner Status kennzeichnet ausstehende Übertragunge
 Ein gefülltes Event kann innerhalb seines Jahres umdatiert werden; ein Jahreswechsel
 erfordert ein leeres Event, damit keine ungeprüfte Auswahl aus dem anderen Jahr entsteht.
 
-Die Eventübersicht startet mit „Geplante“ (heute und später); „Vergangene“ enthält
-frühere Termine unabhängig vom Jahr. Die Abfragen filtern und sortieren nach Datum,
+Die Terminübersicht startet mit „Geplante“ (heute und später); „Vergangene“ enthält
+frühere Termine unabhängig vom Jahr. Die Karten sind nach ISO-Kalenderwochen
+gruppiert. Sie zeigen Datum, Titel, vorhandene Uhrzeiten und Terminart.
+Die Abfragen filtern und sortieren nach Datum,
 geplante aufsteigend und vergangene absteigend, mit höchstens 50 Events je Seite.
 Weitere Seiten werden ausdrücklich geladen. Ein Tageswechsel erneuert den Datumsfilter.
 Innerhalb eines Events ist kein Switch sichtbar; Personen und Startberechtigungen

@@ -70,6 +70,17 @@
   records.set(`clubs/${clubId}/events/sample`, event);
   records.set(`clubs/${clubId}/events/past`, { ...event, name: "Herbstwettkampf", date: `${year - 1}-10-20`, year: year - 1, participants: {}, teams: {}, assignments: {}, revision: 0 });
   records.set(`clubs/${clubId}/events/future`, { ...event, name: "Frühjahrswettkampf", date: `${year + 1}-03-20`, year: year + 1, participants: {}, teams: {}, assignments: {}, revision: 0 });
+  if (options.has("weeks")) {
+    const { start } = window.ClubEventsCore.eventWeek(window.StartEligibilityCore.today());
+    for (const [id, name, category, offset] of [["week-training", "Rettungsschwimmen", "training", 7],
+      ["week-organization", "Abstimmung der Ortsgruppe", "organization", 13], ["next-week", "Bezirksmeisterschaften", "competition", 14]]) {
+      const date = window.StartEligibilityCore.asDate(start);
+      date.setUTCDate(date.getUTCDate() + offset);
+      const day = window.StartEligibilityCore.dateKey(date);
+      const metadata = window.ClubEventsCore.metadata(name, day, { category, startTime: "17:30", endTime: "19:00", repeatDays: category === "training" ? 7 : 0 });
+      records.set(`clubs/${clubId}/events/${id}`, { ...event, ...metadata, teams: {}, assignments: {} });
+    }
+  }
   if (options.has("persist")) {
     const saved = JSON.parse(window.parent.sessionStorage.getItem("club-event-fixture-server-v1") || "[]");
     for (const [path, value] of saved) records.set(path, value);
