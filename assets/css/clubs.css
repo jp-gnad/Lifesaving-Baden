@@ -151,6 +151,9 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-team-columns > [data-gender=""] { grid-column: 1 / -1; }
 .club-event-picker-group + .club-event-picker-group { margin-top: 14px; }
 .club-event-picker-group .club-event-ak-header { padding-inline: 4px; }
+.club-import-age-group > .wt-day-heading,
+.club-team-selected .club-event-ak-header { padding: 8px 10px 0; color: var(--muted); font-size: .78rem; }
+.club-import-age-group + .club-import-age-group { border-top: 1px solid var(--line); }
 #club-event-next { margin-left: auto; }
 .club-team-add svg { width: 16px; height: 16px; }
 .club-team-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -168,6 +171,7 @@ body:is([data-page="clubs"], [data-page="gliederungen"]) { display: flex; flex-d
 .club-event-dialog[data-picker="true"] .wt-field { flex-shrink: 0; }
 .club-event-person-dialog { max-width: 420px; }
 .club-team-selected:not(:empty) { margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.club-team-selected .club-event-picker-group + .club-event-picker-group { margin-top: 0; border-top: 1px solid var(--line); }
 .club-team-person { min-height: 46px; padding: 8px 10px; gap: 8px; }
 .club-team-person .se-person-details { align-items: center; }
 .club-team-person .se-meta { flex-basis: auto; font-size: .7rem; }

@@ -782,19 +782,62 @@ test("notification aggregations count open requests and issues without returning
   });
   const code = fs.readFileSync(path.join(__dirname, "../assets/js/admin-notifications.js"), "utf8");
   const countCode = code.slice(code.indexOf("  async function countAdminNotifications"), code.indexOf("  function initAdminAccountBadge"));
-  const countNotifications = new Function("window", "fetch", `${countCode}; return countAdminNotifications;`)(
+  const { countAdminNotifications, countAllAccounts } = new Function("window", "fetch", `${countCode}; return { countAdminNotifications, countAllAccounts };`)(
     { firebaseConfig: { projectId: "demo-lifesaving-baden" },
       LifesavingAccountNotifications: require("../assets/js/account-notifications-core.js") },
     (url, options) => fetch(url.replace("https://firestore.googleapis.com", `http://${host}`), options)
   );
   const { createMockUserToken } = require("@firebase/util");
   const user = (uid) => ({ getIdToken: async () => createMockUserToken({ sub: uid, email_verified: true }, "demo-lifesaving-baden") });
-  assert.equal(await countNotifications(user("admin")), 7);
+  assert.equal(await countAllAccounts(user("admin")), 9);
+  assert.equal(await countAdminNotifications(user("admin")), 7);
   await sdk.updateDoc(sdk.doc(dbFor("admin"), "users/registered-request"), { adminReviewPending: false });
-  assert.equal(await countNotifications(user("admin")), 7, "the open request remains one notification after acknowledging the registration");
+  assert.equal(await countAdminNotifications(user("admin")), 7, "the open request remains one notification after acknowledging the registration");
   await sdk.updateDoc(sdk.doc(dbFor("admin"), "users/registered"), { adminReviewPending: false });
-  assert.equal(await countNotifications(user("admin")), 6);
-  await assert.rejects(countNotifications(user("trainer")));
+  assert.equal(await countAdminNotifications(user("admin")), 6);
+  await assert.rejects(countAdminNotifications(user("trainer")));
+  await assert.rejects(countAllAccounts(user("trainer")));
+});
+
+test("account overview cursors query priority and legacy accounts in bounded pages", { skip: !enabled }, async () => {
+  const { create } = require("../assets/js/admin-account-pages.js");
+  const collectionPages = require("../assets/js/collection-pages.js");
+  await env.clearFirestore();
+  await seed({
+    "users/admin": { role: "admin" }, "users/other-admin": { role: " ADMIN ", isAdmin: true },
+    "users/a-request": { role: "standard", personLinkStatus: "requested" },
+    "users/z-request": { personLinkRequest: { status: "requested" }, adminReviewPending: true },
+    "users/z-organizer": { role: " Organisator " }, "users/z-trainer": { role: "trainer" },
+    "users/z-athlete": { role: "kader-sportler", isKaderAthlete: true }, "users/missing-role": { displayName: "Altbestand" },
+    ...Object.fromEntries(Array.from({ length: 18 }, (_, index) => [`users/standard-${String(index).padStart(2, "0")}`, { role: "standard" }])),
+  });
+  const db = dbFor("admin");
+  function query(constraints = []) {
+    const add = (constraint) => query([...constraints, constraint]);
+    return { where: (...args) => add(sdk.where(...args)), orderBy: (field) => add(sdk.orderBy(field)),
+      limit: (size) => add(sdk.limit(size)), startAfter: (doc) => add(sdk.startAfter(doc)),
+      get: () => sdk.getDocsFromServer(sdk.query(sdk.collection(db, "users"), ...constraints)) };
+  }
+  const pages = create({ collection: query(), documentId: sdk.documentId(), createPages: collectionPages.create });
+  let reads = 0;
+  while (pages.cutoff("") < 5) {
+    assert.ok(await pages.next("") <= 10);
+    assert.ok(++reads < 18);
+  }
+  assert.deepEqual(pages.docs.map((doc) => doc.id).sort(), ["a-request", "admin", "other-admin", "z-athlete", "z-organizer", "z-request", "z-trainer"]);
+  assert.equal(await pages.next(""), 10);
+  assert.equal(await pages.next(""), 9);
+  while (pages.hasMore("")) {
+    assert.ok(await pages.next("") <= 10);
+    assert.ok(++reads < 23);
+  }
+  assert.equal(pages.docs.length, 26);
+  assert.equal(pages.docs.some((doc) => doc.id === "missing-role"), true);
+  const requests = create({ collection: query(), documentId: sdk.documentId(), createPages: collectionPages.create });
+  assert.equal(await requests.next("", "requested"), 1);
+  assert.equal(await requests.next("", "requested"), 1);
+  assert.equal(requests.hasMore("", "requested"), false);
+  assert.deepEqual(requests.docs.map((doc) => doc.id).sort(), ["a-request", "z-request"]);
 });
 
 test("cached worktime preparation still sees reservations written by another browser", { skip: !enabled }, async () => {

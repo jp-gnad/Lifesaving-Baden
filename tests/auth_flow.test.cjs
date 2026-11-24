@@ -125,6 +125,7 @@ function harness({ url = "https://example.test/club/login.html", user = null, st
   vm.runInContext(source("assets/js/member-view-cache.js"), context);
   vm.runInContext(source("assets/js/collection-pages.js"), context);
   vm.runInContext(source("assets/js/admin-notifications.js"), context);
+  vm.runInContext(source("assets/js/admin-account-pages.js"), context);
   if (adminModule) vm.runInContext(source("assets/js/admin-accounts.js"), context);
   vm.runInContext(source("timer/core.js"), context);
   return { core: window.LifesavingAuth, auth, window, document, context, counts, callbacks, element, prepareUser,
@@ -1863,33 +1864,24 @@ test("admin badge coalesces rapid visibility events and refreshes after its shor
   assert.match(app.title, /nicht geladen/);
 });
 
-test("admin search combines name, email, branch, person ID and current role without database reads", () => {
-  const h = harness();
-  const functions = memberFunctions(h);
-  const cards = [
-    { dataset: { accountSearch: "Anna Müller anna@example.test Baden", linkedPersonId: "p-123", accountRoleValue: "trainer" } },
-    { dataset: { accountSearch: "Ben Nord ben@example.test Heidelberg", linkedPersonId: "p-456", accountRoleValue: "standard" } },
-  ];
-  const input = { value: "" };
-  const summary = {};
-  h.document.querySelector = (selector) => ({
-    "[data-admin-account-list]": { querySelectorAll: () => cards },
-    "[data-admin-account-search]": input,
-    "[data-admin-account-search-summary]": summary,
-  })[selector] || null;
+test("account filters combine accent-insensitive search, role and account status", () => {
+  const { matches, terms, rank } = require("../assets/js/admin-account-pages.js");
+  const anna = { role: "trainer", linked: true, isNew: false, hasRequest: false,
+    search: "Anna Müller anna@example.test Baden p-123 Trainer" };
+  const ben = { role: "standard", linked: false, isNew: true, hasRequest: true,
+    search: "Ben Nord ben@example.test Heidelberg Standard" };
   for (const query of ["muller anna", "anna@example.test", "baden", "p-123", "trainer"]) {
-    input.value = query;
-    functions.filterAdminAccounts();
-    assert.deepEqual(cards.map((card) => card.hidden), [false, true]);
-    assert.equal(summary.textContent, "1 von 2 geladenen Konten gefunden.");
+    const filters = { terms: terms(query), role: "trainer", status: "linked" };
+    assert.equal(matches(filters, anna), true);
+    assert.equal(matches(filters, ben), false);
   }
-  input.value = "unbekannt";
-  functions.filterAdminAccounts();
-  assert.deepEqual(cards.map((card) => card.hidden), [true, true]);
-  input.value = "";
-  functions.filterAdminAccounts();
-  assert.deepEqual(cards.map((card) => card.hidden), [false, false]);
-  assert.equal(summary.textContent, "");
+  for (const status of ["unlinked", "new", "requested"]) {
+    assert.equal(matches({ terms: [], role: "standard", status }, ben), true);
+    assert.equal(matches({ terms: [], role: "", status }, anna), false);
+  }
+  assert.equal(matches({ terms: terms("unbekannt"), role: "", status: "" }, anna), false);
+  assert.deepEqual([rank("admin", ben), rank("standard", ben), rank("organizer", {}), rank("trainer", {}),
+    rank("athlete", {}), rank("standard", { hasIssue: true })], [0, 1, 2, 3, 4, 5]);
 });
 
 test("compact account cards separate profile and database identity and expose controls only in the editor", () => {

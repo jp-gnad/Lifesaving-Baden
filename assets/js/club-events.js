@@ -9,7 +9,7 @@
     const personDialog = byId("club-event-person-dialog");
     const collator = new Intl.Collator("de", { sensitivity: "base" });
     const dateFormat = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "UTC" });
-    const monthFormat = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
+    const monthFormat = new Intl.DateTimeFormat("de-DE", { month: "short", timeZone: "UTC" });
     const categoryLabels = { competition: "Wettkampf", training: "Training", organization: "Organisation" };
     const repeatLabels = { 7: "Wöchentliche Serie", 14: "Zweiwöchentliche Serie" };
     const invitationLabels = { active: "Alle Aktiven", all: "Alle Personen" };
@@ -34,9 +34,10 @@
       const data = context && queue.project(context.owner.clubId, context.selected, context.events.get(context.selected));
       return data && { ...data, participants: Object.fromEntries(Object.entries(data.participants).map(([id, person]) => [id, { ...person, teamId: data.assignments[id] || "" }])) };
     };
-    const dateLabel = (date) => dateFormat.format(new Date(`${date}T00:00:00Z`));
+    const dateLabel = (date) => dateFormat.format(root.StartEligibilityCore.asDate(date));
+    const timeRange = (entry) => entry.startTime && entry.endTime ? `${entry.startTime}–${entry.endTime} Uhr` : "";
     const scheduleLabel = (entry) => [categoryLabels[core.categoryOf(entry)], dateLabel(entry.date),
-      entry.startTime && `${entry.startTime}–${entry.endTime} Uhr`, repeatLabels[entry.repeatDays]].filter(Boolean).join(" · ");
+      timeRange(entry), repeatLabels[entry.repeatDays]].filter(Boolean).join(" · ");
     function categoryIcon(entry) {
       const category = core.categoryOf(entry);
       const mark = node("span", "club-event-icon");
@@ -53,6 +54,32 @@
       element.addEventListener("click", action);
       return element;
     }
+
+    function eventCard(entry) {
+      const card = button("", () => openEvent(entry.id), "club-event-row");
+      card.id = `club-event-${entry.id}`;
+      const date = node("time", "club-event-card-date");
+      date.dateTime = entry.date;
+      const month = node("span", "club-event-card-month", monthFormat.format(root.StartEligibilityCore.asDate(entry.date)).slice(0, 3));
+      const day = node("strong", "club-event-card-day", entry.date.slice(-2));
+      month.setAttribute("aria-hidden", "true");
+      day.setAttribute("aria-hidden", "true");
+      date.append(node("span", "wt-sr-only", dateLabel(entry.date)), month, day);
+      const details = node("span", "club-event-card-details");
+      details.append(node("strong", "club-event-card-title", entry.name));
+      const time = timeRange(entry);
+      if (time) details.append(node("span", "club-event-card-time", time));
+      details.append(node("span", "club-event-card-category", categoryLabels[core.categoryOf(entry)]));
+      card.append(date, details);
+      return card;
+    }
+
+    function calendarWeekLabel({ number, start, end }) {
+      const range = dateFormat.formatRange?.(root.StartEligibilityCore.asDate(start), root.StartEligibilityCore.asDate(end))
+        ?? `${dateLabel(start)} – ${dateLabel(end)}`;
+      return `KW ${number} · ${range}`;
+    }
+
     function error(id, text = "") { byId(id).textContent = text; byId(id).hidden = !text; }
     function busy(dialogElement, enabled) { dialogElement.querySelectorAll("button, input, select, textarea").forEach((control) => { control.disabled = enabled; }); }
     function stop() {
@@ -140,15 +167,18 @@
       if (isInactive) name.append(node("small", "club-event-inactive", "inaktiv"));
       return name;
     }
-    function groupedEntries(entries, year, renderEntry, { teams = false, picker = false } = {}) {
-      return core.displayGroups(entries, year).map(({ group, genders }) => {
+    function groupedEntries(entries, year, renderEntry, { teams = false, picker = false, byGender = true } = {}) {
+      const groups = byGender ? core.displayGroups(entries, year)
+        : root.StartEligibilityCore.groupByAge([...entries].sort((a, b) => collator.compare(a.name, b.name)), year);
+      return groups.map(({ group, genders = [], entries: people = [] }) => {
         const section = node("section", picker ? "club-event-picker-group" : "club-event-ak-group");
         section.dataset.ageGroup = group;
         const header = node("div", "wt-day-header club-event-ak-header");
         header.append(node(picker ? "h3" : "h4", "wt-day-heading", group));
-        if (!picker) header.append(node("span", "wt-day-total", genders.reduce((count, entry) => count + entry.entries.length, 0)));
+        if (!picker) header.append(node("span", "wt-day-total", genders.reduce((count, entry) => count + entry.entries.length, people.length)));
         section.append(header);
         const body = node("div", teams ? "club-event-team-columns" : picker ? "" : "wt-day-card");
+        body.append(...people.map(renderEntry));
         for (const { gender, entries: values } of genders) {
           const block = node("div", "club-event-gender-group");
           block.dataset.gender = gender;
@@ -209,29 +239,21 @@
           .map((id) => queue.project(owner.clubId, id, value.events.get(id))).filter((entry) => entry && core.eventPeriod(entry.date, today) === value.period)
           .sort((a, b) => (value.period === "past" ? -1 : 1) * (a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""))
             || collator.compare(a.name, b.name));
-        const months = new Map();
+        const weeks = new Map();
         for (const entry of events) {
-          const month = entry.date.slice(0, 7);
-          let cards = months.get(month);
+          const week = core.eventWeek(entry.date);
+          let cards = weeks.get(week.start);
           if (!cards) {
-            const section = node("section", "wt-day-group");
-            const header = node("div", "wt-day-header");
-            const heading = node("h2", "wt-day-heading", monthFormat.format(new Date(`${month}-01T00:00:00Z`)));
-            heading.id = `club-event-month-${month}`;
+            const section = node("section", "club-event-week");
+            const heading = node("h2", "club-event-week-heading", calendarWeekLabel(week));
+            heading.id = `club-event-week-${week.start}`;
             section.setAttribute("aria-labelledby", heading.id);
-            header.append(heading);
-            cards = node("div", "wt-day-card");
-            section.append(header, cards);
+            cards = node("div", "club-event-week-cards");
+            section.append(heading, cards);
             list.append(section);
-            months.set(month, cards);
+            weeks.set(week.start, cards);
           }
-          const row = button("", () => openEvent(entry.id), "se-person club-event-row");
-          row.id = `club-event-${entry.id}`;
-          const details = node("span", "se-person-details");
-          const count = Object.keys(entry.participants).length;
-          details.append(node("strong", "se-person-name", entry.name), node("span", "se-meta", `${scheduleLabel(entry)} · ${count} ${count === 1 ? "Person" : "Personen"}`));
-          row.append(categoryIcon(entry), details, icon("next"));
-          cards.append(row);
+          cards.append(eventCard(entry));
         }
         if (!events.length) list.append(node("p", "wt-empty", value.period === "past" ? "Keine vergangenen Termine." : "Keine geplanten Termine."));
         if (value.more) list.append(button("Weitere Termine", () => { value.pageIds = []; listen(value, value.cursor); }, "button button-secondary club-event-more"));
@@ -273,8 +295,7 @@
         const participantSections = competition ? [[true, "Einzel"], [false, "Ohne Start"]] : [[true, "Teilnehmende"]];
         const active = competition ? null : new Set(sourcePeople().filter((person) => person.activeYears.includes(selected.year)).map((person) => person.id));
         for (const [individual, label] of participantSections) {
-          const people = Object.entries(selected.participants).filter(([, person]) => individual ? person.individual : !person.individual && !person.teamId)
-            .sort(([, a], [, b]) => collator.compare(a.name, b.name));
+          const people = Object.entries(selected.participants).filter(([, person]) => individual ? person.individual : !person.individual && !person.teamId);
           if (!people.length) continue;
           const heading = node("div", "wt-day-header club-event-section");
           heading.append(node("h3", "wt-day-heading", label), node("span", "wt-day-total", people.length));
@@ -296,12 +317,7 @@
             return row;
           };
           const entries = people.map(([id, person]) => ({ ...person, id }));
-          if (competition) section.append(...groupedEntries(entries, selected.year, renderPerson));
-          else {
-            const rows = node("div", "wt-day-card");
-            rows.append(...entries.map(renderPerson));
-            section.append(rows);
-          }
+          section.append(...groupedEntries(entries, selected.year, renderPerson, { byGender: competition }));
           list.append(section);
         }
         if (!Object.keys(selected.participants).length) list.append(node("p", "wt-empty", "Noch keine Teilnehmer."));
@@ -447,8 +463,7 @@
           row.append(personName(person, "", !competition && !person.source.activeYears.includes(selected.year)), icon(picked ? 1 : "add"));
           return row;
         };
-        const rows = competition ? groupedEntries(entries, selected.year, renderChoice, { picker: true })
-          : entries.sort((a, b) => collator.compare(a.name, b.name)).map(renderChoice);
+        const rows = groupedEntries(entries, selected.year, renderChoice, { picker: true, byGender: competition });
         byId("club-event-choices").replaceChildren(...rows);
         if (!rows.length) byId("club-event-choices").append(node("p", "wt-empty", query ? "Keine Personen gefunden." : "Keine weiteren Personen."));
       }
@@ -644,7 +659,7 @@
       }
       const activeIds = new Set(sourcePeople().filter((person) => !person.pending && person.activeYears.includes(selected.year)).map((person) =>
         Object.entries(selected.participants).find(([entryId, entry]) => entryId === core.key(person) || entry.rosterId === person.id)?.[0] || core.key(person)));
-      const members = [...editing.selected].map((id) => choices.get(id)).filter(Boolean);
+      const members = [...editing.selected].filter((id) => choices.has(id)).map((id) => ({ ...choices.get(id), id }));
       byId("club-team-title").textContent = editing.expected ? "Mannschaft" : "Mannschaft hinzufügen";
       const row = (id, person, remove) => {
         const entry = button("", () => { if (remove) editing.selected.delete(id); else editing.selected.add(id); error("club-team-error"); renderTeamEditor(); }, "se-candidate club-team-person");
@@ -653,7 +668,8 @@
         entry.disabled = editing.busy || !remove && members.length >= 5;
         return entry;
       };
-      byId("club-team-selected").replaceChildren(...[...editing.selected].filter((id) => choices.has(id)).map((id) => row(id, choices.get(id), true)));
+      byId("club-team-selected").replaceChildren(...groupedEntries(members, selected.year,
+        (person) => row(person.id, person, true), { picker: true, byGender: false }));
       const query = root.StartEligibilityCore.normalizeSearch(byId("club-team-search").value);
       const candidates = [...choices].filter(([id, person]) => activeIds.has(id) && !editing.selected.has(id) && (!person.teamId || person.teamId === editing.id)
         && teamCore.classification([person], selected.year) && root.StartEligibilityCore.normalizeSearch(person.name).includes(query))

@@ -583,7 +583,7 @@ body[data-page="app"] .dashboard > .dashboard-header {
   min-height: var(--member-header-height);
   margin-bottom: 0;
   /* The shared hero's negative top margin must leave a visible header gap. */
-  padding-block: calc(clamp(34px, 5vw, 68px) + 12px) 0;
+  padding-block: calc(clamp(34px, 5vw, 68px) + 28px) 0;
 }
 
 .dashboard-header > .member-tabs {
@@ -3709,7 +3709,7 @@ body.auth-context-loading.account-avatar-ready [data-account-open] {
 
   body[data-page="app"] .dashboard > .dashboard-header {
     --member-header-height: 260px;
-    padding-block: 10px 0;
+    padding-block: 26px 0;
   }
 
   body[data-page="app"] .dashboard-header .account-checklist {

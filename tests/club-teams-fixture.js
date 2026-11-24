@@ -33,7 +33,14 @@
   });
   for (const person of people) {
     records.set(`clubs/${clubId}/people/${person.id}`, person);
-    records.set(`timerParticipantDirectory/${person.id}`, person);
+    records.set(`timerParticipantDirectory/${person.id}`, { ...person, searchName: window.StartEligibilityCore.normalizeSearch(person.name) });
+  }
+  if (options.has("ageGroups")) {
+    for (const [id, firstName, birthYear] of [["junior", "Anna", year - 12], ["senior", "Ben", year - 19], ["unknown", "Clara", null]]) {
+      const name = `Muster ${firstName}`;
+      records.set(`timerParticipantDirectory/${id}`, { name, birthYear, gender: "w", organization: "Musterstadt",
+        searchName: window.StartEligibilityCore.normalizeSearch(name) });
+    }
   }
   if (options.has("multi") && !admin) {
     records.set(`clubs/${clubId}/people/account_${uid}`, { ...people[0], id: `account_${uid}`, personId: "", accountUid: uid, name: "Anna Trainer", birthYear: 1990 });
@@ -107,13 +114,18 @@
         const actual = name === "__name__" ? key.split("/").pop() : records.get(key)[name];
         return op === "array-contains" ? actual.includes(value)
           : op === "array-contains-any" ? value.some((entry) => actual.includes(entry)) : op === "in" ? value.includes(actual)
-          : op === ">=" ? actual >= value : op === "<" ? actual < value : actual === value;
+          : op === ">=" ? actual >= value : op === "<=" ? actual <= value : op === "<" ? actual < value : actual === value;
       }))
       .map(snapshot).sort(compare).filter((entry) => !after || compare(entry, after) > 0).slice(0, max), metadata: { fromCache: false } });
     return {
-      doc: (id = String(++sequence).padStart(20, "0")) => doc(`${path}/${id}`), get: async () => read(),
+      doc: (id = String(++sequence).padStart(20, "0")) => doc(`${path}/${id}`), get: async () => {
+        const result = read();
+        return { ...result, empty: !result.docs.length };
+      },
       where: (name, op, value) => collection(path, [...filters, [name, op, value]], max, after, field, direction),
       orderBy: (name, order = "asc") => collection(path, filters, max, after, name, order), limit: (size) => collection(path, filters, size, after, field, direction),
+      startAt: (value) => collection(path, [...filters, [field, ">=", value]], max, after, field, direction),
+      endAt: (value) => collection(path, [...filters, [field, "<=", value]], max, after, field, direction),
       startAfter: (cursor) => collection(path, filters, max, cursor, field, direction),
       onSnapshot: (options, receive, onError) => listen(read, options, receive, onError, /^clubs\/([^/]+)\/people$/.exec(path)?.[1]),
     };

@@ -6,25 +6,31 @@
     async function countAdminNotifications(user) {
       const token = await user.getIdToken();
       const filters = window.LifesavingAccountNotifications.countFilters();
-      // Aggregations return counts without downloading the account documents.
-      const counts = await Promise.all(filters.map(async (where) => {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 10_000);
-        try {
-          const response = await fetch(`https://firestore.googleapis.com/v1/projects/${window.firebaseConfig.projectId}/databases/(default)/documents:runAggregationQuery`, {
-            method: "POST", signal: controller.signal,
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ structuredAggregationQuery: {
-              structuredQuery: { from: [{ collectionId: "users" }], where },
-              aggregations: [{ alias: "total", count: {} }]
-            } })
-          });
-          if (!response.ok) throw new Error("Benachrichtigungen konnten nicht geladen werden.");
-          const results = await response.json();
-          return Number(results.find((row) => row.result)?.result.aggregateFields.total.integerValue || 0);
-        } finally { clearTimeout(timer); }
-      }));
+      const counts = await Promise.all(filters.map((where) => countAccounts(token, where)));
       return counts.reduce((sum, count) => sum + count, 0);
+    }
+
+    async function countAccounts(token, where) {
+      // Read the aggregate without transferring any account documents.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const response = await fetch(`https://firestore.googleapis.com/v1/projects/${window.firebaseConfig.projectId}/databases/(default)/documents:runAggregationQuery`, {
+          method: "POST", signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ structuredAggregationQuery: {
+            structuredQuery: { from: [{ collectionId: "users" }], where },
+            aggregations: [{ alias: "total", count: {} }]
+          } })
+        });
+        if (!response.ok) throw new Error("Kontenzähler konnte nicht geladen werden.");
+        const results = await response.json();
+        return Number(results.find((row) => row.result)?.result.aggregateFields.total.integerValue || 0);
+      } finally { clearTimeout(timer); }
+    }
+
+    async function countAllAccounts(user) {
+      return countAccounts(await user.getIdToken());
     }
 
     function stopAdminAccountBadge() {
@@ -71,7 +77,7 @@
       document.addEventListener("visibilitychange", owner.refresh);
     }
 
-    return Object.freeze({ countAdminNotifications, initAdminAccountBadge, stopAdminAccountBadge });
+    return Object.freeze({ countAdminNotifications, countAllAccounts, initAdminAccountBadge, stopAdminAccountBadge });
   }
   root.LifesavingAdminNotifications = Object.freeze({ create });
 })(window);

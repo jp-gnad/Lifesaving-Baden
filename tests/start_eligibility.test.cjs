@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { evaluate, today, validDate, normalizeSearch } = require("../assets/js/start-eligibility-core.js");
+const { evaluate, today, validDate, normalizeSearch, groupByAge } = require("../assets/js/start-eligibility-core.js");
 
 const day = "2026-06-01";
 const healthDeclaration = "2025-05-01";
@@ -27,6 +27,19 @@ test("competition age changes with the calendar year and drives requirements wit
   assert.equal(check(19).group, "Offen");
   assert.equal(check(49, { rescueBronze: "2024-06-01" }).stage, 3);
   assert.equal(check(50, { rescueSilver: "2014-06-01" }).stage, 1);
+});
+
+test("person lists group by the displayed year, with unknown birth years last and empty groups omitted", () => {
+  const entries = [
+    { person: { name: "Ohne", birthYear: null } },
+    { person: { name: "Offen", birthYear: 2002 } },
+    { person: { name: "Jüngere", birthYear: 2014 } },
+    { person: { name: "Ältere", birthYear: 2012 } },
+  ];
+  const groupNames = (year) => groupByAge(entries, year, ({ person }) => person.birthYear)
+    .map(({ group, entries }) => [group, entries[0].person.name]);
+  assert.deepEqual(groupNames(2026), [["AK 12", "Jüngere"], ["AK 13/14", "Ältere"], ["Offen", "Offen"], ["Ohne Jahrgang", "Ohne"]]);
+  assert.deepEqual(groupNames(2027), [["AK 13/14", "Jüngere"], ["AK 15/16", "Ältere"], ["Offen", "Offen"], ["Ohne Jahrgang", "Ohne"]]);
 });
 
 test("the longer valid rescue route determines status and the reason for renewal", () => {

@@ -43,20 +43,30 @@
   if (options.has("many")) for (let index = 0; index < 123; index++) records.set(`users/test-${String(index).padStart(3, "0")}`, {
     role: "standard", firstName: `Testperson ${index}`, lastName: "Baden", email: `test${index}@example.test`, dlrgBranch: "Baden",
   });
+  if (options.has("many")) {
+    records.set("users/z-organizer", { role: " Organisator ", firstName: "Oliver", lastName: "Organisation" });
+    records.set("users/z-athlete", { kader: true, firstName: "Alex", lastName: "Sport" });
+    records.set("users/z-admin", { isAdmin: true, firstName: "Zora", lastName: "Admin" });
+    records.set("users/z-request", { role: "standard", personLinkRequest: { status: "requested" }, firstName: "Rita", lastName: "Antrag" });
+  }
   window.fixtureReads = [];
-  const collection = (name, prefix = "", maximum = Infinity, after = null, ids = null) => ({
+  const collection = (name, prefix = "", maximum = Infinity, after = null, filters = []) => ({
     doc: (id) => ref(`${name}/${id}`),
-    orderBy: () => collection(name, prefix, maximum, after, ids),
-    startAt: (value) => collection(name, value, maximum, after, ids),
-    endAt: () => collection(name, prefix, maximum, after, ids),
-    startAfter: (value) => collection(name, prefix, maximum, value, ids),
-    where: (field, op, value) => collection(name, prefix, maximum, after, value),
-    limit: (value) => collection(name, prefix, value, after, ids),
+    orderBy: () => collection(name, prefix, maximum, after, filters),
+    startAt: (value) => collection(name, value, maximum, after, filters),
+    endAt: () => collection(name, prefix, maximum, after, filters),
+    startAfter: (value) => collection(name, prefix, maximum, value, filters),
+    where: (field, op, value) => collection(name, prefix, maximum, after, [...filters, { field, op, value }]),
+    limit: (value) => collection(name, prefix, value, after, filters),
     get: async () => {
-      window.fixtureReads.push({ name, maximum });
+      window.fixtureReads.push({ name, maximum, filters });
       const docs = [...records.keys()].filter((path) => path.startsWith(`${name}/`) && path.split("/").length === 2
         && (!prefix || records.get(path).searchName.startsWith(prefix)) && (!after || path.split("/").pop() > after.id)
-        && (!ids || ids.includes(path.split("/").pop()))).sort().slice(0, maximum).map(snapshot);
+        && filters.every(({ field, op, value }) => {
+          const actual = field === "__name__" ? path.split("/").pop()
+            : field.split(".").reduce((parent, key) => parent?.[key], records.get(path));
+          return op === "in" ? value.includes(actual) : actual === value;
+        })).sort().slice(0, maximum).map(snapshot);
       return { docs, size: docs.length };
     },
   });
@@ -81,17 +91,27 @@
   const previewUid = linkState === "requested" ? "member" : linkState;
   const auth = { currentUser: settingsPreview
     ? { uid: previewUid, email: records.get(`users/${previewUid}`).email, displayName: "Vorschau", providerData: [] }
-    : { uid: "admin", email: "admin@example.test" } };
+    : { uid: "admin", email: "admin@example.test", getIdToken: async () => "local-fixture-token" } };
   const firestore = () => db;
   firestore.FieldPath = { documentId: () => "__name__" };
   firestore.FieldValue = { delete: () => "delete-field", serverTimestamp: () => new Date() };
   window.firebase = { apps: [{}], auth: () => auth, firestore };
+  window.firebaseConfig = { projectId: "demo-admin-accounts" };
+  const fetchLocal = window.fetch.bind(window);
+  window.fetch = (url, request) => {
+    const target = new URL(url, document.baseURI);
+    if (target.hostname === "firestore.googleapis.com" && target.pathname.endsWith(":runAggregationQuery")) {
+      const total = [...records.keys()].filter((path) => /^users\/[^/]+$/.test(path)).length;
+      return Promise.resolve({ ok: true, json: async () => [{ result: { aggregateFields: { total: { integerValue: String(total) } } } }] });
+    }
+    return fetchLocal(url, request);
+  };
   document.body.dataset.page = "admin-preview";
   const response = await fetch("assets/js/auth.js?v=20261124-name-preview-v1");
   const script = document.createElement("script");
   window.fixtureProfile = records.get(`users/${auth.currentUser.uid}`);
   const initialize = settingsPreview
-    ? "initSettingsZoomProtection(); writeUserDocCache(window.firebase.auth().currentUser.uid, window.fixtureProfile); window.adminPreviewReady = initLinkManagement(window.firebase.auth(), window.fixtureProfile);"
+    ? "writeUserDocCache(window.firebase.auth().currentUser.uid, window.fixtureProfile); window.adminPreviewReady = initLinkManagement(window.firebase.auth(), window.fixtureProfile);"
     : "window.adminPreviewReady = initAdminAccounts(window.firebase.auth(), { isAdmin: true });";
   script.textContent = (await response.text()).replace(/\}\)\(\);\s*$/, `${initialize}})();`);
   document.body.append(script);

@@ -1,0 +1,82 @@
+.admin-accounts-main .admin-overview-heading {
+  justify-content: flex-start;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.admin-overview-heading .admin-account-icon-button,
+.admin-overview-summary .admin-account-icon-button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.admin-overview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-overview-count {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.admin-overview-count strong {
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.admin-overview-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, .3fr) minmax(156px, .36fr);
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.admin-overview-search { position: relative; min-width: 0; }
+.admin-overview-search svg {
+  position: absolute;
+  inset: 50% auto auto 12px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.admin-overview-filters :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.admin-overview-filters input { padding-inline-start: 38px; }
+.admin-overview-filters :is(input, select):focus-visible { outline: 1px solid var(--muted); outline-offset: 1px; }
+.admin-overview-filters + .admin-search-summary { margin: 0; }
+.admin-account-panel [data-admin-accounts-more] { justify-self: center; min-height: 44px; }
+
+@media (max-width: 600px) {
+  .admin-accounts-main .admin-overview-heading { gap: 6px; margin-bottom: 14px; }
+  .admin-overview-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .admin-overview-search { grid-column: 1 / -1; }
+}

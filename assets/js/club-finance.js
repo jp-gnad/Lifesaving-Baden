@@ -68,22 +68,29 @@
         list.append(node("p", "wt-empty", `Keine aktiven Personen für ${value.year}.`));
         return;
       }
-      const rows = node("div", "wt-day-card");
-      for (const { person, cents } of entries.values()) {
-        const row = node("button", "se-person club-person club-person-roster");
-        row.type = "button";
-        row.id = `club-finance-person-${person.id}`;
-        row.disabled = Boolean(person.pending);
-        row.classList.toggle("is-local", core.isLocalPerson(person));
-        const details = node("span", "se-person-details");
-        details.append(node("strong", "se-person-name", core.displayName(person)));
-        if (core.isLocalPerson(person)) details.append(node("span", "wt-sr-only", "Lokal erstellt"));
-        row.append(details, cents === null ? node("span", "se-meta", "Betrag eingeben")
-          : node("span", "club-finance-value", format(cents)), icon("next"));
-        row.addEventListener("click", () => open(value, person, cents));
-        rows.append(row);
+      for (const { group, entries: members } of root.StartEligibilityCore.groupByAge(entries.values(), value.year, ({ person }) => person.birthYear)) {
+        const section = node("section", "wt-day-group");
+        section.dataset.ageGroup = group;
+        const header = node("div", "wt-day-header");
+        header.append(node("h2", "wt-day-heading", group), node("span", "wt-day-total", members.length));
+        const rows = node("div", "wt-day-card");
+        for (const { person, cents } of members) {
+          const row = node("button", "se-person club-person club-person-roster");
+          row.type = "button";
+          row.id = `club-finance-person-${person.id}`;
+          row.disabled = Boolean(person.pending);
+          row.classList.toggle("is-local", core.isLocalPerson(person));
+          const details = node("span", "se-person-details");
+          details.append(node("strong", "se-person-name", core.displayName(person)));
+          if (core.isLocalPerson(person)) details.append(node("span", "wt-sr-only", "Lokal erstellt"));
+          row.append(details, cents === null ? node("span", "se-meta", "Betrag eingeben")
+            : node("span", "club-finance-value", format(cents)), icon("next"));
+          row.addEventListener("click", () => open(value, person, cents));
+          rows.append(row);
+        }
+        section.append(header, rows);
+        list.append(section);
       }
-      list.append(rows);
       if (focused) byId(focused)?.focus({ preventScroll: true });
     }
 

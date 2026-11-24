@@ -388,6 +388,7 @@
       let section = owner.groupCache.get(group);
       if (!section) {
         section = node("section", "wt-day-group");
+        section.dataset.ageGroup = group;
         const heading = node("div", "wt-day-header");
         heading.append(node("h2", "wt-day-heading", group), node("span", "wt-day-total"));
         section.append(heading, node("div", "wt-day-card"));
@@ -623,9 +624,9 @@
       const matches = await owner.searchCache.read(prefix, () => owner.db.collection("timerParticipantDirectory").orderBy("searchName").startAt(prefix).endAt(`${prefix}\uf8ff`).limit(10).get({ source: "server" }));
       if (!active(owner, view) || sequence !== searchSequence || !byId("se-import-dialog").open) return;
       const existing = new Set(peopleFor(owner).map((person) => person.personId));
+      const year = eligibility.seasonYear(owner.day, byId("se-season-next").checked);
       byId("se-search-note").textContent = matches.empty ? "Keine Person gefunden." : "";
-      byId("se-search-results").replaceChildren(...matches.docs.map((doc) => {
-        const person = { id: doc.id, ...doc.data() };
+      const renderResult = (person) => {
         const button = node("button", "se-candidate");
         button.type = "button";
         button.disabled = existing.has(person.id);
@@ -651,7 +652,15 @@
           }
         });
         return button;
-      }));
+      };
+      const people = matches.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const groups = eligibility.groupByAge(people, year).map(({ group, entries }) => {
+        const section = node("section", "club-import-age-group");
+        section.dataset.ageGroup = group;
+        section.append(node("h3", "wt-day-heading", group), ...entries.map(renderResult));
+        return section;
+      });
+      byId("se-search-results").replaceChildren(...groups);
     } catch (error) { if (active(owner, view) && sequence === searchSequence) byId("se-search-note").textContent = "Suche fehlgeschlagen. Bitte erneut suchen."; }
   }
 

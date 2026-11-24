@@ -119,6 +119,7 @@
     if (url.hostname === "firestore.googleapis.com" && url.pathname.endsWith(":runAggregationQuery")) {
       const where = JSON.parse(options.body).structuredAggregationQuery.structuredQuery.where;
       const matches = (data, filter) => {
+        if (!filter) return true;
         if (filter.compositeFilter) return filter.compositeFilter.filters.some((part) => matches(data, part));
         const { field, value } = filter.fieldFilter;
         return field.fieldPath.split(".").reduce((entry, key) => entry?.[key], data) === (value.booleanValue ?? value.stringValue);

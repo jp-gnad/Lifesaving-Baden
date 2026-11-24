@@ -4,7 +4,7 @@
   // UI and administration only. Authorization remains enforced by firestore.rules.
   function create(dependencies) {
     const {
-      updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, setLoading, translateFirestoreError, writeUserDocCache
+      updateAdminAccountCardRole, setAdminAccountRoleAppearance, clearUserDocCache, formatBirthDate, formatFullName, formatProfileFieldValue, formatSortableName, getAccountRole, getNameDetailsFromData, getLinkRequestIdentityHint, hasOpenLinkIssue, hasPendingLinkRequest, isCurrentUser, isPersonLinked, normalizeDlrgBranchName, requireCurrentUser, setAdminAccountMessage, translateFirestoreError, writeUserDocCache
     } = dependencies;
 
     function getTimestampMillis(value) {
@@ -94,6 +94,8 @@
       if (summary) {
         summary.textContent = text;
       }
+      const label = document.querySelector("[data-admin-account-count-label]");
+      if (label) label.textContent = text === "1" ? "Konto" : "Konten";
     }
 
     function getAdminAccountName(data) {
@@ -116,52 +118,38 @@
       return getAccountRole({ role: value }, {}).label;
     }
 
-    function hasAdminLinkAttention(data) {
-      return window.LifesavingAccountNotifications.state(data).count > 0;
+    function getAdminAccountFilters() {
+      return {
+        role: document.querySelector("[data-admin-account-role-filter]")?.value || "",
+        status: document.querySelector("[data-admin-account-status-filter]")?.value || "",
+        terms: window.LifesavingAdminAccountPages.terms(document.querySelector("[data-admin-account-search]")?.value),
+      };
     }
 
-    function filterAdminAccounts() {
-      const { list } = getAdminAccountControls();
-      const input = document.querySelector("[data-admin-account-search]");
-      const summary = document.querySelector("[data-admin-account-search-summary]");
-      if (!list || !input || !summary) return;
-      const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("de");
-      const terms = normalize(input.value).trim().split(/\s+/).filter(Boolean);
-      const cards = Array.from(list.querySelectorAll("[data-admin-account-card]"));
-      let visible = 0;
-      cards.forEach((card) => {
-        const text = normalize([card.dataset.accountSearch, card.dataset.linkedPersonId, getAdminAccountRoleLabel(card.dataset.accountRoleValue)].join(" "));
-        card.hidden = !terms.every((term) => text.includes(term));
-        if (!card.hidden) visible++;
-      });
-      summary.textContent = terms.length ? `${visible} von ${cards.length} geladenen Konten gefunden.` : "";
-      const all = document.querySelector("[data-admin-accounts-search-all]");
-      if (all) all.hidden = !terms.length || !accountPages?.hasMore;
+    function matchesAdminAccount(filters, data, role) {
+      const { isNew, hasRequest } = window.LifesavingAccountNotifications.state(data);
+      const linked = window.LifesavingPersonLinks.linkedPerson(data);
+      const request = data.personLinkRequest;
+      const search = [getAdminAccountName(data), data.firstName, data.lastName, data.displayName, data.email, data.googleEmail,
+        getAdminAccountBranch(data), request?.firstName, request?.lastName, request?.accountEmail, data.personLinkIssue?.accountEmail,
+        linked?.id, linked?.name, linked?.birthYear, linked ? String(linked.birthYear).slice(-2) : "", linked?.organization,
+        getAdminAccountRoleLabel(role)].join(" ");
+      return window.LifesavingAdminAccountPages.matches(filters, { role, isNew, hasRequest, linked: Boolean(linked), search });
     }
 
     function getAdminAttentionTimestamp(data) {
-      if (hasOpenLinkIssue(data)) {
-        return getTimestampMillis(data?.personLinkIssue?.reportedAt);
-      }
-
-      return getAdminRequestTimestamp(data);
+      return getAdminRequestTimestamp(data) || getTimestampMillis(data?.createdAt);
     }
 
     function getAdminAccountSortRank(item) {
-      return getAdminAccountRoleSortRank(getAdminAccountRoleValue(item?.data), hasAdminLinkAttention(item?.data));
-    }
-
-    function getAdminAccountRoleSortRank(roleValue, hasAttention) {
-      if (roleValue === "admin") return 0;
-      if (hasAttention) return 1;
-      return { organizer: 2, trainer: 3, athlete: 4, standard: 5 }[roleValue] ?? 5;
+      return window.LifesavingAdminAccountPages.rank(item.role, window.LifesavingAccountNotifications.state(item.data));
     }
 
     function getAdminAccountCardSortData(card) {
       return {
-        rank: getAdminAccountRoleSortRank(
+        rank: window.LifesavingAdminAccountPages.rank(
           card?.dataset.accountRoleValue || "standard",
-          card?.dataset.hasAdminAttention === "true"
+          { isNew: card?.dataset.newAccount === "true", hasRequest: card?.dataset.hasPendingRequest === "true" }
         ),
         name: card?.dataset.accountName || ""
       };
@@ -451,10 +439,6 @@
       card.dataset.newAccount = String(isNew);
       card.dataset.accountName = getAdminAccountName(data);
       card.dataset.accountEmail = accountEmail;
-      card.dataset.accountSearch = [profileName, accountEmail, accountBranch, request.firstName, request.lastName,
-        request.accountEmail, issue.accountEmail, linkedPerson?.name, linkedPerson?.birthYear,
-        linkedPerson ? String(linkedPerson.birthYear).slice(-2) : "", linkedPerson?.organization].filter(Boolean).join(" ");
-      card.dataset.linkedPersonId = getAdminAccountLinkedId(data);
       card.classList.toggle("has-open-request", hasAttention);
       card.classList.toggle("has-link-issue", hasOpenIssue);
       updateAdminAccountCardRole(card, roleValue);
@@ -565,10 +549,9 @@
       const current = Array.from(list?.querySelectorAll("[data-admin-account-card]") || [])
         .find((node) => node.dataset.targetUid === uid) || card;
       updateCardNotification(current, data);
-      if (accountPages) updateAdminAccountSummary(accountPages.docs.map((doc) => ({ uid: doc.id, data: doc.data() })));
     }
 
-    function renderAdminAccounts(accounts) {
+    function renderAdminAccounts(accounts, emptyMessage) {
       const { list } = getAdminAccountControls();
 
       if (!list) {
@@ -581,10 +564,8 @@
         const emptyState = document.createElement("p");
 
         emptyState.className = "admin-request-empty";
-        emptyState.textContent = "Keine Konten gefunden.";
+        emptyState.textContent = emptyMessage;
         list.replaceChildren(emptyState);
-        setAdminAccountSummary("Keine Konten gefunden.");
-        filterAdminAccounts();
         return;
       }
 
@@ -599,93 +580,128 @@
       const keep = new Set(cards);
       for (const child of Array.from(list.children)) if (!keep.has(child)) child.remove();
       cards.forEach((card, index) => { if (list.children[index] !== card) list.insertBefore(card, list.children[index] || null); });
-      filterAdminAccounts();
-      updateAdminAccountSummary(accounts);
     }
 
-    function updateAdminAccountSummary(accounts) {
-      const pendingCount = accounts.filter((account) => hasPendingLinkRequest(account.data)).length;
-      const issueCount = accounts.filter((account) => hasOpenLinkIssue(account.data)).length;
-      const attentionParts = [];
-      const newCount = accounts.filter((account) => account.data.adminReviewPending === true).length;
-      if (newCount) attentionParts.push(newCount === 1 ? "1 neues Konto" : `${newCount} neue Konten`);
-
-      if (pendingCount) {
-        attentionParts.push(pendingCount === 1 ? "1 offener Antrag" : `${pendingCount} offene Anträge`);
-      }
-
-      if (issueCount) {
-        attentionParts.push(issueCount === 1 ? "1 gemeldeter Fehler" : `${issueCount} gemeldete Fehler`);
-      }
-
-      setAdminAccountSummary(
-        attentionParts.length
-          ? `${accounts.length} Konten geladen, ${attentionParts.join(", ")}.`
-          : `${accounts.length} Konten geladen.`
-      );
-    }
-
-    let accountPages = null, accountOwner = null, accountLoad = null, accountGeneration = 0;
+    let accountPages = null, accountOwner = null, accountLoad = null, accountRequest = 0;
+    let accountTotal = null, visibleLimit = 10, searchTimer;
     let adminSearchCache = null;
 
-    function accountRows() {
-      return accountPages.docs.map((doc) => ({ uid: doc.id, data: doc.data() || {} }))
-        .sort((first, second) => getAdminAccountSortRank(first) - getAdminAccountSortRank(second)
-          || (hasAdminLinkAttention(first.data) && hasAdminLinkAttention(second.data)
-            ? getAdminAttentionTimestamp(second.data) - getAdminAttentionTimestamp(first.data) : 0)
-          || getAdminAccountName(first.data).localeCompare(getAdminAccountName(second.data), "de", { sensitivity: "base" }));
+    function accountRows(filters) {
+      const cutoff = hasUnloadedAccounts(filters) ? accountPages.cutoff(filters.role, filters.status) : 5;
+      return accountPages.docs.map((doc) => {
+        const data = doc.data() || {};
+        const item = { uid: doc.id, data, role: getAdminAccountRoleValue(data) };
+        return { ...item, rank: getAdminAccountSortRank(item) };
+      }).filter(({ data, role, rank }) => rank <= cutoff && matchesAdminAccount(filters, data, role))
+        .sort((first, second) => first.rank - second.rank
+          || (first.rank === 1 ? getAdminAttentionTimestamp(second.data) - getAdminAttentionTimestamp(first.data) : 0)
+          || getAdminAccountName(first.data).localeCompare(getAdminAccountName(second.data), "de", { sensitivity: "base" })
+          || first.uid.localeCompare(second.uid));
+    }
+
+    function hasUnloadedAccounts({ role, status }) {
+      return accountPages.hasMore(role, status) && (accountTotal === null || accountPages.docs.length < accountTotal);
     }
 
     function showAccountPages() {
-      const accounts = accountRows();
-      adminAccountLinkOwners = new Map(accounts.filter((item) => isPersonLinked(item.data)).map((item) =>
-        [getAdminAccountLinkedId(item.data), { uid: item.uid, email: item.data.googleEmail || item.data.email || "Anderes Konto" }]));
-      renderAdminAccounts(accounts);
+      if (!accountPages || !isCurrentUser(accountOwner)) return;
+      const filters = getAdminAccountFilters();
+      const accounts = accountRows(filters);
+      const visible = accounts.slice(0, visibleLimit);
+      const unloaded = hasUnloadedAccounts(filters);
       const more = document.querySelector("[data-admin-accounts-more]");
-      if (more) { more.hidden = !accountPages.hasMore; more.disabled = accountPages.loading; }
-      const all = document.querySelector("[data-admin-accounts-search-all]");
-      if (all) { all.hidden = !accountPages.hasMore || !document.querySelector("[data-admin-account-search]")?.value.trim(); all.disabled = accountPages.loading; }
+      if (more) more.hidden = accounts.length <= visibleLimit && !unloaded;
+      const summary = document.querySelector("[data-admin-account-search-summary]");
+      if (summary) {
+        const filtered = Boolean(filters.role || filters.status || filters.terms.length);
+        summary.textContent = filtered && visible.length ? `${visible.length} Treffer${!more?.hidden ? " angezeigt" : ""}` : "";
+      }
+      renderAdminAccounts(visible, unloaded ? "Bisher keine Treffer." : "Keine Konten gefunden.");
     }
 
-    async function loadAdminAccounts(auth, { more = false, all = false } = {}) {
+    function refreshAdminLinkOwners() {
+      const accounts = accountPages.docs.map((doc) => ({ uid: doc.id, data: doc.data() || {} }));
+      adminAccountLinkOwners = new Map(accounts.filter((item) => isPersonLinked(item.data)).map((item) =>
+        [getAdminAccountLinkedId(item.data), { uid: item.uid, email: item.data.googleEmail || item.data.email || "Anderes Konto" }]));
+    }
+
+    function loadAccountWindow(auth, { more = false } = {}) {
       const { list, refreshButton } = getAdminAccountControls();
       const user = auth.currentUser;
-      if (!list || !user || !window.firebase.firestore) return;
-      if (accountLoad && accountOwner === user) return accountLoad;
-      if (!accountPages || accountOwner !== user || !more) {
-        accountPages?.reset();
-        const version = ++accountGeneration;
-        accountOwner = user;
-        accountPages = window.CollectionPages.create({ collection: window.firebase.firestore().collection("users"),
-          documentId: window.firebase.firestore.FieldPath.documentId(),
-          check() { requireCurrentUser(user); if (version !== accountGeneration) throw new Error("Ansicht wurde geändert."); } });
-        adminSearchCache = window.CollectionPages.searchCache({ check: () => requireCurrentUser(user) });
-      }
+      if (!list || !user || user.uid !== accountOwner?.uid || !accountPages) return;
       const pages = accountPages;
-      const current = () => isCurrentUser(user) && pages === accountPages;
+      const request = ++accountRequest;
+      const current = () => isCurrentUser(user) && pages === accountPages && request === accountRequest;
+      const filters = getAdminAccountFilters();
+      const { pageSize } = window.LifesavingAdminAccountPages;
+      visibleLimit = more ? Math.min(visibleLimit, accountRows(filters).length) + pageSize : pageSize;
+      const previous = accountLoad;
+      const moreButton = document.querySelector("[data-admin-accounts-more]");
+      list.setAttribute("aria-busy", "true");
+      if (refreshButton) refreshButton.disabled = true;
+      if (moreButton) moreButton.disabled = true;
+      setAdminAccountMessage("", true);
       const pending = (async () => {
+        await previous;
+        if (!current()) return;
         try {
-          setLoading(refreshButton, true, "Lade...");
-          list.setAttribute("aria-busy", "true");
-          setAdminAccountMessage("", true);
-          await pages.next();
-          if (all) await pages.all();
-          if (current()) showAccountPages();
+          let read = 0;
+          for (let queries = 0; queries < 16 && read < 40 && current() && hasUnloadedAccounts(filters)
+            && accountRows(filters).length < visibleLimit; queries++) {
+            if (!more && filters.role && filters.role !== "standard" && pages.fallback(filters.role, filters.status)) break;
+            read += await pages.next(filters.role, filters.status);
+          }
+          if (current()) refreshAdminLinkOwners();
         } catch (error) {
-          if (!current()) return;
-          setAdminAccountSummary("Konten konnten nicht geladen werden.");
-          setAdminAccountMessage(translateFirestoreError(error), false);
+          if (current()) setAdminAccountMessage(translateFirestoreError(error), false);
         } finally {
           if (current()) {
             list.setAttribute("aria-busy", "false");
-            setLoading(refreshButton, false);
-            document.querySelector("[data-admin-accounts-more]")?.removeAttribute("disabled");
-            document.querySelector("[data-admin-accounts-search-all]")?.removeAttribute("disabled");
+            if (refreshButton) refreshButton.disabled = false;
+            if (moreButton) moreButton.disabled = false;
+            showAccountPages();
           }
         }
       })();
       accountLoad = pending;
-      try { await pending; } finally { if (accountLoad === pending) accountLoad = null; }
+      return pending.finally(() => { if (accountLoad === pending) accountLoad = null; });
+    }
+
+    function filterAdminAccounts(auth, { debounce = false } = {}) {
+      if (!accountPages || !isCurrentUser(accountOwner)) return;
+      window.clearTimeout(searchTimer);
+      visibleLimit = window.LifesavingAdminAccountPages.pageSize;
+      showAccountPages();
+      if (debounce) searchTimer = window.setTimeout(() => loadAccountWindow(auth), 300);
+      else return loadAccountWindow(auth);
+    }
+
+    async function loadAdminAccounts(auth) {
+      const { list } = getAdminAccountControls();
+      const user = auth.currentUser;
+      if (!list || !user || !window.firebase.firestore) return;
+      window.clearTimeout(searchTimer);
+      if (accountOwner?.uid !== user.uid) {
+        list.replaceChildren();
+        setAdminAccountSummary("–");
+      }
+      accountOwner = user;
+      accountTotal = null;
+      const pages = window.LifesavingAdminAccountPages.create({ collection: window.firebase.firestore().collection("users"),
+        documentId: window.firebase.firestore.FieldPath.documentId(), createPages: window.CollectionPages.create,
+        check() { requireCurrentUser(user); if (pages !== accountPages) throw new Error("Ansicht wurde geändert."); } });
+      accountPages = pages;
+      adminSearchCache = window.CollectionPages.searchCache({ check: () => requireCurrentUser(user) });
+      const current = () => isCurrentUser(user) && pages === accountPages;
+      const count = window.LifesavingAdminNotifications.create({ isCurrentUser }).countAllAccounts(user).then((total) => {
+        if (!current()) return;
+        accountTotal = total;
+        setAdminAccountSummary(total.toLocaleString("de-DE"));
+        if (!accountLoad) showAccountPages();
+      }).catch(() => {
+        if (current()) setAdminAccountSummary("–");
+      });
+      await Promise.all([loadAccountWindow(auth), count]);
     }
 
     // A mutation refreshes only its account, preserving loaded pages and editors.
@@ -697,6 +713,7 @@
       if (pages !== accountPages) return;
       pages.replace(doc);
       adminSearchCache?.clear();
+      refreshAdminLinkOwners();
       showAccountPages();
     }
 
@@ -734,7 +751,6 @@
         updateAdminAccountCardRole(card, nextRole);
         reorderAdminAccountCard(card);
         setAdminAccountEditMode(card, false);
-        filterAdminAccounts();
         if (card.dataset.targetUid === user.uid) clearUserDocCache(user.uid);
         await refreshAdminAccount(auth, uid);
         setAdminAccountMessage("Rolle gespeichert.", true);
@@ -867,7 +883,13 @@
       initAdminPersonSearch(auth);
       if (!list.dataset.listenerAttached) {
         list.dataset.listenerAttached = "true";
-        document.querySelector("[data-admin-account-search]")?.addEventListener("input", filterAdminAccounts);
+        document.querySelector("[data-admin-account-search]")?.addEventListener("input", () => filterAdminAccounts(auth, { debounce: true }));
+        document.querySelector("[data-admin-account-role-filter]")?.addEventListener("change", () => filterAdminAccounts(auth));
+        document.querySelector("[data-admin-account-status-filter]")?.addEventListener("change", () => filterAdminAccounts(auth));
+        document.querySelector("[data-admin-account-filters]")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          filterAdminAccounts(auth);
+        });
         list.addEventListener("click", (event) => {
           const linkButton = event.target.closest("[data-admin-account-link]");
           const unlinkButton = event.target.closest("[data-admin-account-unlink]");
@@ -916,15 +938,13 @@
         refreshButton.addEventListener("click", () => loadAdminAccounts(auth));
       }
 
-      for (const [selector, all] of [["[data-admin-accounts-more]", false], ["[data-admin-accounts-search-all]", true]]) {
-        const button = document.querySelector(selector);
-        if (button && !button.dataset.listenerAttached) {
-          button.dataset.listenerAttached = "true";
-          button.addEventListener("click", () => {
-            button.disabled = true;
-            loadAdminAccounts(auth, { more: true, all });
-          });
-        }
+      const more = document.querySelector("[data-admin-accounts-more]");
+      if (more && !more.dataset.listenerAttached) {
+        more.dataset.listenerAttached = "true";
+        more.addEventListener("click", () => {
+          window.clearTimeout(searchTimer);
+          loadAccountWindow(auth, { more: true });
+        });
       }
       await loadAdminAccounts(auth);
     }

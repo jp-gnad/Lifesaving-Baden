@@ -2,6 +2,7 @@
   "use strict";
 
   const groups = ["AK 12", "AK 13/14", "AK 15/16", "AK 17/18", "Offen"];
+  const unknownGroup = "Ohne Jahrgang";
   const labels = Object.freeze({
     swimSilver: "Schwimmabzeichen Silber",
     swimGold: "Schwimmabzeichen Gold",
@@ -49,6 +50,16 @@
     return groups[4];
   }
 
+  function groupByAge(entries, year, birthYearOf = (person) => person.birthYear) {
+    const buckets = new Map([...groups, unknownGroup].map((group) => [group, []]));
+    for (const entry of entries) {
+      const birthYear = birthYearOf(entry);
+      const group = Number.isInteger(birthYear) ? ageGroup(year - birthYear) : unknownGroup;
+      buckets.get(group).push(entry);
+    }
+    return Array.from(buckets, ([group, entries]) => ({ group, entries })).filter(({ entries }) => entries.length);
+  }
+
   function latest(...dates) {
     return dates.reduce((best, date) => date > best ? date : best, "");
   }
@@ -85,7 +96,7 @@
 
   function evaluate(person, day = today(), nextSeason = false) {
     if (!Number.isInteger(person.birthYear)) {
-      return { age: null, group: "Ohne Jahrgang", stage: 3, issues: [{ kind: "identity", stage: 3, name: "Jahrgang", reason: "fehlt" }] };
+      return { age: null, group: unknownGroup, stage: 3, issues: [{ kind: "identity", stage: 3, name: "Jahrgang", reason: "fehlt" }] };
     }
     const year = seasonYear(day, nextSeason);
     const age = year - person.birthYear;
@@ -116,7 +127,7 @@
   }
 
   const api = Object.freeze({ groups: Object.freeze(groups), labels, dateKeys: Object.freeze(dateKeys), today, asDate, dateKey, validDate, addMonths,
-    seasonYear, evaluate, normalizeSearch });
+    seasonYear, evaluate, groupByAge, normalizeSearch });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.StartEligibilityCore = api;
 })(typeof window === "undefined" ? globalThis : window);

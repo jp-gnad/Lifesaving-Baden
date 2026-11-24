@@ -109,11 +109,15 @@ funktionen als explizite Factory-Callbacks. Fehler einer Administrationsoberflä
 setzen eine bereits geladene Rolle nicht auf Standard zurück.
 
 `collection-pages.js` hält konten-/ansichtsgebundene Cursor, laufende Abfragen und
-kurzlebige Suchergebnisse. Die Kontenliste startet mit 50 Dokumenten und lädt weitere
-Seiten ausdrücklich nach. Die Suche filtert geladene Konten; „Alle Konten durchsuchen“
-durchläuft bei Bedarf die übrigen Seiten. Änderungen lesen nur das betroffene Konto
-neu. Unveränderte Karten und geöffnete Editoren bleiben erhalten. Personenreservierungen
-werden für die höchstens zehn Suchtreffer gemeinsam gelesen; die Schreibtransaktion
+kurzlebige Suchergebnisse. `admin-account-pages.js` nutzt indizierte Kontengruppen
+für Admins, neue Konten und offene Verknüpfungsanträge, gefolgt von den übrigen
+Rollen. Ein begrenzter Cursor nach Dokument-ID deckt auch Altbestände ab. Die
+Kontenübersicht zeigt bis zu zehn weitere Treffer je Klick auf „Mehr laden“.
+Rollen, Kontostatus und Textsuche lassen sich kombinieren. Jede Abfrage bleibt
+begrenzt, bei wenigen passenden Treffern können weitere Seiten nachgeladen werden.
+Die Gesamtzahl kommt aus einer Count-Aggregation. Änderungen lesen nur das
+betroffene Konto neu. Unveränderte Karten und geöffnete Editoren bleiben erhalten.
+Personenreservierungen werden für die höchstens zehn Suchtreffer gemeinsam gelesen; die Schreibtransaktion
 prüft die Zuordnung weiterhin unabhängig von der Anzeige.
 
 Die Gliederungsübersicht verwendet einen Listener für die aktuelle Seite mit höchstens
@@ -130,7 +134,9 @@ gleichzeitig eintreffende Änderungen werden zusammengefasst. Clubkader und
 Gliederungskarten verwenden unveränderte DOM-Elemente weiter.
 
 Unter „Personen“ wechseln Übersicht, Startberechtigungen und Finanzen per Dropdown.
-Die Jahresauswahl steuert die Altersgruppen und den angezeigten Aktivstatus.
+Die Jahresauswahl steuert die Altersklassen in diesen Ansichten und in der
+Importauswahl sowie den angezeigten Aktivstatus. Teilnehmerlisten und Auswahlmenüs
+für Termine verwenden das jeweilige Terminjahr, auch bei Training und Organisation.
 In der Übersicht bleiben auch inaktive Personen erreichbar. Ihre Aktivjahre
 werden im Personenmenü gesetzt. Die Startberechtigungen filtern wie bisher nach
 aktiven Personen im gewählten Jahr und öffnen den Nachweiseditor.
