@@ -48,7 +48,7 @@ class StatisticsImport(unittest.TestCase):
             a, b = header()
             sheet.append(a)
             sheet.append(b)
-            first, second = line(heat=1), line(heat=2)
+            first, second = line(age=16, heat=1), line(age=16, heat=2)
             for row in (first, second):
                 row[99] = to_excel(datetime(2026, 11, 14), MAC_EPOCH)
                 row[1] = "W"
@@ -93,6 +93,8 @@ class StatisticsImport(unittest.TestCase):
             organization = next(doc["data"] for doc in actual["records"] if doc["id"] == result_row["ogId"])
             self.assertIsNone(result_row["bzId"])
             self.assertEqual(organization["parentId"], result_row["lvId"])
+            athlete = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsAthletes")
+            self.assertEqual(athlete["birthYear"], 2016)
             sheet.cell(3, 10).value = "=5+7"
             book.save(path)
             book.close()
@@ -288,8 +290,8 @@ class StatisticsImport(unittest.TestCase):
         self.assertEqual(result["disciplines"]["D001"]["timeMs"], 54860)
         with self.assertRaisesRegex(ValueError, "Duplikat"):
             parse(line(), line())
-        with self.assertRaisesRegex(ValueError, "mehrdeutig"):
-            parse(line(age=20))
+        with self.assertRaisesRegex(ValueError, "mehrdeutig.*1926.*2026"):
+            parse(line(age=26))
         with self.assertRaisesRegex(ValueError, "abweichendem Verband"):
             other = line(heat=2)
             other[4] = "Anderer Verein"

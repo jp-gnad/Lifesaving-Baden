@@ -8,6 +8,7 @@
     "50m Freistil", "25m Freistil", "25m Brust", "25m Rücken ohne Arme", "25m Puppe",
   ];
   const ignored = ["4-Kampf (ohne HLW)", "LSC Change"];
+  const maxAge = 100;
   const fields = ["Name", "Gender", "AK", "Age", "OG", "BZ", "LV", "BV", "PLACE", "3-Kampf",
     "LSC", "HLW", "Datum", "Wettkampf", "Bahn", "Rule", "Land", "Stadt", "St. Recht", "Lauf", "Wertung", "WK-Name"];
   const block = ["pl", "time", "points", "c", "st"];
@@ -134,7 +135,7 @@
     const number = integer(value);
     if (number >= 0 && number <= 99) {
       const latest = year - ((year - number) % 100);
-      if (latest - 100 < year - 110) return latest;
+      if (latest - 100 < year - maxAge) return latest;
       throw new Error(`Jahrgang ${number} mehrdeutig (${latest - 100} oder ${latest}). Age vierstellig angeben.`);
     }
     if (number >= 1000 && number <= year) return number;

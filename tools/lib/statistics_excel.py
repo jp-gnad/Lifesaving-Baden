@@ -17,6 +17,7 @@ DISCIPLINES = (
     "50m Freistil", "25m Freistil", "25m Brust", "25m Rücken ohne Arme", "25m Puppe",
 )
 HLW_ID = "D018"
+MAX_AGE = 100
 LEGACY_FOUR_EVENT_POINTS = "4-Kampf (ohne HLW)"
 LEGACY_LSC_CHANGE = "LSC Change"
 IGNORED_COLUMNS = frozenset({LEGACY_FOUR_EVENT_POINTS, LEGACY_LSC_CHANGE})
@@ -118,7 +119,7 @@ def event_date(value, epoch):
 def birth_year(value, year):
     n = integer(value)
     if 0 <= n <= 99:
-        candidates = [y for y in range(year-110, year+1) if y % 100 == n]
+        candidates = [y for y in range(year - MAX_AGE, year + 1) if y % 100 == n]
         if len(candidates) == 1:
             return candidates[0]
         raise ValueError(f"Jahrgang {n:02d} mehrdeutig ({candidates}); Age vierstellig angeben.")
