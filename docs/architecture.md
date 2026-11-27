@@ -467,6 +467,13 @@ vollständige Export möglich. Erfolgreiche kleine PDF-Bilder werden begrenzt wi
 
 ## Wartungs- und Testcode
 
+Das historische [Wettkampfarchiv](statistikimport.md) verwendet fünf eigene Collections
+mit dem Präfix `stats`. `tools/import_statistics.py` wählt die Quelle und den Wettkampf,
+`tools/lib/statistics_excel.py` prüft das Excel-Schema und bildet stabile IDs.
+`tools/import_statistics.mjs` führt Vorschau, Bestätigung und Protokoll.
+`tools/lib/statistics-store.mjs` vergleicht nur betroffene Dokumente und schreibt mit
+Versionsbedingungen. Dieses Archiv steht unabhängig neben Timer, Konten und Clubverwaltung.
+
 `tools/lib/` enthält die reine Planung von Sync-Änderungen und die Prüfung des
 erlaubten Firebase-Projekts. Nur die Wartungs-CLIs importieren das Admin SDK.
 Der wöchentliche Workflow synchronisiert beide Verzeichnisse und schreibt bereits

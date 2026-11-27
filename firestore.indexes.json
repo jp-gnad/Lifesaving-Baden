@@ -15,5 +15,9 @@
       { "fieldPath": "date", "order": "ASCENDING" }
     ]
   }],
-  "fieldOverrides": []
+  "fieldOverrides": [{
+    "collectionGroup": "statsResults",
+    "fieldPath": "disciplines",
+    "indexes": []
+  }]
 }

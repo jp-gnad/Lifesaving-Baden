@@ -23,6 +23,7 @@ Bestehende HTML-URLs und installierte Timer bleiben erhalten.
 |---|---|
 | [AGENTS.md](AGENTS.md) | Arbeitsregeln, Modulzuständigkeiten, Kontingent- und Sicherheitsgrenzen |
 | [Architektur](docs/architecture.md) | Einstiegspunkte, Module, Datenmodell und Datenflüsse |
+| [Wettkampfergebnisse aus Excel importieren](docs/statistikimport.md) | Dateiauswahl, Vorschau, bestätigter Import, Archivschema und Spark-Kontingent |
 | [Entwicklung](docs/development.md) | Installation, einheitliche Testbefehle, CI und lokale Vorschauen |
 | [Sicherheit und Kompatibilität](docs/security-and-compatibility.md) | Berechtigungen, Migrationen, alte URLs und Offline-Daten |
 | [Prüfung und Umbau](docs/refactoring-review.md) | Durchgeführte Änderungen und geprüfte Eigenschaften |

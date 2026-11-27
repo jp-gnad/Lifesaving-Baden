@@ -44,6 +44,54 @@ const dbFor = (uid, claims = {}) => uid
   ? env.authenticatedContext(uid, { email_verified: true, ...claims }).firestore()
   : env.unauthenticatedContext().firestore();
 
+test("statistics archive imports resume, repeat and update only confirmed rows", { skip: !enabled }, async () => {
+  const { initializeApp, deleteApp } = await import("firebase-admin/app");
+  const { getFirestore } = await import("firebase-admin/firestore");
+  const { compareStatistics, applyStatistics } = await import("../tools/lib/statistics-store.mjs");
+  const app = initializeApp({ projectId: "demo-lifesaving-baden" }, "statistics-test");
+  try {
+    const db = getFirestore(app);
+    const doc = (collection, id, data) => ({ collection, id, data, row: 3 });
+    const org = doc("statsOrganizations", "C" + "1".repeat(32), { name: "Alt", parentId: null, type: "OG" });
+    const result = doc("statsResults", "R" + "1".repeat(32), { disciplines: { D001: { points: 0 } } });
+    const other = doc("statsResults", "R" + "2".repeat(32), { round: 2 });
+    const all = [org, result, other];
+    const plan = await compareStatistics(db, all);
+    assert.ok(plan.every(item => item.action === "neu"));
+    assert.equal((await plan[0].ref.get()).exists, false);
+    const noop = async () => {};
+    await assert.rejects(applyStatistics(db, plan, () => { throw Error("Unterbrechung"); }, 1));
+    const resumed = await compareStatistics(db, all);
+    assert.equal(await applyStatistics(db, resumed, noop), 2);
+    const orgRef = db.doc(`${org.collection}/${org.id}`);
+    await orgRef.update({ active: false, successorId: "Nachfolger" });
+    assert.equal(await applyStatistics(db, await compareStatistics(db, all), noop), 0);
+    assert.equal((await orgRef.get()).data().successorId, "Nachfolger");
+    result.data.disciplines.D001.points = 12;
+    const stale = await compareStatistics(db, [result]);
+    await stale[0].ref.update({ note: "parallel" });
+    await assert.rejects(applyStatistics(db, stale, noop));
+    assert.equal(await applyStatistics(db, await compareStatistics(db, [result]), noop), 1);
+    assert.deepEqual((await stale[0].ref.get()).data(), { ...result.data, note: "parallel" });
+    assert.equal((await db.doc(`${other.collection}/${other.id}`).get()).data().round, 2);
+    await assert.rejects(compareStatistics(db, [doc("clubs", org.id, org.data)]));
+  } finally {
+    await deleteApp(app);
+  }
+});
+
+test("statistics raw data stays private for anonymous, member and admin web clients", { skip: !enabled }, async () => {
+  await seed({ "users/stats-admin": { role: "admin" } });
+  for (const uid of [null, "stats-member", "stats-admin"]) {
+    const db = dbFor(uid);
+    for (const collection of ["statsAthletes", "statsOrganizations", "statsCompetitions", "statsDisciplines", "statsResults"]) {
+      const ref = sdk.doc(db, collection, "probe");
+      await assertFails(sdk.getDoc(ref));
+      await assertFails(sdk.setDoc(ref, { name: "Beispiel" }));
+    }
+  }
+});
+
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {
   await seed({ "users/notification-admin": { role: "admin", adminReviewPending: true } });
   const owner = dbFor("notification-new"), ref = sdk.doc(owner, "users/notification-new");

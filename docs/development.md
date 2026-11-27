@@ -31,6 +31,11 @@ nicht die entfernten Legacy-Namespaces. Siehe [offizielle SDK-14-Änderungen](ht
 
 ## Befehle
 
+Der lokale [Wettkampfimport](statistikimport.md) verwendet dieselben Python- und Node-Abhängigkeiten.
+Mit `python tools/import_statistics.py` startet die Dateiauswahl für die Offlineprüfung.
+Die Parser- und Wiederholungstests laufen mit `npm test`. Der Firestore-Adapter und die
+Zugriffssperren für die Archiv-Collections werden zusätzlich mit `npm run test:rules` geprüft.
+
 | Befehl | Prüft/öffnet |
 |---|---|
 | `npm run check` | JS-Syntax, Inline-Skripte, lokale HTML-/CSS-/Manifest-Dateien, Skript-Reihenfolge und genaue Precache-URLs |
