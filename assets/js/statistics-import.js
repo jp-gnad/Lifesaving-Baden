@@ -90,6 +90,10 @@
 
   async function openFile(file) {
     if (!file || busy || !user) return;
+    if (!excel || !store || !window.XLSX || !window.crypto?.subtle) {
+      status("Der Excel-Import ist hier nicht verfügbar. Öffne die Seite über die Website in einem aktuellen Browser.", "error");
+      return;
+    }
     workbook = null;
     sheet = null;
     ui.selectors.hidden = true;
@@ -327,7 +331,9 @@
       if (version === generation) {
         if (saved) {
           overview.reset();
-          if (ui.pane.hidden) overview.show();
+          structure.reset();
+          if (!ui.overview.hidden) overview.show();
+          if (!ui.structure.hidden) structure.show();
         }
         busy = false;
         controls();
@@ -335,23 +341,31 @@
     }
   }
 
-  if (!authCore || !window.isFirebaseConfigured || !window.firebase?.auth || !window.XLSX || !window.crypto?.subtle) {
-    ui.auth.textContent = "Der Import ist nicht verfügbar. Öffne die Seite über die Website in einem aktuellen Browser.";
+  if (!authCore || !window.isFirebaseConfigured || !window.firebase?.auth) {
+    ui.auth.textContent = "Die Datenbank ist hier nicht verfügbar. Öffne die Seite über die Website.";
     return;
   }
   const auth = authCore.initFirebase();
   const db = window.firebase.firestore();
-  const overview = window.LifesavingStatisticsOverview.create(db, () => user && authCore.isCurrentUser(user));
+  const sessionActive = () => user && authCore.isCurrentUser(user);
+  const overview = window.LifesavingStatisticsOverview.create(db, sessionActive);
+  const structure = window.LifesavingStatisticsStructure.create(db, sessionActive);
 
   function showSection() {
     if (!user) return;
     const importing = window.location.hash === "#importieren";
+    const inspecting = window.location.hash === "#struktur";
+    const browsing = !importing && !inspecting;
     ui.pane.hidden = !importing;
-    ui.overview.hidden = importing;
-    ui["overview-link"].setAttribute("aria-current", importing ? "false" : "page");
+    ui.overview.hidden = !browsing;
+    ui.structure.hidden = !inspecting;
+    ui["overview-link"].setAttribute("aria-current", browsing ? "page" : "false");
     ui["source-link"].setAttribute("aria-current", importing ? "page" : "false");
-    if (importing) overview.hide();
-    else overview.show();
+    ui["structure-link"].setAttribute("aria-current", inspecting ? "page" : "false");
+    if (browsing) overview.show();
+    else overview.hide();
+    if (inspecting) structure.show();
+    else structure.hide();
   }
 
   window.addEventListener("hashchange", showSection);
@@ -364,6 +378,8 @@
     busy = false;
     overview.hide();
     overview.reset();
+    structure.hide();
+    structure.clear();
     resetPreview();
     ui.dialog.close();
     ui.app.hidden = ui.selectors.hidden = ui.filename.hidden = true;

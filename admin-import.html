@@ -14,7 +14,7 @@
     <link rel="icon" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
     <link rel="stylesheet" href="assets/css/app-zoom.css?v=20261124-zoom-v1">
-    <link rel="stylesheet" href="assets/css/statistics-import.css?v=2">
+    <link rel="stylesheet" href="assets/css/statistics-import.css?v=3">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/app-zoom.js?v=20261124-zoom-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -27,7 +27,8 @@
     <script defer src="assets/js/statistics-import-store.js?v=1"></script>
     <script defer src="assets/js/statistics-overview-core.js?v=1"></script>
     <script defer src="assets/js/statistics-overview.js?v=1"></script>
-    <script defer src="assets/js/statistics-import.js?v=2"></script>
+    <script defer src="assets/js/statistics-structure.js?v=1"></script>
+    <script defer src="assets/js/statistics-import.js?v=3"></script>
   </head>
   <body data-page="admin-import">
     <header class="site-header">
@@ -44,6 +45,7 @@
         <nav class="statistics-sections" aria-label="Datenbank">
           <a id="import-overview-link" href="#uebersicht" aria-current="page">Übersicht</a>
           <a id="import-source-link" href="#importieren">Importieren</a>
+          <a id="import-structure-link" href="#struktur">Struktur</a>
         </nav>
         <div id="import-overview" hidden>
           <section id="archive-list" aria-labelledby="archive-title">
@@ -61,6 +63,29 @@
             <div id="archive-groups" class="statistics-archive-groups"></div>
           </section>
         </div>
+        <section id="import-structure" aria-labelledby="structure-heading" hidden>
+          <h2 id="structure-heading">Datenbankstruktur</h2>
+          <label class="statistics-structure-picker">
+            Sammlung
+            <select id="structure-choice">
+              <option value="">Sammlung auswählen</option>
+              <option value="statsDisciplines">Disziplinen</option>
+              <option value="statsCompetitions">Wettkämpfe</option>
+              <option value="statsAthletes">Athleten</option>
+              <option value="statsOrganizations">Gliederungen</option>
+            </select>
+          </label>
+          <div id="structure-schema" hidden>
+            <details class="statistics-structure-schema">
+              <summary>Felder und Bedeutung <code id="structure-collection"></code></summary>
+              <dl id="structure-fields" class="statistics-structure-values"></dl>
+            </details>
+            <h3 id="structure-title"></h3>
+          </div>
+          <p id="structure-status" class="statistics-import-message" role="status" hidden></p>
+          <div id="structure-records" class="statistics-structure-records"></div>
+          <button id="structure-more" class="button button-secondary" type="button" hidden>Weitere Einträge laden</button>
+        </section>
         <div id="import-pane" hidden>
         <section class="statistics-card" aria-labelledby="import-source-title">
           <h2 id="import-source-title">Excel-Datei</h2>

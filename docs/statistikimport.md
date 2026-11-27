@@ -17,6 +17,8 @@ Unter **Datenbank → Übersicht** stehen importierte Wettkämpfe nach Datum, de
 
 Die Übersicht lädt Wettkämpfe in Seiten von 20 und die Ergebnisse des geöffneten Wettkampfs in Seiten von 50. Personen, Gliederungen und Disziplinnamen werden erst beim Öffnen eines Ergebnisblocks geladen und für diesen Wettkampf wiederverwendet.
 
+Unter **Datenbank → Struktur** lässt sich jeweils eine Sammlung auswählen. Die Ansichten für Disziplinen, Wettkämpfe, Athleten und Gliederungen erklären die Feldnamen und zeigen beim Aufklappen die gespeicherten Werte und Dokument-IDs. Bei Gliederungen stehen die Namen der übergeordneten oder nachfolgenden Organisation neben ihrer ID, sobald deren Dokument geladen ist. Die Stammdatenansicht ist schreibgeschützt und lädt jeweils bis zu 30 Einträge pro Seite.
+
 ## Lokaler Import unter Windows
 
 Die Kommandozeile bleibt für lokale Prüfungen und Wartung verfügbar.
@@ -126,7 +128,7 @@ Die vorberechneten Ansichten sind ein Ausbaupfad. Für den ersten öffentlichen 
 
 **Öffentliche Daten.** Aggregierte Ranglisten ohne Personenbezug brauchen weder Namen noch Geburtsjahrgänge. Eine fachlich freigegebene persönliche Rangliste benötigt üblicherweise Anzeigename, Disziplin, Leistung, Wettkampf, Jahr sowie je nach Ansicht AK und Verein. Ein voller Geburtsjahrgang ist für die interne Identitätsprüfung hilfreich. Kontodaten, E-Mails, Geburtstage, interne Unterscheidungsmerkmale und Verknüpfungen werden für eine öffentliche Bestenliste nicht benötigt. Für Minderjährige und namentliche Einzelprofile den vorgesehenen Veröffentlichungskreis vor dem Export festlegen. Statische Dateien auf GitHub Pages sind öffentlich abrufbar; für eine ausschließlich angemeldete Zielgruppe ist ein getrenntes, per Firestore-Regeln geschütztes Lesemodell erforderlich.
 
-Die Archiv-Collections erlauben bei veröffentlichter Regelversion einzelnen Dokumentzugriff und die dafür vorgesehenen Schreiboperationen für verifizierte Admins. Die Übersicht verwendet begrenzte Listenabfragen für Wettkämpfe und Ergebnisse. Löschungen über den Browser bleiben gesperrt. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
+Die Archiv-Collections erlauben bei veröffentlichter Regelversion einzelnen Dokumentzugriff, begrenzte Listenabfragen und die dafür vorgesehenen Schreiboperationen für verifizierte Admins. Löschungen über den Browser bleiben gesperrt. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
 
 ## Kostenloser Betrieb und Größenordnung
 

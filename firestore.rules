@@ -1468,6 +1468,7 @@ service cloud.firestore {
 
     match /statsAthletes/{id} {
       allow get: if statisticsAdmin() && statisticsId(id, "A");
+      allow list: if statisticsList();
       allow create: if statisticsAdmin() && statisticsId(id, "A")
         && statisticsFields(request.resource.data, ["firstName", "lastName", "birthYear", "gender", "discriminator"], [])
         && request.resource.data.firstName is string && request.resource.data.lastName is string
@@ -1477,6 +1478,7 @@ service cloud.firestore {
 
     match /statsOrganizations/{id} {
       allow get: if statisticsAdmin() && statisticsId(id, "C");
+      allow list: if statisticsList();
       allow create: if statisticsAdmin() && statisticsId(id, "C")
         && statisticsFields(request.resource.data, ["type", "name", "parentId", "active", "successorId"], [])
         && request.resource.data.type in ["OG", "BZ", "LV", "BV"] && request.resource.data.name is string
@@ -1507,6 +1509,7 @@ service cloud.firestore {
 
     match /statsDisciplines/{id} {
       allow get: if statisticsAdmin() && id.matches('^D00[1-9]$|^D01[0-8]$');
+      allow list: if statisticsList();
       allow create, update: if statisticsAdmin() && id.matches('^D00[1-9]$|^D01[0-8]$')
         && statisticsFields(request.resource.data, ["name", "category", "distance", "sortOrder"], [])
         && request.resource.data.name is string && request.resource.data.category in ["Pool", "HLW"]

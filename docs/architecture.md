@@ -467,7 +467,9 @@ vollständige Export möglich. Erfolgreiche kleine PDF-Bilder werden begrenzt wi
 
 ## Wartungs- und Testcode
 
-`admin-import.html` ist die Admin-Datenbank mit Übersicht und historischem Wettkampfimport.
+`admin-import.html` ist die Admin-Datenbank mit Übersicht, Struktur und historischem Wettkampfimport.
+`statistics-structure.js` zeigt Feldbeschreibungen und Stammdaten der gewählten
+Sammlung in Seiten von bis zu 30 Einträgen.
 `statistics-overview.js` lädt die Wettkampfliste nach Datum und liest die Ergebnisse
 des geöffneten Wettkampfs in begrenzten Seiten. Die Gruppierung nach Altersklasse,
 Geschlecht, Phase und Wertungsart liegt in `statistics-overview-core.js`.

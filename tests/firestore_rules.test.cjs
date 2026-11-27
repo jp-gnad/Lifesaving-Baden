@@ -111,6 +111,9 @@ test("statistics archive supports admin-only imports and bounded overviews witho
     await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, "statsCompetitions"), sdk.limit(20))));
     await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, "statsResults"),
       sdk.where("competitionId", "==", competitionId), sdk.limit(50))));
+    for (const collection of ["statsAthletes", "statsOrganizations", "statsDisciplines"]) {
+      await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, collection), sdk.limit(30))));
+    }
   }
   const admin = dbFor("stats-admin");
   const noop = () => {};
@@ -145,7 +148,17 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   assert.equal(first.size, 20);
   assert.equal(next.size, 6);
   assert.equal(new Set([...first.docs, ...next.docs].map(doc => doc.id)).size, 26);
-  await assertFails(sdk.getDocs(sdk.query(sdk.collection(admin, "statsAthletes"), sdk.limit(20))));
+  for (const [collection, order, expectedId] of [
+    ["statsAthletes", "lastName", athleteId],
+    ["statsOrganizations", "name", "C" + "9".repeat(32)],
+    ["statsDisciplines", "sortOrder", "D018"],
+  ]) {
+    const ref = sdk.collection(admin, collection);
+    await assertFails(sdk.getDocs(ref));
+    await assertFails(sdk.getDocs(sdk.query(ref, sdk.limit(51))));
+    const page = await assertSucceeds(sdk.getDocs(sdk.query(ref, sdk.orderBy(order), sdk.limit(30))));
+    assert.ok(page.docs.some(doc => doc.id === expectedId));
+  }
 });
 
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {
