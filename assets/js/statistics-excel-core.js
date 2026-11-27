@@ -225,8 +225,9 @@
       const org = clean(value(kind)), field = kind.toLowerCase() + "Id";
       affiliations[field] = null;
       if (org) {
-        if (previousKind && !affiliations[previousKind.toLowerCase() + "Id"]) {
-          throw new Error(`${kind} „${org}“: Zugehörigen ${previousKind} ergänzen.`);
+        const requiredParent = kind === "OG" && !affiliations.bzId ? "LV" : previousKind;
+        if (requiredParent && !affiliations[requiredParent.toLowerCase() + "Id"]) {
+          throw new Error(`${kind} „${org}“: Zugehörigen ${requiredParent} ergänzen.`);
         }
         const id = await stableId("C", kind, parentId, org.toLowerCase());
         let orgName = kind === "BV" ? countryName(org) : org;

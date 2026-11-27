@@ -222,8 +222,9 @@ def documents(values, fields, blocks, epoch):
         org = clean(row[kind])
         org_id = None
         if org:
-            if previous_kind and not affiliations[previous_kind.lower()+"Id"]:
-                raise ValueError(f"{kind} {org!r}: zugehörigen {previous_kind} zur eindeutigen Zuordnung ergänzen.")
+            required_parent = "LV" if kind == "OG" and not affiliations["bzId"] else previous_kind
+            if required_parent and not affiliations[required_parent.lower()+"Id"]:
+                raise ValueError(f"{kind} {org!r}: zugehörigen {required_parent} zur eindeutigen Zuordnung ergänzen.")
             org_id = stable_id("C", kind, parent, org.lower())
             org_name = org
             if kind == "BV":

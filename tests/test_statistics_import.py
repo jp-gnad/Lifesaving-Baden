@@ -53,6 +53,7 @@ class StatisticsImport(unittest.TestCase):
                 row[99] = to_excel(datetime(2026, 11, 14), MAC_EPOCH)
                 row[1] = "W"
                 row[2] = "13/14"
+                row[4:7] = ["Norderstedt", None, "SH"]
             first[13:18] = ["AK", "0:54,86", 0, "R17", "disq"]
             first[98] = "n.a."
             second[8] = "ausg."
@@ -88,6 +89,10 @@ class StatisticsImport(unittest.TestCase):
             self.assertEqual(actual["starts"], starts)
             self.assertEqual({d["id"]: d["data"] for d in actual["records"]},
                              {d["id"]: d["data"] for d in expected})
+            result_row = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsResults")
+            organization = next(doc["data"] for doc in actual["records"] if doc["id"] == result_row["ogId"])
+            self.assertIsNone(result_row["bzId"])
+            self.assertEqual(organization["parentId"], result_row["lvId"])
             sheet.cell(3, 10).value = "=5+7"
             book.save(path)
             book.close()
@@ -289,9 +294,9 @@ class StatisticsImport(unittest.TestCase):
             other = line(heat=2)
             other[4] = "Anderer Verein"
             parse(line(), other)
-        with self.assertRaisesRegex(ValueError, "zugehörigen BZ"):
+        with self.assertRaisesRegex(ValueError, "zugehörigen LV"):
             other = line()
-            other[5] = None
+            other[5:7] = [None, None]
             parse(other)
         with self.assertRaisesRegex(ValueError, "Widersprüchliche Stammdaten"):
             other = line(heat=2)
