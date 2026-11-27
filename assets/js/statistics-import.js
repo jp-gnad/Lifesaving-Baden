@@ -325,6 +325,10 @@
       }
     } finally {
       if (version === generation) {
+        if (saved) {
+          overview.reset();
+          if (ui.pane.hidden) overview.show();
+        }
         busy = false;
         controls();
       }
@@ -337,6 +341,20 @@
   }
   const auth = authCore.initFirebase();
   const db = window.firebase.firestore();
+  const overview = window.LifesavingStatisticsOverview.create(db, () => user && authCore.isCurrentUser(user));
+
+  function showSection() {
+    if (!user) return;
+    const importing = window.location.hash === "#importieren";
+    ui.pane.hidden = !importing;
+    ui.overview.hidden = importing;
+    ui["overview-link"].setAttribute("aria-current", importing ? "false" : "page");
+    ui["source-link"].setAttribute("aria-current", importing ? "page" : "false");
+    if (importing) overview.hide();
+    else overview.show();
+  }
+
+  window.addEventListener("hashchange", showSection);
   auth.onAuthStateChanged(async current => {
     const version = ++generation;
     user = workbook = sheet = null;
@@ -344,6 +362,8 @@
     athletes.clear();
     disciplines.clear();
     busy = false;
+    overview.hide();
+    overview.reset();
     resetPreview();
     ui.dialog.close();
     ui.app.hidden = ui.selectors.hidden = ui.filename.hidden = true;
@@ -371,6 +391,7 @@
       ui.auth.textContent = "";
       ui.auth.hidden = true;
       ui.app.hidden = false;
+      showSection();
     } catch (error) {
       if (version === generation) ui.auth.textContent = describeError(error);
     }
@@ -382,10 +403,10 @@
     openFile(file);
   });
   window.addEventListener("dragover", event => {
-    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+    if (user && !ui.pane.hidden && event.dataTransfer?.types.includes("Files")) event.preventDefault();
   });
   window.addEventListener("drop", event => {
-    if (event.dataTransfer?.files.length) event.preventDefault();
+    if (user && !ui.pane.hidden && event.dataTransfer?.files.length) event.preventDefault();
   });
   ui.drop.addEventListener("dragover", event => {
     if (!event.dataTransfer?.types.includes("Files") || busy) return;

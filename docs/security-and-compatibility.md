@@ -2,10 +2,12 @@
 
 ## Autorisierung
 
-Der Web-Wettkampfimport erlaubt einem verifizierten Admin den gezielten
+Die Web-Admin-Datenbank erlaubt einem verifizierten Admin den gezielten
 Dokumentzugriff in den fünf Statistik-Collections. Rollen und begonnene
-Kontolöschungen werden von den Firestore-Regeln geprüft. Die Regeln erlauben
-dem Browser keine Listenabfragen oder Löschvorgänge in diesem Archiv.
+Kontolöschungen werden von den Firestore-Regeln geprüft. Die Übersicht kann
+Wettkämpfe und Ergebnisse mit einem Limit von höchstens 50 pro Abfrage lesen.
+Stammdaten sind über einzelne Dokumente zugänglich. Löschvorgänge im Archiv
+sind für Browserclients gesperrt.
 Ergebnis-Updates bewahren Sportler-, Wettkampf- und Phasenidentität sowie
 eventuell vorhandene Altspalten. Die Excel-Datei bleibt beim Browser.
 

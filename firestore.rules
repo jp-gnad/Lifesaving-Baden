@@ -1454,6 +1454,10 @@ service cloud.firestore {
       return verifiedUser() && callerRoleRank() == 5;
     }
 
+    function statisticsList() {
+      return statisticsAdmin() && request.query.limit is int && request.query.limit >= 1 && request.query.limit <= 50;
+    }
+
     function statisticsId(id, prefix) {
       return id is string && id.matches('^' + prefix + '[a-f0-9]{32}$');
     }
@@ -1493,6 +1497,7 @@ service cloud.firestore {
           && data.get("phaseCount", null) in [null, 1, 2, 3];
       }
       allow get: if statisticsAdmin() && statisticsId(id, "W");
+      allow list: if statisticsList();
       allow create: if statisticsAdmin() && statisticsId(id, "W") && validCompetition(request.resource.data);
       allow update: if statisticsAdmin() && statisticsId(id, "W") && validCompetition(request.resource.data)
         && request.resource.data.name.lower() == resource.data.name.lower()
@@ -1531,6 +1536,7 @@ service cloud.firestore {
         return ["roundTotal", "fourEventPoints", "legacyLscChange", "hlw"];
       }
       allow get: if statisticsAdmin() && statisticsId(id, "R");
+      allow list: if statisticsList();
       allow create: if statisticsAdmin() && statisticsId(id, "R") && validResult(request.resource.data)
         && !request.resource.data.keys().hasAny(legacyFields());
       allow update: if statisticsAdmin() && statisticsId(id, "R") && validResult(request.resource.data)

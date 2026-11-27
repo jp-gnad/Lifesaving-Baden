@@ -4,12 +4,18 @@ Ein Import verarbeitet **einen ausgewählten Wettkampf**. Excel dient als Eingab
 
 ## Import im Admin-Bereich
 
-1. Mit dem Admin-Konto anmelden und im Mitgliederbereich **Wettkampf importieren** öffnen.
+1. Mit dem Admin-Konto anmelden und im Mitgliederbereich **Datenbank → Importieren** öffnen.
 2. Eine XLSX- oder XLSM-Datei bis 30 MB in das Feld ziehen oder **Datei auswählen** anklicken. Tabellenblatt und Wettkampf auswählen. Auch ausgeblendete Blätter erscheinen in der Auswahl.
 3. **Vorschau erstellen** wählen. Die Seite prüft Excel-Zeilen und gleicht die betroffenen Dokumente mit Firestore ab. Die Vorschau zeigt neue, geänderte und unveränderte Ergebnisse sowie die geplanten Schreibvorgänge. Über den Sportlernamen lassen sich die Disziplinen und Änderungen einblenden.
 4. **Import bestätigen** und **Jetzt speichern** wählen. Die Seite zeigt den Fortschritt. Bei einer Unterbrechung dieselbe Datei verwenden und eine frische Vorschau erstellen. Bereits gespeicherte Dokumente werden beim Abgleich erkannt.
 
 Die Arbeitsmappe wird im Browser gelesen. Ein Datenbankvergleich lädt die betreffenden Archivdokumente anhand ihrer IDs. Die Browser-Variante benötigt die bestehende Firebase-Anmeldung. Die Firestore-Regeln aus dem Projekt müssen vor der Freigabe dieser Seite veröffentlicht werden. Die Änderungen werden in Blöcken gespeichert. Die Transaktion liest die geänderten Dokumente vor dem Schreiben erneut und gleicht sie mit der Vorschau ab.
+
+## Wettkämpfe und Ergebnisse ansehen
+
+Unter **Datenbank → Übersicht** stehen importierte Wettkämpfe nach Datum, der neueste zuerst. Beim Öffnen eines Wettkampfs lassen sich Altersklassen und darin die Geschlechter aufklappen. Mehrere Phasen oder Wertungsarten erhalten eigene Tabellen. Die Gliederung zum Startrecht erscheint beim Ergebnis. Zeiten werden in Minuten, Sekunden und Hundertsteln angezeigt, Jahrgänge zweistellig. Bei breiten Tabellen lässt sich der Disziplinbereich horizontal scrollen. Gesamtplatz und Name bleiben dabei sichtbar.
+
+Die Übersicht lädt Wettkämpfe in Seiten von 20 und die Ergebnisse des geöffneten Wettkampfs in Seiten von 50. Personen, Gliederungen und Disziplinnamen werden erst beim Öffnen eines Ergebnisblocks geladen und für diesen Wettkampf wiederverwendet.
 
 ## Lokaler Import unter Windows
 
@@ -120,7 +126,7 @@ Die vorberechneten Ansichten sind ein Ausbaupfad. Für den ersten öffentlichen 
 
 **Öffentliche Daten.** Aggregierte Ranglisten ohne Personenbezug brauchen weder Namen noch Geburtsjahrgänge. Eine fachlich freigegebene persönliche Rangliste benötigt üblicherweise Anzeigename, Disziplin, Leistung, Wettkampf, Jahr sowie je nach Ansicht AK und Verein. Ein voller Geburtsjahrgang ist für die interne Identitätsprüfung hilfreich. Kontodaten, E-Mails, Geburtstage, interne Unterscheidungsmerkmale und Verknüpfungen werden für eine öffentliche Bestenliste nicht benötigt. Für Minderjährige und namentliche Einzelprofile den vorgesehenen Veröffentlichungskreis vor dem Export festlegen. Statische Dateien auf GitHub Pages sind öffentlich abrufbar; für eine ausschließlich angemeldete Zielgruppe ist ein getrenntes, per Firestore-Regeln geschütztes Lesemodell erforderlich.
 
-Die Archiv-Collections erlauben bei veröffentlichter Regelversion einzelnen Dokumentzugriff und die dafür vorgesehenen Schreiboperationen für verifizierte Admins. Listenabfragen und Löschungen sind im Web-Import gesperrt. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
+Die Archiv-Collections erlauben bei veröffentlichter Regelversion einzelnen Dokumentzugriff und die dafür vorgesehenen Schreiboperationen für verifizierte Admins. Die Übersicht verwendet begrenzte Listenabfragen für Wettkämpfe und Ergebnisse. Löschungen über den Browser bleiben gesperrt. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
 
 ## Kostenloser Betrieb und Größenordnung
 

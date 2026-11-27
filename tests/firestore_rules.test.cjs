@@ -80,7 +80,7 @@ test("statistics archive imports resume, repeat and update only confirmed rows",
   }
 });
 
-test("statistics browser import is admin-only, point-read, version checked and non-deleting", { skip: !enabled }, async () => {
+test("statistics archive supports admin-only imports and bounded overviews without deletion", { skip: !enabled }, async () => {
   const store = require("../assets/js/statistics-import-store.js");
   await seed({ "users/stats-admin": { role: "admin" },
     "users/stats-deleting": { role: "admin", accountDeletionStartedAt: sdk.Timestamp.now() } });
@@ -108,6 +108,9 @@ test("statistics browser import is admin-only, point-read, version checked and n
       await assertFails(sdk.getDoc(ref));
       await assertFails(sdk.setDoc(ref, data));
     }
+    await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, "statsCompetitions"), sdk.limit(20))));
+    await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, "statsResults"),
+      sdk.where("competitionId", "==", competitionId), sdk.limit(50))));
   }
   const admin = dbFor("stats-admin");
   const noop = () => {};
@@ -130,6 +133,19 @@ test("statistics browser import is admin-only, point-read, version checked and n
   await assertFails(sdk.setDoc(sdk.doc(admin, "statsResults", "invalid"), recordToChange.data));
   await assertFails(sdk.deleteDoc(ref));
   await assertFails(sdk.getDocs(sdk.collection(admin, "statsResults")));
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(admin, "statsResults"), sdk.limit(51))));
+  await assertFails(sdk.getDocs(sdk.collection(admin, "statsCompetitions")));
+  const competitionPage = await assertSucceeds(sdk.getDocs(sdk.query(sdk.collection(admin, "statsCompetitions"),
+    sdk.orderBy("date", "desc"), sdk.limit(20))));
+  assert.ok(competitionPage.docs.some(doc => doc.id === competitionId));
+  const match = sdk.where("competitionId", "==", competitionId);
+  const results = sdk.collection(admin, "statsResults");
+  const first = await assertSucceeds(sdk.getDocs(sdk.query(results, match, sdk.limit(20))));
+  const next = await assertSucceeds(sdk.getDocs(sdk.query(results, match, sdk.startAfter(first.docs.at(-1)), sdk.limit(20))));
+  assert.equal(first.size, 20);
+  assert.equal(next.size, 6);
+  assert.equal(new Set([...first.docs, ...next.docs].map(doc => doc.id)).size, 26);
+  await assertFails(sdk.getDocs(sdk.query(sdk.collection(admin, "statsAthletes"), sdk.limit(20))));
 });
 
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {

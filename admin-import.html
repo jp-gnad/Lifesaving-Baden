@@ -9,12 +9,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
-    <title>Wettkampf importieren – Lifesaving Baden</title>
+    <title>Datenbank – Lifesaving Baden</title>
     <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
     <link rel="icon" href="assets/img/lifesaving-baden-logo.png">
     <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
     <link rel="stylesheet" href="assets/css/app-zoom.css?v=20261124-zoom-v1">
-    <link rel="stylesheet" href="assets/css/statistics-import.css?v=1">
+    <link rel="stylesheet" href="assets/css/statistics-import.css?v=2">
     <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
     <script defer src="assets/js/app-zoom.js?v=20261124-zoom-v1"></script>
     <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
@@ -25,7 +25,9 @@
     <script defer src="assets/vendor/sheetjs/xlsx-0.20.3.full.min.js"></script>
     <script defer src="assets/js/statistics-excel-core.js?v=1"></script>
     <script defer src="assets/js/statistics-import-store.js?v=1"></script>
-    <script defer src="assets/js/statistics-import.js?v=1"></script>
+    <script defer src="assets/js/statistics-overview-core.js?v=1"></script>
+    <script defer src="assets/js/statistics-overview.js?v=1"></script>
+    <script defer src="assets/js/statistics-import.js?v=2"></script>
   </head>
   <body data-page="admin-import">
     <header class="site-header">
@@ -36,9 +38,30 @@
     </header>
     <main class="statistics-import">
       <a class="statistics-import-back" href="app.html">← Mitgliederbereich</a>
-      <h1>Wettkampf importieren</h1>
+      <h1>Datenbank</h1>
       <p id="import-auth" class="statistics-import-message" role="status">Anmeldung wird geprüft …</p>
       <div id="import-app" hidden>
+        <nav class="statistics-sections" aria-label="Datenbank">
+          <a id="import-overview-link" href="#uebersicht" aria-current="page">Übersicht</a>
+          <a id="import-source-link" href="#importieren">Importieren</a>
+        </nav>
+        <div id="import-overview" hidden>
+          <section id="archive-list" aria-labelledby="archive-title">
+            <h2 id="archive-title">Wettkämpfe</h2>
+            <p id="archive-status" class="statistics-import-message" role="status" hidden></p>
+            <div id="archive-events" class="statistics-archive-events"></div>
+            <button id="archive-more" class="button button-secondary" type="button" hidden>Weitere Wettkämpfe laden</button>
+          </section>
+          <section id="archive-detail" aria-labelledby="archive-event-name" hidden>
+            <button id="archive-back" class="button button-secondary" type="button">← Alle Wettkämpfe</button>
+            <h2 id="archive-event-name" tabindex="-1"></h2>
+            <p id="archive-event-meta" class="statistics-archive-meta"></p>
+            <p id="archive-detail-status" class="statistics-import-message" role="status" hidden></p>
+            <button id="archive-detail-retry" class="button button-secondary" type="button" hidden>Erneut laden</button>
+            <div id="archive-groups" class="statistics-archive-groups"></div>
+          </section>
+        </div>
+        <div id="import-pane" hidden>
         <section class="statistics-card" aria-labelledby="import-source-title">
           <h2 id="import-source-title">Excel-Datei</h2>
           <div class="statistics-drop" id="import-drop">
@@ -94,6 +117,7 @@
             <button class="button button-secondary" id="import-next" type="button">Weiter</button>
           </div>
         </section>
+        </div>
       </div>
       <dialog id="import-dialog" class="statistics-card" aria-labelledby="import-dialog-title">
         <form method="dialog">

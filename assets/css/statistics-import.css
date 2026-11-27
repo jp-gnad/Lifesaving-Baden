@@ -82,7 +82,126 @@
 .statistics-dialog-actions { justify-content: flex-end; margin-top: 20px; }
 .statistics-import dialog { max-width: min(90vw, 460px); color: var(--text); }
 .statistics-import dialog::backdrop { background: rgba(0, 0, 0, .7); }
+
+.statistics-sections {
+  display: flex;
+  gap: 22px;
+  margin: 0 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.statistics-sections a {
+  padding: 5px 2px 12px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.statistics-sections a[aria-current="page"] {
+  border-bottom-color: var(--primary);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.statistics-archive-events, .statistics-archive-groups {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.statistics-archive-event {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.statistics-archive-event:hover { background: var(--surface-muted); }
+.statistics-archive-event span, .statistics-archive-meta { color: var(--muted); }
+#archive-event-name { margin-top: 18px; overflow-wrap: anywhere; }
+.statistics-archive-meta { margin: 6px 0 0; }
+.statistics-archive-age, .statistics-archive-gender {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.statistics-archive-age > summary, .statistics-archive-gender > summary { padding: 12px 14px; overflow-wrap: anywhere; }
+.statistics-archive-age > summary { font-weight: 700; }
+.statistics-archive-gender { margin: 0 9px 9px; background: var(--bg); }
+.statistics-archive-results { padding: 0 8px 8px; }
+.statistics-archive-results h3 { margin: 12px 4px 8px; }
+.statistics-archive-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #73737d var(--bg);
+}
+
+.statistics-archive-scroll::-webkit-scrollbar { display: block; height: 9px; }
+.statistics-archive-scroll::-webkit-scrollbar-thumb { background: #73737d; border-radius: 5px; }
+.statistics-import .statistics-archive-table {
+  --place-width: 98px;
+  --person-width: clamp(108px, 20vw, 180px);
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.statistics-archive-table thead th { background: var(--surface-muted); color: var(--text); }
+.statistics-archive-table :is(th, td) { vertical-align: middle; }
+.statistics-archive-table tbody :is(th, td) { background: var(--bg); }
+.statistics-archive-table tbody tr:nth-child(even) :is(th, td) { background: var(--surface); }
+.statistics-archive-table tbody tr:last-child :is(th, td) { border-bottom: 0; }
+.statistics-archive-table tbody th { color: var(--text); }
+.statistics-archive-table .archive-place {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--place-width);
+  min-width: var(--place-width);
+  max-width: var(--place-width);
+  overflow-wrap: anywhere;
+}
+
+.statistics-archive-table .archive-person {
+  position: sticky;
+  left: var(--place-width);
+  z-index: 1;
+  width: var(--person-width);
+  min-width: var(--person-width);
+  max-width: var(--person-width);
+  border-right: 1px solid var(--line);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.statistics-archive-table .archive-org { min-width: 7rem; max-width: 14rem; overflow-wrap: anywhere; }
+.statistics-archive-table :is(.archive-year, .archive-points) { text-align: right; white-space: nowrap; }
+.statistics-archive-table .archive-discipline-start { border-left: 1px solid var(--line); }
+.statistics-archive-table thead tr:first-child .archive-discipline-start { text-align: center; }
+.statistics-archive-table thead tr:nth-child(2) th { white-space: nowrap; }
+.statistics-archive-table .archive-narrow-label { display: none; }
 @media (max-width: 620px) {
   .statistics-selectors { grid-template-columns: 1fr; }
   .statistics-import th, .statistics-import td { padding: 8px; }
+  .statistics-import .statistics-archive-table { --place-width: 58px; font-size: .82rem; }
+  .statistics-archive-gender { margin-inline: 5px; }
+  .statistics-archive-results { padding-inline: 4px; }
+  .statistics-archive-table .archive-place { line-height: 1.15; }
+  .statistics-archive-table .archive-wide-label { display: none; }
+  .statistics-archive-table .archive-narrow-label { display: inline; }
 }
