@@ -2,6 +2,13 @@
 
 ## Autorisierung
 
+Der Web-Wettkampfimport erlaubt einem verifizierten Admin den gezielten
+Dokumentzugriff in den fünf Statistik-Collections. Rollen und begonnene
+Kontolöschungen werden von den Firestore-Regeln geprüft. Die Regeln erlauben
+dem Browser keine Listenabfragen oder Löschvorgänge in diesem Archiv.
+Ergebnis-Updates bewahren Sportler-, Wettkampf- und Phasenidentität sowie
+eventuell vorhandene Altspalten. Die Excel-Datei bleibt beim Browser.
+
 Die Kontovorschau (`lifesaving-baden:account-avatar:v1` im Sitzungsspeicher)
 enthält nur UID, Bildadresse, begrenzte Bilddaten, Initialen, den bestätigten
 Anzeigenamen und Cache-Metadaten. Vor Wiederherstellung der Anmeldung zeigt sie

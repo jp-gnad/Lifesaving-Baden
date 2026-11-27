@@ -1,0 +1,88 @@
+.statistics-import {
+  width: min(1080px, 100%);
+  margin-inline: auto;
+  padding: 36px clamp(16px, 4vw, 40px) 64px;
+  color-scheme: dark;
+}
+
+.statistics-import [hidden] { display: none !important; }
+.statistics-import-back { color: var(--muted); }
+.statistics-import h1 { max-width: none; font-size: clamp(1.75rem, 5vw, 2.65rem); margin: 10px 0 24px; }
+.statistics-import h2, .statistics-import h3 { margin: 0; }
+.statistics-import h2 { font-size: 1.2rem; }
+.statistics-import h3 { font-size: 1.05rem; }
+.statistics-card {
+  padding: clamp(16px, 3vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.statistics-card + .statistics-card { margin-top: 18px; }
+.statistics-drop {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  margin-top: 14px;
+  padding: clamp(20px, 5vw, 38px) 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.statistics-drop.is-dragging { border-color: var(--primary); background: var(--athlete-accent-soft); }
+.statistics-drop p { margin: 0; font-weight: 700; }
+.statistics-drop span, .statistics-preview-header p, .statistics-pagination span, .statistics-import-message { color: var(--muted); }
+.statistics-file-name { margin: 14px 0 0; overflow-wrap: anywhere; }
+.statistics-selectors { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr) auto; align-items: end; gap: 14px; margin-top: 16px; }
+.statistics-selectors label { display: grid; gap: 6px; min-width: 0; }
+.statistics-selectors select {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px;
+}
+
+.statistics-import .button { min-height: 44px; }
+.statistics-import .button:disabled { opacity: .52; cursor: default; }
+.statistics-import-message { margin: 14px 0; overflow-wrap: anywhere; }
+.statistics-import-message[data-state="error"], .statistics-errors h2 { color: var(--accent-light); }
+.statistics-import-message[data-state="success"] { color: var(--success); }
+.statistics-errors ul, #import-metadata-changes { max-height: 18rem; overflow: auto; padding-inline-start: 24px; }
+.statistics-preview-header, .statistics-result-header, .statistics-pagination, .statistics-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.statistics-preview-header p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.statistics-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 8px; margin: 20px 0 16px; }
+.statistics-summary div { padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.statistics-summary dt { font-size: .83rem; color: var(--muted); }
+.statistics-summary dd { margin: 3px 0 0; font-size: 1.28rem; font-weight: 700; }
+.statistics-metadata { margin-bottom: 22px; }
+.statistics-import summary { cursor: pointer; }
+.statistics-result-header { margin-bottom: 8px; }
+.statistics-table-wrap { overflow: auto; }
+.statistics-import table { width: 100%; border-collapse: collapse; text-align: left; }
+.statistics-import th, .statistics-import td { border-bottom: 1px solid var(--line); padding: 10px; vertical-align: top; }
+.statistics-import th { color: var(--muted); font-size: .85rem; font-weight: 400; }
+.statistics-import td ul { margin: 8px 0 0; min-width: 14rem; padding-inline-start: 22px; }
+.statistics-import td details[open] summary { color: var(--primary); }
+.statistics-result-changes { color: var(--muted); }
+.statistics-pagination { justify-content: center; margin-top: 14px; }
+.statistics-dialog-actions { justify-content: flex-end; margin-top: 20px; }
+.statistics-import dialog { max-width: min(90vw, 460px); color: var(--text); }
+.statistics-import dialog::backdrop { background: rgba(0, 0, 0, .7); }
+@media (max-width: 620px) {
+  .statistics-selectors { grid-template-columns: 1fr; }
+  .statistics-import th, .statistics-import td { padding: 8px; }
+}

@@ -467,6 +467,13 @@ vollständige Export möglich. Erfolgreiche kleine PDF-Bilder werden begrenzt wi
 
 ## Wartungs- und Testcode
 
+`admin-import.html` ist die Weboberfläche für den historischen Wettkampfimport.
+`statistics-import.js` lädt über `auth-core.js` die aktuelle Admin-Rolle.
+`statistics-excel-core.js` verarbeitet die Arbeitsmappe mit dem lokal eingebundenen
+SheetJS. Die ID-Bildung und das Ergebnisformat entsprechen dem bestehenden
+Kommandozeilenimport. `statistics-import-store.js` liest gezielt Archivdokumente und
+speichert bestätigte Blöcke transaktional.
+
 Das historische [Wettkampfarchiv](statistikimport.md) verwendet fünf eigene Collections
 mit dem Präfix `stats`. `tools/import_statistics.py` wählt die Quelle und den Wettkampf,
 `tools/lib/statistics_excel.py` prüft das Excel-Schema und bildet stabile IDs.

@@ -1450,6 +1450,94 @@ service cloud.firestore {
         && (ids.size() < 3 || validEventSelectionEntry(club, next, previous, ids, 2, competition));
     }
 
+    function statisticsAdmin() {
+      return verifiedUser() && callerRoleRank() == 5;
+    }
+
+    function statisticsId(id, prefix) {
+      return id is string && id.matches('^' + prefix + '[a-f0-9]{32}$');
+    }
+
+    function statisticsFields(data, required, optional) {
+      return data.keys().hasAll(required) && data.keys().hasOnly(required.concat(optional));
+    }
+
+    match /statsAthletes/{id} {
+      allow get: if statisticsAdmin() && statisticsId(id, "A");
+      allow create: if statisticsAdmin() && statisticsId(id, "A")
+        && statisticsFields(request.resource.data, ["firstName", "lastName", "birthYear", "gender", "discriminator"], [])
+        && request.resource.data.firstName is string && request.resource.data.lastName is string
+        && request.resource.data.birthYear is int && request.resource.data.gender in ["m", "w"]
+        && (request.resource.data.discriminator == null || request.resource.data.discriminator is int);
+    }
+
+    match /statsOrganizations/{id} {
+      allow get: if statisticsAdmin() && statisticsId(id, "C");
+      allow create: if statisticsAdmin() && statisticsId(id, "C")
+        && statisticsFields(request.resource.data, ["type", "name", "parentId", "active", "successorId"], [])
+        && request.resource.data.type in ["OG", "BZ", "LV", "BV"] && request.resource.data.name is string
+        && (request.resource.data.parentId == null || statisticsId(request.resource.data.parentId, "C"))
+        && request.resource.data.active == true && request.resource.data.successorId == null;
+      allow update: if statisticsAdmin() && statisticsId(id, "C")
+        && resource.data.type in ["BV", "LV"] && request.resource.data.name is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"]);
+    }
+
+    match /statsCompetitions/{id} {
+      function validCompetition(data) {
+        return statisticsFields(data, ["name", "fullName", "date", "poolLength", "rule", "country", "city"], ["phaseCount"])
+          && data.name is string && data.name.size() > 0 && data.fullName is string
+          && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && (data.poolLength == null || (data.poolLength is int && data.poolLength > 0))
+          && data.rule is string && data.country is string && data.city is string
+          && data.get("phaseCount", null) in [null, 1, 2, 3];
+      }
+      allow get: if statisticsAdmin() && statisticsId(id, "W");
+      allow create: if statisticsAdmin() && statisticsId(id, "W") && validCompetition(request.resource.data);
+      allow update: if statisticsAdmin() && statisticsId(id, "W") && validCompetition(request.resource.data)
+        && request.resource.data.name.lower() == resource.data.name.lower()
+        && (resource.data.get("phaseCount", null) == null ||
+          (request.resource.data.get("phaseCount", null) != null && request.resource.data.phaseCount >= resource.data.phaseCount));
+    }
+
+    match /statsDisciplines/{id} {
+      allow get: if statisticsAdmin() && id.matches('^D00[1-9]$|^D01[0-8]$');
+      allow create, update: if statisticsAdmin() && id.matches('^D00[1-9]$|^D01[0-8]$')
+        && statisticsFields(request.resource.data, ["name", "category", "distance", "sortOrder"], [])
+        && request.resource.data.name is string && request.resource.data.category in ["Pool", "HLW"]
+        && (request.resource.data.distance == null || request.resource.data.distance is int)
+        && request.resource.data.sortOrder is int && request.resource.data.sortOrder in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+    }
+
+    match /statsResults/{id} {
+      function validResult(data) {
+        return statisticsFields(data, ["athleteId", "competitionId", "ogId", "bzId", "lvId", "bvId",
+          "gender", "ageGroup", "startRight", "round", "classification", "place", "overallPoints", "lsc", "disciplines"],
+          ["rankingStatus", "roundTotal", "fourEventPoints", "legacyLscChange", "hlw"])
+          && statisticsId(data.athleteId, "A") && statisticsId(data.competitionId, "W")
+          && (data.ogId == null || statisticsId(data.ogId, "C"))
+          && (data.bzId == null || statisticsId(data.bzId, "C"))
+          && (data.lvId == null || statisticsId(data.lvId, "C"))
+          && (data.bvId == null || statisticsId(data.bvId, "C"))
+          && data.gender in ["m", "w"] && data.ageGroup is string && data.startRight is string
+          && data.round in [null, 1, 2, 3] && data.classification is string
+          && (data.place == null || data.place is int) && data.get("rankingStatus", null) in [null, "AK", "EXCLUDED"]
+          && (data.overallPoints == null || data.overallPoints is number) && (data.lsc == null || data.lsc is number)
+          && data.disciplines is map && data.disciplines.keys().hasOnly([
+            "D001", "D002", "D003", "D004", "D005", "D006", "D007", "D008", "D009",
+            "D010", "D011", "D012", "D013", "D014", "D015", "D016", "D017", "D018"]);
+      }
+      function legacyFields() {
+        return ["roundTotal", "fourEventPoints", "legacyLscChange", "hlw"];
+      }
+      allow get: if statisticsAdmin() && statisticsId(id, "R");
+      allow create: if statisticsAdmin() && statisticsId(id, "R") && validResult(request.resource.data)
+        && !request.resource.data.keys().hasAny(legacyFields());
+      allow update: if statisticsAdmin() && statisticsId(id, "R") && validResult(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          legacyFields().concat(["athleteId", "competitionId", "round"]));
+    }
+
     match /clubDirectory/{id} {
       allow read: if verifiedUser() && isAdmin();
       allow write: if false;

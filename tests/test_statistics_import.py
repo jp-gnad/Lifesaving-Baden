@@ -1,9 +1,11 @@
 import csv
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 from contextlib import ExitStack
@@ -14,7 +16,7 @@ from datetime import datetime
 
 TOOLS = Path(__file__).resolve().parents[1] / "tools"
 sys.path.insert(0, str(TOOLS))
-from import_statistics import competition_names, prepare, source_rows
+from import_statistics import competition_names, import_environment, prepare, source_rows
 from lib.statistics_excel import DISCIPLINES, FIELDS
 
 
@@ -29,7 +31,7 @@ def header():
 def line(name="Muster, Mia", age=89, event="BaWü-SEN - 2026", heat=1):
     return [name, "w", 35, age, "Beispiel", "Bezirk", "WÜ", "GER", 5, "1.874,98", None,
             "461,33", 37] + [None]*5 + [5, "0:54,86", 570, None, None] + [None]*75 + [
-                0, 46340, event, 25, "National", "GER", "Althenstett", "OG", heat, "3Kampf", "Beispielmeisterschaft"]
+                None, 46340, event, 25, "National", "GER", "Althenstett", "OG", heat, "3Kampf", "Beispielmeisterschaft"]
 
 
 def parse(*rows):
@@ -37,6 +39,154 @@ def parse(*rows):
 
 
 class StatisticsImport(unittest.TestCase):
+    def test_browser_and_cli_produce_the_same_firestore_records(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "Baden.xlsx"
+            book = Workbook()
+            book.epoch = MAC_EPOCH
+            sheet = book.active
+            a, b = header()
+            sheet.append(a)
+            sheet.append(b)
+            first, second = line(heat=1), line(heat=2)
+            for row in (first, second):
+                row[99] = to_excel(datetime(2026, 11, 14), MAC_EPOCH)
+                row[1] = "W"
+                row[2] = "13/14"
+            first[13:18] = ["AK", "0:54,86", 0, "R17", "disq"]
+            first[98] = "n.a."
+            second[8] = "ausg."
+            second[98] = 500
+            sheet.append(first)
+            sheet.append(second)
+            sheet.merge_cells(start_row=1, start_column=14, end_row=1, end_column=18)
+            sheet.cell(4, 20).number_format = "m:ss.00"
+            sheet.cell(4, 20).value = 54860 / 86400000
+            sheet.cell(4, 100).value = datetime(2026, 11, 14, 13, 30)
+            book.save(path)
+            book.close()
+            args = SimpleNamespace(file=path, clipboard=False, sheet=sheet.title)
+            with ExitStack() as stack:
+                rows, epoch = source_rows(args, stack)
+                event = next(iter(competition_names(iter(rows()))))
+                expected, starts = prepare(iter(rows()), epoch, event)
+            command = """
+                const xlsx = require('./assets/vendor/sheetjs/xlsx-0.20.3.full.min.js');
+                const core = require('./assets/js/statistics-excel-core.js');
+                const lv = require('./tools/lib/dlrg-landesverbaende.json');
+                const bytes = require('node:fs').readFileSync(process.argv[1]);
+                const book = xlsx.read(bytes, { cellNF: true, sheetStubs: true });
+                const sheet = core.inspectSheet(core.readSheet(book.Sheets[book.SheetNames[0]], xlsx));
+                core.prepare(sheet, [...sheet.events.keys()][0], book.Workbook.WBProps.date1904, lv)
+                  .then(result => process.stdout.write(JSON.stringify(result)));
+            """
+            result = subprocess.run(["node", "-e", command, str(path)], cwd=TOOLS.parent,
+                                    capture_output=True, encoding="utf-8")
+            self.assertEqual(result.returncode, 0, result.stderr[:2000])
+            actual = json.loads(result.stdout)
+            self.assertEqual(actual["errors"], [])
+            self.assertEqual(actual["starts"], starts)
+            self.assertEqual({d["id"]: d["data"] for d in actual["records"]},
+                             {d["id"]: d["data"] for d in expected})
+            sheet.cell(3, 10).value = "=5+7"
+            book.save(path)
+            book.close()
+            invalid = subprocess.run(["node", "-e", command, str(path)], cwd=TOOLS.parent,
+                                     capture_output=True, encoding="utf-8", check=True)
+            self.assertIn("Formel ohne gespeichertes Ergebnis", json.loads(invalid.stdout)["errors"][0])
+
+    def test_competition_phase_count_uses_only_the_selected_event(self):
+        for heats, count in (((1,), 1), ((1, 2), 2), ((3, 1, 2), 3), ((None,), None)):
+            with self.subTest(heats=heats):
+                rows = [line(heat=phase) for phase in heats]
+                docs, _ = parse(*rows, line(event="Anderer Wettkampf", heat=3))
+                competition = next(d["data"] for d in docs if d["collection"] == "statsCompetitions")
+                self.assertEqual(competition["phaseCount"], count)
+        with self.assertRaisesRegex(ValueError, "Zeile 3: .*Wettkampfphase"):
+            parse(line(heat="2/3"))
+
+    def test_start_right_preserves_the_athletes_affiliation(self):
+        from lib.statistics_excel import stable_id
+        for level in ("OG", "LV", "BV"):
+            with self.subTest(level=level):
+                row = line()
+                row[105] = level
+                docs, _ = parse(row)
+                organizations = {d["id"]: d["data"] for d in docs if d["collection"] == "statsOrganizations"}
+                result = next(d["data"] for d in docs if d["collection"] == "statsResults")
+                self.assertEqual(result["startRight"], level)
+                self.assertEqual(organizations[result["ogId"]]["name"], row[4])
+                self.assertEqual(organizations[result["lvId"]]["name"], "Württemberg")
+                self.assertEqual(result["bvId"], stable_id("C", "BV", None, "ger"))
+                self.assertEqual(organizations[result["bvId"]]["name"], "Deutschland")
+
+    def test_competition_country_expands_ger_independently_of_federation(self):
+        for country, expected in (("GER", "Deutschland"), ("Deutschland", "Deutschland"),
+                                  ("Frankreich", "Frankreich"), (None, "")):
+            with self.subTest(country=country):
+                row = line()
+                row[7] = "FRA"
+                row[103] = country
+                docs, _ = parse(row)
+                competition = next(d["data"] for d in docs if d["collection"] == "statsCompetitions")
+                self.assertEqual(competition["country"], expected)
+
+    def test_lv_names_expand_only_for_german_state_associations(self):
+        from lib.statistics_excel import stable_id
+        for country, code, name in [("GER", "WÜ", "Württemberg"), ("GER", "BA", "Baden"),
+                                    ("GER", "BY", "Bayern"), ("SUI", "BE", "BE")]:
+            row = line()
+            row[6:8] = [code, country]
+            docs, _ = parse(row)
+            parent = stable_id("C", "BV", None, country.lower())
+            lv = next(d for d in docs if d["id"] == stable_id("C", "LV", parent, code.lower()))
+            self.assertEqual(lv["data"]["name"], name)
+        row[6:8] = ["XX", "GER"]
+        with self.assertRaisesRegex(ValueError, "Zeile 3: .*LV-Kürzel"):
+            parse(row)
+
+    def test_gender_accepts_m_and_w_only(self):
+        row = line()
+        for value in ("M", "w"):
+            row[1] = value
+            docs, _ = parse(row)
+            for doc in docs:
+                if doc["collection"] in ("statsAthletes", "statsResults"):
+                    self.assertEqual(doc["data"]["gender"], value.lower())
+        row[1] = "d"
+        with self.assertRaisesRegex(ValueError, "Zeile 3: .*Gender.*m oder w"):
+            parse(row)
+
+    def test_key_picker_only_supplies_the_import_process(self):
+        fake_key = '{"type":"service_account","project_id":"demo-test","client_email":"test","private_key":"test"}'
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True):
+            key = Path(temp) / "demo.json"
+            key.write_text(fake_key, encoding="utf-8-sig")
+            with patch("import_statistics.system_input", return_value=str(key)) as picker:
+                self.assertIsNone(import_environment(True))
+                picker.assert_not_called()
+                env = import_environment(False)
+                self.assertIn("demo-test", env["FIREBASE_SERVICE_ACCOUNT_JSON"])
+                self.assertNotIn("FIREBASE_SERVICE_ACCOUNT_JSON", os.environ)
+                with patch.dict(os.environ, {"FIREBASE_SERVICE_ACCOUNT_JSON": fake_key}):
+                    self.assertIsNone(import_environment(False))
+                picker.assert_called_once()
+                key.write_text("{}", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Dienstkontos"):
+                    import_environment(False)
+
+    def test_file_selection_without_tk_reads_quoted_path(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as stack:
+            path = Path(temp) / "Meine Ergebnisse.xlsx"
+            book = Workbook()
+            for row in [*header(), line()]:
+                book.active.append(row)
+            book.save(path)
+            book.close()
+            with patch.dict(sys.modules, {"tkinter": None}), patch("builtins.input", return_value=f'"{path}"'):
+                rows, _ = source_rows(SimpleNamespace(file=None, clipboard=False, sheet=None), stack)
+                self.assertEqual(competition_names(iter(rows())), {"BaWü-SEN - 2026": 1})
+
     def test_original_layout_and_numeric_values(self):
         row = line()
         self.assertEqual(len(row), 109)
@@ -46,9 +196,10 @@ class StatisticsImport(unittest.TestCase):
         docs, count = parse(row)
         by_type = {d["collection"]: d["data"] for d in docs}
         result = by_type["statsResults"]
-        self.assertEqual((count, result["place"], result["fourEventPoints"], result["hlw"]), (4, 5, None, 0))
-        self.assertEqual((result["lsc"], result["overallPoints"], result["legacyLscChange"]), (461.33, 1874.98, 37))
-        self.assertEqual((result["round"], result["roundTotal"]), (1, None))
+        self.assertEqual((count, result["place"]), (4, 5))
+        self.assertEqual((result["lsc"], result["overallPoints"]), (461.33, 1874.98))
+        self.assertEqual(result["round"], 1)
+        self.assertNotIn("roundTotal", result)
         self.assertEqual(result["disciplines"]["D001"], dict(place=1, timeMs=59890, points=881.25,
                          faultCode="T1", penaltyPoints=50, status="OK"))
         self.assertEqual(result["disciplines"]["D003"]["status"], "DQ")
@@ -59,8 +210,59 @@ class StatisticsImport(unittest.TestCase):
         clubs = {d["id"]: d["data"] for d in docs if d["collection"] == "statsOrganizations"}
         self.assertEqual(clubs[result["ogId"]]["parentId"], result["bzId"])
 
+    def test_overall_and_discipline_ranking_status_are_independent(self):
+        for overall, discipline_place, expected_overall, expected_discipline in (
+                ("AK", 1, "AK", None), (5, "ak", None, "AK"),
+                ("ausg.", 1, "EXCLUDED", None), (5, "AUSG.", None, "EXCLUDED")):
+            with self.subTest(overall=overall, discipline_place=discipline_place):
+                row = line()
+                row[8] = overall
+                row[13:18] = [discipline_place, "0:59,89", 570, "F12", "disq"]
+                docs, _ = parse(row)
+                result = next(d["data"] for d in docs if d["collection"] == "statsResults")
+                entry = result["disciplines"]["D001"]
+                self.assertEqual(result["rankingStatus"], expected_overall)
+                self.assertEqual(result["place"], 5 if expected_overall is None else None)
+                self.assertEqual(entry.get("rankingStatus"), expected_discipline)
+                self.assertEqual(entry["place"], 1 if expected_discipline is None else None)
+                self.assertEqual((entry["status"], entry["timeMs"], entry["points"]), ("DQ", 59890, 570))
+                self.assertNotIn("rankingStatus", result["disciplines"]["D002"])
+
+    def test_historical_hlw_is_a_discipline_and_preserves_total_points(self):
+        for value, points, status in (("200", 200, "PASS"), ("500", 500, "PASS"), ("0", 0, "DQ"),
+                                      ("n.a.", None, "DNS"), ("", None, None)):
+            with self.subTest(value=value):
+                row = line()
+                row[98] = value
+                docs, count = parse(row)
+                result = next(d["data"] for d in docs if d["collection"] == "statsResults")
+                self.assertNotIn("hlw", result)
+                self.assertEqual(result["overallPoints"], 1874.98)
+                expected = None if status is None else {"points": points, "status": status}
+                self.assertEqual(result["disciplines"].get("D018"), expected)
+                self.assertEqual(count, 1 if status is None else 2)
+                catalog = next(d["data"] for d in docs if d["id"] == "D018")
+                self.assertEqual(catalog, {"name": "HLW", "category": "HLW", "distance": None, "sortOrder": 18})
+
+    def test_legacy_points_and_lsc_change_columns_are_optional_and_ignored(self):
+        top, bottom = header()
+        row = line()
+        legacy_indices = {bottom.index("4-Kampf (ohne HLW)"), bottom.index("LSC Change")}
+        for index in legacy_indices:
+            row[index] = "#EXCEL-FEHLER"
+        for omit in (False, True):
+            with self.subTest(omit=omit):
+                rows = [[cell for i, cell in enumerate(r) if i not in legacy_indices]
+                        for r in (top, bottom, row)] if omit else [top, bottom, row]
+                docs, _ = prepare(iter(rows), WINDOWS_EPOCH, row[100])
+                result = next(d["data"] for d in docs if d["collection"] == "statsResults")
+                self.assertEqual(result["overallPoints"], 1874.98)
+                self.assertEqual(result["lsc"], 461.33)
+                self.assertNotIn("fourEventPoints", result)
+                self.assertNotIn("legacyLscChange", result)
+
     def test_multiple_rounds_suffix_stable_ids_and_partial_selection(self):
-        rows = [line(heat=None), line(heat="2/3"), line("Muster, Mia (2)"), line(event="Anderer Wettkampf")]
+        rows = [line(heat=None), line(heat=2), line("Muster, Mia (2)"), line(event="Anderer Wettkampf")]
         names = competition_names(iter([*header(), *rows]))
         self.assertEqual(sorted(names.values()), [1, 3])
         docs, _ = parse(*rows)
@@ -70,7 +272,7 @@ class StatisticsImport(unittest.TestCase):
         self.assertEqual(len(results), 3)
         self.assertEqual(results[0]["athleteId"], results[1]["athleteId"])
         self.assertNotEqual(results[0]["athleteId"], results[2]["athleteId"])
-        self.assertEqual((results[1]["round"], results[1]["roundTotal"]), (2, 3))
+        self.assertEqual(results[1]["round"], 2)
         self.assertIsNone(results[0]["round"])
 
     def test_block_reordering_and_ambiguities(self):

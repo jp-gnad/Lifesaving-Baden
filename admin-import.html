@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#0f0f12">
+    <link rel="manifest" href="manifest.webmanifest?v=20261105-baden-icon-v2">
+    <link rel="apple-touch-icon" href="assets/img/lifesaving-baden-app-180.png" sizes="180x180">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Lifesaving Baden">
+    <title>Wettkampf importieren – Lifesaving Baden</title>
+    <meta property="og:image" content="https://jp-gnad.github.io/Lifesaving-Baden/assets/img/lifesaving-baden-app-512.png">
+    <link rel="icon" href="assets/img/lifesaving-baden-logo.png">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261123-compact-tabs-v1">
+    <link rel="stylesheet" href="assets/css/app-zoom.css?v=20261124-zoom-v1">
+    <link rel="stylesheet" href="assets/css/statistics-import.css?v=1">
+    <script defer src="assets/js/header.js?v=20261102-header-shadow-v1"></script>
+    <script defer src="assets/js/app-zoom.js?v=20261124-zoom-v1"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+    <script defer src="assets/js/firebase-config.js?v=20261101-settings-v11"></script>
+    <script defer src="assets/js/auth-core.js?v=20261123-indicator-cache-v1"></script>
+    <script defer src="assets/vendor/sheetjs/xlsx-0.20.3.full.min.js"></script>
+    <script defer src="assets/js/statistics-excel-core.js?v=1"></script>
+    <script defer src="assets/js/statistics-import-store.js?v=1"></script>
+    <script defer src="assets/js/statistics-import.js?v=1"></script>
+  </head>
+  <body data-page="admin-import">
+    <header class="site-header">
+      <a class="brand" href="app.html" aria-label="Lifesaving Baden Mitgliederbereich">
+        <span class="brand-mark" aria-hidden="true"><img src="assets/img/lifesaving-baden-logo.webp" alt=""></span>
+        <span>Lifesaving Baden</span>
+      </a>
+    </header>
+    <main class="statistics-import">
+      <a class="statistics-import-back" href="app.html">← Mitgliederbereich</a>
+      <h1>Wettkampf importieren</h1>
+      <p id="import-auth" class="statistics-import-message" role="status">Anmeldung wird geprüft …</p>
+      <div id="import-app" hidden>
+        <section class="statistics-card" aria-labelledby="import-source-title">
+          <h2 id="import-source-title">Excel-Datei</h2>
+          <div class="statistics-drop" id="import-drop">
+            <p>Excel-Datei hier hineinziehen</p>
+            <input id="import-file" type="file" accept=".xlsx,.xlsm" hidden>
+            <button id="import-pick" class="button button-secondary" type="button">Datei auswählen</button>
+            <span>.xlsx oder .xlsm · bis 30 MB</span>
+          </div>
+          <p class="statistics-file-name" id="import-filename" hidden></p>
+          <div class="statistics-selectors" id="import-selectors" hidden>
+            <label>Tabellenblatt <select id="import-sheet"></select></label>
+            <label>Wettkampf <select id="import-event"></select></label>
+            <button class="button button-primary" id="import-review" type="button" disabled>Vorschau erstellen</button>
+          </div>
+        </section>
+        <p id="import-status" class="statistics-import-message" role="status" aria-live="polite" hidden></p>
+        <section id="import-errors" class="statistics-card statistics-errors" aria-labelledby="import-errors-title" hidden>
+          <h2 id="import-errors-title">Bitte in Excel prüfen</h2>
+          <ul id="import-error-list"></ul>
+        </section>
+        <section id="import-preview" class="statistics-card" aria-labelledby="import-preview-title" hidden>
+          <div class="statistics-preview-header">
+            <div>
+              <h2 id="import-preview-title" tabindex="-1">Importvorschau</h2>
+              <p id="import-preview-event"></p>
+            </div>
+            <button class="button button-primary" id="import-confirm" type="button" disabled>Import bestätigen</button>
+          </div>
+          <dl id="import-summary" class="statistics-summary"></dl>
+          <details class="statistics-metadata">
+            <summary>Stammdaten und Änderungen</summary>
+            <div class="statistics-table-wrap" tabindex="0" role="region" aria-label="Stammdaten">
+              <table>
+                <thead><tr><th>Bereich</th><th>Neu</th><th>Geändert</th><th>Unverändert</th></tr></thead>
+                <tbody id="import-collections"></tbody>
+              </table>
+            </div>
+            <ul id="import-metadata-changes"></ul>
+          </details>
+          <div class="statistics-result-header">
+            <h3>Ergebnisse</h3>
+            <label><input type="checkbox" id="import-changes-only" checked> Nur Änderungen</label>
+          </div>
+          <div class="statistics-table-wrap" tabindex="0" role="region" aria-label="Ergebnisvorschau">
+            <table>
+              <thead><tr><th>Excel-Zeile</th><th>Sportler und Disziplinen</th><th>Phase</th><th>Platz</th><th>Mehrkampfpunkte</th><th>Import</th></tr></thead>
+              <tbody id="import-results"></tbody>
+            </table>
+          </div>
+          <div class="statistics-pagination" id="import-pagination" hidden>
+            <button class="button button-secondary" id="import-prev" type="button">Zurück</button>
+            <span id="import-page" aria-live="polite"></span>
+            <button class="button button-secondary" id="import-next" type="button">Weiter</button>
+          </div>
+        </section>
+      </div>
+      <dialog id="import-dialog" class="statistics-card" aria-labelledby="import-dialog-title">
+        <form method="dialog">
+          <h2 id="import-dialog-title">Wettkampf importieren</h2>
+          <p id="import-confirm-count"></p>
+          <div class="statistics-dialog-actions">
+            <button class="button button-secondary" value="cancel" autofocus>Abbrechen</button>
+            <button class="button button-primary" value="confirm">Jetzt speichern</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+  </body>
+</html>

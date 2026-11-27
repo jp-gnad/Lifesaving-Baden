@@ -80,16 +80,56 @@ test("statistics archive imports resume, repeat and update only confirmed rows",
   }
 });
 
-test("statistics raw data stays private for anonymous, member and admin web clients", { skip: !enabled }, async () => {
-  await seed({ "users/stats-admin": { role: "admin" } });
-  for (const uid of [null, "stats-member", "stats-admin"]) {
-    const db = dbFor(uid);
-    for (const collection of ["statsAthletes", "statsOrganizations", "statsCompetitions", "statsDisciplines", "statsResults"]) {
-      const ref = sdk.doc(db, collection, "probe");
+test("statistics browser import is admin-only, point-read, version checked and non-deleting", { skip: !enabled }, async () => {
+  const store = require("../assets/js/statistics-import-store.js");
+  await seed({ "users/stats-admin": { role: "admin" },
+    "users/stats-deleting": { role: "admin", accountDeletionStartedAt: sdk.Timestamp.now() } });
+  const athleteId = "A" + "1".repeat(32), competitionId = "W" + "1".repeat(32);
+  const record = (collection, id, data) => ({ collection, id, data, row: 3 });
+  const records = [
+    record("statsAthletes", athleteId, { firstName: "Mia", lastName: "Muster", gender: "w", birthYear: 2001, discriminator: null }),
+    record("statsOrganizations", "C" + "9".repeat(32), { name: "Deutschland", type: "BV", parentId: null }),
+    record("statsCompetitions", competitionId, { name: "Wettkampf", fullName: "", date: "2026-11-14",
+      city: "", country: "Deutschland", rule: "", poolLength: 25, phaseCount: 1 }),
+    record("statsDisciplines", "D018", { name: "HLW", category: "HLW", distance: null, sortOrder: 18 }),
+  ];
+  for (let i = 0; i < 26; i++) {
+    records.push(record("statsResults", "Rf" + String(i).padStart(31, "0"), {
+      athleteId, competitionId, ogId: null, bzId: null, lvId: null, bvId: null,
+      gender: "w", ageGroup: "Standard", startRight: "OG", round: 1, classification: "3Kampf",
+      place: null, rankingStatus: "AK", overallPoints: 570, lsc: null,
+      disciplines: { D018: { points: 200, status: "PASS" } },
+    }));
+  }
+  for (const db of [dbFor(null), dbFor("stats-member"), dbFor("stats-admin", { email_verified: false }),
+    dbFor("stats-deleting", { admin: true })]) {
+    for (const { collection, id, data } of records.slice(0, 5)) {
+      const ref = sdk.doc(db, collection, id);
       await assertFails(sdk.getDoc(ref));
-      await assertFails(sdk.setDoc(ref, { name: "Beispiel" }));
+      await assertFails(sdk.setDoc(ref, data));
     }
   }
+  const admin = dbFor("stats-admin");
+  const noop = () => {};
+  const plan = await store.compare(admin, records, {}, noop);
+  assert.ok(plan.every(item => item.action === "new"));
+  const progress = [];
+  await assertSucceeds(store.apply(admin, plan, noop, (...counts) => progress.push(counts)));
+  assert.deepEqual(progress, [[25, 30], [30, 30]]);
+  assert.ok((await store.compare(admin, records, {}, noop)).every(item => item.action === "same"));
+  const recordToChange = records.at(-1);
+  const ref = sdk.doc(admin, recordToChange.collection, recordToChange.id);
+  recordToChange.data.overallPoints = 600;
+  const outdated = await store.compare(admin, [recordToChange], {}, noop);
+  await assertSucceeds(sdk.updateDoc(ref, { overallPoints: 610 }));
+  await assert.rejects(store.apply(admin, outdated, noop, noop), /seit der Vorschau geändert/);
+  assert.equal((await sdk.getDoc(ref)).data().overallPoints, 610);
+  await assertSucceeds(store.apply(admin, await store.compare(admin, [recordToChange], {}, noop), noop, noop));
+  assert.equal((await sdk.getDoc(ref)).data().overallPoints, 600);
+  await assertFails(sdk.updateDoc(ref, { round: 2 }));
+  await assertFails(sdk.setDoc(sdk.doc(admin, "statsResults", "invalid"), recordToChange.data));
+  await assertFails(sdk.deleteDoc(ref));
+  await assertFails(sdk.getDocs(sdk.collection(admin, "statsResults")));
 });
 
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {

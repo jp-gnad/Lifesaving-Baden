@@ -37,6 +37,57 @@ const result = (n, points) => ({ collection: "statsResults", id: "R" + String(n)
   data: { disciplines: { D001: { points } } } });
 const noop = async () => {};
 
+test("unmarked results keep legacy compatibility and can clear a ranking marker", async () => {
+  const { compareStatistics, applyStatistics } = await import("../tools/lib/statistics-store.mjs");
+  const db = memoryStore();
+  const legacy = result(1, 570);
+  await applyStatistics(db, await compareStatistics(db, [legacy]), noop);
+  const record = { ...legacy, data: { ...legacy.data, rankingStatus: null } };
+  const write = async () => applyStatistics(db, await compareStatistics(db, [record]), noop);
+  assert.equal(await write(), 0);
+  record.data.rankingStatus = "AK";
+  assert.equal(await write(), 1);
+  record.data.rankingStatus = null;
+  assert.equal(await write(), 1);
+  assert.equal(await write(), 0);
+});
+
+test("partial corrections preserve the full competition phase count", async () => {
+  const { compareStatistics, applyStatistics } = await import("../tools/lib/statistics-store.mjs");
+  const db = memoryStore();
+  const event = { collection: "statsCompetitions", id: "W" + "a".repeat(32), data: { name: "Wettkampf" } };
+  const plan = () => compareStatistics(db, [event]);
+  await applyStatistics(db, await plan(), noop);
+  event.data.phaseCount = 3;
+  assert.equal(await applyStatistics(db, await plan(), noop), 1);
+
+  event.data = { ...event.data, phaseCount: 1, city: "Baden" };
+  const correction = await plan();
+  assert.equal(correction[0].data.phaseCount, 3);
+  assert.deepEqual(correction[0].fields, ["city"]);
+  assert.equal(await applyStatistics(db, correction, noop), 1);
+  assert.equal(await applyStatistics(db, await plan(), noop), 0);
+});
+
+test("existing BV and LV codes expand once on their original documents", async () => {
+  const { compareStatistics, applyStatistics } = await import("../tools/lib/statistics-store.mjs");
+  const db = memoryStore();
+  const bv = { collection: "statsOrganizations", id: "C" + "b".repeat(32),
+    data: { type: "BV", name: "GER", parentId: null } };
+  const lv = { collection: "statsOrganizations", id: "C" + "a".repeat(32),
+    data: { type: "LV", name: "WÜ", parentId: bv.id } };
+  const write = async () => applyStatistics(db, await compareStatistics(db, [bv, lv]), noop);
+  await write();
+  lv.data.name = "Württemberg";
+  bv.data.name = "Deutschland";
+  assert.equal(await write(), 2);
+  assert.equal(await write(), 0);
+  assert.equal(db.docs.size, 2);
+  assert.equal(db.docs.get(`statsOrganizations/${lv.id}`).data.parentId, bv.id);
+  lv.data.name = "Baden";
+  await assert.rejects(write(), /Stammdaten/);
+});
+
 test("a partial archive import resumes and repeated input costs zero writes", async () => {
   const { compareStatistics, applyStatistics } = await import("../tools/lib/statistics-store.mjs");
   const db = memoryStore();

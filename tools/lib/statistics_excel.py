@@ -5,6 +5,7 @@ import math
 import re
 import unicodedata
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 
 from openpyxl.utils.datetime import from_excel
 
@@ -15,10 +16,15 @@ DISCIPLINES = (
     "50m Retten/Flossen", "50m Flosse", "50m Hindernis", "50m k. Schwimmen",
     "50m Freistil", "25m Freistil", "25m Brust", "25m Rücken ohne Arme", "25m Puppe",
 )
+HLW_ID = "D018"
+LEGACY_FOUR_EVENT_POINTS = "4-Kampf (ohne HLW)"
+LEGACY_LSC_CHANGE = "LSC Change"
+IGNORED_COLUMNS = frozenset({LEGACY_FOUR_EVENT_POINTS, LEGACY_LSC_CHANGE})
 FIELDS = ("Name", "Gender", "AK", "Age", "OG", "BZ", "LV", "BV", "PLACE", "3-Kampf",
-          "4-Kampf (ohne HLW)", "LSC", "LSC Change", "HLW", "Datum", "Wettkampf", "Bahn",
+          LEGACY_FOUR_EVENT_POINTS, "LSC", LEGACY_LSC_CHANGE, "HLW", "Datum", "Wettkampf", "Bahn",
           "Rule", "Land", "Stadt", "St. Recht", "Lauf", "Wertung", "WK-Name")
 BLOCK = ["pl", "time", "points", "c", "st"]
+LV_NAMES = json.loads(Path(__file__).with_name("dlrg-landesverbaende.json").read_text(encoding="utf-8"))
 
 
 def clean(value):
@@ -29,6 +35,11 @@ def clean(value):
 
 def heading(value):
     return re.sub(r"[\s.()/-]", "", clean(value).lower())
+
+
+def country_name(value):
+    name = clean(value)
+    return "Deutschland" if name.upper() == "GER" else name
 
 
 def stable_id(prefix, *parts):
@@ -60,7 +71,7 @@ def columns(top, bottom):
                 raise ValueError(f"Unbekannte oder doppelte Überschrift in Spalte {i+1}.")
             fields[field] = i
         i += 1
-    missing = set(FIELDS) - fields.keys()
+    missing = set(FIELDS) - fields.keys() - IGNORED_COLUMNS
     if missing or len(blocks) != len(DISCIPLINES):
         raise ValueError(f"Kopfzeilen prüfen: fehlende Felder {sorted(missing)}, {len(blocks)}/17 Disziplinblöcke.")
     return fields, blocks
@@ -131,43 +142,63 @@ def elapsed_ms(value):
     return (int(match[1] or 0)*60 + int(match[2]))*1000 + int((match[3] or "").ljust(3, "0"))
 
 
+def placement(value):
+    ranking_status = {"ak": "AK", "ausg": "EXCLUDED"}.get(heading(value))
+    if ranking_status or not clean(value):
+        return None, ranking_status
+    return integer(value), None
+
+
 def discipline(values):
     markers = {"na": "DNS", "disq": "DQ"}
     marked = {markers[heading(v)] for v in values if heading(v) in markers}
     if len(marked) > 1:
         raise ValueError("Widersprüchliche Statusmarker disq und n.a.")
     status = next(iter(marked), "OK")
-    place, duration, points, _, penalty = [
+    raw_place, duration, points, _, penalty = [
         v if clean(v) and heading(v) not in markers else None for v in values
     ]
-    result = dict(place=integer(place) if place is not None else None,
+    place, ranking_status = placement(raw_place)
+    result = dict(place=place,
                   timeMs=elapsed_ms(duration) if duration is not None else None,
                   points=number(points), faultCode=clean(values[3]) or None,
                   penaltyPoints=number(penalty), status=status)
+    if ranking_status:
+        result["rankingStatus"] = ranking_status
     if status == "DNS" and result["points"] not in (None, 0):
         raise ValueError("Nichtantritt mit Punkten ungleich 0.")
     return result
 
 
-def round_fields(value):
+def hlw_discipline(value):
+    if heading(value) == "na":
+        return dict(points=None, status="DNS")
+    points = number(value)
+    if points not in (0, 200, 500):
+        raise ValueError("HLW erwartet 0, 200 oder 500 Punkte oder n.a.")
+    return dict(points=points, status="DQ" if points == 0 else "PASS")
+
+
+def round_number(value):
     s = clean(value)
     if not s:
-        return None, None
-    m = re.fullmatch(r"([1-3])(?:/([1-3]))?", s)
-    if not m or (m[2] and m[1] > m[2]):
-        raise ValueError(f"Unbekannter Lauf {s!r}.")
-    return int(m[1]), int(m[2]) if m[2] else None
+        return None
+    if s not in ("1", "2", "3"):
+        raise ValueError(f"Unbekannte Wettkampfphase {s!r} in der Excel-Spalte Lauf. Bitte 1, 2 oder 3 angeben.")
+    return int(s)
 
 
 def documents(values, fields, blocks, epoch):
-    row = {key: values[i] for key, i in fields.items()}
+    row = {key: values[i] for key, i in fields.items() if key not in IGNORED_COLUMNS}
     day = event_date(row["Datum"], epoch)
     year = birth_year(row["Age"], day.year)
     name = clean(row["Name"])
     parts = [s.strip() for s in name.split(",")]
     gender = clean(row["Gender"]).lower()
-    if len(parts) != 2 or not all(parts) or gender not in ("m", "w", "d"):
-        raise ValueError("Name (Nachname, Vorname) und Gender prüfen.")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError("Name im Format Nachname, Vorname angeben.")
+    if gender not in ("m", "w"):
+        raise ValueError("In der Spalte Gender bitte m oder w angeben.")
     last, first = parts
     suffix = re.fullmatch(r"(.+?)\s+\(([1-9]\d*)\)", first)
     discriminator = int(suffix[2]) if suffix else None
@@ -182,7 +213,7 @@ def documents(values, fields, blocks, epoch):
         raise ValueError("Wettkampfbezeichnung oder Bahnlänge prüfen.")
     competition = dict(name=event, fullName=clean(row["WK-Name"]), date=day.isoformat(),
                        poolLength=int(pool[1]) if pool else None, rule=clean(row["Rule"]),
-                       country=clean(row["Land"]), city=clean(row["Stadt"]))
+                       country=country_name(row["Land"]), city=clean(row["Stadt"]))
     docs = [("statsCompetitions", event_id, competition), ("statsAthletes", athlete_id, athlete)]
     parent = None
     affiliations = {}
@@ -194,11 +225,18 @@ def documents(values, fields, blocks, epoch):
             if previous_kind and not affiliations[previous_kind.lower()+"Id"]:
                 raise ValueError(f"{kind} {org!r}: zugehörigen {previous_kind} zur eindeutigen Zuordnung ergänzen.")
             org_id = stable_id("C", kind, parent, org.lower())
-            docs.append(("statsOrganizations", org_id, dict(type=kind, name=org, parentId=parent)))
+            org_name = org
+            if kind == "BV":
+                org_name = country_name(org)
+            elif kind == "LV" and clean(row["BV"]).upper() in ("GER", "DE", "DEU", "DEUTSCHLAND", "DLRG"):
+                org_name = LV_NAMES.get(org.upper(), org)
+                if len(org) <= 3 and org.upper() not in LV_NAMES:
+                    raise ValueError(f"Unbekanntes LV-Kürzel {org!r}. Bitte die Zuordnung prüfen.")
+            docs.append(("statsOrganizations", org_id, dict(type=kind, name=org_name, parentId=parent)))
             parent = org_id
         affiliations[kind.lower()+"Id"] = org_id
         previous_kind = kind
-    heats, total = round_fields(row["Lauf"])
+    phase = round_number(row["Lauf"])
     entries = {}
     for key, i in blocks.items():
         cells = values[i:i+5]
@@ -207,13 +245,18 @@ def documents(values, fields, blocks, epoch):
                 entries[key] = discipline(cells)
             except ValueError as exc:
                 raise ValueError(f"{key}: {exc}") from exc
-    result_id = stable_id("R", event_id, athlete_id, heats)
+    if clean(row["HLW"]):
+        try:
+            entries[HLW_ID] = hlw_discipline(row["HLW"])
+        except ValueError as exc:
+            raise ValueError(f"HLW: {exc}") from exc
+    result_id = stable_id("R", event_id, athlete_id, phase)
+    place, ranking_status = placement(row["PLACE"])
     result = dict(athleteId=athlete_id, competitionId=event_id, **affiliations, gender=gender,
                   ageGroup=clean(row["AK"]), startRight=clean(row["St. Recht"]),
-                  round=heats, roundTotal=total, classification=clean(row["Wertung"]),
-                  place=integer(row["PLACE"]) if clean(row["PLACE"]) else None,
-                  overallPoints=number(row["3-Kampf"]), fourEventPoints=number(row["4-Kampf (ohne HLW)"]),
-                  lsc=number(row["LSC"]), legacyLscChange=number(row["LSC Change"]),
-                  hlw=row["HLW"] if clean(row["HLW"]) else None, disciplines=entries)
+                  round=phase, classification=clean(row["Wertung"]),
+                  place=place, rankingStatus=ranking_status,
+                  overallPoints=number(row["3-Kampf"]),
+                  lsc=number(row["LSC"]), disciplines=entries)
     docs.append(("statsResults", result_id, result))
     return docs

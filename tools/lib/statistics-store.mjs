@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import lvNames from "./dlrg-landesverbaende.json" with { type: "json" };
 
 // Keep operational collections and arbitrary user-supplied paths outside this writer.
 const kinds = new Map([
@@ -9,6 +10,7 @@ const kinds = new Map([
   ["statsResults", /^R[a-f0-9]{32}$/],
 ]);
 const order = [...kinds.keys()];
+const organizationNames = { BV: { GER: "Deutschland" }, LV: lvNames };
 
 export async function compareStatistics(db, records) {
   const seen = new Set();
@@ -28,14 +30,27 @@ export async function compareStatistics(db, records) {
       const item = group[i];
       item.before = doc.data() ?? {};
       item.version = doc.updateTime;
-      item.fields = Object.keys(item.data).filter(key => !isDeepStrictEqual(item.before[key], item.data[key]));
+      if (item.collection === "statsCompetitions" && item.before.phaseCount > (item.data.phaseCount ?? 0)) {
+        // A partial reimport of earlier phases must preserve the competition format.
+        item.data = { ...item.data, phaseCount: item.before.phaseCount };
+      }
+      item.fields = Object.keys(item.data).filter(key => {
+        if (item.collection === "statsResults" && key === "rankingStatus") {
+          // Legacy results omit the field when they have no ranking marker.
+          return (item.before[key] ?? null) !== item.data[key];
+        }
+        return !isDeepStrictEqual(item.before[key], item.data[key]);
+      });
       item.action = !doc.exists ? "neu" : item.fields.length ? "aktualisieren" : "unverändert";
-      if (doc.exists && item.fields.length && ["statsAthletes", "statsOrganizations"].includes(item.collection)) {
+      const expandsOrganizationName = item.collection === "statsOrganizations"
+        && item.fields.length === 1 && item.fields[0] === "name" && typeof item.before.name === "string"
+        && organizationNames[item.data.type]?.[item.before.name.toUpperCase()] === item.data.name;
+      if (doc.exists && item.fields.length && ["statsAthletes", "statsOrganizations"].includes(item.collection) && !expandsOrganizationName) {
         throw new Error(`Zeile ${item.row}: abweichende Stammdaten bei vorhandener ID ${item.id}. Schreibweise und Identität prüfen.`);
       }
       if (doc.exists && item.collection === "statsResults" &&
           item.fields.some(key => ["athleteId", "competitionId", "round"].includes(key))) {
-        throw new Error(`Zeile ${item.row}: Sportler-, Wettkampf- oder Laufidentität des vorhandenen Ergebnisses prüfen.`);
+        throw new Error(`Zeile ${item.row}: Sportler, Wettkampf und Wettkampfphase des vorhandenen Ergebnisses prüfen.`);
       }
     }
   }

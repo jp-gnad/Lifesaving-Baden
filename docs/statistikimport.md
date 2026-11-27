@@ -1,21 +1,31 @@
 # Wettkampfergebnisse aus Excel importieren
 
-Ein Aufruf verarbeitet **einen ausgewählten Wettkampf**. Excel dient als Eingabe, Firestore als dauerhaftes Archiv. Das Werkzeug läuft auf dem Verwaltungsrechner. Es benötigt weder einen neuen Server noch weitere Pakete über die vorhandenen Entwicklungsabhängigkeiten hinaus.
+Ein Import verarbeitet **einen ausgewählten Wettkampf**. Excel dient als Eingabe, Firestore als dauerhaftes Archiv.
 
-## Erster Import unter Windows
+## Import im Admin-Bereich
+
+1. Mit dem Admin-Konto anmelden und im Mitgliederbereich **Wettkampf importieren** öffnen.
+2. Eine XLSX- oder XLSM-Datei bis 30 MB in das Feld ziehen oder **Datei auswählen** anklicken. Tabellenblatt und Wettkampf auswählen. Auch ausgeblendete Blätter erscheinen in der Auswahl.
+3. **Vorschau erstellen** wählen. Die Seite prüft Excel-Zeilen und gleicht die betroffenen Dokumente mit Firestore ab. Die Vorschau zeigt neue, geänderte und unveränderte Ergebnisse sowie die geplanten Schreibvorgänge. Über den Sportlernamen lassen sich die Disziplinen und Änderungen einblenden.
+4. **Import bestätigen** und **Jetzt speichern** wählen. Die Seite zeigt den Fortschritt. Bei einer Unterbrechung dieselbe Datei verwenden und eine frische Vorschau erstellen. Bereits gespeicherte Dokumente werden beim Abgleich erkannt.
+
+Die Arbeitsmappe wird im Browser gelesen. Ein Datenbankvergleich lädt die betreffenden Archivdokumente anhand ihrer IDs. Die Browser-Variante benötigt die bestehende Firebase-Anmeldung. Die Firestore-Regeln aus dem Projekt müssen vor der Freigabe dieser Seite veröffentlicht werden. Die Änderungen werden in Blöcken gespeichert. Die Transaktion liest die geänderten Dokumente vor dem Schreiben erneut und gleicht sie mit der Vorschau ab.
+
+## Lokaler Import unter Windows
+
+Die Kommandozeile bleibt für lokale Prüfungen und Wartung verfügbar.
 
 1. Einmalig Python, die Pakete aus `requirements-dev.txt` und die Node-Werkzeuge gemäß [Entwicklung](development.md#voraussetzungen) installieren. Die Arbeitsmappe außerhalb des öffentlichen Repositorys aufbewahren.
-2. Im Projektordner die **lokale Prüfung** starten. Im Dateidialog eine XLSX- oder XLSM-Datei wählen. Bei mehreren Blättern oder Wettkämpfen zeigt das Terminal eine nummerierte Auswahl. Auch ein verborgenes Datenblatt lässt sich auswählen.
+2. Im Projektordner die **lokale Prüfung** starten. Im Dateidialog eine XLSX- oder XLSM-Datei wählen. Falls sich kein Fenster öffnen lässt, fragt das Programm nach dem Dateipfad. Im Explorer per Rechtsklick auf die Datei „Als Pfad kopieren“ wählen, den Pfad einfügen und Enter drücken. Bei mehreren Blättern oder Wettkämpfen zeigt das Terminal eine nummerierte Auswahl. Auch ein verborgenes Datenblatt lässt sich auswählen.
 
    ```powershell
    .venv\Scripts\python.exe tools/import_statistics.py
    ```
 
 3. Die angezeigten Zeilennummern in Excel prüfen. Änderungen können in einer privaten Importkopie erfolgen. Der lokale Lauf braucht weder Zugangsdaten noch Datenbankkontingent. Alternativ in Excel beide Kopfzeilen zusammen mit den Daten kopieren und `--clipboard` verwenden. Für UTF-8-Tabellentext sind auch `.tsv` und `.txt` möglich. Spalten und leere Zellen müssen durch Tabulatoren getrennt bleiben.
-4. Für den **Datenbankvergleich** dieselbe Service-Account-Umgebungsvariable wie bei den vorhandenen Wartungswerkzeugen verwenden. Der Schlüssel bleibt in einer privaten Datei außerhalb des Projekts. Das Konto benötigt Firestore-Datenzugriff per IAM. Für einen reinen Vergleich genügt Lesezugriff. Der Projektwächter akzeptiert für den Echtbetrieb ausschließlich `lifesaving-baden`.
+4. Für den **Datenbankvergleich** nach der Excel-Auswahl die private JSON-Schlüsseldatei des Firebase-Dienstkontos für `lifesaving-baden` auswählen. Die Datei privat außerhalb des Repositorys aufbewahren. Falls noch kein Schlüssel vorliegt, lässt er sich unter Projekteinstellungen → Dienstkonten → Neuen privaten Schlüssel generieren herunterladen. Eine bereits gesetzte Umgebungsvariable `FIREBASE_SERVICE_ACCOUNT_JSON` verwendet das Programm automatisch. Für den Vergleich benötigt das Dienstkonto Leserechte, zum Import zusätzlich Schreibrechte. [Firebase-Anleitung](https://firebase.google.com/docs/admin/setup#initialize_the_sdk_in_non-google_environments)
 
    ```powershell
-   $env:FIREBASE_SERVICE_ACCOUNT_JSON = Get-Content -Raw -Encoding UTF8 'C:\Privat\firebase-service-account.json'
    .venv\Scripts\python.exe tools/import_statistics.py 'C:\Privat\Ergebnisse.xlsx' --event 'BaWü-SEN - 2026' --compare
    ```
 
@@ -24,36 +34,42 @@ Ein Aufruf verarbeitet **einen ausgewählten Wettkampf**. Excel dient als Eingab
 
    ```powershell
    .venv\Scripts\python.exe tools/import_statistics.py 'C:\Privat\Ergebnisse.xlsx' --event 'BaWü-SEN - 2026' --apply
-   Remove-Item Env:FIREBASE_SERVICE_ACCOUNT_JSON
    ```
 
 Für eine feste Blattauswahl `--sheet 'Blattname'` ergänzen. Zum Üben einen lokalen Firestore-Emulator im Projekt mit `npx --no-install firebase emulators:start --only firestore --project demo-lifesaving-baden` starten und beim Import `--emulator --apply` verwenden. Der Emulator-Modus verwendet ausschließlich einen lokalen Host und dieses Demo-Projekt. Die Terminalvorschau enthält personenbezogene Daten. Excel-Dateien, private Kopien, Schlüssel und mitgeschnittene Terminalausgaben gehören außerhalb von GitHub Pages.
 
 ## Wie Excel gelesen wird
 
-Die erste Kopfzeile benennt die 17 Disziplinen, die zweite die 109 Spalten. Der Importer erkennt jeden Fünferblock über seinen Namen und die Unterspalten `Pl / Time / Points / C / St`. Er behandelt Zeilenumbrüche, geschützte Leerzeichen, zusammengeführte Titelzellen und die Originalabkürzung „25m Rü. ohne Arme“. Umgestellte vollständige Blöcke behalten ihre Disziplin-ID. Unbekannte oder doppelte Spalten bzw. Blöcke stoppen den Import. XLSM-Makros werden nicht ausgeführt. Formeln brauchen einen in der Arbeitsmappe gespeicherten Ergebniswert.
+Die erste Kopfzeile benennt die 17 Disziplinen, die zweite die Datenspalten. Die alten Excel-Spalten `4-Kampf (ohne HLW)` und `LSC Change` sind optional. Der Importer erkennt jeden Fünferblock über seinen Namen und die Unterspalten `Pl / Time / Points / C / St`. Er behandelt Zeilenumbrüche, geschützte Leerzeichen, zusammengeführte Titelzellen und die Originalabkürzung „25m Rü. ohne Arme“. Umgestellte vollständige Blöcke behalten ihre Disziplin-ID. Unbekannte oder doppelte Spalten bzw. Blöcke stoppen den Import. XLSM-Makros werden nicht ausgeführt. Formeln in importierten Spalten brauchen einen in der Arbeitsmappe gespeicherten Ergebniswert.
 
 | Excel | Archiv und Interpretation |
 |---|---|
-| Name, Gender, Age | Nachname und Vorname getrennt, Geschlecht und vierstelliger Geburtsjahrgang. Die explizite Nummer „(2)“ bleibt ein eigenes Identitätsmerkmal. |
-| AK, OG, BZ, LV, BV, St. Recht | Altersklasse als Text, vier historische Verbands-IDs und Startrecht pro Ergebnis. „Standard“ ist ein regulärer Wert. |
-| PLACE, 3-Kampf, 4-Kampf (ohne HLW) | Gesamtplatz, allgemeine Mehrkampfpunkte und eigene Vierkampfwertung. Fehlende Werte bleiben leer, numerische Null bleibt Null. |
-| LSC, LSC Change, HLW | Der vorhandene LSC und der alte Änderungswert bleiben erhalten. Das zusätzliche HLW-Feld aus Spalte 99 bleibt in seinem ursprünglichen skalaren Zelltyp erhalten. |
-| Pl, Time, Points, C, St | Disziplinplatz, Millisekunden, bereits bereinigte Punkte, Fehlercode, numerische Strafpunkte und Status. „0:59,89“ ergibt 59.890 ms. „disq“ ergibt DQ, „n.a.“ ergibt DNS. Der Import zieht Strafen kein zweites Mal ab. Ein vollständig leerer Block erzeugt keinen Disziplineintrag. |
+| Name, Gender, Age | Nachname und Vorname getrennt, Geschlecht (m oder w) und vierstelliger Geburtsjahrgang. Die explizite Nummer „(2)“ bleibt ein eigenes Identitätsmerkmal. |
+| AK, OG, BZ, LV, BV, St. Recht | Altersklasse als Text, vier historische Verbands-IDs und Startrecht pro Ergebnis. "Standard" ist ein regulärer Wert. `St. Recht` gibt an, für welche Ebene die Person gestartet ist. Bei `BV` kann im selben Ergebnis weiterhin die Heimat-OG stehen. |
+| PLACE, 3-Kampf | Gesamtplatz und Mehrkampfpunkte. `AK` (außer Konkurrenz) oder `ausg.` (ausgeschlossen) in `PLACE` kennzeichnen die Gesamtwertung der Person in diesem Wettkampf. |
+| LSC | Der vorhandene LSC wird als Zahl übernommen. |
+| HLW | Historische Disziplin `D018`. Der Import speichert 200 oder 500 Punkte als bestanden und 0 Punkte als disqualifiziert. `n.a.` steht für nicht angetreten. Bei einer leeren Zelle entfällt der Disziplineintrag. Enthaltene HLW-Punkte sind bereits Teil der Mehrkampfpunkte aus `3-Kampf`. |
+| Pl, Time, Points, C, St | Disziplinplatz, Millisekunden, bereits bereinigte Punkte, Fehlercode, numerische Strafpunkte und Status. `AK` oder `ausg.` in `Pl` gelten für diese Disziplin. „0:59,89“ ergibt 59.890 ms. „disq“ ergibt DQ, „n.a.“ ergibt DNS. Der Import zieht Strafen kein zweites Mal ab. Ein vollständig leerer Block erzeugt keinen Disziplineintrag. |
 | Datum, Wettkampf, WK-Name | ISO-Kalendertag, eindeutiger Kurzname, Langname. Excel-Zahl 46340 ergibt im 1900-Datumssystem den 14.11.2026. XLSX/XLSM verwenden das Datumssystem der Mappe. Für eingefügten Text mit 1904-Datumssystem das Datum als ISO- oder deutsches Datum kopieren. |
-| Bahn, Rule, Land, Stadt | Beckenlänge in Metern, Regelwerk, Land und Stadt des Wettkampfs. Regelwerks- und Wertungsnamen sind erweiterbare Texte. |
-| Lauf, Wertung | Laufnummer und optional ausdrücklich vorhandener Nenner, dazu die Originalwertung wie „3Kampf“. Ein leerer Lauf bleibt ein direktes Finale. Ein einzelnes „1“ enthält keine Information über die Anzahl der Läufe. |
+| Bahn, Rule, Land, Stadt | Beckenlänge in Metern, Regelwerk, Land und Stadt des Wettkampfs. `GER` in der Spalte `Land` wird als `Deutschland` gespeichert. Regelwerks- und Wertungsnamen sind erweiterbare Texte. |
+| Lauf, Wertung | `Lauf` enthält die Wettkampfphase. Bei ausschließlich `1` gibt es einen Durchgang ohne separate Finalphase. Ist die höchste Phase `2`, gilt `1` als Vorlauf und `2` als Finale. Bei höchster Phase `3` gilt `2` als Zwischenlauf und `3` als Finale. Eine leere Zelle bleibt als direktes Finale unterstützt. `Wertung` bleibt als Text wie „3Kampf“ erhalten. |
+
+Der Import ermittelt die Phasenanzahl aus der höchsten Phasennummer in den Zeilen des ausgewählten Wettkampfs und speichert sie dort als `phaseCount`. Für das erste Erfassen der Phasenanzahl eines bereits importierten Wettkampfs die vollständigen Wettkampfdaten erneut einlesen. Bei späteren Teilimporten bleibt eine höhere gespeicherte Phasenanzahl erhalten. Die Phasennummer trägt zusammen mit Wettkampf und Person zur Ergebnis-ID bei.
 
 ### Identität und Prüffälle
 
-- Für einen zweistelligen Jahrgang verwendet der Import das **Wettkampfjahr**. Als ausdrücklich gewählte Plausibilitätsannahme gelten 0 bis 110 Jahre. Gibt es zwei mögliche Jahrhunderte, nennt die Meldung beide Jahrgänge. Beispiel 2026 mit `Age=20` ergibt 1920 oder 2020. Nach Prüfung den vollständigen Jahrgang in die Importkopie eintragen. AK und LSC Change sind keine zuverlässigen Geburtsjahresquellen.
-- Exakte Identitätsmerkmale erlauben eine Zuordnung über mehrere Wettkämpfe. Leerraum und Groß-/Kleinschreibung sind für die ID vereinheitlicht. Umlaute, Bindestriche und Nummern bleiben unterscheidbar. Es gibt keine unscharfe Namenszusammenführung. Unterschiedliche Schreibweisen zur gleichen ID, widersprüchliche Wettkampfdaten, fehlende Eltern einer genannten Organisation und doppelte Personen-/Laufschlüssel werden zur Prüfung gemeldet. Fehlende Verbandsangaben können leer bleiben, wenn auch die untergeordneten Ebenen fehlen.
+In der Excel-Spalte BV steht weiterhin `GER`. In der Datenbank heißt dieser Bundesverband „Deutschland“. Beim nächsten bestätigten Import wird ein bereits gespeicherter Name `GER` unter derselben ID aktualisiert. Sind in der Excel-Zeile die Heimat-OG und ihre Verbandsebenen eingetragen, bleiben diese auch bei einem Start für den LV oder BV nachvollziehbar. Eine leere OG-Zelle wird als fehlende Zuordnung gespeichert.
+
+In der Excel-Spalte LV können die bisherigen Kürzel stehen bleiben. Für deutsche DLRG-Landesverbände speichert der Import den vollen Namen, etwa „Württemberg“ für WÜ und „Baden“ für BA. Die [Zuordnung der Kürzel](../tools/lib/dlrg-landesverbaende.json) umfasst die 18 Landesverbände. Ein unbekanntes deutsches Kurzkürzel erscheint mit Zeilennummer zur Prüfung. Bereits importierte Kürzel werden beim nächsten bestätigten Import desselben Verbands unter der vorhandenen ID ausgeschrieben. In Excel die bisherige Schreibweise beibehalten, weil sie für die ID verwendet wird. [Landesverbände der DLRG](https://www.dlrg.de/informieren/die-dlrg/kontakt-und-ansprechpartner/landesverbaende/)
+
+- Für einen zweistelligen Jahrgang verwendet der Import das **Wettkampfjahr**. Als ausdrücklich gewählte Plausibilitätsannahme gelten 0 bis 110 Jahre. Gibt es zwei mögliche Jahrhunderte, nennt die Meldung beide Jahrgänge. Beispiel 2026 mit `Age=20` ergibt 1920 oder 2020. Nach Prüfung den vollständigen Jahrgang in die Importkopie eintragen.
+- Exakte Identitätsmerkmale erlauben eine Zuordnung über mehrere Wettkämpfe. Leerraum und Groß-/Kleinschreibung sind für die ID vereinheitlicht. Umlaute, Bindestriche und Nummern bleiben unterscheidbar. Es gibt keine unscharfe Namenszusammenführung. Unterschiedliche Schreibweisen zur gleichen ID, widersprüchliche Wettkampfdaten, fehlende Eltern einer genannten Organisation und doppelte Ergebniszeilen derselben Person und Wettkampfphase werden zur Prüfung gemeldet. Fehlende Verbandsangaben können leer bleiben, wenn auch die untergeordneten Ebenen fehlen.
 - Bei identischem Namen, Jahrgang und Geschlecht können die Quelldaten zwei Menschen nur mit einer zusätzlichen Kennzeichnung unterscheiden. Die etablierte Nummerierung in allen zugehörigen Zeilen beibehalten. Der Importer kann einen quer über Wettkämpfe fehlenden Gleichnamigen-Zusatz nicht aus Zeiten oder Verein beweisen. Stellen zwei historische Schreibweisen dieselbe Person dar, vor dem Import die bestätigte Archivschreibweise in der Importkopie verwenden.
-- Der einmal festgelegte Schlüssel dient auch künftigen Importen. Eine Änderung am Kurz­namen, Geburtsjahrgang, Namenszusatz oder an der Laufnummer kann eine andere ID liefern. Die Vorschau meldet dann eine Neuanlage. Bei einer beabsichtigten Identitätskorrektur den Lauf abbrechen und die betroffenen Verweise gesondert zuordnen. Datenbank-IDs werden durch dieses Werkzeug weder umbenannt noch bereinigt.
+- Der einmal festgelegte Schlüssel dient auch künftigen Importen. Eine Änderung am Kurz­namen, Geburtsjahrgang, Namenszusatz oder an der Phasennummer kann eine andere ID liefern. Die Vorschau meldet dann eine Neuanlage. Bei einer beabsichtigten Identitätskorrektur den Import abbrechen und die betroffenen Verweise gesondert zuordnen. Datenbank-IDs werden durch dieses Werkzeug weder umbenannt noch bereinigt.
 
 ### Wiederholung, Korrektur und Abbruch
 
-Jede eingereichte Ergebniszeile beschreibt den **vollständigen Stand dieses Laufs**, einschließlich der leeren Disziplinblöcke. Damit kann eine korrigierte Zeile auch eine irrtümlich erfasste Disziplin entfernen. Die Änderung erscheint in der Vorschau. Andere Ergebniszeilen dürfen in der Importdatei fehlen. Der Import liest nur ausdrücklich adressierte Dokumente und enthält keine Löschoperation für Dokumente.
+Jede eingereichte Ergebniszeile beschreibt den **vollständigen Stand dieser Wettkampfphase für die Person**, einschließlich der leeren Disziplinblöcke. Damit kann eine korrigierte Zeile auch eine irrtümlich erfasste Disziplin entfernen. Die Änderung erscheint in der Vorschau. Andere Ergebniszeilen dürfen in der Importdatei fehlen. Der Import liest nur ausdrücklich adressierte Dokumente und enthält keine Löschoperation für Dokumente.
 
 Neue Dokumente werden mit einer Nichtexistenzbedingung geschrieben, Änderungen mit der Version aus der Vorschau. Wurde ein betroffenes Dokument zwischenzeitlich verändert, schlägt der betreffende atomare Block fehl. Stamm- und Katalogdaten stehen vor den Ergebnissen in der Schreibreihenfolge. Jeder Block enthält höchstens 200 Änderungen. Bei mehr als 200 Änderungen kann ein Teil bereits gespeichert sein.
 
@@ -80,10 +96,12 @@ Die vorhandene Personen-/Clubsuche nutzt eigene Verzeichnisse. `tools/build_part
 | `statsAthletes` | `A…` aus Nachname, Vorname, Jahrgang, Geschlecht, Nummer. `firstName,lastName,gender` Text, `birthYear` Ganzzahl, `discriminator` Ganzzahl/null. |
 | `statsOrganizations` | `C…` aus Typ, Eltern-ID und Name. `type,name` Text, `parentId,successorId` ID/null, `active` Boolean. Ein Import initialisiert den Nachfolger bei Neuanlage mit null und bewahrt gepflegte Nachfolger bei Wiederholung. |
 | `statsCompetitions` | `W…` aus dem eindeutigen Kurz­namen. `name,fullName,rule,country,city` Text, `date` als sortierbarer ISO-Text, `poolLength` Ganzzahl/null. |
-| `statsDisciplines` | Fester Katalog `D001` bis `D017` in der angegebenen Originalreihenfolge. `name,category` Text, `distance,sortOrder` Ganzzahl. Neue Disziplinen erhalten neue IDs. |
-| `statsResults` | `R…` aus Wettkampf-ID, Sportler-ID und Laufnummer bzw. null. `athleteId,competitionId` sowie `ogId,bzId,lvId,bvId` als Verweise. `gender,ageGroup,startRight,classification` Text. `round,roundTotal,place` Ganzzahl/null. `overallPoints,fourEventPoints,lsc,legacyLscChange` Zahl/null. `hlw` Originalwert/null. `disciplines` ist eine Map mit den sechs unten beschriebenen Werten je belegter Disziplin. |
+| `statsDisciplines` | Fester Katalog `D001` bis `D017` für die Schwimmdisziplinen in der ursprünglichen Reihenfolge sowie `D018` für HLW. `name,category` Text, `sortOrder` Ganzzahl, `distance` Ganzzahl/null. Neue Disziplinen erhalten neue IDs. |
+| `statsResults` | `R…` aus Wettkampf-ID, Sportler-ID und Phasennummer bzw. null. `athleteId,competitionId` sowie `ogId,bzId,lvId,bvId` als Verweise. `gender,ageGroup,startRight,classification` Text. `round,place` Ganzzahl/null. `overallPoints,lsc` Zahl/null. `rankingStatus` enthält den Wertungsstatus der Gesamtwertung. `disciplines` enthält die belegten Disziplinen mit ihren jeweiligen Ergebnisfeldern. |
 
-Eine Disziplin enthält `place` und `timeMs` als Ganzzahl/null, `points` und `penaltyPoints` als Zahl/null, `faultCode` als Text/null sowie `status` als OK, DQ oder DNS. Mit höchstens 17 Einträgen bleibt die Map überschaubar. Ein Lauf einschließlich seiner Disziplinen benötigt einen Lesezugriff und kann atomar korrigiert werden. Separate Disziplinergebnisse würden globale Abfragen nach Disziplin vereinfachen, aber bei jedem Import und jeder Wettkampfansicht zusätzliche Dokumentzugriffe erzeugen.
+Eine Schwimmdisziplin enthält `place` und `timeMs` als Ganzzahl/null, `points` und `penaltyPoints` als Zahl/null, `faultCode` als Text/null sowie `status` als OK, DQ oder DNS. HLW enthält `points` und `status` als PASS, DQ oder DNS. Bei HLW-Nichtantritt ist `points` null. Das Ergebnis einer Person für eine Wettkampfphase einschließlich ihrer Disziplinen benötigt einen Lesezugriff und kann atomar korrigiert werden. Separate Disziplinergebnisse würden globale Abfragen nach Disziplin vereinfachen, aber bei jedem Import und jeder Wettkampfansicht zusätzliche Dokumentzugriffe erzeugen.
+
+`rankingStatus` speichert `AK` oder `EXCLUDED` auf der Ebene, auf der die Markierung in Excel steht. An der betreffenden Stelle ist `place` null. Zeit, Punkte und ein Status wie `DQ` oder `DNS` können weiterhin am Disziplinergebnis stehen. Bei mehreren Wettkampfphasen steht eine Gesamtmarkierung in der Ergebniszeile, aus deren `PLACE`-Zelle sie stammt. Für spätere Ranglisten ist sie bei der Wertung derselben Person im ganzen Wettkampf zu berücksichtigen. Eine Markierung in `Pl` betrifft nur die Disziplin der jeweiligen Phase.
 
 Die abgeleiteten IDs verwenden einen Typpräfix und die ersten 128 Bit eines SHA-256-Hashes über die strukturierten Schlüsselwerte. Dadurch sind weder Zählerdokumente noch eine Suche durch alle Personen nötig. Die historische Verbandshierarchie, Wettkampf-AK und Geschlecht stehen bewusst auch am Ergebnis. Für eine heutige gemeinsame Vereinswertung folgt die Auswertung den gepflegten `successorId`-Verweisen auf denselben Nachfolger. Historische OGs behalten ihre IDs. Eine Fusion wird fachlich bestätigt, nicht anhand ähnlich klingender Ortsnamen geraten. Bei der späteren Auswertung Nachfolgerketten auf Zyklen prüfen.
 
@@ -102,7 +120,7 @@ Die vorberechneten Ansichten sind ein Ausbaupfad. Für den ersten öffentlichen 
 
 **Öffentliche Daten.** Aggregierte Ranglisten ohne Personenbezug brauchen weder Namen noch Geburtsjahrgänge. Eine fachlich freigegebene persönliche Rangliste benötigt üblicherweise Anzeigename, Disziplin, Leistung, Wettkampf, Jahr sowie je nach Ansicht AK und Verein. Ein voller Geburtsjahrgang ist für die interne Identitätsprüfung hilfreich. Kontodaten, E-Mails, Geburtstage, interne Unterscheidungsmerkmale und Verknüpfungen werden für eine öffentliche Bestenliste nicht benötigt. Für Minderjährige und namentliche Einzelprofile den vorgesehenen Veröffentlichungskreis vor dem Export festlegen. Statische Dateien auf GitHub Pages sind öffentlich abrufbar; für eine ausschließlich angemeldete Zielgruppe ist ein getrenntes, per Firestore-Regeln geschütztes Lesemodell erforderlich.
 
-Die Archiv-Collections sind durch die derzeitigen Regeln für alle Browserclients gesperrt, auch für angemeldete Web-Admins. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
+Die Archiv-Collections erlauben bei veröffentlichter Regelversion einzelnen Dokumentzugriff und die dafür vorgesehenen Schreiboperationen für verifizierte Admins. Listenabfragen und Löschungen sind im Web-Import gesperrt. Der lokale Server-SDK authentifiziert sich über IAM. Eine spätere Veröffentlichung soll eigens freigegebene Ausgabefelder enthalten. Firestore-Leserechte gelten für das ganze Dokument. [Firestore-Sicherheitsregeln](https://firebase.google.com/docs/firestore/security/get-started)
 
 ## Kostenloser Betrieb und Größenordnung
 
@@ -116,7 +134,7 @@ Stand der Prüfung **27. November 2026**, Cloud Firestore Standard. Das kostenlo
 | Gespeicherte Daten einschließlich Indizes | 1 GiB |
 | Ausgehende Datenübertragung | 10 GiB pro Monat |
 
-**Rechenbeispiel für einen Import.** 500 Ergebniszeilen, 400 eindeutige Sportler, 50 Organisationen, ein Wettkampf und 17 Katalogeinträge ergeben rund **968 adressierte Dokumente**. Ein erstmaliger Import in ein leeres Archiv benötigt ungefähr 968 Reads und 968 Writes. Eine identische Wiederholung benötigt ungefähr 968 Reads und null Writes. Bei einer einzigen geänderten Ergebniszeile derselben Datei fällt ein Write an. Ein einzelner Aufruf mit `--apply` enthält den Vergleich bereits. Netzwerk-Wiederholungen und andere Projektzugriffe sind in diesen Zahlen nicht enthalten.
+**Rechenbeispiel für einen Import.** 500 Ergebniszeilen, 400 eindeutige Sportler, 50 Organisationen, ein Wettkampf und 18 Katalogeinträge ergeben rund **969 adressierte Dokumente**. Ein erstmaliger Import in ein leeres Archiv benötigt ungefähr 969 Reads und 969 Writes. Eine identische Wiederholung benötigt ungefähr 969 Reads und null Writes. Bei einer einzigen geänderten Ergebniszeile derselben Datei fällt ein Write an. Ein einzelner Aufruf mit `--apply` enthält den Vergleich bereits. Netzwerk-Wiederholungen und andere Projektzugriffe sind in diesen Zahlen nicht enthalten.
 
 **Rechenbeispiel für den Betrieb.** Angenommene 40 Reads je öffentlichem Seitenaufruf würden bei 1.250 Aufrufen das gesamte Tageskontingent verbrauchen. Sind 10.000 Reads für Mitgliederbereich und Timer reserviert, bleiben rechnerisch 1.000 solche Aufrufe. Bei angenommenen 4 KiB je Ergebnis einschließlich Indexanteil entspräche 1 GiB rund 262.000 Zeilen, vor Stammdaten und vorhandenem Datenbestand. Die tatsächliche Größe hängt unter anderem von belegten Disziplinen und Indizes ab. Nach einem kleinen Import Speicher und Nutzung in der Firebase-Konsole messen und mit den geplanten Altbeständen hochrechnen. Historische Importe wettkampfweise über mehrere Tage verteilen, wenn die Vorschauen die verbleibende Tagesreserve überschreiten.
 

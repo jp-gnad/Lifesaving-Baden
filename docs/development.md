@@ -35,6 +35,10 @@ Der lokale [Wettkampfimport](statistikimport.md) verwendet dieselben Python- und
 Mit `python tools/import_statistics.py` startet die Dateiauswahl für die Offlineprüfung.
 Die Parser- und Wiederholungstests laufen mit `npm test`. Der Firestore-Adapter und die
 Zugriffssperren für die Archiv-Collections werden zusätzlich mit `npm run test:rules` geprüft.
+Der Browser-Import liegt unter `admin-import.html`. SheetJS CE 0.20.3 ist mit der
+Apache-2.0-Lizenz unter `assets/vendor/sheetjs/` eingebunden. Die Python-Suite vergleicht
+die von beiden Importern erzeugten Dokumente anhand einer gemeinsamen XLSX-Arbeitsmappe.
+Für die produktive Freigabe zuerst die neuen Firestore-Regeln veröffentlichen.
 
 | Befehl | Prüft/öffnet |
 |---|---|

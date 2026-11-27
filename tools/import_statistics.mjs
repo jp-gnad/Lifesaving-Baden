@@ -22,6 +22,14 @@ function connect(emulator) {
 }
 
 function preview(plan) {
+  const competition = plan.find(item => item.collection === "statsCompetitions");
+  const phases = {
+    1: "1 = einziger Durchgang, keine separate Finalphase",
+    2: "1 = Vorlauf, 2 = Finale",
+    3: "1 = Vorlauf, 2 = Zwischenlauf, 3 = Finale",
+  };
+  const phaseDescription = phases[competition.data.phaseCount];
+  if (phaseDescription) console.log(`Wettkampfphasen: ${phaseDescription}`);
   const summary = {};
   for (const item of plan) {
     const counts = summary[item.collection] ??= { neu: 0, aktualisieren: 0, unverändert: 0 };
