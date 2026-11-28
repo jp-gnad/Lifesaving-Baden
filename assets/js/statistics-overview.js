@@ -9,6 +9,8 @@
   const dateText = value => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split("-").reverse().join(".") : "";
   const collectionNames = ["statsAthletes", "statsOrganizations", "statsDisciplines"];
   const collectionKey = (collection, id) => `${collection}/${id}`;
+  const disciplineColumns = [["Zeit", ""], ["Punkte", "archive-points"], ["Strafcode", ""], ["Strafe", ""]];
+  const hlwColumns = [["Punkte", "archive-points"], ["Status", ""]];
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
     if (text != null) node.textContent = text;
@@ -16,73 +18,148 @@
     return node;
   };
 
-  function renderTable(group, data, lookups) {
+  function compareDisciplines(lookups, a, b) {
+    return (lookups.disciplines.get(a)?.sortOrder ?? 99) - (lookups.disciplines.get(b)?.sortOrder ?? 99) || a.localeCompare(b);
+  }
+
+  function disciplineName(lookups, id) {
+    return lookups.disciplines.get(id)?.name ?? id;
+  }
+
+  function disciplineValues(entry, hlw) {
+    const penalty = core.penalties(entry, pointsText);
+    return hlw ? [pointsText(entry.points), penalty]
+      : [core.timeText(entry.timeMs), pointsText(entry.points), entry.faultCode || "-", penalty];
+  }
+
+  function renderTable(group, data, lookups, label) {
     const table = element("table", null, "statistics-archive-table");
-    table.setAttribute("aria-label", group.label);
-    const columns = new Set(group.rows.flatMap(row => Object.keys(row.disciplines ?? {})));
-    const disciplines = [...columns].map(id => ({
-      id, data: lookups.disciplines.get(id), hlw: id === "D018",
-    })).sort((a, b) => (a.data?.sortOrder ?? 99) - (b.data?.sortOrder ?? 99) || a.id.localeCompare(b.id));
+    table.setAttribute("aria-label", label);
+    const single = group.disciplineId;
+    const hlwOnly = single === "D018";
+    const disciplines = single ? [] : [...new Set(group.rows.flatMap(row => Object.keys(row.disciplines ?? {})))]
+      .sort((a, b) => compareDisciplines(lookups, a, b));
+    table.classList.toggle("statistics-archive-table-hlw", hlwOnly);
+    const columns = [["Nachname, Vorname", "archive-person"], ["Gliederung", "archive-org"], ["Jahrgang (JJ)", "archive-year"]];
+    if (!hlwOnly) columns.unshift([single ? "Platzierung" : "Gesamtplatzierung", "archive-place"]);
+    if (single) columns.push(...(hlwOnly ? hlwColumns : disciplineColumns));
+    else columns.push(["Gesamtpunkte", "archive-points"]);
     const columnWidths = element("colgroup");
-    for (const className of ["archive-place", "archive-person", "archive-org", "archive-year", "archive-points"]) {
-      columnWidths.append(element("col", null, className));
-    }
     const head = table.createTHead(), first = head.insertRow();
     const second = disciplines.length ? head.insertRow() : null;
-    for (const [label, className] of [["Gesamtplatzierung", "archive-place"], ["Nachname, Vorname", "archive-person"],
-      ["Gliederung", "archive-org"], ["Jahrgang (JJ)", "archive-year"], ["Gesamtpunkte", "archive-points"]]) {
-      const th = element("th", label, className);
+    for (const [title, className] of columns) {
+      columnWidths.append(element("col", null, className));
+      const th = element("th", title, className);
       th.scope = "col";
       th.rowSpan = second ? 2 : 1;
       if (className === "archive-place") {
-        th.setAttribute("aria-label", label);
-        th.replaceChildren(element("span", "Gesamt­platzierung", "archive-wide-label"),
+        th.setAttribute("aria-label", title);
+        th.replaceChildren(element("span", single ? title : "Gesamt­platzierung", "archive-wide-label"),
           element("span", "Platz", "archive-narrow-label"));
       }
       first.append(th);
     }
     table.prepend(columnWidths);
-    for (const discipline of disciplines) {
-      const fields = discipline.hlw ? ["Punkte", "Status"] : ["Platzierung", "Zeit", "Punkte", "Strafcode", "Strafe"];
+    for (const id of disciplines) {
+      const fields = id === "D018" ? hlwColumns : [["Platzierung", ""], ...disciplineColumns];
       const columnGroup = element("colgroup", null, "archive-discipline");
-      for (const [index, label] of fields.entries()) {
+      for (const [index, [title]] of fields.entries()) {
         columnGroup.append(element("col"));
-        const th = element("th", label, index === 0 ? "archive-discipline-start" : "");
+        const th = element("th", title, index === 0 ? "archive-discipline-start" : "");
         th.scope = "col";
         second.append(th);
       }
       table.insertBefore(columnGroup, head);
-      const title = element("th", discipline.data?.name ?? discipline.id, "archive-discipline-start");
+      const title = element("th", disciplineName(lookups, id), "archive-discipline-start");
       title.scope = "colgroup";
       title.colSpan = fields.length;
       first.append(title);
     }
     const body = table.createTBody();
-    for (const row of core.sortRows(group.rows, data.overall, lookups.athletes)) {
+    for (const row of core.sortRows(group.rows, data.overall, lookups.athletes, single)) {
       const athlete = lookups.athletes.get(row.athleteId);
       const overall = data.overall.get(row.athleteId);
       const person = element("th", core.name(athlete), "archive-person");
       person.scope = "row";
+      if (single && overall) person.append(element("small", `${core.placing(null, overall)} gesamt`, "archive-person-status"));
       const tr = body.insertRow();
-      tr.append(element("td", core.placing(row.place, overall), "archive-place"), person,
+      const singleEntry = single ? row.disciplines[single] : null;
+      if (!hlwOnly) {
+        const place = single ? core.placing(singleEntry.place, singleEntry.rankingStatus) : core.placing(row.place, overall);
+        tr.append(element("td", place, "archive-place"));
+      }
+      tr.append(person,
         element("td", lookups.organizations.get(core.organizationId(row))?.name ?? "—", "archive-org"),
-        element("td", core.birthYearText(athlete?.birthYear), "archive-year"),
-        element("td", pointsText(row.overallPoints), "archive-points"));
-      for (const { id, hlw } of disciplines) {
+        element("td", core.birthYearText(athlete?.birthYear), "archive-year"));
+      if (single) {
+        const fields = hlwOnly ? hlwColumns : disciplineColumns;
+        tr.append(...disciplineValues(singleEntry, hlwOnly).map((value, index) => element("td", value, fields[index][1])));
+      } else {
+        tr.append(element("td", pointsText(row.overallPoints), "archive-points"));
+      }
+      for (const id of disciplines) {
         const entry = row.disciplines?.[id] ?? {};
-        const values = hlw
-          ? [pointsText(entry.points), core.penalties(entry, pointsText)]
-          : [core.placing(entry.place, entry.rankingStatus), core.timeText(entry.timeMs), pointsText(entry.points),
-            entry.faultCode || "—", core.penalties(entry, pointsText)];
+        const values = disciplineValues(entry, id === "D018");
+        if (id !== "D018") values.unshift(core.placing(entry.place, entry.rankingStatus));
         tr.append(...values.map((value, index) => element("td", value, index === 0 ? "archive-discipline-start" : "")));
       }
     }
     const region = element("div", null, "statistics-archive-scroll");
     region.tabIndex = 0;
     region.setAttribute("role", "region");
-    region.setAttribute("aria-label", `Ergebnistabelle ${group.label}`);
+    region.setAttribute("aria-label", `Ergebnistabelle ${label}`);
     region.append(table);
     return region;
+  }
+
+  function renderSection(content, section, data, lookups, phaseCount, inline) {
+    const { disciplineId, tables } = section;
+    const discipline = disciplineId ? disciplineName(lookups, disciplineId) : null;
+    const title = discipline
+      ? [discipline, tables.length === 1 && phaseCount > 1 ? tables[0].label : null].filter(Boolean).join(" – ")
+      : section.label;
+    const panels = element("div", null, "statistics-archive-panels");
+
+    function showTables() {
+      if (discipline && tables.length > 1) {
+        const controls = element("div", null, "statistics-archive-phases");
+        controls.setAttribute("role", "group");
+        controls.setAttribute("aria-label", `Wettkampfphase für ${discipline}`);
+        const result = element("div");
+        const buttons = tables.map(table => {
+          const button = element("button", table.label);
+          button.type = "button";
+          button.addEventListener("click", () => select(table));
+          return button;
+        });
+        function select(table) {
+          buttons.forEach((button, index) => button.setAttribute("aria-pressed", String(tables[index] === table)));
+          result.replaceChildren(renderTable(table, data, lookups, `${discipline} – ${table.label}`));
+        }
+        controls.append(...buttons);
+        panels.append(controls, result);
+        select(tables[0]);
+        return;
+      }
+      for (const table of tables) {
+        if (tables.length > 1) panels.append(element("h3", table.classification || "Wertung ohne Angabe"));
+        const label = discipline ? title : [table.label, table.classification].filter(Boolean).join(" · ");
+        panels.append(renderTable(table, data, lookups, label));
+      }
+    }
+
+    if (inline) {
+      if (discipline) panels.append(element("h3", title));
+      content.append(panels);
+      showTables();
+      return;
+    }
+    const block = element("details", null, "statistics-archive-section");
+    block.append(element("summary", title), panels);
+    block.addEventListener("toggle", () => {
+      if (block.open && !panels.hasChildNodes()) showTables();
+    });
+    content.append(block);
   }
 
   function create(db, sessionActive) {
@@ -149,7 +226,8 @@
         block.append(summary);
         for (const gender of age.genders) {
           const group = element("details", null, "statistics-archive-gender");
-          const genderSummary = element("summary", `${gender.label} · ${gender.rows.length}`);
+          const athleteCount = new Set(gender.rows.map(row => row.athleteId)).size;
+          const genderSummary = element("summary", `${gender.label} · ${athleteCount}`);
           const content = element("div", null, "statistics-archive-results");
           group.append(genderSummary, content);
           block.append(group);
@@ -163,11 +241,10 @@
             try {
               const lookups = await loadGroup(event, gender.rows);
               requireDetail(event);
-              const tables = core.tables(gender.rows, phaseCount);
+              const sections = core.resultSections(gender.rows, phaseCount, (a, b) => compareDisciplines(lookups, a, b));
               content.replaceChildren();
-              for (const table of tables) {
-                if (tables.length > 1 || phaseCount > 1) content.append(element("h3", table.label));
-                content.append(renderTable(table, data, lookups));
+              for (const section of sections) {
+                renderSection(content, section, data, lookups, phaseCount, sections.length === 1 && phaseCount < 2);
               }
               loaded = true;
             } catch {

@@ -478,6 +478,9 @@ Anforderung und dient der Prüfung bestehender Dokument-IDs.
 `statistics-overview.js` lädt die Wettkampfliste nach Datum und liest die Ergebnisse
 des geöffneten Wettkampfs in begrenzten Seiten. Die Gruppierung nach Altersklasse,
 Geschlecht, Phase und Wertungsart liegt in `statistics-overview-core.js`.
+Mehrkampfwertungen erscheinen pro Phase. Einzelkampfwertungen erscheinen pro
+Disziplin mit einer Phasenauswahl, wenn mehrere Phasen für diese Disziplin
+vorliegen. Die Phasenauswahl arbeitet mit den bereits geladenen Ergebnissen.
 `statistics-import.js` lädt über `auth-core.js` die aktuelle Admin-Rolle.
 `statistics-excel-core.js` verarbeitet die Arbeitsmappe mit dem lokal eingebundenen
 SheetJS. Die ID-Bildung und das Ergebnisformat entsprechen dem bestehenden
