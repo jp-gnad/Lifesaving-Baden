@@ -228,6 +228,11 @@
 
 .statistics-structure-field dd { margin: 0; }
 .statistics-structure-field dt code { display: block; }
+.statistics-structure-audit { margin: 12px 0 20px; }
+.statistics-structure-audit-results { padding: 0 16px 14px; }
+.statistics-structure-audit-results p { margin: 4px 0; }
+.statistics-structure-audit-results code { overflow-wrap: anywhere; color: var(--muted); }
+.statistics-structure-audit-results li + li { margin-top: 9px; }
 @media (max-width: 620px) {
   .statistics-selectors { grid-template-columns: 1fr; }
   .statistics-import th, .statistics-import td { padding: 8px; }

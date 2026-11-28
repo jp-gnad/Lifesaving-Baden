@@ -19,6 +19,8 @@ Die Übersicht lädt Wettkämpfe in Seiten von 20 und die Ergebnisse des geöffn
 
 Unter **Datenbank → Struktur** lässt sich jeweils eine Sammlung auswählen. Die Ansichten für Disziplinen, Wettkämpfe, Athleten und Gliederungen erklären die Feldnamen und zeigen beim Aufklappen die gespeicherten Werte und Dokument-IDs. Bei Gliederungen stehen die Namen der übergeordneten oder nachfolgenden Organisation neben ihrer ID, sobald deren Dokument geladen ist. Die Stammdatenansicht ist schreibgeschützt und lädt jeweils bis zu 30 Einträge pro Seite.
 
+Unter **Struktur → Gliederungen → Mögliche Dubletten prüfen** lassen sich gleich oder ähnlich benannte Gliederungen derselben Ebene anhand ihrer Verbandspfade und Dokument-IDs vergleichen. Der Bericht verwendet die bereits geladenen Einträge und ergänzt den Rest in Seiten von bis zu 50 Dokumenten. Die Ergebnisse sind Prüfkandidaten. Die Gliederungs-ID beruht auf dem Excel-Namen und der Eltern-ID, sodass unterschiedliche Eingabekürzel trotz gleichem Anzeigenamen oder abweichende Hierarchien verschiedene IDs ergeben können.
+
 ## Lokaler Import unter Windows
 
 Die Kommandozeile bleibt für lokale Prüfungen und Wartung verfügbar.

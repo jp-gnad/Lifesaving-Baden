@@ -80,6 +80,8 @@
     const ui = Object.fromEntries([...document.querySelectorAll('[id^="structure-"]')]
       .map(node => [node.id.slice(10), node]));
     let visible = false, revision = 0, cursor = null, loading = false, finished = false, count = 0;
+    let auditing = false;
+    const organizations = new Map();
     const links = new Map();
 
     function current(token) {
@@ -98,9 +100,14 @@
       loading = finished = false;
       count = 0;
       links.clear();
+      organizations.clear();
+      auditing = false;
       ui.records.replaceChildren();
       ui.more.disabled = false;
       ui.more.hidden = true;
+      ui["audit-button"].disabled = false;
+      ui["audit-results"].replaceChildren();
+      auditMessage("");
       message("");
     }
 
@@ -108,6 +115,7 @@
       const choice = ui.choice.value;
       const set = sets[choice];
       ui.schema.hidden = !set;
+      ui.audit.hidden = choice !== "statsOrganizations";
       ui.title.textContent = set?.label ?? "";
       ui.fields.replaceChildren();
       if (!set) return;
@@ -181,6 +189,9 @@
         const query = db.collection(collection).orderBy(set.order, set.direction).limit(pageSize);
         const page = await (cursor ? query.startAfter(cursor) : query).get({ source: "server" });
         if (!current(token)) return;
+        if (collection === "statsOrganizations") {
+          for (const doc of page.docs) organizations.set(doc.id, { ...doc.data(), id: doc.id });
+        }
         ui.records.append(...page.docs.map(doc => renderDocument(doc, collection, set, token)));
         cursor = page.docs.at(-1) ?? cursor;
         count += page.docs.length;
@@ -203,12 +214,72 @@
       }
     }
 
+    function auditMessage(text, state = "") {
+      const status = ui["audit-status"];
+      status.textContent = text;
+      status.dataset.state = state;
+      status.hidden = !text;
+    }
+
+    function renderCandidates(groups) {
+      ui["audit-results"].replaceChildren(...groups.map(group => {
+        const card = element("details", undefined, "statistics-structure-record");
+        card.append(element("summary", `${group.type} · ${group.name} (${group.entries.length})`));
+        const content = element("div", undefined, "statistics-structure-audit-results");
+        content.append(element("p", group.reason));
+        const list = element("ul");
+        for (const entry of group.entries) {
+          const row = element("li");
+          row.append(element("strong", entry.name),
+            element("p", entry.path.length ? entry.path.join(" → ") : "Oberste Gliederung"),
+            element("code", entry.id));
+          list.append(row);
+        }
+        content.append(list);
+        card.append(content);
+        return card;
+      }));
+    }
+
+    async function auditOrganizations() {
+      const token = revision;
+      if (!current(token) || ui.choice.value !== "statsOrganizations" || auditing) return;
+      auditing = true;
+      ui["audit-button"].disabled = true;
+      ui["audit-results"].replaceChildren();
+      auditMessage("Gliederungen werden auf ähnliche Einträge geprüft …");
+      const records = new Map(organizations);
+      let last = cursor, complete = finished;
+      try {
+        const query = db.collection("statsOrganizations").orderBy("name", "asc").limit(50);
+        while (!complete) {
+          const page = await (last ? query.startAfter(last) : query).get({ source: "server" });
+          if (!current(token)) return;
+          for (const doc of page.docs) records.set(doc.id, { ...doc.data(), id: doc.id });
+          complete = page.docs.length < 50;
+          last = page.docs.at(-1);
+        }
+        const groups = window.LifesavingStatisticsOrganizationAudit.findCandidates([...records.values()]);
+        renderCandidates(groups);
+        const countLabel = groups.length === 1 ? "1 Gruppe" : `${groups.length} Gruppen`;
+        auditMessage(groups.length ? `${countLabel} mit möglichen Dubletten` : "Keine möglichen Dubletten gefunden.");
+      } catch {
+        if (current(token)) auditMessage("Die Gliederungen konnten nicht vollständig geprüft werden.", "error");
+      } finally {
+        if (token === revision) {
+          auditing = false;
+          ui["audit-button"].disabled = false;
+        }
+      }
+    }
+
     ui.choice.addEventListener("change", () => {
       reset();
       renderSchema();
       loadPage();
     });
     ui.more.addEventListener("click", loadPage);
+    ui["audit-button"].addEventListener("click", auditOrganizations);
 
     return Object.freeze({
       show() { visible = true; if (!count) loadPage(); },
