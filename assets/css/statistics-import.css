@@ -244,3 +244,67 @@
   .statistics-archive-table .archive-narrow-label { display: inline; }
   .statistics-structure-field { grid-template-columns: 1fr; gap: 4px; }
 }
+
+.statistics-org-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.statistics-org-row, .statistics-org-node, .statistics-org-content {
+  min-width: 0;
+}
+
+.statistics-org-node {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.statistics-org-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 12px;
+  list-style: none;
+}
+
+.statistics-org-summary::-webkit-details-marker { display: none; }
+.statistics-org-summary::before {
+  content: "";
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin-inline: 2px 4px;
+  border: solid var(--muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+}
+
+.statistics-org-node[open] > .statistics-org-summary::before { transform: rotate(45deg); }
+.statistics-org-summary:hover { color: var(--primary); }
+.statistics-org-name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.statistics-org-type, .statistics-org-state { color: var(--muted); font-size: .78rem; }
+.statistics-org-type {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.statistics-org-content { padding: 0 10px 7px; }
+.statistics-org-branch { padding-inline-start: 10px; border-inline-start: 1px solid var(--line); }
+.statistics-org-branch .statistics-org-node { background: var(--bg); }
+.statistics-org-properties { margin-top: 4px; color: var(--muted); }
+.statistics-org-properties > summary { padding: 8px 4px; font-size: .86rem; }
+.statistics-org-properties .statistics-structure-values { margin: 0 4px 4px; color: var(--text); }
+.statistics-org-content > .statistics-structure-values { margin: 0 2px 4px; }
+.statistics-org-status, .statistics-org-more { margin-block: 8px 4px; }
+
+@media (max-width: 620px) {
+  .statistics-org-content { padding-inline: 5px; }
+  .statistics-org-branch { padding-inline-start: 5px; }
+  .statistics-org-summary { gap: 6px; padding-inline: 7px; }
+}

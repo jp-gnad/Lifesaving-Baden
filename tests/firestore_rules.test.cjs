@@ -200,6 +200,14 @@ test("archive aliases can be assigned down an equivalent hierarchy and preserve 
   }
   await assertFails(sdk.updateDoc(ref(admin, directOg), { aliasOf: og.id }));
   await assertFails(sdk.deleteDoc(ref(admin, oldOg)));
+  const organizations = sdk.collection(admin, "statsOrganizations");
+  const legacyParents = await assertSucceeds(sdk.getDocs(sdk.query(organizations,
+    sdk.where("aliasOf", "==", lv.id), sdk.limit(30))));
+  assert.deepEqual(legacyParents.docs.map(doc => doc.id), [oldLv.id]);
+  const children = await assertSucceeds(sdk.getDocs(sdk.query(organizations,
+    sdk.where("parentId", "in", [lv.id, oldLv.id]), sdk.limit(30))));
+  assert.deepEqual(new Set(children.docs.filter(doc => !doc.data().aliasOf).map(doc => doc.id)),
+    new Set([bz.id, directOg.id]));
 });
 
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {

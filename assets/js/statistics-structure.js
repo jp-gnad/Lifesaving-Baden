@@ -83,7 +83,7 @@
     let visible = false, revision = 0, cursor = null, loading = false, finished = false, count = 0;
     let auditing = false;
     let pendingAliases = [];
-    const organizations = new Map();
+    let treeMounted = false;
     const links = new Map();
 
     function current(token) {
@@ -102,7 +102,7 @@
       loading = finished = false;
       count = 0;
       links.clear();
-      organizations.clear();
+      treeMounted = false;
       auditing = false;
       pendingAliases = [];
       ui.records.replaceChildren();
@@ -146,6 +146,28 @@
       return links.get(id);
     }
 
+    function renderFields(doc, data, collection, set, token) {
+      const known = new Set(set.fields.map(([key]) => key));
+      const fields = [documentIdField, ...set.fields, ...Object.keys(data)
+        .filter(key => !known.has(key)).map(key => [key, key])];
+      const values = element("dl", undefined, "statistics-structure-values");
+      for (const [key, label] of fields) {
+        const row = element("div", undefined, "statistics-structure-field");
+        const term = element("dt", label);
+        if (key && label !== key) term.append(" ", element("code", key));
+        const value = key ? data[key] : doc.id;
+        const display = element("dd", storedValue(value));
+        row.append(term, display);
+        values.append(row);
+        if (collection === "statsOrganizations" && organizationLinks.includes(key) && /^C[a-f0-9]{32}$/.test(value)) {
+          getLinkedName(value).then(name => {
+            if (name && current(token)) display.prepend(`${name} · `);
+          });
+        }
+      }
+      return values;
+    }
+
     function renderDocument(doc, collection, set, token) {
       const data = doc.data();
       const detail = element("details", undefined, "statistics-structure-record");
@@ -158,25 +180,7 @@
       detail.append(summary);
       detail.addEventListener("toggle", () => {
         if (!current(token) || !detail.open || detail.childElementCount > 1) return;
-        const known = new Set(set.fields.map(([key]) => key));
-        const fields = [documentIdField, ...set.fields, ...Object.keys(data)
-          .filter(key => !known.has(key)).map(key => [key, key])];
-        const values = element("dl", undefined, "statistics-structure-values");
-        for (const [key, label] of fields) {
-          const row = element("div", undefined, "statistics-structure-field");
-          const term = element("dt", label);
-          if (key && label !== key) term.append(" ", element("code", key));
-          const value = key ? data[key] : doc.id;
-          const display = element("dd", storedValue(value));
-          row.append(term, display);
-          values.append(row);
-          if (collection === "statsOrganizations" && organizationLinks.includes(key) && /^C[a-f0-9]{32}$/.test(value)) {
-            getLinkedName(value).then(name => {
-              if (name && current(token)) display.prepend(`${name} · `);
-            });
-          }
-        }
-        detail.append(values);
+        detail.append(renderFields(doc, data, collection, set, token));
       });
       return detail;
     }
@@ -186,6 +190,13 @@
       const set = sets[collection];
       const token = revision;
       if (!set || !current(token) || loading || finished) return;
+      if (collection === "statsOrganizations") {
+        if (treeMounted) return;
+        treeMounted = true;
+        window.LifesavingStatisticsOrganizationTree.mount(db.collection(collection), ui.records,
+          () => current(token), (doc, data) => renderFields(doc, data, collection, set, token));
+        return;
+      }
       loading = true;
       ui.more.disabled = true;
       message(`${set.label} werden geladen …`);
@@ -193,18 +204,13 @@
         const query = db.collection(collection).orderBy(set.order, set.direction).limit(pageSize);
         const page = await (cursor ? query.startAfter(cursor) : query).get({ source: "server" });
         if (!current(token)) return;
-        if (collection === "statsOrganizations") {
-          for (const doc of page.docs) organizations.set(doc.id, { ...doc.data(), id: doc.id });
-        }
-        const displayed = collection === "statsOrganizations" ? page.docs.filter(doc => !doc.data().aliasOf) : page.docs;
-        ui.records.append(...displayed.map(doc => renderDocument(doc, collection, set, token)));
+        ui.records.append(...page.docs.map(doc => renderDocument(doc, collection, set, token)));
         cursor = page.docs.at(-1) ?? cursor;
         count += page.docs.length;
         finished = page.docs.length < pageSize;
         ui.more.textContent = "Weitere Einträge laden";
         ui.more.hidden = finished;
-        message(!count ? "In dieser Sammlung sind noch keine Einträge gespeichert."
-          : !ui.records.childElementCount && !finished ? "Weitere Einträge laden, um die zugeordneten Gliederungen zu sehen." : "");
+        message(count ? "" : "In dieser Sammlung sind noch keine Einträge gespeichert.");
       } catch (error) {
         if (!current(token)) return;
         const denied = ["permission-denied", "firestore/permission-denied"].includes(error.code);
@@ -261,8 +267,8 @@
       pendingAliases = [];
       ui["audit-results"].replaceChildren();
       auditMessage("Gliederungen werden auf ähnliche Einträge geprüft …");
-      const records = new Map(organizations);
-      let last = cursor, complete = finished;
+      const records = new Map();
+      let last = null, complete = false;
       try {
         const query = db.collection("statsOrganizations").orderBy("name", "asc").limit(50);
         while (!complete) {

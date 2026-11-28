@@ -470,6 +470,8 @@ vollständige Export möglich. Erfolgreiche kleine PDF-Bilder werden begrenzt wi
 `admin-import.html` ist die Admin-Datenbank mit Übersicht, Struktur und historischem Wettkampfimport.
 `statistics-structure.js` zeigt Feldbeschreibungen und Stammdaten der gewählten
 Sammlung in Seiten von bis zu 30 Einträgen.
+`statistics-organization-tree.js` lädt im Gliederungsbaum anfangs Bundesverbände
+und beim Öffnen die direkten Kinder einschließlich der Kinder zugeordneter Alt-IDs.
 Die Dublettenprüfung unter Gliederungen nutzt `statistics-organization-audit.js`
 für den Vergleich von Namen und Verbandspfaden. Sie lädt weitere Seiten auf
 Anforderung und dient der Prüfung bestehender Dokument-IDs.
