@@ -84,8 +84,9 @@
   }
 
   function organizationId(result) {
-    const key = startFields[String(result.startRight ?? "").trim().toUpperCase()] || "ogId";
-    return result[key];
+    const level = String(result.startRight ?? "").trim().toUpperCase();
+    if (!level) return result.ogId ?? result.bzId ?? result.lvId ?? result.bvId;
+    return result[startFields[level] || "ogId"];
   }
 
   function name(athlete) {

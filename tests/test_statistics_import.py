@@ -65,6 +65,11 @@ class StatisticsImport(unittest.TestCase):
             other_club[4:8] = ["Bermatingen/Markdorf", "Bodenseekreis", "Baden", "DEU"]
             other_club[99] = first[99]
             sheet.append(other_club)
+            district_only = line(name="Beispiel, Lena")
+            district_only[4:8] = [None, "Mannheim", "BA", "GER"]
+            district_only[99] = first[99]
+            district_only[105] = "BZ"
+            sheet.append(district_only)
             sheet.merge_cells(start_row=1, start_column=14, end_row=1, end_column=18)
             sheet.cell(4, 20).number_format = "m:ss.00"
             sheet.cell(4, 20).value = 54860 / 86400000
@@ -99,6 +104,13 @@ class StatisticsImport(unittest.TestCase):
             self.assertIsNone(result_row["bzId"])
             self.assertEqual(organization["parentId"], result_row["lvId"])
             self.assertTrue(any(doc["data"].get("name") == "Bermatingen-Markdorf" for doc in actual["records"]))
+            district = next(doc for doc in actual["records"] if doc["data"].get("name") == "Mannheim")
+            district_result = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsResults"
+                                   and doc["data"]["bzId"] == district["id"])
+            self.assertEqual(district["data"]["type"], "BZ")
+            self.assertEqual(district["data"]["parentId"], district_result["lvId"])
+            self.assertIsNone(district_result["ogId"])
+            self.assertEqual(district_result["startRight"], "BZ")
             athlete = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsAthletes")
             self.assertEqual(athlete["birthYear"], 2016)
             sheet.cell(3, 10).value = "=5+7"

@@ -88,3 +88,12 @@ test("overview displays ranking, penalty, start rights and historical time data 
   assert.equal(core.penalties({ status: "DNS" }, String), "n.a.");
   assert.equal(core.penalties({ status: "PASS" }, String), "bestanden");
 });
+
+test("overview displays the district for results without a local group and honors explicit start rights", () => {
+  const result = { ogId: null, bzId: "mannheim", lvId: "baden", bvId: "deutschland" };
+  assert.equal(core.organizationId({ ...result, startRight: "BZ" }), "mannheim");
+  assert.equal(core.organizationId({ ...result, startRight: "" }), "mannheim");
+  assert.equal(core.organizationId({ ...result, startRight: "LV" }), "baden");
+  assert.equal(core.organizationId({ ...result, startRight: "OG" }), null);
+  assert.equal(core.organizationId({ ...result, bzId: null }), "baden");
+});

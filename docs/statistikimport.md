@@ -72,7 +72,9 @@ Der Import ermittelt die Phasenanzahl aus der höchsten Phasennummer in den Zeil
 
 ### Identität und Prüffälle
 
-In der Excel-Spalte BV führen `GER`, `DEU`, `DE` und `Deutschland` zur selben ID und zum Anzeigenamen „Deutschland“. Beim nächsten bestätigten Import wird ein bereits gespeicherter Name `GER` unter derselben ID aktualisiert. Sind in der Excel-Zeile die Heimat-OG und ihre Verbandsebenen eingetragen, bleiben diese auch bei einem Start für den LV oder BV nachvollziehbar. Steht eine Ortsgruppe ohne Bezirk direkt unter dem Landesverband, bleibt `BZ` in Excel leer. Der Import speichert dann den LV als übergeordnete Gliederung der OG und lässt die Bezirks-ID im Ergebnis leer. Eine leere OG-Zelle wird als fehlende Zuordnung gespeichert.
+In der Excel-Spalte BV führen `GER`, `DEU`, `DE` und `Deutschland` zur selben ID und zum Anzeigenamen "Deutschland". Beim nächsten bestätigten Import wird ein bereits gespeicherter Name `GER` unter derselben ID aktualisiert. Sind in der Excel-Zeile die Heimat-OG und ihre Verbandsebenen eingetragen, bleiben diese auch bei einem Start für den LV oder BV nachvollziehbar. Steht eine Ortsgruppe ohne Bezirk direkt unter dem Landesverband, bleibt `BZ` in Excel leer. Der Import speichert dann den LV als übergeordnete Gliederung der OG und lässt die Bezirks-ID im Ergebnis leer.
+
+Ist der Bezirk die unterste Gliederung, bleibt `OG` leer. Für einen Start für Mannheim steht beispielsweise `Mannheim` in `BZ`, `Baden` in `LV`, `Deutschland` in `BV` und `BZ` in `St. Recht`. In der Ergebnisübersicht erscheint Mannheim. Ist `St. Recht` leer, erscheint die unterste eingetragene Gliederung.
 
 In der Excel-Spalte LV führen Kürzel und ausgeschriebene Namen zur selben ID, etwa WÜ und Württemberg oder BA und Baden. Die [Zuordnung der Kürzel](../tools/lib/dlrg-landesverbaende.json) umfasst die 18 Landesverbände. Ein unbekanntes deutsches Kurzkürzel erscheint mit Zeilennummer zur Prüfung. Bereits importierte Kürzel werden beim nächsten bestätigten Import desselben Verbands unter der vorhandenen ID ausgeschrieben. [Landesverbände der DLRG](https://www.dlrg.de/informieren/die-dlrg/kontakt-und-ansprechpartner/landesverbaende/)
 
