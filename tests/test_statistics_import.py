@@ -54,12 +54,17 @@ class StatisticsImport(unittest.TestCase):
                 row[1] = "W"
                 row[2] = "13/14"
                 row[4:7] = ["Norderstedt", None, "SH"]
+            second[6:8] = ["Schleswig-Holstein", "Deutschland"]
             first[13:18] = ["AK", "0:54,86", 0, "R17", "disq"]
             first[98] = "n.a."
             second[8] = "ausg."
             second[98] = 500
             sheet.append(first)
             sheet.append(second)
+            other_club = line(name="Beispiel, Eva")
+            other_club[4:8] = ["Bermatingen/Markdorf", "Bodenseekreis", "Baden", "DEU"]
+            other_club[99] = first[99]
+            sheet.append(other_club)
             sheet.merge_cells(start_row=1, start_column=14, end_row=1, end_column=18)
             sheet.cell(4, 20).number_format = "m:ss.00"
             sheet.cell(4, 20).value = 54860 / 86400000
@@ -93,6 +98,7 @@ class StatisticsImport(unittest.TestCase):
             organization = next(doc["data"] for doc in actual["records"] if doc["id"] == result_row["ogId"])
             self.assertIsNone(result_row["bzId"])
             self.assertEqual(organization["parentId"], result_row["lvId"])
+            self.assertTrue(any(doc["data"].get("name") == "Bermatingen-Markdorf" for doc in actual["records"]))
             athlete = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsAthletes")
             self.assertEqual(athlete["birthYear"], 2016)
             sheet.cell(3, 10).value = "=5+7"
@@ -137,6 +143,28 @@ class StatisticsImport(unittest.TestCase):
                 docs, _ = parse(row)
                 competition = next(d["data"] for d in docs if d["collection"] == "statsCompetitions")
                 self.assertEqual(competition["country"], expected)
+
+    def test_confirmed_aliases_preserve_the_id_of_the_standard_hierarchy(self):
+        from lib.statistics_excel import stable_id
+        canonical = line()
+        canonical[4:8] = ["Bermatingen-Markdorf", "Bodenseekreis", "BA", "GER"]
+        expected, _ = parse(canonical)
+        alias = canonical.copy()
+        alias[4:8] = ["Bermatingen / Markdorf", "Bodenseekreis", "Baden", "Deutschland"]
+        actual, _ = parse(alias)
+        self.assertEqual(actual, expected)
+
+        result = next(doc["data"] for doc in actual if doc["collection"] == "statsResults")
+        bv_id = stable_id("C", "BV", None, "ger")
+        lv_id = stable_id("C", "LV", bv_id, "ba")
+        bz_id = stable_id("C", "BZ", lv_id, "bodenseekreis")
+        self.assertEqual((result["bvId"], result["lvId"], result["bzId"]), (bv_id, lv_id, bz_id))
+        self.assertEqual(result["ogId"], stable_id("C", "OG", bz_id, "bermatingen-markdorf"))
+        alias[5] = "Bodensee-Konstanz"
+        different, _ = parse(alias)
+        separate = next(doc for doc in different if doc["collection"] == "statsResults")
+        self.assertNotEqual(separate["data"]["ogId"], result["ogId"])
+        self.assertEqual(separate["id"], next(doc["id"] for doc in actual if doc["collection"] == "statsResults"))
 
     def test_lv_names_expand_only_for_german_state_associations(self):
         from lib.statistics_excel import stable_id

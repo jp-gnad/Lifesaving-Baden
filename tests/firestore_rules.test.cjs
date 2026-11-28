@@ -82,20 +82,23 @@ test("statistics archive imports resume, repeat and update only confirmed rows",
 
 test("statistics archive supports admin-only imports and bounded overviews without deletion", { skip: !enabled }, async () => {
   const store = require("../assets/js/statistics-import-store.js");
+  const oldFederationId = "C" + "8".repeat(32);
+  const federationId = "C" + "9".repeat(32);
   await seed({ "users/stats-admin": { role: "admin" },
-    "users/stats-deleting": { role: "admin", accountDeletionStartedAt: sdk.Timestamp.now() } });
+    "users/stats-deleting": { role: "admin", accountDeletionStartedAt: sdk.Timestamp.now() },
+    [`statsOrganizations/${oldFederationId}`]: { name: "Deutschland", type: "BV", parentId: null } });
   const athleteId = "A" + "1".repeat(32), competitionId = "W" + "1".repeat(32);
   const record = (collection, id, data) => ({ collection, id, data, row: 3 });
   const records = [
     record("statsAthletes", athleteId, { firstName: "Mia", lastName: "Muster", gender: "w", birthYear: 2001, discriminator: null }),
-    record("statsOrganizations", "C" + "9".repeat(32), { name: "Deutschland", type: "BV", parentId: null }),
+    record("statsOrganizations", federationId, { name: "Deutschland", type: "BV", parentId: null }),
     record("statsCompetitions", competitionId, { name: "Wettkampf", fullName: "", date: "2026-11-14",
       city: "", country: "Deutschland", rule: "", poolLength: 25, phaseCount: 1 }),
     record("statsDisciplines", "D018", { name: "HLW", category: "HLW", distance: null, sortOrder: 18 }),
   ];
   for (let i = 0; i < 26; i++) {
     records.push(record("statsResults", "Rf" + String(i).padStart(31, "0"), {
-      athleteId, competitionId, ogId: null, bzId: null, lvId: null, bvId: null,
+      athleteId, competitionId, ogId: null, bzId: null, lvId: null, bvId: oldFederationId,
       gender: "w", ageGroup: "Standard", startRight: "OG", round: 1, classification: "3Kampf",
       place: null, rankingStatus: "AK", overallPoints: 570, lsc: null,
       disciplines: { D018: { points: 200, status: "PASS" } },
@@ -126,12 +129,16 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   const recordToChange = records.at(-1);
   const ref = sdk.doc(admin, recordToChange.collection, recordToChange.id);
   recordToChange.data.overallPoints = 600;
+  recordToChange.data.bvId = federationId;
   const outdated = await store.compare(admin, [recordToChange], {}, noop);
   await assertSucceeds(sdk.updateDoc(ref, { overallPoints: 610 }));
   await assert.rejects(store.apply(admin, outdated, noop, noop), /seit der Vorschau geändert/);
   assert.equal((await sdk.getDoc(ref)).data().overallPoints, 610);
   await assertSucceeds(store.apply(admin, await store.compare(admin, [recordToChange], {}, noop), noop, noop));
-  assert.equal((await sdk.getDoc(ref)).data().overallPoints, 600);
+  const updated = (await sdk.getDoc(ref)).data();
+  assert.equal(updated.overallPoints, 600);
+  assert.equal(updated.bvId, federationId);
+  assert.ok((await sdk.getDoc(sdk.doc(admin, "statsOrganizations", oldFederationId))).exists());
   await assertFails(sdk.updateDoc(ref, { round: 2 }));
   await assertFails(sdk.setDoc(sdk.doc(admin, "statsResults", "invalid"), recordToChange.data));
   await assertFails(sdk.deleteDoc(ref));

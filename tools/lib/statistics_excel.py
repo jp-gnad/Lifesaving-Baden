@@ -26,6 +26,8 @@ FIELDS = ("Name", "Gender", "AK", "Age", "OG", "BZ", "LV", "BV", "PLACE", "3-Kam
           "Rule", "Land", "Stadt", "St. Recht", "Lauf", "Wertung", "WK-Name")
 BLOCK = ["pl", "time", "points", "c", "st"]
 LV_NAMES = json.loads(Path(__file__).with_name("dlrg-landesverbaende.json").read_text(encoding="utf-8"))
+LV_CODES = {name.upper(): code for code, name in LV_NAMES.items()}
+GERMAN_FEDERATION_VALUES = frozenset({"GER", "DE", "DEU", "DEUTSCHLAND"})
 
 
 def clean(value):
@@ -41,6 +43,21 @@ def heading(value):
 def country_name(value):
     name = clean(value)
     return "Deutschland" if name.upper() == "GER" else name
+
+
+def organization_identity(kind, name, federation):
+    upper = name.upper()
+    if kind == "BV" and upper in GERMAN_FEDERATION_VALUES:
+        return "ger", "Deutschland"
+    if kind == "LV" and (federation in GERMAN_FEDERATION_VALUES or federation == "DLRG"):
+        code = upper if upper in LV_NAMES else LV_CODES.get(upper)
+        if code:
+            return code.lower(), LV_NAMES[code]
+        if len(name) <= 3:
+            raise ValueError(f"Unbekanntes LV-Kürzel {name!r}. Bitte die Zuordnung prüfen.")
+    if kind == "OG" and re.fullmatch(r"Bermatingen\s*[-/]\s*Markdorf", name, re.I):
+        return "bermatingen-markdorf", "Bermatingen-Markdorf"
+    return name.lower(), name
 
 
 def stable_id(prefix, *parts):
@@ -219,6 +236,7 @@ def documents(values, fields, blocks, epoch):
     parent = None
     affiliations = {}
     previous_kind = None
+    federation = clean(row["BV"]).upper()
     for kind in ("BV", "LV", "BZ", "OG"):
         org = clean(row[kind])
         org_id = None
@@ -226,14 +244,8 @@ def documents(values, fields, blocks, epoch):
             required_parent = "LV" if kind == "OG" and not affiliations["bzId"] else previous_kind
             if required_parent and not affiliations[required_parent.lower()+"Id"]:
                 raise ValueError(f"{kind} {org!r}: zugehörigen {required_parent} zur eindeutigen Zuordnung ergänzen.")
-            org_id = stable_id("C", kind, parent, org.lower())
-            org_name = org
-            if kind == "BV":
-                org_name = country_name(org)
-            elif kind == "LV" and clean(row["BV"]).upper() in ("GER", "DE", "DEU", "DEUTSCHLAND", "DLRG"):
-                org_name = LV_NAMES.get(org.upper(), org)
-                if len(org) <= 3 and org.upper() not in LV_NAMES:
-                    raise ValueError(f"Unbekanntes LV-Kürzel {org!r}. Bitte die Zuordnung prüfen.")
+            org_key, org_name = organization_identity(kind, org, federation)
+            org_id = stable_id("C", kind, parent, org_key)
             docs.append(("statsOrganizations", org_id, dict(type=kind, name=org_name, parentId=parent)))
             parent = org_id
         affiliations[kind.lower()+"Id"] = org_id

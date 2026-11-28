@@ -9,6 +9,7 @@
   ];
   const ignored = ["4-Kampf (ohne HLW)", "LSC Change"];
   const maxAge = 100;
+  const germanFederationValues = new Set(["GER", "DE", "DEU", "DEUTSCHLAND"]);
   const fields = ["Name", "Gender", "AK", "Age", "OG", "BZ", "LV", "BV", "PLACE", "3-Kampf",
     "LSC", "HLW", "Datum", "Wettkampf", "Bahn", "Rule", "Land", "Stadt", "St. Recht", "Lauf", "Wertung", "WK-Name"];
   const block = ["pl", "time", "points", "c", "st"];
@@ -16,6 +17,20 @@
   const clean = value => String(value ?? "").normalize("NFC").trim().replace(/\s+/gu, " ");
   const heading = value => clean(value).toLowerCase().replace(/[\s.()/-]/gu, "");
   const countryName = value => clean(value).toUpperCase() === "GER" ? "Deutschland" : clean(value);
+
+  function organizationIdentity(kind, name, federation, regions) {
+    const upper = name.toUpperCase();
+    if (kind === "BV" && germanFederationValues.has(upper)) return ["ger", "Deutschland"];
+    if (kind === "LV" && (germanFederationValues.has(federation) || federation === "DLRG")) {
+      const region = regions.get(upper);
+      if (region) return region;
+      if (name.length <= 3) throw new Error(`Unbekanntes LV-Kürzel „${name}“.`);
+    }
+    if (kind === "OG" && /^Bermatingen\s*[-/]\s*Markdorf$/i.test(name)) {
+      return ["bermatingen-markdorf", "Bermatingen-Markdorf"];
+    }
+    return [name.toLowerCase(), name];
+  }
 
   function columns(top, bottom) {
     const labels = new Map([...fields, ...ignored].map(name => [heading(name), name]));
@@ -189,7 +204,7 @@
     };
   }
 
-  async function parseRow(cells, schema, date1904, lvNames, stableId) {
+  async function parseRow(cells, schema, date1904, regions, stableId) {
     if (cells.some((value, index) => clean(value) && !schema.used.has(index))) {
       throw new Error("Daten in Spalte ohne Überschrift.");
     }
@@ -221,7 +236,7 @@
     ];
     const affiliations = {};
     let parentId = null, previousKind = null;
-    const german = ["GER", "DE", "DEU", "DEUTSCHLAND", "DLRG"].includes(clean(value("BV")).toUpperCase());
+    const federation = clean(value("BV")).toUpperCase();
     for (const kind of ["BV", "LV", "BZ", "OG"]) {
       const org = clean(value(kind)), field = kind.toLowerCase() + "Id";
       affiliations[field] = null;
@@ -230,12 +245,8 @@
         if (requiredParent && !affiliations[requiredParent.toLowerCase() + "Id"]) {
           throw new Error(`${kind} „${org}“: Zugehörigen ${requiredParent} ergänzen.`);
         }
-        const id = await stableId("C", kind, parentId, org.toLowerCase());
-        let orgName = kind === "BV" ? countryName(org) : org;
-        if (kind === "LV" && german) {
-          orgName = lvNames[org.toUpperCase()] ?? org;
-          if (org.length <= 3 && orgName === org) throw new Error(`Unbekanntes LV-Kürzel „${org}“.`);
-        }
+        const [key, orgName] = organizationIdentity(kind, org, federation, regions);
+        const id = await stableId("C", kind, parentId, key);
         docs.push(["statsOrganizations", id, { type: kind, name: orgName, parentId }]);
         affiliations[field] = id;
         parentId = id;
@@ -265,11 +276,17 @@
     const rows = sheet.events.get(eventName);
     if (!rows?.length) throw new Error("Der ausgewählte Wettkampf enthält keine Zeilen.");
     const stableId = makeIdCache();
+    const regions = new Map();
+    for (const [code, name] of Object.entries(lvNames)) {
+      const region = [code.toLowerCase(), name];
+      regions.set(code, region);
+      regions.set(name.toUpperCase(), region);
+    }
     const records = new Map(), affiliations = new Map(), errors = [];
     let phaseCount = null, starts = 0;
     for (const [row, cells] of rows) {
       try {
-        const docs = await parseRow(cells, sheet.schema, date1904, lvNames, stableId);
+        const docs = await parseRow(cells, sheet.schema, date1904, regions, stableId);
         for (const [collection, id, data] of docs) {
           const previous = records.get(id);
           if (previous && collection === "statsResults") {
