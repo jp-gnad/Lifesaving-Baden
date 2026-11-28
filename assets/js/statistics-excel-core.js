@@ -272,16 +272,30 @@
     return docs;
   }
 
-  async function prepare(sheet, eventName, date1904, lvNames) {
-    const rows = sheet.events.get(eventName);
-    if (!rows?.length) throw new Error("Der ausgewählte Wettkampf enthält keine Zeilen.");
-    const stableId = makeIdCache();
+  function regionLookup(lvNames) {
     const regions = new Map();
     for (const [code, name] of Object.entries(lvNames)) {
       const region = [code.toLowerCase(), name];
       regions.set(code, region);
       regions.set(name.toUpperCase(), region);
     }
+    return regions;
+  }
+
+  function organizationKeys(lvNames) {
+    const regions = regionLookup(lvNames);
+    const stableId = makeIdCache();
+    return async (type, name, parentId, federation) => {
+      const [key, displayName] = organizationIdentity(type, clean(name), clean(federation).toUpperCase(), regions);
+      return { id: await stableId("C", type, parentId, key), name: displayName };
+    };
+  }
+
+  async function prepare(sheet, eventName, date1904, lvNames) {
+    const rows = sheet.events.get(eventName);
+    if (!rows?.length) throw new Error("Der ausgewählte Wettkampf enthält keine Zeilen.");
+    const stableId = makeIdCache();
+    const regions = regionLookup(lvNames);
     const records = new Map(), affiliations = new Map(), errors = [];
     let phaseCount = null, starts = 0;
     for (const [row, cells] of rows) {
@@ -320,7 +334,7 @@
     return { records: [...records.values()], competition, starts, errors };
   }
 
-  const api = Object.freeze({ readSheet, inspectSheet, prepare });
+  const api = Object.freeze({ readSheet, inspectSheet, prepare, organizationKeys });
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.LifesavingStatisticsExcel = api;
 })(globalThis);

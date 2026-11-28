@@ -19,7 +19,9 @@ Die Übersicht lädt Wettkämpfe in Seiten von 20 und die Ergebnisse des geöffn
 
 Unter **Datenbank → Struktur** lässt sich jeweils eine Sammlung auswählen. Die Ansichten für Disziplinen, Wettkämpfe, Athleten und Gliederungen erklären die Feldnamen und zeigen beim Aufklappen die gespeicherten Werte und Dokument-IDs. Bei Gliederungen stehen die Namen der übergeordneten oder nachfolgenden Organisation neben ihrer ID, sobald deren Dokument geladen ist. Die Stammdatenansicht ist schreibgeschützt und lädt jeweils bis zu 30 Einträge pro Seite.
 
-Unter **Struktur → Gliederungen → Mögliche Dubletten prüfen** lassen sich gleich oder ähnlich benannte Gliederungen derselben Ebene anhand ihrer Verbandspfade und Dokument-IDs vergleichen. Der Bericht verwendet die bereits geladenen Einträge und ergänzt den Rest in Seiten von bis zu 50 Dokumenten. Die Ergebnisse sind Prüfkandidaten. Bei früheren Importen konnten unterschiedliche Eingabekürzel trotz gleichem Anzeigenamen verschiedene IDs erzeugen.
+Unter **Struktur → Gliederungen → Mögliche Dubletten prüfen** lassen sich gleich oder ähnlich benannte Gliederungen derselben Ebene anhand ihrer Verbandspfade und Dokument-IDs vergleichen. Der Bericht verwendet die bereits geladenen Einträge und ergänzt den Rest in Seiten von bis zu 50 Dokumenten. Bei früheren Importen konnten unterschiedliche Eingabekürzel trotz gleichem Anzeigenamen verschiedene IDs erzeugen.
+
+Die Prüfung schlägt für eindeutig zuordenbare Alt-IDs das bereits vorhandene Dokument nach dem aktuellen Importschema vor. Die Eltern müssen auf denselben Verbandspfad führen. Aktivstatus und Nachfolger müssen übereinstimmen. **Alt-IDs zuordnen** speichert nach Bestätigung den Verweis `aliasOf`. Die Struktur listet danach den gemeinsamen Eintrag. Historische Ergebnisverweise bleiben gültig, weil die alten Dokumente bestehen bleiben. Die Liste der offenen Dubletten enthält weiterhin Fälle, für die es keine eindeutige Zuordnung gibt.
 
 ## Lokaler Import unter Windows
 

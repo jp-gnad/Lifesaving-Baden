@@ -7,6 +7,9 @@ Dokumentzugriff in den fünf Statistik-Collections. Rollen und begonnene
 Kontolöschungen werden von den Firestore-Regeln geprüft. Die Übersicht und die
 Strukturansicht verwenden begrenzte Listenabfragen mit höchstens 50 Dokumenten
 pro Abfrage. Löschvorgänge im Archiv sind für Browserclients gesperrt.
+Beim Zuordnen einer Alt-Gliederung prüfen die Regeln Zielname, Ebene, Eltern,
+Aktivstatus und Nachfolger. Das Ziel darf selber keine Alt-ID sein. Die Änderung
+betrifft ausschließlich den Verweis `aliasOf` am Quelldokument.
 Ergebnis-Updates bewahren Sportler-, Wettkampf- und Phasenidentität sowie
 eventuell vorhandene Altspalten. Die Excel-Datei bleibt beim Browser.
 

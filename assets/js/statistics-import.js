@@ -349,7 +349,7 @@
   const db = window.firebase.firestore();
   const sessionActive = () => user && authCore.isCurrentUser(user);
   const overview = window.LifesavingStatisticsOverview.create(db, sessionActive);
-  const structure = window.LifesavingStatisticsStructure.create(db, sessionActive);
+  const structure = window.LifesavingStatisticsStructure.create(db, sessionActive, lvNames);
 
   function showSection() {
     if (!user) return;

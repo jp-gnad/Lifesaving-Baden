@@ -1477,6 +1477,28 @@ service cloud.firestore {
     }
 
     match /statsOrganizations/{id} {
+      function equivalentArchiveName(before, target) {
+        let source = before.name.trim().lower();
+        let name = target.name.trim().lower();
+        return source == name
+          || (before.type == "BV" && source in ["ger", "de", "deu", "deutschland"] && name == "deutschland")
+          || (before.type == "OG" && name == "bermatingen-markdorf" && source.matches('^bermatingen *[-/] *markdorf$'));
+      }
+      function equivalentArchiveParent(before, target) {
+        return before.parentId == target.parentId
+          || (statisticsId(before.parentId, "C") && statisticsId(target.parentId, "C")
+            && getAfter(/databases/$(database)/documents/statsOrganizations/$(before.parentId)).data.get("aliasOf", null)
+              == target.parentId);
+      }
+      function assignArchiveAlias(targetId) {
+        let target = getAfter(/databases/$(database)/documents/statsOrganizations/$(targetId)).data;
+        let before = resource.data;
+        return targetId != id && before.get("aliasOf", null) == null && target.get("aliasOf", null) == null
+          && before.type == target.type && equivalentArchiveName(before, target)
+          && before.get("active", true) == target.get("active", true)
+          && before.get("successorId", null) == target.get("successorId", null)
+          && equivalentArchiveParent(before, target);
+      }
       allow get: if statisticsAdmin() && statisticsId(id, "C");
       allow list: if statisticsList();
       allow create: if statisticsAdmin() && statisticsId(id, "C")
@@ -1485,8 +1507,11 @@ service cloud.firestore {
         && (request.resource.data.parentId == null || statisticsId(request.resource.data.parentId, "C"))
         && request.resource.data.active == true && request.resource.data.successorId == null;
       allow update: if statisticsAdmin() && statisticsId(id, "C")
-        && resource.data.type in ["BV", "LV"] && request.resource.data.name is string
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"]);
+        && ((resource.data.type in ["BV", "LV"] && request.resource.data.name is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"]))
+          || (statisticsId(request.resource.data.get("aliasOf", null), "C")
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["aliasOf"])
+            && assignArchiveAlias(request.resource.data.aliasOf)));
     }
 
     match /statsCompetitions/{id} {

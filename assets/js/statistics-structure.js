@@ -52,6 +52,7 @@
   const organizationLinks = ["parentId", "successorId"];
   const documentIdField = ["", "Dokument-ID", "Kennung des Firestore-Dokuments."];
   const pageSize = 30;
+  const aliasLabel = count => `${count} ${count === 1 ? "Alt-ID" : "Alt-IDs"}`;
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -76,11 +77,12 @@
     return preferred[collection].filter(Boolean).join(" · ");
   }
 
-  function create(db, sessionActive) {
+  function create(db, sessionActive, loadLvNames) {
     const ui = Object.fromEntries([...document.querySelectorAll('[id^="structure-"]')]
       .map(node => [node.id.slice(10), node]));
     let visible = false, revision = 0, cursor = null, loading = false, finished = false, count = 0;
     let auditing = false;
+    let pendingAliases = [];
     const organizations = new Map();
     const links = new Map();
 
@@ -102,10 +104,12 @@
       links.clear();
       organizations.clear();
       auditing = false;
+      pendingAliases = [];
       ui.records.replaceChildren();
       ui.more.disabled = false;
       ui.more.hidden = true;
       ui["audit-button"].disabled = false;
+      ui["audit-apply"].hidden = true;
       ui["audit-results"].replaceChildren();
       auditMessage("");
       message("");
@@ -192,13 +196,15 @@
         if (collection === "statsOrganizations") {
           for (const doc of page.docs) organizations.set(doc.id, { ...doc.data(), id: doc.id });
         }
-        ui.records.append(...page.docs.map(doc => renderDocument(doc, collection, set, token)));
+        const displayed = collection === "statsOrganizations" ? page.docs.filter(doc => !doc.data().aliasOf) : page.docs;
+        ui.records.append(...displayed.map(doc => renderDocument(doc, collection, set, token)));
         cursor = page.docs.at(-1) ?? cursor;
         count += page.docs.length;
         finished = page.docs.length < pageSize;
         ui.more.textContent = "Weitere Einträge laden";
         ui.more.hidden = finished;
-        message(count ? "" : "In dieser Sammlung sind noch keine Einträge gespeichert.");
+        message(!count ? "In dieser Sammlung sind noch keine Einträge gespeichert."
+          : !ui.records.childElementCount && !finished ? "Weitere Einträge laden, um die zugeordneten Gliederungen zu sehen." : "");
       } catch (error) {
         if (!current(token)) return;
         const denied = ["permission-denied", "firestore/permission-denied"].includes(error.code);
@@ -233,6 +239,11 @@
           row.append(element("strong", entry.name),
             element("p", entry.path.length ? entry.path.join(" → ") : "Oberste Gliederung"),
             element("code", entry.id));
+          if (entry.plannedAlias) {
+            const target = element("p", "Gemeinsame ID ");
+            target.append(element("code", entry.plannedAlias));
+            row.append(target);
+          }
           list.append(row);
         }
         content.append(list);
@@ -246,6 +257,8 @@
       if (!current(token) || ui.choice.value !== "statsOrganizations" || auditing) return;
       auditing = true;
       ui["audit-button"].disabled = true;
+      ui["audit-apply"].hidden = true;
+      pendingAliases = [];
       ui["audit-results"].replaceChildren();
       auditMessage("Gliederungen werden auf ähnliche Einträge geprüft …");
       const records = new Map(organizations);
@@ -259,14 +272,65 @@
           complete = page.docs.length < 50;
           last = page.docs.at(-1);
         }
-        const groups = window.LifesavingStatisticsOrganizationAudit.findCandidates([...records.values()]);
+        const audit = window.LifesavingStatisticsOrganizationAudit;
+        const all = [...records.values()];
+        const identify = window.LifesavingStatisticsExcel.organizationKeys(await loadLvNames());
+        if (!current(token)) return;
+        const aliases = await audit.planAliases(all, identify);
+        if (!current(token)) return;
+        pendingAliases = aliases;
+        const planned = new Map(aliases.map(({ source, target }) => [source.id, target.id]));
+        const openCount = audit.findCandidates(all.map(record =>
+          planned.has(record.id) ? { ...record, aliasOf: planned.get(record.id) } : record)).length;
+        const groups = audit.findCandidates(all, planned);
+        for (const group of groups) {
+          for (const entry of group.entries) entry.plannedAlias = planned.get(entry.id);
+        }
         renderCandidates(groups);
-        const countLabel = groups.length === 1 ? "1 Gruppe" : `${groups.length} Gruppen`;
-        auditMessage(groups.length ? `${countLabel} mit möglichen Dubletten` : "Keine möglichen Dubletten gefunden.");
+        ui["audit-apply"].hidden = !aliases.length;
+        const plannedLabel = `${aliases.length} eindeutige ${aliases.length === 1 ? "Alt-ID" : "Alt-IDs"}`;
+        ui["audit-apply"].textContent = `${plannedLabel} zuordnen`;
+        const countLabel = openCount === 1 ? "1 Gruppe" : `${openCount} Gruppen`;
+        const review = `${countLabel} mit möglichen Dubletten`;
+        auditMessage(aliases.length ? `${plannedLabel} · ${openCount ? review + " zur weiteren Prüfung" : "keine offenen Dubletten"}`
+          : openCount ? review : "Keine offenen Dubletten gefunden.");
       } catch {
         if (current(token)) auditMessage("Die Gliederungen konnten nicht vollständig geprüft werden.", "error");
       } finally {
         if (token === revision) {
+          auditing = false;
+          ui["audit-button"].disabled = false;
+        }
+      }
+    }
+
+    async function assignAliases() {
+      const token = revision;
+      const changes = pendingAliases;
+      if (!current(token) || auditing || !changes.length ||
+          !window.confirm(`${aliasLabel(changes.length)} den gemeinsamen Gliederungen zuordnen?`)) return;
+      auditing = true;
+      ui["audit-button"].disabled = true;
+      ui["audit-apply"].hidden = true;
+      auditMessage("Alt-IDs werden zugeordnet …");
+      try {
+        await window.LifesavingStatisticsOrganizationAudit.saveAliases(db, changes, () => {
+          if (!current(token)) throw new Error("Die Ansicht wurde gewechselt.");
+        });
+        if (!current(token)) return;
+        reset();
+        const after = revision;
+        await loadPage();
+        if (current(after)) {
+          auditMessage(`${aliasLabel(changes.length)} zugeordnet.`, "success");
+        }
+      } catch {
+        if (current(token)) {
+          auditMessage("Die Zuordnung konnte nicht vollständig gespeichert werden. Bitte erneut prüfen.", "error");
+          pendingAliases = [];
+        }
+      } finally {
+        if (current(token)) {
           auditing = false;
           ui["audit-button"].disabled = false;
         }
@@ -280,6 +344,7 @@
     });
     ui.more.addEventListener("click", loadPage);
     ui["audit-button"].addEventListener("click", auditOrganizations);
+    ui["audit-apply"].addEventListener("click", assignAliases);
 
     return Object.freeze({
       show() { visible = true; if (!count) loadPage(); },

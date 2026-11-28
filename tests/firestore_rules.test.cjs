@@ -168,6 +168,40 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   }
 });
 
+test("archive aliases can be assigned down an equivalent hierarchy and preserve the old documents", { skip: !enabled }, async () => {
+  const { saveAliases } = require("../assets/js/statistics-organization-audit.js");
+  const prefix = "statsOrganizations/";
+  const org = (n, name, type, parentId = null) => ({
+    id: "Ce" + String(n).padStart(31, "0"), name, type, parentId, active: true, successorId: null,
+  });
+  const bv = org(1, "Deutschland", "BV"), oldBv = org(2, "Deutschland", "BV");
+  const lv = org(3, "Baden", "LV", bv.id), oldLv = org(4, "Baden", "LV", oldBv.id);
+  const bz = org(5, "Bodenseekreis", "BZ", lv.id), oldBz = org(6, "Bodenseekreis", "BZ", oldLv.id);
+  const og = org(7, "Bermatingen-Markdorf", "OG", bz.id), oldOg = org(8, "Bermatingen/Markdorf", "OG", oldBz.id);
+  const directOg = org(9, "Bermatingen-Markdorf", "OG", oldLv.id);
+  await seed(Object.fromEntries([...Object.entries({ "users/stats-merge-admin": { role: "admin" } }),
+    ...[bv, oldBv, lv, oldLv, bz, oldBz, og, oldOg, directOg].map(({ id, ...data }) => [prefix + id, data])]));
+  const admin = dbFor("stats-merge-admin");
+  const ref = (db, record) => sdk.doc(db, prefix + record.id);
+  await assertFails(sdk.updateDoc(ref(dbFor("stats-normal-member"), oldBv), { aliasOf: bv.id }));
+  await assertFails(sdk.updateDoc(ref(admin, oldOg), { aliasOf: og.id }));
+  const cyclic = sdk.writeBatch(admin);
+  cyclic.update(ref(admin, oldBv), { aliasOf: bv.id });
+  cyclic.update(ref(admin, bv), { aliasOf: oldBv.id });
+  await assertFails(cyclic.commit());
+  const plan = [[oldBv, bv], [oldLv, lv], [oldBz, bz], [oldOg, og]].map(([source, target]) => ({ source, target }));
+  await assertSucceeds(saveAliases(admin, plan, () => {}));
+  await assertSucceeds(saveAliases(admin, plan, () => {}));
+  for (const { source, target } of plan) {
+    const stored = (await sdk.getDoc(ref(admin, source))).data();
+    assert.equal(stored.aliasOf, target.id);
+    assert.equal(stored.name, source.name);
+    assert.equal(stored.parentId, source.parentId);
+  }
+  await assertFails(sdk.updateDoc(ref(admin, directOg), { aliasOf: og.id }));
+  await assertFails(sdk.deleteDoc(ref(admin, oldOg)));
+});
+
 test("new-account notifications are owner-created but only admins can acknowledge them", { skip: !enabled }, async () => {
   await seed({ "users/notification-admin": { role: "admin", adminReviewPending: true } });
   const owner = dbFor("notification-new"), ref = sdk.doc(owner, "users/notification-new");
