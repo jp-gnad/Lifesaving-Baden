@@ -241,7 +241,8 @@
       const org = clean(value(kind)), field = kind.toLowerCase() + "Id";
       affiliations[field] = null;
       if (org) {
-        const requiredParent = kind === "OG" && !affiliations.bzId ? "LV" : previousKind;
+        // An OG can use the last available level, including the BV itself.
+        const requiredParent = kind === "OG" ? "BV" : previousKind;
         if (requiredParent && !affiliations[requiredParent.toLowerCase() + "Id"]) {
           throw new Error(`${kind} „${org}“: Zugehörigen ${requiredParent} ergänzen.`);
         }

@@ -70,6 +70,11 @@ class StatisticsImport(unittest.TestCase):
             district_only[99] = first[99]
             district_only[105] = "BZ"
             sheet.append(district_only)
+            direct_club = line(name="Beispiel, Hana")
+            direct_club[4:8] = ["VZS ČČK Tábor", None, None, "CZE"]
+            direct_club[28:33] = [None, None, 0, "dnf", "disq"]
+            direct_club[99] = first[99]
+            sheet.append(direct_club)
             sheet.merge_cells(start_row=1, start_column=14, end_row=1, end_column=18)
             sheet.cell(4, 20).number_format = "m:ss.00"
             sheet.cell(4, 20).value = 54860 / 86400000
@@ -111,6 +116,16 @@ class StatisticsImport(unittest.TestCase):
             self.assertEqual(district["data"]["parentId"], district_result["lvId"])
             self.assertIsNone(district_result["ogId"])
             self.assertEqual(district_result["startRight"], "BZ")
+            direct_org = next(doc for doc in actual["records"] if doc["data"].get("name") == "VZS ČČK Tábor")
+            direct_result = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsResults"
+                                 and doc["data"]["ogId"] == direct_org["id"])
+            czech_federation = next(doc for doc in actual["records"] if doc["data"].get("name") == "CZE")
+            self.assertEqual(direct_org["data"]["parentId"], czech_federation["id"])
+            self.assertEqual(direct_result["bvId"], czech_federation["id"])
+            self.assertIsNone(direct_result["bzId"])
+            self.assertIsNone(direct_result["lvId"])
+            self.assertEqual(direct_result["disciplines"]["D004"]["faultCode"], "dnf")
+            self.assertEqual(direct_result["disciplines"]["D004"]["status"], "DQ")
             athlete = next(doc["data"] for doc in actual["records"] if doc["collection"] == "statsAthletes")
             self.assertEqual(athlete["birthYear"], 2016)
             sheet.cell(3, 10).value = "=5+7"
@@ -119,6 +134,12 @@ class StatisticsImport(unittest.TestCase):
             invalid = subprocess.run(["node", "-e", command, str(path)], cwd=TOOLS.parent,
                                      capture_output=True, encoding="utf-8", check=True)
             self.assertIn("Formel ohne gespeichertes Ergebnis", json.loads(invalid.stdout)["errors"][0])
+
+    def test_local_group_without_a_federation_requires_an_excel_correction(self):
+        row = line()
+        row[4:8] = ["VZS ČČK Krnov", None, None, None]
+        with self.assertRaisesRegex(ValueError, "Zeile 3: .*BV.*ergänzen"):
+            parse(row)
 
     def test_competition_phase_count_uses_only_the_selected_event(self):
         for heats, count in (((1,), 1), ((1, 2), 2), ((3, 1, 2), 3), ((None,), None)):
@@ -338,7 +359,7 @@ class StatisticsImport(unittest.TestCase):
             parse(line(), other)
         with self.assertRaisesRegex(ValueError, "zugehörigen LV"):
             other = line()
-            other[5:7] = [None, None]
+            other[6] = None
             parse(other)
         with self.assertRaisesRegex(ValueError, "Widersprüchliche Stammdaten"):
             other = line(heat=2)

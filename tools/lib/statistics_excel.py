@@ -241,7 +241,8 @@ def documents(values, fields, blocks, epoch):
         org = clean(row[kind])
         org_id = None
         if org:
-            required_parent = "LV" if kind == "OG" and not affiliations["bzId"] else previous_kind
+            # An OG can use the last available level, including the BV itself.
+            required_parent = "BV" if kind == "OG" else previous_kind
             if required_parent and not affiliations[required_parent.lower()+"Id"]:
                 raise ValueError(f"{kind} {org!r}: zugehörigen {required_parent} zur eindeutigen Zuordnung ergänzen.")
             org_key, org_name = organization_identity(kind, org, federation)

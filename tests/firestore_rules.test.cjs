@@ -84,6 +84,7 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   const store = require("../assets/js/statistics-import-store.js");
   const oldFederationId = "C" + "8".repeat(32);
   const federationId = "C" + "9".repeat(32);
+  const directGroupId = "C" + "7".repeat(32);
   await seed({ "users/stats-admin": { role: "admin" },
     "users/stats-deleting": { role: "admin", accountDeletionStartedAt: sdk.Timestamp.now() },
     [`statsOrganizations/${oldFederationId}`]: { name: "Deutschland", type: "BV", parentId: null } });
@@ -92,13 +93,15 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   const records = [
     record("statsAthletes", athleteId, { firstName: "Mia", lastName: "Muster", gender: "w", birthYear: 2001, discriminator: null }),
     record("statsOrganizations", federationId, { name: "Deutschland", type: "BV", parentId: null }),
+    record("statsOrganizations", directGroupId, { name: "Direkte Ortsgruppe", type: "OG", parentId: federationId }),
     record("statsCompetitions", competitionId, { name: "Wettkampf", fullName: "", date: "2026-11-14",
       city: "", country: "Deutschland", rule: "", poolLength: 25, phaseCount: 1 }),
     record("statsDisciplines", "D018", { name: "HLW", category: "HLW", distance: null, sortOrder: 18 }),
   ];
   for (let i = 0; i < 26; i++) {
     records.push(record("statsResults", "Rf" + String(i).padStart(31, "0"), {
-      athleteId, competitionId, ogId: null, bzId: null, lvId: null, bvId: oldFederationId,
+      athleteId, competitionId, ogId: i === 0 ? directGroupId : null, bzId: null, lvId: null,
+      bvId: i === 0 ? federationId : oldFederationId,
       gender: "w", ageGroup: "Standard", startRight: "OG", round: 1, classification: "3Kampf",
       place: null, rankingStatus: "AK", overallPoints: 570, lsc: null,
       disciplines: { D018: { points: 200, status: "PASS" } },
@@ -124,8 +127,11 @@ test("statistics archive supports admin-only imports and bounded overviews witho
   assert.ok(plan.every(item => item.action === "new"));
   const progress = [];
   await assertSucceeds(store.apply(admin, plan, noop, (...counts) => progress.push(counts)));
-  assert.deepEqual(progress, [[25, 30], [30, 30]]);
+  assert.deepEqual(progress, [[25, 31], [31, 31]]);
   assert.ok((await store.compare(admin, records, {}, noop)).every(item => item.action === "same"));
+  const children = await assertSucceeds(sdk.getDocs(sdk.query(sdk.collection(admin, "statsOrganizations"),
+    sdk.where("parentId", "==", federationId), sdk.limit(30))));
+  assert.deepEqual(children.docs.map(doc => doc.id), [directGroupId]);
   const recordToChange = records.at(-1);
   const ref = sdk.doc(admin, recordToChange.collection, recordToChange.id);
   recordToChange.data.overallPoints = 600;
